@@ -1,0 +1,11 @@
+import { PrismaClient } from "@prisma/client";
+const db = new PrismaClient();
+const att = require("/tmp/att.json");
+const a = att.attemptId;
+await db.assumption.create({ data: { attemptId: a, key: "Population", value: "2 crore because census", rating: "Excellent", aiNote: "ok" } });
+await db.frameworkNode.create({ data: { attemptId: a, label: "Population", order: 0 } });
+await db.frameworkNode.create({ data: { attemptId: a, label: "Segmentation", order: 1 } });
+await db.attempt.update({ where: { id: a }, data: { finalEstimate: 8000000, status: "submitted", submittedAt: new Date() } });
+await db.evaluation.create({ data: { attemptId: a, overall: 78, readiness: "Advanced", structuring: 82, logic: 80, segmentation: 85, assumptions: 74, calculation: 82, communication: 70, business: 72, confidence: 80, accuracyHit: true, feedback: JSON.stringify([{tone:"positive",text:"Strong segmentation."},{tone:"tip",text:"Add institutional demand."}]), betterApproach: "Segment adults vs children.", sampleSolution: "~80 lakh umbrellas/year." } });
+console.log("submitted");
+await db.$disconnect();

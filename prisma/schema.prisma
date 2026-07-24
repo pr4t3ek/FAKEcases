@@ -1,0 +1,263 @@
+// EstimateIQ data model.
+// Provider is SQLite for local-first dev; swap to postgresql for Supabase/prod
+// by changing `provider` + DATABASE_URL. SQLite doesn't support Prisma enums,
+// so enum-like columns are String with allowed values enforced in TS
+// (see lib/types.ts). JSON blobs are stored as String for portability.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String    @id @default(cuid())
+  email          String?   @unique
+  name           String?
+  passwordHash   String?
+  image          String?
+  role           String    @default("user") // "user" | "admin"
+  plan           String    @default("free") // "free" | "pro"
+  isGuest        Boolean   @default(false)
+
+  // gamification
+  xp             Int       @default(0)
+  level          Int       @default(1)
+  coins          Int       @default(0)
+  streak         Int       @default(0)
+  longestStreak  Int       @default(0)
+  lastActiveDate DateTime?
+
+  // percentile rank (cached; recomputed on a schedule)
+  rank           String?   // "Silver" | "Gold" | "Platinum" | "Diamond" | null
+  percentile     Float?
+  skillRating    Float?
+
+  onboardedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  attempts       Attempt[]
+  bookmarks      Bookmark[]
+  achievements   UserAchievement[]
+  feedback       QuestionFeedback[]
+  progress       Progress?
+}
+
+model Category {
+  id          String     @id @default(cuid())
+  slug        String     @unique
+  name        String
+  description String?
+  icon        String?
+  order       Int        @default(0)
+  questions   Question[]
+}
+
+model Question {
+  id             String   @id @default(cuid())
+  title          String
+  prompt         String
+  categoryId     String
+  category       Category @relation(fields: [categoryId], references: [id])
+  difficulty     String   // "Easy" | "Medium" | "Hard"
+  interviewLevel String   // "BCG" | "McKinsey" | "Bain" | "Big4" | "PM" | "Product" | "GeneralMBA"
+  type           String   @default("guesstimate") // "guesstimate" | "case" (Phase 2)
+
+  idealLow       Float?
+  idealHigh      Float?
+  unit           String?
+
+  betterApproach String   @default("")
+  sampleSolution String   @default("")
+  tags           String?  // comma-separated
+
+  source         String   @default("seed") // "seed" | "admin" | "import" | "llm"
+  sourceUrl      String?
+  externalId     String?  @unique
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  attempts       Attempt[]
+  bookmarks      Bookmark[]
+  feedback       QuestionFeedback[]
+
+  @@index([categoryId])
+  @@index([difficulty])
+  @@index([interviewLevel])
+}
+
+model Attempt {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionId    String
+  question      Question  @relation(fields: [questionId], references: [id])
+
+  mode          String    @default("interviewer")
+  status        String    @default("in_progress") // "in_progress" | "submitted" | "abandoned"
+  timeSpentSec  Int       @default(0)
+  hintsUsed     Int       @default(0)
+  finalEstimate Float?
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  submittedAt   DateTime?
+
+  messages      Message[]
+  assumptions   Assumption[]
+  calculations  Calculation[]
+  framework     FrameworkNode[]
+  evaluation    Evaluation?
+
+  @@index([userId])
+  @@index([questionId])
+  @@index([status])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  attemptId String
+  attempt   Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  role      String   // "user" | "assistant" | "system"
+  mode      String?
+  content   String
+  hintLevel Int?
+  createdAt DateTime @default(now())
+
+  @@index([attemptId])
+}
+
+model Assumption {
+  id        String   @id @default(cuid())
+  attemptId String
+  attempt   Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  key       String
+  value     String
+  rating    String?  // "Reasonable" | "NeedsJustification" | "Weak" | "Excellent"
+  aiNote    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([attemptId])
+}
+
+model Calculation {
+  id         String   @id @default(cuid())
+  attemptId  String
+  attempt    Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  expression String
+  result     Float?
+  resultText String?
+  createdAt  DateTime @default(now())
+
+  @@index([attemptId])
+}
+
+model FrameworkNode {
+  id        String          @id @default(cuid())
+  attemptId String
+  attempt   Attempt         @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  label     String
+  value     String?
+  note      String?
+  order     Int             @default(0)
+  parentId  String?
+  parent    FrameworkNode?  @relation("NodeChildren", fields: [parentId], references: [id])
+  children  FrameworkNode[] @relation("NodeChildren")
+  createdAt DateTime        @default(now())
+
+  @@index([attemptId])
+}
+
+model Evaluation {
+  id            String   @id @default(cuid())
+  attemptId     String   @unique
+  attempt       Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  overall       Int
+  readiness     String
+
+  structuring   Int
+  logic         Int
+  segmentation  Int
+  assumptions   Int
+  calculation   Int
+  communication Int
+  business      Int
+  confidence    Int
+
+  accuracyHit   Boolean  @default(false)
+  feedback      String   @default("[]") // JSON array of feedback items
+  betterApproach String  @default("")
+  sampleSolution String  @default("")
+
+  createdAt     DateTime @default(now())
+}
+
+model Progress {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  totalSolved Int      @default(0)
+  avgScore    Float    @default(0)
+  accuracy    Float    @default(0)
+  consistency Float    @default(0)
+  byCategory  String   @default("{}") // JSON: { [categoryId]: { avg, count } }
+  bySkill     String   @default("{}") // JSON: { [skillKey]: { avg, count } }
+
+  updatedAt   DateTime @updatedAt
+}
+
+model Achievement {
+  id          String            @id @default(cuid())
+  slug        String            @unique
+  title       String
+  description String
+  emoji       String            @default("🏅")
+  users       UserAchievement[]
+}
+
+model UserAchievement {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  unlockedAt    DateTime    @default(now())
+
+  @@unique([userId, achievementId])
+}
+
+model Bookmark {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, questionId])
+}
+
+model QuestionFeedback {
+  id         String   @id @default(cuid())
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  attemptId  String?
+  type       String   // "WrongAnswer" | "Typo" | "Unclear" | "FactualError" | "Inappropriate" | "Other"
+  message    String?
+  status     String   @default("Open") // "Open" | "Reviewing" | "Resolved" | "Dismissed"
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([status])
+  @@index([questionId])
+}
