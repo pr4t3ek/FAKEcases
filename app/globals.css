@@ -88,6 +88,26 @@
   }
 }
 
+/* Print: clean evaluation report as a PDF (browser print-to-PDF) */
+@media print {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+  }
+  body {
+    background: #fff;
+  }
+  .container {
+    max-width: 100% !important;
+  }
+  .shadow-sm,
+  .shadow-md,
+  .shadow-lg,
+  .shadow-xl {
+    box-shadow: none !important;
+  }
+}
+
 /* Thin, unobtrusive scrollbars for the practice workspace */
 .scrollbar-thin::-webkit-scrollbar {
   width: 8px;

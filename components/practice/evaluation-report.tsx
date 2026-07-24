@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import {
   ArrowRight,
   CheckCircle2,
+  Download,
   Lightbulb,
   RotateCcw,
   AlertTriangle,
@@ -87,11 +88,11 @@ export function EvaluationReport({
 
   return (
     <div className="min-h-screen">
-      <header className="flex h-14 items-center justify-between border-b px-4">
+      <header className="flex h-14 items-center justify-between border-b px-4 print:hidden">
         <Brand href={isGuest ? "/library" : "/dashboard"} />
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => window.print()}>
-            Export PDF
+            <Download className="h-4 w-4" /> Export PDF
           </Button>
           <ThemeToggle />
         </div>
@@ -194,7 +195,7 @@ export function EvaluationReport({
         )}
 
         {/* Actions */}
-        <div className="mt-6 flex flex-wrap gap-3">
+        <div className="mt-6 flex flex-wrap gap-3 print:hidden">
           <form action={retry}>
             <Button type="submit" variant="outline">
               <RotateCcw className="h-4 w-4" /> Retry this question
