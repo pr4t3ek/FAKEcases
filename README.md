@@ -12,6 +12,11 @@ changes.
 
 ---
 
+📊 **[Architecture & visual documentation](docs/ARCHITECTURE.md)** — system diagram, user flow,
+data model (ERD), LLM adapter sequence, evaluation rubric, and gamification/rank flow.
+
+---
+
 ## Quick start
 
 ```bash
