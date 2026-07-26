@@ -287,7 +287,10 @@ export function FrameworkBuilder({
             else rowRefs.current.delete(node.id);
           }}
           className={cn(
-            "flex items-center gap-1.5 rounded-lg border bg-card p-2",
+            // Wraps rather than crushing the inputs: on a narrow panel the
+            // trailing group (rate, result, actions) drops to a second line
+            // instead of squeezing the value box down to a few pixels.
+            "flex flex-wrap items-center gap-1.5 rounded-lg border bg-card p-2",
             dragId === node.id && "opacity-50",
           )}
         >
@@ -305,62 +308,64 @@ export function FrameworkBuilder({
             value={node.label}
             onChange={(e) => setLabel(node.id, e.target.value)}
             placeholder="Step name"
-            className="h-7 w-24 shrink-0 border-0 bg-transparent px-1 text-sm font-medium shadow-none focus-visible:ring-0"
+            className="h-7 min-w-[5rem] flex-1 border-0 bg-transparent px-1 text-sm font-medium shadow-none focus-visible:ring-0"
           />
           <Input
             value={node.value ?? ""}
             onChange={(e) => setValue(node.id, e.target.value)}
             placeholder="value / %"
             title="This step's value — an absolute figure on a starting step (1.3cr), or its share of its parent (50%)"
-            className="h-7 min-w-0 flex-1 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-0"
+            className="h-7 w-16 shrink-0 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-0"
           />
-          <span
-            aria-hidden
-            className={cn(
-              "shrink-0 font-mono text-[11px]",
-              node.multiplier?.trim() ? "text-muted-foreground" : "text-muted-foreground/40",
-            )}
-          >
-            ×
-          </span>
-          <Input
-            value={node.multiplier ?? ""}
-            onChange={(e) => setMultiplier(node.id, e.target.value)}
-            placeholder="1"
-            aria-label="Rate multiplier for this step"
-            title="A rate on top of the share — 3 for “3 cups a day each”. Blank counts as ×1."
-            className="h-7 w-12 shrink-0 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-0"
-          />
-          <span
-            className={cn(
-              "shrink-0 font-mono text-[11px]",
-              ownUnrecognized ? "text-amber-600" : "text-muted-foreground",
-            )}
-            title={
-              ownUnrecognized
-                ? "Not a recognized number/% — treated as ×1"
-                : showValue
-                  ? "This step's own value — its share of its parent, times its rate"
-                  : "No value entered in this branch yet"
-            }
-          >
-            {showValue ? formatChainValue(resolved) : "–"}
-            {ownUnrecognized && "!"}
-          </span>
-          <button
-            onClick={() => addChild(node.id)}
-            className="shrink-0 text-muted-foreground hover:text-primary"
-            aria-label="Add branch under this step"
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
-          <button
-            onClick={() => remove(node.id)}
-            className="shrink-0 text-muted-foreground hover:text-destructive"
-            aria-label="Remove step"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+            <span
+              aria-hidden
+              className={cn(
+                "font-mono text-[11px]",
+                node.multiplier?.trim() ? "text-muted-foreground" : "text-muted-foreground/40",
+              )}
+            >
+              ×
+            </span>
+            <Input
+              value={node.multiplier ?? ""}
+              onChange={(e) => setMultiplier(node.id, e.target.value)}
+              placeholder="1"
+              aria-label="Rate multiplier for this step"
+              title="A rate on top of the share — 3 for “3 cups a day each”. Blank counts as ×1."
+              className="h-7 w-10 shrink-0 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-0"
+            />
+            <span
+              className={cn(
+                "font-mono text-[11px]",
+                ownUnrecognized ? "text-amber-600" : "text-muted-foreground",
+              )}
+              title={
+                ownUnrecognized
+                  ? "Not a recognized number/% — treated as ×1"
+                  : showValue
+                    ? "This step's own value — its share of its parent, times its rate"
+                    : "No value entered in this branch yet"
+              }
+            >
+              {showValue ? formatChainValue(resolved) : "–"}
+              {ownUnrecognized && "!"}
+            </span>
+            <button
+              onClick={() => addChild(node.id)}
+              className="text-muted-foreground hover:text-primary"
+              aria-label="Add branch under this step"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={() => remove(node.id)}
+              className="text-muted-foreground hover:text-destructive"
+              aria-label="Remove step"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
 
         {children.length >= 2 && (
