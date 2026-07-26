@@ -181,31 +181,28 @@ export function FrameworkBuilder({
     byParent.set(n.parentId, arr);
   }
   const computedMap = new Map<string, number>();
-  // Whether this node or any descendant has an actual value typed in — a
-  // node's own ×1 pass-through (see parseNodeValue) shouldn't be displayed
-  // as a "result" until something real feeds into it.
-  const touchedMap = new Map<string, boolean>();
-  function visit(node: UiFrameworkNode, inherited: number): number {
+  // A step's running value is only meaningful once something real feeds into
+  // it — its own entry or an ancestor's. Without this, a node's neutral ×1
+  // pass-through (see parseNodeValue) would render as a literal "1".
+  const liveMap = new Map<string, boolean>();
+  function visit(node: UiFrameworkNode, inherited: number, inheritedLive: boolean): number {
     const own = parseNodeValue(node.value) ?? 1;
-    const ownTouched = !!node.value?.trim();
     const mine = inherited * own;
+    const live = inheritedLive || !!node.value?.trim();
+    liveMap.set(node.id, live);
+    computedMap.set(node.id, mine);
     const children = byParent.get(node.id) ?? [];
-    if (children.length === 0) {
-      computedMap.set(node.id, mine);
-      touchedMap.set(node.id, ownTouched);
-      return mine;
-    }
-    const childResults = children.map((c) => visit(c, mine));
+    if (children.length === 0) return mine;
+    const childResults = children.map((c) => visit(c, mine, live));
     const total =
       node.combine === "multiply"
         ? childResults.reduce((a, b) => a * b, 1)
         : childResults.reduce((a, b) => a + b, 0);
     computedMap.set(node.id, total);
-    touchedMap.set(node.id, ownTouched || children.some((c) => touchedMap.get(c.id) === true));
     return total;
   }
   const roots = byParent.get(null) ?? [];
-  for (const r of roots) visit(r, 1);
+  for (const r of roots) visit(r, 1, false);
   const anyParsed = nodes.some((n) => parseNodeValue(n.value) !== null);
   const grandTotal = anyParsed ? roots.reduce((sum, r) => sum + (computedMap.get(r.id) ?? 0), 0) : null;
   const unrecognizedCount = nodes.filter(
@@ -215,8 +212,12 @@ export function FrameworkBuilder({
   function renderNode(node: UiFrameworkNode) {
     const children = byParent.get(node.id) ?? [];
     const computed = computedMap.get(node.id) ?? 0;
-    const touched = touchedMap.get(node.id) ?? false;
     const ownUnrecognized = !!node.value?.trim() && parseNodeValue(node.value) === null;
+    // A node with children is a grouping step: its children's rollup belongs in
+    // the Chain result summary, not beside its own label where it reads as if
+    // the step's own entry had been rewritten.
+    const isGroup = children.length > 0;
+    const showValue = !isGroup && (liveMap.get(node.id) ?? false);
 
     return (
       <div key={node.id} className="space-y-1">
@@ -258,14 +259,16 @@ export function FrameworkBuilder({
               ownUnrecognized ? "text-amber-600" : "text-muted-foreground",
             )}
             title={
-              !touched
-                ? "No value entered in this branch yet"
-                : ownUnrecognized
-                  ? "Not a recognized number/% — treated as ×1"
-                  : "Running value at this step"
+              ownUnrecognized
+                ? "Not a recognized number/% — treated as ×1"
+                : isGroup
+                  ? "Grouping step — its branches roll up into the Chain result below"
+                  : showValue
+                    ? "Running value at this step"
+                    : "No value entered in this branch yet"
             }
           >
-            {touched ? formatChainValue(computed) : "–"}
+            {showValue ? formatChainValue(computed) : "–"}
             {ownUnrecognized && "!"}
           </span>
           <button
