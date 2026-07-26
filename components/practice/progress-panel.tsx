@@ -20,8 +20,8 @@ export function ProgressPanel({
   onAssumptions,
   calculations,
   framework,
-  finalEstimate,
-  onFinalEstimate,
+  estimateText,
+  onEstimateTextChange,
   disabled,
   onSubmitted,
 }: {
@@ -31,16 +31,13 @@ export function ProgressPanel({
   onAssumptions: (updater: (a: UiAssumption[]) => UiAssumption[]) => void;
   calculations: UiCalculation[];
   framework: UiFrameworkNode[];
-  finalEstimate: number | null;
-  onFinalEstimate: (n: number | null) => void;
+  estimateText: string;
+  onEstimateTextChange: (t: string) => void;
   disabled: boolean;
   onSubmitted: (r: SubmitResult) => void;
 }) {
   const [key, setKey] = useState("");
   const [value, setValue] = useState("");
-  const [estimateText, setEstimateText] = useState(
-    finalEstimate != null ? String(finalEstimate) : "",
-  );
   const [submitting, setSubmitting] = useState(false);
 
   async function add() {
@@ -64,7 +61,6 @@ export function ProgressPanel({
 
   function commitEstimate() {
     const n = evaluateExpression(estimateText);
-    onFinalEstimate(n);
     setFinalEstimate(attemptId, n).catch(() => {});
   }
 
@@ -176,7 +172,10 @@ export function ProgressPanel({
             <div className="flex flex-wrap items-center gap-1 text-xs">
               {framework.map((f, i) => (
                 <span key={i} className="inline-flex items-center">
-                  <span className="rounded bg-secondary px-1.5 py-0.5">{f.label}</span>
+                  <span className="rounded bg-secondary px-1.5 py-0.5">
+                    {f.label}
+                    {f.value?.trim() ? `: ${f.value.trim()}` : ""}
+                  </span>
                   {i < framework.length - 1 && <span className="mx-0.5 text-muted-foreground">→</span>}
                 </span>
               ))}
@@ -192,7 +191,7 @@ export function ProgressPanel({
         </label>
         <Input
           value={estimateText}
-          onChange={(e) => setEstimateText(e.target.value)}
+          onChange={(e) => onEstimateTextChange(e.target.value)}
           onBlur={commitEstimate}
           placeholder="e.g. 80L or 8000000"
           className="mb-1 font-mono"

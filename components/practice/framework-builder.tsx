@@ -2,12 +2,37 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
-import { ArrowDown, GripVertical, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowRight, GripVertical, Plus, Trash2 } from "lucide-react";
 import { saveFramework } from "@/app/actions/practice";
+import { evaluateExpression } from "@/lib/calc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { cn, formatIndianNumber, toIndianWords } from "@/lib/utils";
 import type { UiFrameworkNode } from "./types";
+
+/**
+ * A node's value is a chain factor, not just a label — "40%" and "1.5cr" both
+ * parse. A trailing "%" is treated specially since evaluateExpression (shared
+ * with the calculator tool) doesn't support it.
+ */
+/** formatIndianNumber rounds to an integer, which turns fractions like a 0.4
+ * (from "40%") into a misleading "0" — show small magnitudes with decimals. */
+function formatChainValue(n: number): string {
+  if (Math.abs(n) < 1) return n.toFixed(3).replace(/\.?0+$/, "") || "0";
+  return formatIndianNumber(n);
+}
+
+function parseNodeValue(raw: string | null | undefined): number | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const percentMatch = trimmed.match(/^(.+?)\s*%$/);
+  if (percentMatch) {
+    const n = evaluateExpression(percentMatch[1]);
+    return n === null ? null : n / 100;
+  }
+  return evaluateExpression(trimmed);
+}
 
 const PALETTE = [
   "Population",
@@ -23,12 +48,15 @@ export function FrameworkBuilder({
   attemptId,
   nodes,
   onChange,
+  onChainResult,
 }: {
   attemptId: string;
   nodes: UiFrameworkNode[];
   onChange: (nodes: UiFrameworkNode[]) => void;
+  onChainResult?: (n: number) => void;
 }) {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [customLabel, setCustomLabel] = useState("");
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rowRefs = useRef<(HTMLDivElement | null)[]>([]);
   const dragIndexRef = useRef<number | null>(null);
@@ -50,6 +78,12 @@ export function FrameworkBuilder({
 
   function add(label: string) {
     onChange([...nodes, { label, value: "" }]);
+  }
+  function addCustom() {
+    const label = customLabel.trim();
+    if (!label) return;
+    add(label);
+    setCustomLabel("");
   }
   function remove(i: number) {
     onChange(nodes.filter((_, idx) => idx !== i));
@@ -95,6 +129,13 @@ export function FrameworkBuilder({
     setDragIndex(null);
   }
 
+  const parsedValues = nodes.map((n) => parseNodeValue(n.value));
+  const allParsed = nodes.length > 0 && parsedValues.every((v) => v !== null);
+  const chainResult = allParsed
+    ? parsedValues.reduce<number>((acc, v) => acc * (v as number), 1)
+    : null;
+  const missingCount = parsedValues.filter((v) => v === null).length;
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-1.5">
@@ -108,6 +149,23 @@ export function FrameworkBuilder({
             {p}
           </button>
         ))}
+      </div>
+
+      <div className="flex items-center gap-1.5">
+        <Input
+          value={customLabel}
+          onChange={(e) => setCustomLabel(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && addCustom()}
+          placeholder="Custom step (e.g. Conversion Rate)"
+          className="h-7 flex-1 text-xs"
+        />
+        <Button
+          variant="secondary"
+          onClick={addCustom}
+          className="h-7 shrink-0 px-2.5 text-xs"
+        >
+          <Plus className="mr-1 h-3 w-3" /> Add
+        </Button>
       </div>
 
       {nodes.length === 0 ? (
@@ -141,9 +199,20 @@ export function FrameworkBuilder({
                 <Input
                   value={n.value ?? ""}
                   onChange={(e) => setValue(i, e.target.value)}
-                  placeholder="value / formula"
+                  placeholder="value / formula (e.g. 1.5cr, 40%)"
                   className="h-7 flex-1 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-0"
                 />
+                {n.value?.trim() && (
+                  <span
+                    className={cn(
+                      "shrink-0 font-mono text-[11px]",
+                      parsedValues[i] === null ? "text-muted-foreground/60" : "text-muted-foreground",
+                    )}
+                    title={parsedValues[i] === null ? "Not a recognized number/%" : "Parsed value"}
+                  >
+                    {parsedValues[i] === null ? "·" : formatChainValue(parsedValues[i] as number)}
+                  </span>
+                )}
                 <button
                   onClick={() => remove(i)}
                   className="text-muted-foreground hover:text-destructive"
@@ -159,6 +228,37 @@ export function FrameworkBuilder({
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {nodes.length > 0 && (
+        <div className="rounded-lg border bg-muted/30 p-2.5 text-xs">
+          {chainResult !== null ? (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-muted-foreground">
+                Chain result:{" "}
+                <span className="font-mono font-medium text-foreground">
+                  {formatIndianNumber(chainResult)}
+                </span>{" "}
+                · {toIndianWords(chainResult)}
+              </span>
+              {onChainResult && (
+                <Button
+                  variant="secondary"
+                  onClick={() => onChainResult(chainResult)}
+                  className="h-6 gap-1 px-2 text-[11px]"
+                >
+                  Use as final estimate <ArrowRight className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
+          ) : (
+            <p className="text-muted-foreground">
+              {missingCount} of {nodes.length} step{nodes.length === 1 ? "" : "s"} need a numeric or
+              % value (e.g. <span className="font-mono">1.5cr</span>,{" "}
+              <span className="font-mono">40%</span>) to compute the chain.
+            </p>
+          )}
         </div>
       )}
     </div>

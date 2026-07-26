@@ -25,6 +25,7 @@ export function ToolsPanel({
   onAddCalc,
   framework,
   onFramework,
+  onChainResult,
   initialTime,
   disabled,
   onActiveTool,
@@ -35,6 +36,7 @@ export function ToolsPanel({
   onAddCalc: (c: UiCalculation) => void;
   framework: UiFrameworkNode[];
   onFramework: (n: UiFrameworkNode[]) => void;
+  onChainResult?: (n: number) => void;
   initialTime: number;
   disabled: boolean;
   onActiveTool: (tool: string) => void;
@@ -116,7 +118,12 @@ export function ToolsPanel({
             <Calculator attemptId={attemptId} calculations={calculations} onAdd={onAddCalc} />
           </TabsContent>
           <TabsContent value="framework" className="mt-0">
-            <FrameworkBuilder attemptId={attemptId} nodes={framework} onChange={onFramework} />
+            <FrameworkBuilder
+              attemptId={attemptId}
+              nodes={framework}
+              onChange={onFramework}
+              onChainResult={onChainResult}
+            />
           </TabsContent>
           <TabsContent value="notes" className="mt-0">
             <Textarea
