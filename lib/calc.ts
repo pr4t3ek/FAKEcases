@@ -7,11 +7,19 @@
 function preprocess(input: string): string {
   return input
     .replace(/,/g, "")
+    // Accept the multiplication signs people actually type: "3 × 4", "3 x 4".
+    .replace(/×/g, "*")
     .replace(/\b(\d*\.?\d+)\s*(crore|cr)\b/gi, (_, n) => `(${n}*10000000)`)
     .replace(/\b(\d*\.?\d+)\s*(lakh|lac|l)\b/gi, (_, n) => `(${n}*100000)`)
     .replace(/\b(\d*\.?\d+)\s*(bn|b)\b/gi, (_, n) => `(${n}*1000000000)`)
     .replace(/\b(\d*\.?\d+)\s*(m)\b/gi, (_, n) => `(${n}*1000000)`)
-    .replace(/\b(\d*\.?\d+)\s*(k)\b/gi, (_, n) => `(${n}*1000)`);
+    .replace(/\b(\d*\.?\d+)\s*(k)\b/gi, (_, n) => `(${n}*1000)`)
+    // The letter form of "times" runs LAST, once the unit suffixes are already
+    // expanded to parenthesised products — otherwise "2cr x 3" leaves an "r"
+    // to the left of the x and no longer matches. It needs a number or a
+    // closing paren on its left and a number on its right, so it can never
+    // swallow a suffix letter.
+    .replace(/(\d|\))\s*[xX]\s*(?=[\d.(])/g, "$1*");
 }
 
 type Token = { type: "num"; value: number } | { type: "op"; value: string } | { type: "paren"; value: string };

@@ -24,12 +24,24 @@ function parseNode(
   if (!raw) return null;
   const trimmed = raw.trim();
   if (!trimmed) return null;
-  const percentMatch = trimmed.match(/^(.+?)\s*%$/);
-  if (percentMatch) {
-    const n = evaluateExpression(percentMatch[1]);
-    return n === null ? null : { factor: n / 100, isPercent: true };
+
+  // The whole value is a percentage — "40%", or an expression of one ("100/3 %").
+  const wholePercent = trimmed.match(/^(.+?)\s*%$/);
+  if (wholePercent) {
+    const n = evaluateExpression(wholePercent[1]);
+    if (n !== null) {
+      // Only a bare percentage is a SHARE of its parent, and so a term in a
+      // partition. "3 * 50%" is a share times a rate (3 cups × half the
+      // segment) — a valid factor, but not something that should total 100%
+      // against its siblings.
+      return { factor: n / 100, isPercent: !wholePercent[1].includes("*") };
+    }
   }
-  const n = evaluateExpression(trimmed);
+
+  // A percentage embedded mid-expression — "50% * 3" for "half of them, 3 each".
+  // evaluateExpression has no "%" operator, so fold each one into a division.
+  const inlined = trimmed.replace(/(\d*\.?\d+)\s*%/g, "($1/100)");
+  const n = evaluateExpression(inlined);
   return n === null ? null : { factor: n, isPercent: false };
 }
 
@@ -436,6 +448,9 @@ export function FrameworkBuilder({
               Add a numeric or % value (e.g. <span className="font-mono">1.5cr</span>,{" "}
               <span className="font-mono">40%</span>) to any step to compute a result. Steps with
               no value (like a segmentation grouping) pass their parent's value straight through.
+              To segment by usage intensity, give a branch its share and rate together —{" "}
+              <span className="font-mono">30%×4</span> for &ldquo;a third of them, 4 a
+              day&rdquo;.
             </p>
           )}
         </div>
