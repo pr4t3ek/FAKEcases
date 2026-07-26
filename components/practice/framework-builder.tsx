@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
 import { ArrowDown, GripVertical, Plus, Trash2 } from "lucide-react";
 import { saveFramework } from "@/app/actions/practice";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,8 @@ export function FrameworkBuilder({
 }) {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rowRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const dragIndexRef = useRef<number | null>(null);
 
   // Debounced persistence whenever nodes change.
   useEffect(() => {
@@ -62,6 +65,36 @@ export function FrameworkBuilder({
     onChange(next);
   }
 
+  // Pointer Events (not native HTML5 drag-and-drop) so reordering works with
+  // both mouse and touch input — HTML5 `draggable` never fires on touch devices.
+  function handleGripPointerDown(e: ReactPointerEvent<HTMLElement>, i: number) {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragIndexRef.current = i;
+    setDragIndex(i);
+  }
+
+  function handleGripPointerMove(e: ReactPointerEvent<HTMLElement>) {
+    const from = dragIndexRef.current;
+    if (from === null) return;
+    const y = e.clientY;
+    const overIndex = rowRefs.current.findIndex((el) => {
+      if (!el) return false;
+      const rect = el.getBoundingClientRect();
+      return y >= rect.top && y <= rect.bottom;
+    });
+    if (overIndex !== -1 && overIndex !== from) {
+      reorder(from, overIndex);
+      dragIndexRef.current = overIndex;
+      setDragIndex(overIndex);
+    }
+  }
+
+  function handleGripPointerUp(e: ReactPointerEvent<HTMLElement>) {
+    e.currentTarget.releasePointerCapture(e.pointerId);
+    dragIndexRef.current = null;
+    setDragIndex(null);
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-1.5">
@@ -86,19 +119,24 @@ export function FrameworkBuilder({
           {nodes.map((n, i) => (
             <div key={i}>
               <div
-                draggable
-                onDragStart={() => setDragIndex(i)}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={() => {
-                  if (dragIndex !== null) reorder(dragIndex, i);
-                  setDragIndex(null);
+                ref={(el) => {
+                  rowRefs.current[i] = el;
                 }}
                 className={cn(
                   "flex items-center gap-1.5 rounded-lg border bg-card p-2",
                   dragIndex === i && "opacity-50",
                 )}
               >
-                <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-muted-foreground" />
+                <span
+                  onPointerDown={(e) => handleGripPointerDown(e, i)}
+                  onPointerMove={handleGripPointerMove}
+                  onPointerUp={handleGripPointerUp}
+                  onPointerCancel={handleGripPointerUp}
+                  style={{ touchAction: "none" }}
+                  className="shrink-0 cursor-grab touch-none active:cursor-grabbing"
+                >
+                  <GripVertical className="h-4 w-4 text-muted-foreground" />
+                </span>
                 <span className="min-w-0 shrink-0 truncate text-sm font-medium">{n.label}</span>
                 <Input
                   value={n.value ?? ""}
