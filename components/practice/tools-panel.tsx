@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Calculator as CalcIcon, Clock, Layers, NotebookPen, Pause, Play } from "lucide-react";
+import { Clock, Layers, NotebookPen, Pause, Play } from "lucide-react";
 import { saveTime } from "@/app/actions/practice";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { INTERVIEW_LEVEL_LABELS, type InterviewLevel } from "@/lib/types";
-import { Calculator } from "./calculator";
+import { CalculatorPopup } from "./calculator-popup";
 import { FrameworkBuilder } from "./framework-builder";
 import { ReportIssue } from "./report-issue";
 import type { PracticeQuestion, UiCalculation, UiFrameworkNode } from "./types";
@@ -90,21 +90,25 @@ export function ToolsPanel({
               </button>
             )}
           </div>
-          <ReportIssue questionId={question.id} attemptId={attemptId} />
+          <div className="flex items-center gap-3">
+            <CalculatorPopup
+              attemptId={attemptId}
+              calculations={calculations}
+              onAdd={onAddCalc}
+            />
+            <ReportIssue questionId={question.id} attemptId={attemptId} />
+          </div>
         </div>
       </div>
 
       {/* Tools */}
       <Tabs
-        defaultValue="calculator"
+        defaultValue="framework"
         className="flex flex-1 flex-col overflow-hidden"
         onValueChange={onActiveTool}
       >
         <div className="border-b px-3 py-2">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="calculator">
-              <CalcIcon className="h-3.5 w-3.5" /> Calc
-            </TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="framework">
               <Layers className="h-3.5 w-3.5" /> Framework
             </TabsTrigger>
@@ -114,9 +118,6 @@ export function ToolsPanel({
           </TabsList>
         </div>
         <div className="scrollbar-thin flex-1 overflow-y-auto p-4">
-          <TabsContent value="calculator" className="mt-0">
-            <Calculator attemptId={attemptId} calculations={calculations} onAdd={onAddCalc} />
-          </TabsContent>
           <TabsContent value="framework" className="mt-0">
             <FrameworkBuilder
               attemptId={attemptId}

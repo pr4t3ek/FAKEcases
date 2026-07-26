@@ -154,7 +154,14 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
 
       {isWide ? (
         <PanelGroup direction="horizontal" autoSaveId="eq-practice-panels" className="flex-1">
-          <Panel ref={leftPanelRef} defaultSize={panelDefaults.left} minSize={22} order={1}>
+          {/* The framework builder is the tools panel's default tab, so the
+              left panel opens at the width that tool expects. */}
+          <Panel
+            ref={leftPanelRef}
+            defaultSize={panelDefaults.frameworkExpandLeft}
+            minSize={22}
+            order={1}
+          >
             {tools}
           </Panel>
           <PanelResizeHandle className="w-1.5 bg-border transition-colors hover:bg-primary/40" />

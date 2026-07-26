@@ -169,7 +169,9 @@ export function ProgressPanel({
             Calculations ({calculations.length})
           </h3>
           {calculations.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Use the calculator to show your working.</p>
+            <p className="text-xs text-muted-foreground">
+              Open the calculator above the tools to show your working.
+            </p>
           ) : (
             <div className="space-y-1">
               {calculations.slice(-4).map((c) => (
