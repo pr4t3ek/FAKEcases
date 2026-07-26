@@ -96,6 +96,7 @@ export function CalculatorPopup({
       <button
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
+        data-tour="calculator-btn"
         className={cn(
           "inline-flex items-center gap-1 text-xs hover:text-foreground",
           open ? "text-foreground" : "text-muted-foreground",

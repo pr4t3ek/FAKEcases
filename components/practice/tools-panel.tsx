@@ -29,6 +29,7 @@ export function ToolsPanel({
   initialTime,
   disabled,
   onActiveTool,
+  activeTool,
 }: {
   attemptId: string;
   question: PracticeQuestion;
@@ -40,6 +41,7 @@ export function ToolsPanel({
   initialTime: number;
   disabled: boolean;
   onActiveTool: (tool: string) => void;
+  activeTool: string;
 }) {
   const [elapsed, setElapsed] = useState(initialTime);
   const [running, setRunning] = useState(!disabled);
@@ -66,7 +68,7 @@ export function ToolsPanel({
   return (
     <div className="flex h-full flex-col">
       {/* Question + timer */}
-      <div className="border-b p-4">
+      <div className="border-b p-4" data-tour="question">
         <div className="mb-2 flex flex-wrap items-center gap-1.5">
           <Badge variant="secondary">{question.category}</Badge>
           <Badge variant="outline">{question.difficulty}</Badge>
@@ -103,12 +105,12 @@ export function ToolsPanel({
 
       {/* Tools */}
       <Tabs
-        defaultValue="framework"
+        value={activeTool}
         className="flex flex-1 flex-col overflow-hidden"
         onValueChange={onActiveTool}
       >
         <div className="border-b px-3 py-2">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-2" data-tour="tools-tabs">
             <TabsTrigger value="framework">
               <Layers className="h-3.5 w-3.5" /> Framework
             </TabsTrigger>
@@ -118,7 +120,7 @@ export function ToolsPanel({
           </TabsList>
         </div>
         <div className="scrollbar-thin flex-1 overflow-y-auto p-4">
-          <TabsContent value="framework" className="mt-0">
+          <TabsContent value="framework" className="mt-0" data-tour="framework">
             <FrameworkBuilder
               attemptId={attemptId}
               nodes={framework}

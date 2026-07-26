@@ -104,7 +104,7 @@ export function ProgressPanel({
     <div className="flex h-full flex-col">
       <div className="scrollbar-thin flex-1 space-y-5 overflow-y-auto p-4">
         {/* Assumptions */}
-        <section>
+        <section data-tour="assumptions">
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Assumptions
           </h3>
@@ -204,7 +204,10 @@ export function ProgressPanel({
 
       {/* Final estimate + submit */}
       <div className="border-t p-4">
-        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <label
+          data-tour="estimate"
+          className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+        >
           Final estimate {unit ? `(${unit})` : ""}
         </label>
         <Input
@@ -225,7 +228,12 @@ export function ProgressPanel({
             <div className="mb-3" />
           );
         })()}
-        <Button className="w-full" onClick={submit} disabled={disabled || submitting}>
+        <Button
+          data-tour="submit"
+          className="w-full"
+          onClick={submit}
+          disabled={disabled || submitting}
+        >
           {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
           Submit for evaluation
         </Button>

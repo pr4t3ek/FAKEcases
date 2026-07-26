@@ -102,7 +102,7 @@ export function ChatPanel({
   return (
     <div className="flex h-full flex-col">
       {/* Mode switch */}
-      <div className="flex items-center gap-1 border-b p-2">
+      <div className="flex items-center gap-1 border-b p-2" data-tour="modes">
         {aiModes.map((m) => (
           <button
             key={m.key}
@@ -154,7 +154,7 @@ export function ChatPanel({
 
       {/* Composer */}
       <div className="border-t p-3">
-        <div className="mb-2 flex items-center justify-between">
+        <div className="mb-2 flex items-center justify-between" data-tour="hint">
           <Button
             variant="outline"
             size="sm"
@@ -168,7 +168,7 @@ export function ChatPanel({
             Hints used: {hintsUsed}/{hintConfig.levels}
           </span>
         </div>
-        <div className="flex items-end gap-2">
+        <div className="flex items-end gap-2" data-tour="composer">
           <Textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
