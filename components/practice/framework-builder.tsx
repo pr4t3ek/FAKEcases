@@ -18,16 +18,41 @@ import type { UiFrameworkNode } from "./types";
  * Income" — which has no value of its own, only its children do) don't break
  * the chain.
  */
-function parseNodeValue(raw: string | null | undefined): number | null {
+function parseNode(
+  raw: string | null | undefined,
+): { factor: number; isPercent: boolean } | null {
   if (!raw) return null;
   const trimmed = raw.trim();
   if (!trimmed) return null;
   const percentMatch = trimmed.match(/^(.+?)\s*%$/);
   if (percentMatch) {
     const n = evaluateExpression(percentMatch[1]);
-    return n === null ? null : n / 100;
+    return n === null ? null : { factor: n / 100, isPercent: true };
   }
-  return evaluateExpression(trimmed);
+  const n = evaluateExpression(trimmed);
+  return n === null ? null : { factor: n, isPercent: false };
+}
+
+function parseNodeValue(raw: string | null | undefined): number | null {
+  return parseNode(raw)?.factor ?? null;
+}
+
+/**
+ * Percentage branches combined with Σ Sum are a partition of their parent, so
+ * they should total ~100% — a gap means a missing segment, an overshoot means
+ * double-counting. Rates and prices (×52 weeks, ×₹350) are not shares, so the
+ * check only runs when EVERY branch is a percentage. Tolerance absorbs the
+ * rounding guesstimates invite (33+33+33 = 99 is fine).
+ */
+const SHARE_TOTAL_TOLERANCE = 2;
+
+function shareTotalFor(children: UiFrameworkNode[]): number | null {
+  if (children.length < 2) return null;
+  const parsed = children.map((c) => parseNode(c.value));
+  if (!parsed.every((p): p is { factor: number; isPercent: boolean } => !!p?.isPercent)) {
+    return null;
+  }
+  return parsed.reduce((sum, p) => sum + p.factor * 100, 0);
 }
 
 /** formatIndianNumber rounds to an integer, which turns fractions like 0.4
@@ -223,6 +248,9 @@ export function FrameworkBuilder({
     const resolved = resolvedMap.get(node.id) ?? 0;
     const ownUnrecognized = !!node.value?.trim() && parseNodeValue(node.value) === null;
     const showValue = liveMap.get(node.id) ?? false;
+    const shareTotal = node.combine === "sum" ? shareTotalFor(children) : null;
+    const shareOff =
+      shareTotal !== null && Math.abs(shareTotal - 100) > SHARE_TOTAL_TOLERANCE;
 
     return (
       <div key={node.id} className="space-y-1">
@@ -291,7 +319,7 @@ export function FrameworkBuilder({
         </div>
 
         {children.length >= 2 && (
-          <div className="ml-7 flex items-center gap-1 text-[11px] text-muted-foreground">
+          <div className="ml-7 flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
             <span>Combine {children.length} branches:</span>
             <button
               onClick={() => setCombine(node.id, "sum")}
@@ -313,6 +341,19 @@ export function FrameworkBuilder({
             >
               × Multiply
             </button>
+            {shareTotal !== null && (
+              <span
+                className={cn("font-mono", shareOff ? "text-amber-600" : "text-emerald-600")}
+                title={
+                  shareOff
+                    ? "These branches are percentage shares of this step, so they should total about 100% — a gap suggests a missing segment, an overshoot suggests double-counting."
+                    : "Shares total ~100% — a clean partition of this step."
+                }
+              >
+                {shareOff ? "⚠ " : "✓ "}
+                shares total {Math.round(shareTotal * 10) / 10}%
+              </span>
+            )}
           </div>
         )}
 
