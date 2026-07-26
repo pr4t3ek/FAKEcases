@@ -13,6 +13,26 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import type { UiAssumption, UiCalculation, UiFrameworkNode } from "./types";
 
+/** Read-only nested rendering of a framework tree node and its children. */
+function FrameworkTreeItem({ node, all }: { node: UiFrameworkNode; all: UiFrameworkNode[] }) {
+  const children = all.filter((n) => n.parentId === node.id);
+  return (
+    <div className="space-y-1">
+      <span className="inline-block rounded bg-secondary px-1.5 py-0.5">
+        {node.label}
+        {node.value?.trim() ? `: ${node.value.trim()}` : ""}
+      </span>
+      {children.length > 0 && (
+        <div className="ml-3 space-y-1 border-l border-dashed pl-2">
+          {children.map((c) => (
+            <FrameworkTreeItem key={c.id} node={c} all={all} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ProgressPanel({
   attemptId,
   unit,
@@ -167,18 +187,14 @@ export function ProgressPanel({
             Framework
           </h3>
           {framework.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Build your estimation chain in Tools.</p>
+            <p className="text-xs text-muted-foreground">Build your estimation tree in Tools.</p>
           ) : (
-            <div className="flex flex-wrap items-center gap-1 text-xs">
-              {framework.map((f, i) => (
-                <span key={i} className="inline-flex items-center">
-                  <span className="rounded bg-secondary px-1.5 py-0.5">
-                    {f.label}
-                    {f.value?.trim() ? `: ${f.value.trim()}` : ""}
-                  </span>
-                  {i < framework.length - 1 && <span className="mx-0.5 text-muted-foreground">→</span>}
-                </span>
-              ))}
+            <div className="space-y-1 text-xs">
+              {framework
+                .filter((f) => f.parentId === null)
+                .map((f) => (
+                  <FrameworkTreeItem key={f.id} node={f} all={framework} />
+                ))}
             </div>
           )}
         </section>

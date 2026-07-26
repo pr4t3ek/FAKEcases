@@ -22,8 +22,12 @@ export interface UiCalculation {
 }
 
 export interface UiFrameworkNode {
+  id: string;
+  parentId: string | null;
   label: string;
   value?: string | null;
+  /** How this node's children combine into its own computed value (2+ children only). */
+  combine: "sum" | "multiply";
 }
 
 export interface PracticeQuestion {
