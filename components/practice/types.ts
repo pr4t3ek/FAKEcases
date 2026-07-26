@@ -26,6 +26,8 @@ export interface UiFrameworkNode {
   parentId: string | null;
   label: string;
   value?: string | null;
+  /** Second factor applied on top of `value` — a per-segment rate. Blank = 1. */
+  multiplier?: string | null;
   /** How this node's children combine into its own computed value (2+ children only). */
   combine: "sum" | "multiply";
 }

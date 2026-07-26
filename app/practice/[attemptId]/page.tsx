@@ -86,6 +86,7 @@ export default async function PracticePage({
       parentId: f.parentId,
       label: f.label,
       value: f.value,
+      multiplier: f.multiplier,
       combine: f.combine === "multiply" ? "multiply" : "sum",
     })),
     mode: (attempt.mode as AiMode) || "interviewer",

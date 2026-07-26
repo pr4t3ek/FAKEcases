@@ -164,6 +164,9 @@ model FrameworkNode {
   attempt   Attempt         @relation(fields: [attemptId], references: [id], onDelete: Cascade)
   label     String
   value     String?
+  /// Optional second factor, kept apart from `value` so a segment can carry a
+  /// share of its parent AND its own rate ("50%" × "3 cups/day"). Blank = 1.
+  multiplier String?
   note      String?
   order     Int             @default(0)
   combine   String          @default("sum") // "sum" | "multiply" — how this node's children combine (meaningful only with 2+ children)

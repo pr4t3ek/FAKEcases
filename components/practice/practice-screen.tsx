@@ -16,6 +16,7 @@ import { ToolsPanel } from "./tools-panel";
 import { ChatPanel } from "./chat-panel";
 import { ProgressPanel } from "./progress-panel";
 import { OnboardingOverlay } from "./onboarding-overlay";
+import { TutorialTour } from "./tutorial-tour";
 import type {
   PracticeData,
   UiAssumption,
@@ -53,14 +54,29 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
 
   const leftPanelRef = useRef<ImperativePanelHandle>(null);
 
+  // Both tab groups are controlled here so the tutorial can reveal whichever
+  // panel a step is anchored to — a synthetic click on a Radix trigger doesn't
+  // activate it, and an inactive TabsContent isn't in the DOM to point at.
+  const [mobileTab, setMobileTab] = useState("chat");
+  const [activeTool, setActiveTool] = useState("framework");
+
   const onActiveTool = useCallback(
     (tool: string) => {
+      setActiveTool(tool);
       if (!isWide || !leftPanelRef.current) return;
       leftPanelRef.current.resize(
         tool === "framework" ? panelDefaults.frameworkExpandLeft : panelDefaults.left,
       );
     },
     [isWide],
+  );
+
+  const revealForTutorial = useCallback(
+    (panel?: string, tool?: string) => {
+      if (panel) setMobileTab(panel);
+      if (tool) onActiveTool(tool);
+    },
+    [onActiveTool],
   );
 
   function handleAddCalc(c: UiCalculation) {
@@ -102,6 +118,7 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
       initialTime={data.timeSpentSec}
       disabled={disabled}
       onActiveTool={onActiveTool}
+      activeTool={activeTool}
     />
   );
   const chat = (
@@ -143,6 +160,7 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
           <Brand href={data.isGuest ? "/library" : "/dashboard"} />
         </div>
         <div className="flex items-center gap-2">
+          <TutorialTour onReveal={revealForTutorial} />
           {data.isGuest && (
             <Link href="/signup" className="text-xs font-medium text-primary hover:underline">
               Sign up to save progress
@@ -154,7 +172,14 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
 
       {isWide ? (
         <PanelGroup direction="horizontal" autoSaveId="eq-practice-panels" className="flex-1">
-          <Panel ref={leftPanelRef} defaultSize={panelDefaults.left} minSize={22} order={1}>
+          {/* The framework builder is the tools panel's default tab, so the
+              left panel opens at the width that tool expects. */}
+          <Panel
+            ref={leftPanelRef}
+            defaultSize={panelDefaults.frameworkExpandLeft}
+            minSize={22}
+            order={1}
+          >
             {tools}
           </Panel>
           <PanelResizeHandle className="w-1.5 bg-border transition-colors hover:bg-primary/40" />
@@ -167,11 +192,15 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
           </Panel>
         </PanelGroup>
       ) : (
-        <Tabs defaultValue="chat" className="flex flex-1 flex-col overflow-hidden">
+        <Tabs
+          value={mobileTab}
+          onValueChange={setMobileTab}
+          className="flex flex-1 flex-col overflow-hidden"
+        >
           <TabsList className="m-2 grid grid-cols-3">
-            <TabsTrigger value="tools">Tools</TabsTrigger>
-            <TabsTrigger value="chat">Chat</TabsTrigger>
-            <TabsTrigger value="progress">Progress</TabsTrigger>
+            <TabsTrigger value="tools" data-tour="mobile-tab-tools">Tools</TabsTrigger>
+            <TabsTrigger value="chat" data-tour="mobile-tab-chat">Chat</TabsTrigger>
+            <TabsTrigger value="progress" data-tour="mobile-tab-progress">Progress</TabsTrigger>
           </TabsList>
           <TabsContent value="tools" className="flex-1 overflow-hidden">{tools}</TabsContent>
           <TabsContent value="chat" className="flex-1 overflow-hidden">{chat}</TabsContent>
