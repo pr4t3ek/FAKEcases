@@ -181,12 +181,18 @@ export function FrameworkBuilder({
     byParent.set(n.parentId, arr);
   }
   const computedMap = new Map<string, number>();
+  // Whether this node or any descendant has an actual value typed in — a
+  // node's own ×1 pass-through (see parseNodeValue) shouldn't be displayed
+  // as a "result" until something real feeds into it.
+  const touchedMap = new Map<string, boolean>();
   function visit(node: UiFrameworkNode, inherited: number): number {
     const own = parseNodeValue(node.value) ?? 1;
+    const ownTouched = !!node.value?.trim();
     const mine = inherited * own;
     const children = byParent.get(node.id) ?? [];
     if (children.length === 0) {
       computedMap.set(node.id, mine);
+      touchedMap.set(node.id, ownTouched);
       return mine;
     }
     const childResults = children.map((c) => visit(c, mine));
@@ -195,6 +201,7 @@ export function FrameworkBuilder({
         ? childResults.reduce((a, b) => a * b, 1)
         : childResults.reduce((a, b) => a + b, 0);
     computedMap.set(node.id, total);
+    touchedMap.set(node.id, ownTouched || children.some((c) => touchedMap.get(c.id) === true));
     return total;
   }
   const roots = byParent.get(null) ?? [];
@@ -208,6 +215,7 @@ export function FrameworkBuilder({
   function renderNode(node: UiFrameworkNode) {
     const children = byParent.get(node.id) ?? [];
     const computed = computedMap.get(node.id) ?? 0;
+    const touched = touchedMap.get(node.id) ?? false;
     const ownUnrecognized = !!node.value?.trim() && parseNodeValue(node.value) === null;
 
     return (
@@ -250,12 +258,14 @@ export function FrameworkBuilder({
               ownUnrecognized ? "text-amber-600" : "text-muted-foreground",
             )}
             title={
-              ownUnrecognized
-                ? "Not a recognized number/% — treated as ×1"
-                : "Running value at this step"
+              !touched
+                ? "No value entered in this branch yet"
+                : ownUnrecognized
+                  ? "Not a recognized number/% — treated as ×1"
+                  : "Running value at this step"
             }
           >
-            {formatChainValue(computed)}
+            {touched ? formatChainValue(computed) : "–"}
             {ownUnrecognized && "!"}
           </span>
           <button
