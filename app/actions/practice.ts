@@ -49,22 +49,40 @@ export async function addCalculation(
   return { id: created.id, expression: created.expression, resultText: created.resultText };
 }
 
-/** Full-replace the framework chain (ordered). */
+/** Full-replace the framework tree. Client generates stable ids so parent/child
+ * links survive the replace; parentId is linked in a second pass so every row
+ * exists before any self-referencing FK is set. */
 export async function saveFramework(
   attemptId: string,
-  nodes: { label: string; value?: string }[],
+  nodes: {
+    id: string;
+    parentId: string | null;
+    label: string;
+    value?: string | null;
+    combine: "sum" | "multiply";
+  }[],
 ) {
   await assertOwner(attemptId);
   await db.frameworkNode.deleteMany({ where: { attemptId } });
   if (nodes.length) {
     await db.frameworkNode.createMany({
       data: nodes.map((n, i) => ({
+        id: n.id,
         attemptId,
         label: n.label,
         value: n.value ?? null,
+        combine: n.combine,
         order: i,
       })),
     });
+    const withParent = nodes.filter((n) => n.parentId);
+    if (withParent.length) {
+      await db.$transaction(
+        withParent.map((n) =>
+          db.frameworkNode.update({ where: { id: n.id }, data: { parentId: n.parentId } }),
+        ),
+      );
+    }
   }
 }
 
