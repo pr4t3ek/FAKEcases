@@ -59,6 +59,7 @@ export async function saveFramework(
     parentId: string | null;
     label: string;
     value?: string | null;
+    multiplier?: string | null;
     combine: "sum" | "multiply";
   }[],
 ) {
@@ -71,6 +72,7 @@ export async function saveFramework(
         attemptId,
         label: n.label,
         value: n.value ?? null,
+        multiplier: n.multiplier ?? null,
         combine: n.combine,
         order: i,
       })),

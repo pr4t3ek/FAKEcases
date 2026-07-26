@@ -117,6 +117,7 @@ export function FrameworkBuilder({
           parentId: n.parentId,
           label: n.label,
           value: n.value ?? undefined,
+          multiplier: n.multiplier ?? undefined,
           combine: n.combine,
         })),
       ).catch(() => {});
@@ -128,7 +129,10 @@ export function FrameworkBuilder({
   }, [nodes]);
 
   function add(parentId: string | null, label: string) {
-    onChange([...nodes, { id: newId(), parentId, label, value: "", combine: "sum" }]);
+    onChange([
+      ...nodes,
+      { id: newId(), parentId, label, value: "", multiplier: "", combine: "sum" },
+    ]);
   }
   function addCustom() {
     const label = customLabel.trim();
@@ -152,6 +156,9 @@ export function FrameworkBuilder({
   }
   function setValue(id: string, value: string) {
     onChange(nodes.map((n) => (n.id === id ? { ...n, value } : n)));
+  }
+  function setMultiplier(id: string, multiplier: string) {
+    onChange(nodes.map((n) => (n.id === id ? { ...n, multiplier } : n)));
   }
   function setCombine(id: string, combine: "sum" | "multiply") {
     onChange(nodes.map((n) => (n.id === id ? { ...n, combine } : n)));
@@ -210,9 +217,10 @@ export function FrameworkBuilder({
 
   // Two distinct quantities per node, deliberately kept apart:
   //   resolved — the step's OWN value in the chain: inherited from its parent ×
-  //     its own parsed value. This is what the row displays, so a top-level
-  //     step shows exactly what was typed and a "30%" child shows 30% OF its
-  //     parent. It does not move when children are added or edited.
+  //     its share (`value`) × its rate (`multiplier`). This is what the row
+  //     displays, so a top-level step shows exactly what was typed and a "30%"
+  //     child shows 30% OF its parent. It does not move when children are added
+  //     or edited.
   //   rollup — what the step contributes UPWARD: a leaf contributes its
   //     resolved value; a parent combines its branches via Sum or Multiply
   //     (its own manual toggle). Only this feeds the Chain result below.
@@ -230,8 +238,9 @@ export function FrameworkBuilder({
   const liveMap = new Map<string, boolean>();
   function visit(node: UiFrameworkNode, inherited: number, inheritedLive: boolean): number {
     const own = parseNodeValue(node.value) ?? 1;
-    const resolved = inherited * own;
-    const live = inheritedLive || !!node.value?.trim();
+    const rate = parseNodeValue(node.multiplier) ?? 1;
+    const resolved = inherited * own * rate;
+    const live = inheritedLive || !!node.value?.trim() || !!node.multiplier?.trim();
     resolvedMap.set(node.id, resolved);
     liveMap.set(node.id, live);
     const children = byParent.get(node.id) ?? [];
@@ -249,16 +258,22 @@ export function FrameworkBuilder({
   }
   const roots = byParent.get(null) ?? [];
   for (const r of roots) visit(r, 1, false);
-  const anyParsed = nodes.some((n) => parseNodeValue(n.value) !== null);
+  /** A field that has text in it but doesn't parse — silently treated as ×1. */
+  function isUnrecognized(raw: string | null | undefined): boolean {
+    return !!raw?.trim() && parseNodeValue(raw) === null;
+  }
+  const anyParsed = nodes.some(
+    (n) => parseNodeValue(n.value) !== null || parseNodeValue(n.multiplier) !== null,
+  );
   const grandTotal = anyParsed ? roots.reduce((sum, r) => sum + (rollupMap.get(r.id) ?? 0), 0) : null;
   const unrecognizedCount = nodes.filter(
-    (n) => n.value?.trim() && parseNodeValue(n.value) === null,
+    (n) => isUnrecognized(n.value) || isUnrecognized(n.multiplier),
   ).length;
 
   function renderNode(node: UiFrameworkNode) {
     const children = byParent.get(node.id) ?? [];
     const resolved = resolvedMap.get(node.id) ?? 0;
-    const ownUnrecognized = !!node.value?.trim() && parseNodeValue(node.value) === null;
+    const ownUnrecognized = isUnrecognized(node.value) || isUnrecognized(node.multiplier);
     const showValue = liveMap.get(node.id) ?? false;
     const shareTotal = node.combine === "sum" ? shareTotalFor(children) : null;
     const shareOff =
@@ -295,8 +310,26 @@ export function FrameworkBuilder({
           <Input
             value={node.value ?? ""}
             onChange={(e) => setValue(node.id, e.target.value)}
-            placeholder="value / % (optional)"
-            className="h-7 flex-1 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-0"
+            placeholder="value / %"
+            title="This step's value — an absolute figure on a starting step (1.3cr), or its share of its parent (50%)"
+            className="h-7 min-w-0 flex-1 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-0"
+          />
+          <span
+            aria-hidden
+            className={cn(
+              "shrink-0 font-mono text-[11px]",
+              node.multiplier?.trim() ? "text-muted-foreground" : "text-muted-foreground/40",
+            )}
+          >
+            ×
+          </span>
+          <Input
+            value={node.multiplier ?? ""}
+            onChange={(e) => setMultiplier(node.id, e.target.value)}
+            placeholder="1"
+            aria-label="Rate multiplier for this step"
+            title="A rate on top of the share — 3 for “3 cups a day each”. Blank counts as ×1."
+            className="h-7 w-12 shrink-0 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-0"
           />
           <span
             className={cn(
@@ -307,7 +340,7 @@ export function FrameworkBuilder({
               ownUnrecognized
                 ? "Not a recognized number/% — treated as ×1"
                 : showValue
-                  ? "This step's own value — its share of its parent"
+                  ? "This step's own value — its share of its parent, times its rate"
                   : "No value entered in this branch yet"
             }
           >
@@ -445,12 +478,12 @@ export function FrameworkBuilder({
             </div>
           ) : (
             <p className="text-muted-foreground">
-              Add a numeric or % value (e.g. <span className="font-mono">1.5cr</span>,{" "}
-              <span className="font-mono">40%</span>) to any step to compute a result. Steps with
-              no value (like a segmentation grouping) pass their parent's value straight through.
-              To segment by usage intensity, give a branch its share and rate together —{" "}
-              <span className="font-mono">30%×4</span> for &ldquo;a third of them, 4 a
-              day&rdquo;.
+              Give a step a value (<span className="font-mono">1.5cr</span> to start from, or{" "}
+              <span className="font-mono">40%</span> for a share of its parent) to compute a
+              result. The <span className="font-mono">×</span> box holds a rate on top of that —{" "}
+              <span className="font-mono">30%</span> <span className="font-mono">× 4</span> reads
+              &ldquo;a third of them, 4 a day each&rdquo;. Leave either box blank to pass the
+              parent's value straight through.
             </p>
           )}
         </div>
