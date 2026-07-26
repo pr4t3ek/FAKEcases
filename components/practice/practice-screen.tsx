@@ -7,6 +7,7 @@ import { Panel, PanelGroup, PanelResizeHandle, type ImperativePanelHandle } from
 import { toast } from "sonner";
 import { ArrowLeft } from "lucide-react";
 import { panelDefaults, type AiMode } from "@/lib/config";
+import { setFinalEstimate as persistFinalEstimate } from "@/app/actions/practice";
 import { Brand } from "@/components/brand";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -46,7 +47,9 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
   const [framework, setFramework] = useState<UiFrameworkNode[]>(data.framework);
   const [mode, setMode] = useState<AiMode>(data.mode);
   const [hintsUsed, setHintsUsed] = useState(data.hintsUsed);
-  const [finalEstimate, setFinalEstimate] = useState<number | null>(data.finalEstimate);
+  const [estimateText, setEstimateText] = useState(
+    data.finalEstimate != null ? String(data.finalEstimate) : "",
+  );
 
   const leftPanelRef = useRef<ImperativePanelHandle>(null);
 
@@ -69,6 +72,12 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
     });
   }
 
+  function handleChainResult(n: number) {
+    const rounded = Math.round(n * 100) / 100;
+    setEstimateText(String(rounded));
+    persistFinalEstimate(data.attemptId, rounded).catch(() => {});
+  }
+
   function handleSubmitted(result: SubmitResult) {
     if (result.reward) {
       const r = result.reward;
@@ -89,6 +98,7 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
       onAddCalc={handleAddCalc}
       framework={framework}
       onFramework={setFramework}
+      onChainResult={handleChainResult}
       initialTime={data.timeSpentSec}
       disabled={disabled}
       onActiveTool={onActiveTool}
@@ -114,8 +124,8 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
       onAssumptions={setAssumptions}
       calculations={calculations}
       framework={framework}
-      finalEstimate={finalEstimate}
-      onFinalEstimate={setFinalEstimate}
+      estimateText={estimateText}
+      onEstimateTextChange={setEstimateText}
       disabled={disabled}
       onSubmitted={handleSubmitted}
     />

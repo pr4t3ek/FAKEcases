@@ -166,12 +166,14 @@ model FrameworkNode {
   value     String?
   note      String?
   order     Int             @default(0)
+  combine   String          @default("sum") // "sum" | "multiply" — how this node's children combine (meaningful only with 2+ children)
   parentId  String?
   parent    FrameworkNode?  @relation("NodeChildren", fields: [parentId], references: [id])
   children  FrameworkNode[] @relation("NodeChildren")
   createdAt DateTime        @default(now())
 
   @@index([attemptId])
+  @@index([parentId])
 }
 
 model Evaluation {
