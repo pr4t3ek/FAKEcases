@@ -171,53 +171,58 @@ export function FrameworkBuilder({
     setDragId(null);
   }
 
-  // Bottom-up: each node's computed value = (inherited from parent × its own
-  // parsed value), then a node with children combines their computed values
-  // via Sum or Multiply (its own manual toggle) to produce ITS computed value.
+  // Two distinct quantities per node, deliberately kept apart:
+  //   resolved — the step's OWN value in the chain: inherited from its parent ×
+  //     its own parsed value. This is what the row displays, so a top-level
+  //     step shows exactly what was typed and a "30%" child shows 30% OF its
+  //     parent. It does not move when children are added or edited.
+  //   rollup — what the step contributes UPWARD: a leaf contributes its
+  //     resolved value; a parent combines its branches via Sum or Multiply
+  //     (its own manual toggle). Only this feeds the Chain result below.
   const byParent = new Map<string | null, UiFrameworkNode[]>();
   for (const n of nodes) {
     const arr = byParent.get(n.parentId) ?? [];
     arr.push(n);
     byParent.set(n.parentId, arr);
   }
-  const computedMap = new Map<string, number>();
-  // A step's running value is only meaningful once something real feeds into
-  // it — its own entry or an ancestor's. Without this, a node's neutral ×1
-  // pass-through (see parseNodeValue) would render as a literal "1".
+  const resolvedMap = new Map<string, number>();
+  const rollupMap = new Map<string, number>();
+  // A step's value is only meaningful once something real feeds into it — its
+  // own entry or an ancestor's. Without this, a node's neutral ×1 pass-through
+  // (see parseNodeValue) would render as a literal "1".
   const liveMap = new Map<string, boolean>();
   function visit(node: UiFrameworkNode, inherited: number, inheritedLive: boolean): number {
     const own = parseNodeValue(node.value) ?? 1;
-    const mine = inherited * own;
+    const resolved = inherited * own;
     const live = inheritedLive || !!node.value?.trim();
+    resolvedMap.set(node.id, resolved);
     liveMap.set(node.id, live);
-    computedMap.set(node.id, mine);
     const children = byParent.get(node.id) ?? [];
-    if (children.length === 0) return mine;
-    const childResults = children.map((c) => visit(c, mine, live));
+    if (children.length === 0) {
+      rollupMap.set(node.id, resolved);
+      return resolved;
+    }
+    const childRollups = children.map((c) => visit(c, resolved, live));
     const total =
       node.combine === "multiply"
-        ? childResults.reduce((a, b) => a * b, 1)
-        : childResults.reduce((a, b) => a + b, 0);
-    computedMap.set(node.id, total);
+        ? childRollups.reduce((a, b) => a * b, 1)
+        : childRollups.reduce((a, b) => a + b, 0);
+    rollupMap.set(node.id, total);
     return total;
   }
   const roots = byParent.get(null) ?? [];
   for (const r of roots) visit(r, 1, false);
   const anyParsed = nodes.some((n) => parseNodeValue(n.value) !== null);
-  const grandTotal = anyParsed ? roots.reduce((sum, r) => sum + (computedMap.get(r.id) ?? 0), 0) : null;
+  const grandTotal = anyParsed ? roots.reduce((sum, r) => sum + (rollupMap.get(r.id) ?? 0), 0) : null;
   const unrecognizedCount = nodes.filter(
     (n) => n.value?.trim() && parseNodeValue(n.value) === null,
   ).length;
 
   function renderNode(node: UiFrameworkNode) {
     const children = byParent.get(node.id) ?? [];
-    const computed = computedMap.get(node.id) ?? 0;
+    const resolved = resolvedMap.get(node.id) ?? 0;
     const ownUnrecognized = !!node.value?.trim() && parseNodeValue(node.value) === null;
-    // A node with children is a grouping step: its children's rollup belongs in
-    // the Chain result summary, not beside its own label where it reads as if
-    // the step's own entry had been rewritten.
-    const isGroup = children.length > 0;
-    const showValue = !isGroup && (liveMap.get(node.id) ?? false);
+    const showValue = liveMap.get(node.id) ?? false;
 
     return (
       <div key={node.id} className="space-y-1">
@@ -261,14 +266,12 @@ export function FrameworkBuilder({
             title={
               ownUnrecognized
                 ? "Not a recognized number/% — treated as ×1"
-                : isGroup
-                  ? "Grouping step — its branches roll up into the Chain result below"
-                  : showValue
-                    ? "Running value at this step"
-                    : "No value entered in this branch yet"
+                : showValue
+                  ? "This step's own value — its share of its parent"
+                  : "No value entered in this branch yet"
             }
           >
-            {showValue ? formatChainValue(computed) : "–"}
+            {showValue ? formatChainValue(resolved) : "–"}
             {ownUnrecognized && "!"}
           </span>
           <button
