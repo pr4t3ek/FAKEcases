@@ -37,7 +37,8 @@ function FrameworkTreeItem({
         {node.value?.trim() ? `: ${node.value.trim()}` : ""}
       </span>
       {children.length > 0 && (
-        <div className="space-y-1">
+        // Half the builder's inset — same staircase, but this column is narrow.
+        <div className="ml-1.5 space-y-1">
           {children.map((c) => (
             <FrameworkTreeItem key={c.id} node={c} all={all} depth={depth + 1} />
           ))}

@@ -502,7 +502,11 @@ export function FrameworkBuilder({
         )}
 
         {children.length > 0 && (
-          <div className="space-y-1.5">{children.map((c) => renderNode(c, depth + 1))}</div>
+          // A small left inset on top of the containment: the boxes alone read
+          // as nesting, but the staircase makes the level obvious at a glance.
+          <div className="ml-3 space-y-1.5">
+            {children.map((c) => renderNode(c, depth + 1))}
+          </div>
         )}
       </div>
     );
