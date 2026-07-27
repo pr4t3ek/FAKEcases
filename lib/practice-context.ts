@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { deriveAssumptions } from "@/lib/evaluation";
 import { toQuestionContext } from "@/lib/question-context";
 import type { InterviewerContext, ConvMessage } from "@/lib/llm";
 import type { AiMode } from "@/lib/config";
@@ -13,7 +14,6 @@ export async function loadInterviewerContext(
     include: {
       question: { include: { category: true } },
       messages: { orderBy: { createdAt: "asc" } },
-      assumptions: { orderBy: { createdAt: "asc" } },
       framework: { orderBy: { order: "asc" } },
     },
   });
@@ -27,11 +27,12 @@ export async function loadInterviewerContext(
     question: toQuestionContext(attempt.question),
     mode: (overrideMode ?? (attempt.mode as AiMode)) || "interviewer",
     messages,
-    assumptions: attempt.assumptions.map((a) => ({
-      key: a.key,
-      value: a.value,
-      rating: a.rating,
-    })),
+    // Same derivation the scorecard uses, so the interviewer probes the figures
+    // the candidate actually committed to in the tree and in what they said.
+    assumptions: deriveAssumptions({
+      framework: attempt.framework,
+      userMessageText: messages.filter((m) => m.role === "user").map((m) => m.content),
+    }).map((a) => ({ key: a.key, value: a.value, rating: a.rating })),
     framework: attempt.framework.map((f) => ({ label: f.label })),
     finalEstimate: attempt.finalEstimate,
     hintsUsed: attempt.hintsUsed,

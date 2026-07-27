@@ -19,7 +19,6 @@ import { OnboardingOverlay } from "./onboarding-overlay";
 import { TutorialTour } from "./tutorial-tour";
 import type {
   PracticeData,
-  UiAssumption,
   UiCalculation,
   UiFrameworkNode,
   UiMessage,
@@ -43,7 +42,6 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
   const isWide = useMediaQuery("(min-width: 1024px)");
 
   const [messages, setMessages] = useState<UiMessage[]>(data.messages);
-  const [assumptions, setAssumptions] = useState<UiAssumption[]>(data.assumptions);
   const [calculations, setCalculations] = useState<UiCalculation[]>(data.calculations);
   const [framework, setFramework] = useState<UiFrameworkNode[]>(data.framework);
   const [mode, setMode] = useState<AiMode>(data.mode);
@@ -137,8 +135,6 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
     <ProgressPanel
       attemptId={data.attemptId}
       unit={data.question.unit}
-      assumptions={assumptions}
-      onAssumptions={setAssumptions}
       calculations={calculations}
       framework={framework}
       estimateText={estimateText}

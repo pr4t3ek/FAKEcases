@@ -30,7 +30,6 @@ export async function submitAttempt(attemptId: string): Promise<SubmitResult> {
     include: {
       question: true,
       messages: true,
-      assumptions: true,
       calculations: true,
       framework: true,
       evaluation: true,
@@ -47,8 +46,13 @@ export async function submitAttempt(attemptId: string): Promise<SubmitResult> {
     betterApproach: attempt.question.betterApproach,
     sampleSolution: attempt.question.sampleSolution,
     finalEstimate: attempt.finalEstimate,
-    frameworkCount: attempt.framework.length,
-    assumptions: attempt.assumptions.map((a) => ({ value: a.value, rating: a.rating })),
+    // The assumed figures are read back off the tree and the conversation
+    // rather than a list kept by hand — see deriveAssumptions.
+    framework: attempt.framework.map((f) => ({
+      label: f.label,
+      value: f.value,
+      multiplier: f.multiplier,
+    })),
     calculationCount: attempt.calculations.length,
     userMessageText: attempt.messages.filter((m) => m.role === "user").map((m) => m.content),
     hintsUsed: attempt.hintsUsed,
