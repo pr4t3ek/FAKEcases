@@ -5,6 +5,15 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 import { ArrowRight, GripVertical, Plus, Trash2 } from "lucide-react";
 import { saveFramework } from "@/app/actions/practice";
 import { evaluateExpression } from "@/lib/calc";
+import {
+  isLegacyChildRate,
+  isLegacyChildValue,
+  percentBackspace,
+  percentField,
+  percentStore,
+  sanitizePercentInput,
+  sanitizeRateInput,
+} from "@/lib/framework-value";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn, formatIndianNumber, toIndianWords } from "@/lib/utils";
@@ -72,6 +81,21 @@ function shareTotalFor(children: UiFrameworkNode[]): number | null {
 function formatChainValue(n: number): string {
   if (Math.abs(n) < 1) return n.toFixed(3).replace(/\.?0+$/, "") || "0";
   return formatIndianNumber(n);
+}
+
+/**
+ * Keep the caret in front of the share box's trailing "%". A controlled input
+ * drops the caret at the end after each re-render, which would leave it sitting
+ * behind the suffix; re-pinning on every caret event puts it back where the
+ * next digit will actually land.
+ */
+function pinPercentCaret(el: HTMLInputElement, legacy: boolean) {
+  if (legacy || !el.value.endsWith("%")) return;
+  const start = el.selectionStart ?? 0;
+  // A range selection (select-all before retyping) is deliberate — leave it.
+  if (start !== el.selectionEnd) return;
+  const limit = el.value.length - 1;
+  if (start > limit) el.setSelectionRange(limit, limit);
 }
 
 function newId(): string {
@@ -275,6 +299,12 @@ export function FrameworkBuilder({
     const resolved = resolvedMap.get(node.id) ?? 0;
     const ownUnrecognized = isUnrecognized(node.value) || isUnrecognized(node.multiplier);
     const showValue = liveMap.get(node.id) ?? false;
+    // A child step is a slice of its parent, so its boxes are constrained: a
+    // 0–100% share, and a plain positive rate. Only a root step can name an
+    // absolute quantity to start the chain from.
+    const isChild = node.parentId !== null;
+    const legacyValue = isChild && isLegacyChildValue(node.value);
+    const legacyRate = isChild && isLegacyChildRate(node.multiplier);
     const shareTotal = node.combine === "sum" ? shareTotalFor(children) : null;
     const shareOff =
       shareTotal !== null && Math.abs(shareTotal - 100) > SHARE_TOTAL_TOLERANCE;
@@ -310,13 +340,47 @@ export function FrameworkBuilder({
             placeholder="Step name"
             className="h-7 min-w-[5rem] flex-1 border-0 bg-transparent px-1 text-sm font-medium shadow-none focus-visible:ring-0"
           />
-          <Input
-            value={node.value ?? ""}
-            onChange={(e) => setValue(node.id, e.target.value)}
-            placeholder="value / %"
-            title="This step's value — an absolute figure on a starting step (1.3cr), or its share of its parent (50%)"
-            className="h-7 w-16 shrink-0 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-0"
-          />
+          {isChild ? (
+            <Input
+              value={legacyValue ? (node.value ?? "") : percentField(node.value)}
+              onChange={(e) => {
+                const next = sanitizePercentInput(e.target.value);
+                if (next !== null) setValue(node.id, percentStore(next));
+              }}
+              onKeyDown={(e) => {
+                if (legacyValue || e.key !== "Backspace") return;
+                const el = e.currentTarget;
+                const end = el.value.length;
+                if (el.selectionStart !== end || el.selectionEnd !== end) return;
+                e.preventDefault();
+                setValue(node.id, percentBackspace(node.value));
+              }}
+              onKeyUp={(e) => pinPercentCaret(e.currentTarget, legacyValue)}
+              onFocus={(e) => pinPercentCaret(e.currentTarget, legacyValue)}
+              onClick={(e) => pinPercentCaret(e.currentTarget, legacyValue)}
+              onSelect={(e) => pinPercentCaret(e.currentTarget, legacyValue)}
+              inputMode="decimal"
+              placeholder="0–100%"
+              aria-label="Share of parent, 0–100%"
+              title={
+                legacyValue
+                  ? "Not a share — a branch takes 0–100% of its step above. Editing this box replaces it."
+                  : "This branch's share of the step above, 0–100%. An absolute figure belongs on a starting step; a rate goes in the × box."
+              }
+              className={cn(
+                "h-7 w-[4.5rem] shrink-0 rounded-md border border-input bg-background px-1.5 text-xs shadow-none focus-visible:ring-1 focus-visible:ring-offset-0",
+                legacyValue && "border-amber-500 text-amber-600",
+              )}
+            />
+          ) : (
+            <Input
+              value={node.value ?? ""}
+              onChange={(e) => setValue(node.id, e.target.value)}
+              placeholder="value / %"
+              title="This starting step's value — an absolute figure (1.3cr). Branches under it take a share of it."
+              className="h-7 w-16 shrink-0 rounded-md border border-input bg-background px-1.5 text-xs shadow-none focus-visible:ring-1 focus-visible:ring-offset-0"
+            />
+          )}
           <div className="ml-auto flex shrink-0 items-center gap-1.5">
             <span
               aria-hidden
@@ -329,11 +393,19 @@ export function FrameworkBuilder({
             </span>
             <Input
               value={node.multiplier ?? ""}
-              onChange={(e) => setMultiplier(node.id, e.target.value)}
+              onChange={(e) => {
+                if (!isChild) return setMultiplier(node.id, e.target.value);
+                const next = sanitizeRateInput(e.target.value);
+                if (next !== null) setMultiplier(node.id, next);
+              }}
               placeholder="1"
+              inputMode={isChild ? "decimal" : undefined}
               aria-label="Rate multiplier for this step"
               title="A rate on top of the share — 3 for “3 cups a day each”. Blank counts as ×1."
-              className="h-7 w-10 shrink-0 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-0"
+              className={cn(
+                "h-7 w-12 shrink-0 rounded-md border border-input bg-background px-1.5 text-xs shadow-none focus-visible:ring-1 focus-visible:ring-offset-0",
+                legacyRate && "border-amber-500 text-amber-600",
+              )}
             />
             <span
               className={cn(
@@ -483,9 +555,10 @@ export function FrameworkBuilder({
             </div>
           ) : (
             <p className="text-muted-foreground">
-              Give a step a value (<span className="font-mono">1.5cr</span> to start from, or{" "}
-              <span className="font-mono">40%</span> for a share of its parent) to compute a
-              result. The <span className="font-mono">×</span> box holds a rate on top of that —{" "}
+              Give a starting step an absolute value (<span className="font-mono">1.5cr</span>) to
+              compute a result. A branch under it takes a share of it instead —{" "}
+              <span className="font-mono">40%</span>, between 0 and 100. The{" "}
+              <span className="font-mono">×</span> box holds a rate on top of that —{" "}
               <span className="font-mono">30%</span> <span className="font-mono">× 4</span> reads
               &ldquo;a third of them, 4 a day each&rdquo;. Leave either box blank to pass the
               parent's value straight through.
