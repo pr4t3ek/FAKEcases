@@ -62,10 +62,12 @@ const STEPS: Step[] = [
     tool: "framework",
     title: "The framework builder — the biggest lever",
     body:
-      "Break the problem into steps. Each step's first box takes an absolute figure (1.3cr) or a " +
-      "share of its parent (65%); the × box holds a rate, like 3 cups a day. Percentage branches " +
-      "under Σ Sum are checked for adding to 100%, and the chain result can be pushed straight " +
-      "into your final estimate.",
+      "Break the problem into steps. The first one you add is the starting step and every step " +
+      "after it continues the chain underneath — use a row's + when you want to split that step " +
+      "into segments instead. Each step's first box takes an absolute figure (1.3cr) or a share " +
+      "of its parent (65%); the × box holds a rate, like 3 cups a day. Percentage branches under " +
+      "Σ Sum are checked for adding to 100%, and the chain result can be pushed straight into " +
+      "your final estimate.",
     scoring:
       "This drives the two heaviest categories — Problem Structuring (weight 1.4) and " +
       "Segmentation (1.3). Every step you add lifts them, up to five steps.",

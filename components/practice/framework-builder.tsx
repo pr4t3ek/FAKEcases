@@ -5,6 +5,7 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 import { ArrowRight, GripVertical, Plus, Trash2 } from "lucide-react";
 import { saveFramework } from "@/app/actions/practice";
 import { evaluateExpression } from "@/lib/calc";
+import { resolveAttachTarget } from "@/lib/framework-tree";
 import {
   isLegacyChildRate,
   isLegacyChildValue,
@@ -158,10 +159,18 @@ export function FrameworkBuilder({
       { id: newId(), parentId, label, value: "", multiplier: "", combine: "sum" },
     ]);
   }
+  /**
+   * A picked step extends the chain rather than starting a second one — only
+   * an empty tree gets a root. Resolved at click time so it always reads the
+   * current `nodes` prop, which the parent screen owns.
+   */
+  function addStep(label: string) {
+    add(resolveAttachTarget(nodes)?.id ?? null, label);
+  }
   function addCustom() {
     const label = customLabel.trim();
     if (!label) return;
-    add(null, label);
+    addStep(label);
     setCustomLabel("");
   }
   function addChild(parentId: string) {
@@ -282,6 +291,10 @@ export function FrameworkBuilder({
   }
   const roots = byParent.get(null) ?? [];
   for (const r of roots) visit(r, 1, false);
+  /** Where the palette and the custom-step box will drop their next step. */
+  const attachTarget = resolveAttachTarget(nodes);
+  /** A step the user hasn't named yet still has to be referrable to. */
+  const attachName = attachTarget && (attachTarget.label.trim() || "the step above");
   /** A field that has text in it but doesn't parse — silently treated as ×1. */
   function isUnrecognized(raw: string | null | undefined): boolean {
     return !!raw?.trim() && parseNodeValue(raw) === null;
@@ -494,7 +507,12 @@ export function FrameworkBuilder({
         {PALETTE.map((p) => (
           <button
             key={p}
-            onClick={() => add(null, p)}
+            onClick={() => addStep(p)}
+            title={
+              attachName
+                ? `Adds a step under “${attachName}”, continuing the chain`
+                : "Adds the starting step this estimate builds from"
+            }
             className="rounded-full border border-dashed px-2.5 py-1 text-xs text-muted-foreground hover:border-primary hover:text-primary"
           >
             <Plus className="mr-1 inline h-3 w-3" />
@@ -516,11 +534,21 @@ export function FrameworkBuilder({
         </Button>
       </div>
 
+      {/* Where the next pick lands, so nesting doesn't read as a misfired button. */}
+      {attachName && (
+        <p className="text-[11px] text-muted-foreground">
+          Next step goes under <span className="font-medium text-foreground">{attachName}</span>. To
+          split a step into segments instead, use that row's{" "}
+          <Plus className="inline h-3 w-3 align-text-bottom" />.
+        </p>
+      )}
+
       {roots.length === 0 ? (
         <p className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
-          Build your estimation tree — add a starting step above, then use the row's{" "}
-          <Plus className="inline h-3 w-3 align-text-bottom" /> to branch into segments. Structure
-          is graded.
+          Build your estimation tree — add a starting step above. Each step you add after it
+          continues the chain underneath, and a row's{" "}
+          <Plus className="inline h-3 w-3 align-text-bottom" /> branches that step into segments.
+          Structure is graded.
         </p>
       ) : (
         <div className="space-y-1">{roots.map((r) => renderNode(r))}</div>
