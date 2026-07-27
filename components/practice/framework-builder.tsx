@@ -315,7 +315,7 @@ export function FrameworkBuilder({
             onChange={(e) => setValue(node.id, e.target.value)}
             placeholder="value / %"
             title="This step's value — an absolute figure on a starting step (1.3cr), or its share of its parent (50%)"
-            className="h-7 w-16 shrink-0 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-0"
+            className="h-7 w-16 shrink-0 rounded-md border border-input bg-background px-1.5 text-xs shadow-none focus-visible:ring-1 focus-visible:ring-offset-0"
           />
           <div className="ml-auto flex shrink-0 items-center gap-1.5">
             <span
@@ -333,7 +333,7 @@ export function FrameworkBuilder({
               placeholder="1"
               aria-label="Rate multiplier for this step"
               title="A rate on top of the share — 3 for “3 cups a day each”. Blank counts as ×1."
-              className="h-7 w-10 shrink-0 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-0"
+              className="h-7 w-12 shrink-0 rounded-md border border-input bg-background px-1.5 text-xs shadow-none focus-visible:ring-1 focus-visible:ring-offset-0"
             />
             <span
               className={cn(
