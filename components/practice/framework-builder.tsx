@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn, formatIndianNumber, toIndianWords } from "@/lib/utils";
+import { depthStyle } from "./framework-depth";
 import type { UiFrameworkNode } from "./types";
 
 /**
@@ -307,8 +308,11 @@ export function FrameworkBuilder({
     (n) => isUnrecognized(n.value) || isUnrecognized(n.multiplier),
   ).length;
 
-  function renderNode(node: UiFrameworkNode) {
+  // `depth` drives the nesting colour only — the tree itself is walked through
+  // `byParent`, so it's a render concern, not part of the data.
+  function renderNode(node: UiFrameworkNode, depth: number) {
     const children = byParent.get(node.id) ?? [];
+    const tint = depthStyle(depth);
     const resolved = resolvedMap.get(node.id) ?? 0;
     const ownUnrecognized = isUnrecognized(node.value) || isUnrecognized(node.multiplier);
     const showValue = liveMap.get(node.id) ?? false;
@@ -323,7 +327,12 @@ export function FrameworkBuilder({
       shareTotal !== null && Math.abs(shareTotal - 100) > SHARE_TOTAL_TOLERANCE;
 
     return (
-      <div key={node.id} className="space-y-1">
+      // Containment carries the hierarchy: this box holds the step's own row and
+      // every descendant's box, each a level further along the colour ramp.
+      <div
+        key={node.id}
+        className={cn("space-y-1.5 rounded-xl border p-1.5", tint.box)}
+      >
         <div
           ref={(el) => {
             if (el) rowRefs.current.set(node.id, el);
@@ -345,7 +354,7 @@ export function FrameworkBuilder({
             style={{ touchAction: "none" }}
             className="shrink-0 cursor-grab touch-none active:cursor-grabbing"
           >
-            <GripVertical className="h-4 w-4 text-muted-foreground" />
+            <GripVertical className={cn("h-4 w-4", tint.grip)} />
           </span>
           <Input
             value={node.label}
@@ -454,7 +463,7 @@ export function FrameworkBuilder({
         </div>
 
         {children.length >= 2 && (
-          <div className="ml-7 flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
+          <div className="ml-1 flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
             <span>Combine {children.length} branches:</span>
             <button
               onClick={() => setCombine(node.id, "sum")}
@@ -493,9 +502,7 @@ export function FrameworkBuilder({
         )}
 
         {children.length > 0 && (
-          <div className="ml-3.5 space-y-1 border-l border-dashed pl-3">
-            {children.map((c) => renderNode(c))}
-          </div>
+          <div className="space-y-1.5">{children.map((c) => renderNode(c, depth + 1))}</div>
         )}
       </div>
     );
@@ -551,7 +558,7 @@ export function FrameworkBuilder({
           Structure is graded.
         </p>
       ) : (
-        <div className="space-y-1">{roots.map((r) => renderNode(r))}</div>
+        <div className="space-y-1.5">{roots.map((r) => renderNode(r, 0))}</div>
       )}
 
       {roots.length > 0 && (

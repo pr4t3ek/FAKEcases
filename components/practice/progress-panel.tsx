@@ -11,21 +11,35 @@ import { ASSUMPTION_RATING_META, type AssumptionRating } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { depthStyle } from "./framework-depth";
 import type { UiAssumption, UiCalculation, UiFrameworkNode } from "./types";
 
-/** Read-only nested rendering of a framework tree node and its children. */
-function FrameworkTreeItem({ node, all }: { node: UiFrameworkNode; all: UiFrameworkNode[] }) {
+/**
+ * Read-only nested rendering of a framework tree node and its children — the
+ * same nested-box shape the builder uses, at panel scale so a deep tree still
+ * fits this column.
+ */
+function FrameworkTreeItem({
+  node,
+  all,
+  depth,
+}: {
+  node: UiFrameworkNode;
+  all: UiFrameworkNode[];
+  depth: number;
+}) {
   const children = all.filter((n) => n.parentId === node.id);
+  const tint = depthStyle(depth);
   return (
-    <div className="space-y-1">
-      <span className="inline-block rounded bg-secondary px-1.5 py-0.5">
+    <div className={cn("space-y-1 rounded-lg border p-1", tint.box)}>
+      <span className={cn("inline-block rounded border px-1.5 py-0.5", tint.chip)}>
         {node.label}
         {node.value?.trim() ? `: ${node.value.trim()}` : ""}
       </span>
       {children.length > 0 && (
-        <div className="ml-3 space-y-1 border-l border-dashed pl-2">
+        <div className="space-y-1">
           {children.map((c) => (
-            <FrameworkTreeItem key={c.id} node={c} all={all} />
+            <FrameworkTreeItem key={c.id} node={c} all={all} depth={depth + 1} />
           ))}
         </div>
       )}
@@ -195,7 +209,7 @@ export function ProgressPanel({
               {framework
                 .filter((f) => f.parentId === null)
                 .map((f) => (
-                  <FrameworkTreeItem key={f.id} node={f} all={framework} />
+                  <FrameworkTreeItem key={f.id} node={f} all={framework} depth={0} />
                 ))}
             </div>
           )}
