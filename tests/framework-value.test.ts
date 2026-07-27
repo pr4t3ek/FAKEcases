@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   isLegacyChildRate,
   isLegacyChildValue,
+  percentBackspace,
   percentDisplay,
+  percentField,
   percentStore,
   sanitizePercentInput,
   sanitizeRateInput,
@@ -63,6 +65,33 @@ describe("percent storage round-trip", () => {
     expect(percentDisplay(null)).toBe("");
     expect(percentDisplay(undefined)).toBe("");
     expect(percentDisplay(percentStore("45.5"))).toBe("45.5");
+  });
+});
+
+describe("percentField", () => {
+  it("carries the '%' in the field text, so the box is never a bare number", () => {
+    expect(percentField("45%")).toBe("45%");
+    expect(percentField("45")).toBe("45%");
+    expect(percentField("45.5%")).toBe("45.5%");
+  });
+
+  it("stays empty when there's no share yet", () => {
+    expect(percentField("")).toBe("");
+    expect(percentField(null)).toBe("");
+    expect(percentField(undefined)).toBe("");
+  });
+});
+
+describe("percentBackspace", () => {
+  it("drops a digit rather than the suffix", () => {
+    expect(percentBackspace("45%")).toBe("4%");
+    expect(percentBackspace("4%")).toBe("");
+    expect(percentBackspace("45.5%")).toBe("45.%");
+  });
+
+  it("is a no-op on an already-empty box", () => {
+    expect(percentBackspace("")).toBe("");
+    expect(percentBackspace(null)).toBe("");
   });
 });
 

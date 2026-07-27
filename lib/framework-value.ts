@@ -63,6 +63,23 @@ export function percentStore(display: string): string {
 }
 
 /**
+ * Field text for a child's share box. The "%" is part of the input's own value
+ * rather than an adornment beside it, so the box never reads as a bare number.
+ */
+export function percentField(stored: string | null | undefined): string {
+  return percentStore(percentDisplay(stored));
+}
+
+/**
+ * Backspace with the caret at the end of the field. A default backspace there
+ * would eat the "%" and the next render would put it straight back, leaving the
+ * digits unreachable — so drop the last digit instead.
+ */
+export function percentBackspace(stored: string | null | undefined): string {
+  return percentStore(percentDisplay(stored).slice(0, -1));
+}
+
+/**
  * True for a stored child value that this box could not have produced —
  * i.e. data saved before the restriction ("1.3cr", "250%", "3 * 50%"). Such a
  * value is flagged rather than rewritten; the first edit replaces it.

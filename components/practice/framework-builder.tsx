@@ -8,7 +8,8 @@ import { evaluateExpression } from "@/lib/calc";
 import {
   isLegacyChildRate,
   isLegacyChildValue,
-  percentDisplay,
+  percentBackspace,
+  percentField,
   percentStore,
   sanitizePercentInput,
   sanitizeRateInput,
@@ -80,6 +81,21 @@ function shareTotalFor(children: UiFrameworkNode[]): number | null {
 function formatChainValue(n: number): string {
   if (Math.abs(n) < 1) return n.toFixed(3).replace(/\.?0+$/, "") || "0";
   return formatIndianNumber(n);
+}
+
+/**
+ * Keep the caret in front of the share box's trailing "%". A controlled input
+ * drops the caret at the end after each re-render, which would leave it sitting
+ * behind the suffix; re-pinning on every caret event puts it back where the
+ * next digit will actually land.
+ */
+function pinPercentCaret(el: HTMLInputElement, legacy: boolean) {
+  if (legacy || !el.value.endsWith("%")) return;
+  const start = el.selectionStart ?? 0;
+  // A range selection (select-all before retyping) is deliberate — leave it.
+  if (start !== el.selectionEnd) return;
+  const limit = el.value.length - 1;
+  if (start > limit) el.setSelectionRange(limit, limit);
 }
 
 function newId(): string {
@@ -325,32 +341,37 @@ export function FrameworkBuilder({
             className="h-7 min-w-[5rem] flex-1 border-0 bg-transparent px-1 text-sm font-medium shadow-none focus-visible:ring-0"
           />
           {isChild ? (
-            <div className="relative shrink-0">
-              <Input
-                value={legacyValue ? (node.value ?? "") : percentDisplay(node.value)}
-                onChange={(e) => {
-                  const next = sanitizePercentInput(e.target.value);
-                  if (next !== null) setValue(node.id, percentStore(next));
-                }}
-                inputMode="decimal"
-                placeholder="%"
-                aria-label="Share of parent, 0–100%"
-                title={
-                  legacyValue
-                    ? "Not a share — a branch takes 0–100% of its step above. Editing this box replaces it."
-                    : "This branch's share of the step above, 0–100%. An absolute figure belongs on a starting step; a rate goes in the × box."
-                }
-                className={cn(
-                  "h-7 w-16 rounded-md border border-input bg-background pl-1.5 text-xs shadow-none focus-visible:ring-1 focus-visible:ring-offset-0",
-                  legacyValue ? "border-amber-500 pr-1.5 text-amber-600" : "pr-5",
-                )}
-              />
-              {!legacyValue && (
-                <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                  %
-                </span>
+            <Input
+              value={legacyValue ? (node.value ?? "") : percentField(node.value)}
+              onChange={(e) => {
+                const next = sanitizePercentInput(e.target.value);
+                if (next !== null) setValue(node.id, percentStore(next));
+              }}
+              onKeyDown={(e) => {
+                if (legacyValue || e.key !== "Backspace") return;
+                const el = e.currentTarget;
+                const end = el.value.length;
+                if (el.selectionStart !== end || el.selectionEnd !== end) return;
+                e.preventDefault();
+                setValue(node.id, percentBackspace(node.value));
+              }}
+              onKeyUp={(e) => pinPercentCaret(e.currentTarget, legacyValue)}
+              onFocus={(e) => pinPercentCaret(e.currentTarget, legacyValue)}
+              onClick={(e) => pinPercentCaret(e.currentTarget, legacyValue)}
+              onSelect={(e) => pinPercentCaret(e.currentTarget, legacyValue)}
+              inputMode="decimal"
+              placeholder="0–100%"
+              aria-label="Share of parent, 0–100%"
+              title={
+                legacyValue
+                  ? "Not a share — a branch takes 0–100% of its step above. Editing this box replaces it."
+                  : "This branch's share of the step above, 0–100%. An absolute figure belongs on a starting step; a rate goes in the × box."
+              }
+              className={cn(
+                "h-7 w-[4.5rem] shrink-0 rounded-md border border-input bg-background px-1.5 text-xs shadow-none focus-visible:ring-1 focus-visible:ring-offset-0",
+                legacyValue && "border-amber-500 text-amber-600",
               )}
-            </div>
+            />
           ) : (
             <Input
               value={node.value ?? ""}
