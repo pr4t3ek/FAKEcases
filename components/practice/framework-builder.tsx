@@ -5,6 +5,7 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 import { ArrowRight, GripVertical, Plus, Trash2 } from "lucide-react";
 import { saveFramework } from "@/app/actions/practice";
 import { evaluateExpression } from "@/lib/calc";
+import { resolveAttachTarget } from "@/lib/framework-tree";
 import {
   isLegacyChildRate,
   isLegacyChildValue,
@@ -17,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn, formatIndianNumber, toIndianWords } from "@/lib/utils";
+import { depthStyle } from "./framework-depth";
 import type { UiFrameworkNode } from "./types";
 
 /**
@@ -158,10 +160,18 @@ export function FrameworkBuilder({
       { id: newId(), parentId, label, value: "", multiplier: "", combine: "sum" },
     ]);
   }
+  /**
+   * A picked step extends the chain rather than starting a second one — only
+   * an empty tree gets a root. Resolved at click time so it always reads the
+   * current `nodes` prop, which the parent screen owns.
+   */
+  function addStep(label: string) {
+    add(resolveAttachTarget(nodes)?.id ?? null, label);
+  }
   function addCustom() {
     const label = customLabel.trim();
     if (!label) return;
-    add(null, label);
+    addStep(label);
     setCustomLabel("");
   }
   function addChild(parentId: string) {
@@ -282,6 +292,10 @@ export function FrameworkBuilder({
   }
   const roots = byParent.get(null) ?? [];
   for (const r of roots) visit(r, 1, false);
+  /** Where the palette and the custom-step box will drop their next step. */
+  const attachTarget = resolveAttachTarget(nodes);
+  /** A step the user hasn't named yet still has to be referrable to. */
+  const attachName = attachTarget && (attachTarget.label.trim() || "the step above");
   /** A field that has text in it but doesn't parse — silently treated as ×1. */
   function isUnrecognized(raw: string | null | undefined): boolean {
     return !!raw?.trim() && parseNodeValue(raw) === null;
@@ -294,8 +308,11 @@ export function FrameworkBuilder({
     (n) => isUnrecognized(n.value) || isUnrecognized(n.multiplier),
   ).length;
 
-  function renderNode(node: UiFrameworkNode) {
+  // `depth` drives the nesting colour only — the tree itself is walked through
+  // `byParent`, so it's a render concern, not part of the data.
+  function renderNode(node: UiFrameworkNode, depth: number) {
     const children = byParent.get(node.id) ?? [];
+    const tint = depthStyle(depth);
     const resolved = resolvedMap.get(node.id) ?? 0;
     const ownUnrecognized = isUnrecognized(node.value) || isUnrecognized(node.multiplier);
     const showValue = liveMap.get(node.id) ?? false;
@@ -310,7 +327,12 @@ export function FrameworkBuilder({
       shareTotal !== null && Math.abs(shareTotal - 100) > SHARE_TOTAL_TOLERANCE;
 
     return (
-      <div key={node.id} className="space-y-1">
+      // Containment carries the hierarchy: this box holds the step's own row and
+      // every descendant's box, each a level further along the colour ramp.
+      <div
+        key={node.id}
+        className={cn("space-y-1.5 rounded-xl border p-1.5", tint.box)}
+      >
         <div
           ref={(el) => {
             if (el) rowRefs.current.set(node.id, el);
@@ -332,7 +354,7 @@ export function FrameworkBuilder({
             style={{ touchAction: "none" }}
             className="shrink-0 cursor-grab touch-none active:cursor-grabbing"
           >
-            <GripVertical className="h-4 w-4 text-muted-foreground" />
+            <GripVertical className={cn("h-4 w-4", tint.grip)} />
           </span>
           <Input
             value={node.label}
@@ -441,7 +463,7 @@ export function FrameworkBuilder({
         </div>
 
         {children.length >= 2 && (
-          <div className="ml-7 flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
+          <div className="ml-1 flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
             <span>Combine {children.length} branches:</span>
             <button
               onClick={() => setCombine(node.id, "sum")}
@@ -480,8 +502,10 @@ export function FrameworkBuilder({
         )}
 
         {children.length > 0 && (
-          <div className="ml-3.5 space-y-1 border-l border-dashed pl-3">
-            {children.map((c) => renderNode(c))}
+          // A small left inset on top of the containment: the boxes alone read
+          // as nesting, but the staircase makes the level obvious at a glance.
+          <div className="ml-3 space-y-1.5">
+            {children.map((c) => renderNode(c, depth + 1))}
           </div>
         )}
       </div>
@@ -494,7 +518,12 @@ export function FrameworkBuilder({
         {PALETTE.map((p) => (
           <button
             key={p}
-            onClick={() => add(null, p)}
+            onClick={() => addStep(p)}
+            title={
+              attachName
+                ? `Adds a step under “${attachName}”, continuing the chain`
+                : "Adds the starting step this estimate builds from"
+            }
             className="rounded-full border border-dashed px-2.5 py-1 text-xs text-muted-foreground hover:border-primary hover:text-primary"
           >
             <Plus className="mr-1 inline h-3 w-3" />
@@ -516,14 +545,24 @@ export function FrameworkBuilder({
         </Button>
       </div>
 
+      {/* Where the next pick lands, so nesting doesn't read as a misfired button. */}
+      {attachName && (
+        <p className="text-[11px] text-muted-foreground">
+          Next step goes under <span className="font-medium text-foreground">{attachName}</span>. To
+          split a step into segments instead, use that row's{" "}
+          <Plus className="inline h-3 w-3 align-text-bottom" />.
+        </p>
+      )}
+
       {roots.length === 0 ? (
         <p className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
-          Build your estimation tree — add a starting step above, then use the row's{" "}
-          <Plus className="inline h-3 w-3 align-text-bottom" /> to branch into segments. Structure
-          is graded.
+          Build your estimation tree — add a starting step above. Each step you add after it
+          continues the chain underneath, and a row's{" "}
+          <Plus className="inline h-3 w-3 align-text-bottom" /> branches that step into segments.
+          Structure is graded.
         </p>
       ) : (
-        <div className="space-y-1">{roots.map((r) => renderNode(r))}</div>
+        <div className="space-y-1.5">{roots.map((r) => renderNode(r, 0))}</div>
       )}
 
       {roots.length > 0 && (

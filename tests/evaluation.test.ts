@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { evaluate, rateAssumption } from "@/lib/evaluation";
+import { deriveAssumptions, evaluate, rateAssumption } from "@/lib/evaluation";
 import type { EvaluationInput } from "@/lib/evaluation";
 
 const base: EvaluationInput = {
@@ -8,10 +8,11 @@ const base: EvaluationInput = {
   betterApproach: "Segment adults vs children, apply replacement frequency.",
   sampleSolution: "~80 lakh",
   finalEstimate: 8_000_000,
-  frameworkCount: 4,
-  assumptions: [
-    { value: "2 crore because census", rating: "Excellent" },
-    { value: "70% adults", rating: "Reasonable" },
+  framework: [
+    { label: "Population", value: "2cr" },
+    { label: "Adults", value: "70%" },
+    { label: "Urban share", value: "60%" },
+    { label: "Replacement", value: "50%", multiplier: "2" },
   ],
   calculationCount: 3,
   userMessageText: [
@@ -35,8 +36,7 @@ describe("evaluate", () => {
     const poor = evaluate({
       ...base,
       finalEstimate: 500, // wildly off
-      frameworkCount: 0,
-      assumptions: [{ value: "dunno", rating: "Weak" }],
+      framework: [],
       calculationCount: 0,
       userMessageText: ["um I think a lot"],
       hintsUsed: 3,
@@ -50,6 +50,76 @@ describe("evaluate", () => {
     const r = evaluate({ ...base, finalEstimate: null });
     expect(r.accuracyHit).toBe(false);
     expect(r.feedback.some((f) => /final estimate|land on a number/i.test(f.text))).toBe(true);
+  });
+});
+
+describe("deriveAssumptions", () => {
+  it("reads every figure off the tree, values and rates alike", () => {
+    const got = deriveAssumptions({
+      framework: [
+        { label: "Population", value: "1.3cr" },
+        { label: "Segmentation", value: "40%", multiplier: "3" },
+        { label: "Grouping only", value: "" },
+      ],
+      userMessageText: [],
+    });
+    expect(got.map((a) => a.key)).toEqual([
+      "Population",
+      "Segmentation",
+      "Segmentation (rate)",
+    ]);
+    expect(got.every((a) => a.source === "framework")).toBe(true);
+  });
+
+  // The tree has nowhere to say *why*, so a figure in it is quantified at best.
+  it("caps a tree figure at Reasonable even when it reads as justified", () => {
+    const got = deriveAssumptions({
+      framework: [{ label: "Population", value: "2 crore based on census" }],
+      userMessageText: [],
+    });
+    expect(got[0].rating).toBe("Reasonable");
+  });
+
+  it("takes quantified claims from chat and rewards a stated basis", () => {
+    const got = deriveAssumptions({
+      framework: [],
+      userMessageText: ["assume 40% are urban because the census says so. 3 cups a day"],
+    });
+    expect(got).toHaveLength(2);
+    expect(got[0].rating).toBe("Excellent");
+    expect(got[1].rating).toBe("Reasonable");
+    expect(got.every((a) => a.source === "chat")).toBe(true);
+  });
+
+  it("ignores chat that never commits to a number", () => {
+    expect(
+      deriveAssumptions({ framework: [], userMessageText: ["quite a lot I think", ""] }),
+    ).toEqual([]);
+  });
+});
+
+describe("assumption quality from derived figures", () => {
+  it("does not let a filled-in tree alone max the score", () => {
+    const treeOnly = evaluate({ ...base, userMessageText: [] });
+    expect(treeOnly.scores.assumptions).toBeLessThan(85);
+  });
+
+  it("scores higher when the same figures are justified out loud", () => {
+    const treeOnly = evaluate({ ...base, userMessageText: [] });
+    const explained = evaluate({
+      ...base,
+      userMessageText: [
+        "assume 70% are adults because the census age split says so",
+        "replacement every 2 years based on typical usage",
+      ],
+    });
+    expect(explained.scores.assumptions).toBeGreaterThan(treeOnly.scores.assumptions);
+  });
+
+  it("bottoms out when no number is ever committed to", () => {
+    const none = evaluate({ ...base, framework: [], userMessageText: ["not sure really"] });
+    expect(none.scores.assumptions).toBeLessThan(45);
+    expect(none.feedback.some((f) => /never committed to a number/i.test(f.text))).toBe(true);
   });
 });
 

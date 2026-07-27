@@ -22,7 +22,6 @@ export default async function PracticePage({
     include: {
       question: { include: { category: true } },
       messages: { orderBy: { createdAt: "asc" } },
-      assumptions: { orderBy: { createdAt: "asc" } },
       calculations: { orderBy: { createdAt: "asc" } },
       framework: { orderBy: { order: "asc" } },
       evaluation: true,
@@ -69,13 +68,6 @@ export default async function PracticePage({
         content: m.content,
         hintLevel: m.hintLevel,
       })),
-    assumptions: attempt.assumptions.map((a) => ({
-      id: a.id,
-      key: a.key,
-      value: a.value,
-      rating: a.rating,
-      aiNote: a.aiNote,
-    })),
     calculations: attempt.calculations.map((c) => ({
       id: c.id,
       expression: c.expression,

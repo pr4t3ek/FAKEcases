@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 const POINTS = [
   { icon: MessageSquareText, title: "Think aloud in the chat", body: "The AI interviewer asks questions and guides you — it won't hand over the answer." },
   { icon: Calculator, title: "Use the tools on the left", body: "A framework builder and a scratchpad to structure your working, plus a calculator you can drag anywhere on screen." },
-  { icon: Layers, title: "Log assumptions on the right", body: "Each one is auto-rated. Build a clean chain to your final estimate." },
+  { icon: Layers, title: "Track your progress on the right", body: "Your calculations, your framework and your final estimate — the numbers you put in the tree and say in chat are read as your assumptions, so there's no separate list to keep." },
   { icon: ClipboardCheck, title: "Submit for a scorecard", body: "Get an 8-category evaluation. The sample solution unlocks only after you submit." },
 ];
 

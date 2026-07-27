@@ -62,13 +62,16 @@ const STEPS: Step[] = [
     tool: "framework",
     title: "The framework builder — the biggest lever",
     body:
-      "Break the problem into steps. Each step's first box takes an absolute figure (1.3cr) or a " +
-      "share of its parent (65%); the × box holds a rate, like 3 cups a day. Percentage branches " +
-      "under Σ Sum are checked for adding to 100%, and the chain result can be pushed straight " +
-      "into your final estimate.",
+      "Break the problem into steps. The first one you add is the starting step and every step " +
+      "after it continues the chain underneath — use a row's + when you want to split that step " +
+      "into segments instead. Each step's first box takes an absolute figure (1.3cr) or a share " +
+      "of its parent (65%); the × box holds a rate, like 3 cups a day. Percentage branches under " +
+      "Σ Sum are checked for adding to 100%, and the chain result can be pushed straight into " +
+      "your final estimate.",
     scoring:
       "This drives the two heaviest categories — Problem Structuring (weight 1.4) and " +
-      "Segmentation (1.3). Every step you add lifts them, up to five steps.",
+      "Segmentation (1.3). Every step you add lifts them, up to five steps. The figures in the " +
+      "boxes are also read as your assumptions, so there's no separate list to keep.",
   },
   {
     target: "calculator-btn",
@@ -97,7 +100,8 @@ const STEPS: Step[] = [
       "what you write, and silence tells it nothing.",
     scoring:
       "Communication is scored from how much you actually articulate — each of your first six " +
-      "messages adds to it.",
+      "messages adds to it. Assumption Quality is won here too: a figure you explain (“40% " +
+      "urban, from the census”) outscores the same figure sitting unexplained in your tree.",
   },
   {
     target: "hint",
@@ -107,17 +111,6 @@ const STEPS: Step[] = [
       `Each hint reveals a little more, and none of them hands over the answer. After all ${HINTS}, ` +
       "the button switches you to Teacher mode for a full explanation.",
     scoring: `Every hint costs 12 points of Confidence — so spend them when you're genuinely stuck.`,
-  },
-  {
-    target: "assumptions",
-    panel: "progress",
-    title: "Log every assumption",
-    body:
-      "Put a number to each leap you make, with the reasoning beside it. Each one is auto-rated " +
-      "Excellent, Reasonable or Weak the moment you add it.",
-    scoring:
-      "Both how many you log and how good they are feed Assumption Quality — and Weak ones " +
-      "subtract, so justify your figures.",
   },
   {
     target: "estimate",

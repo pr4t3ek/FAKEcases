@@ -2,7 +2,6 @@
 
 import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
-import { rateAssumption } from "@/lib/evaluation";
 import type { AiMode } from "@/lib/config";
 
 async function assertOwner(attemptId: string): Promise<string> {
@@ -11,29 +10,6 @@ async function assertOwner(attemptId: string): Promise<string> {
   const attempt = await db.attempt.findUnique({ where: { id: attemptId }, select: { userId: true } });
   if (!attempt || attempt.userId !== user.id) throw new Error("Not found");
   return user.id;
-}
-
-export async function addAssumption(attemptId: string, key: string, value: string) {
-  await assertOwner(attemptId);
-  const { rating, note } = rateAssumption(key, value);
-  const created = await db.assumption.create({
-    data: { attemptId, key: key.trim() || "Assumption", value: value.trim(), rating, aiNote: note },
-  });
-  return {
-    id: created.id,
-    key: created.key,
-    value: created.value,
-    rating: created.rating,
-    aiNote: created.aiNote,
-  };
-}
-
-export async function deleteAssumption(id: string) {
-  const user = await getSessionUser();
-  if (!user) throw new Error("Unauthorized");
-  const a = await db.assumption.findUnique({ where: { id }, include: { attempt: true } });
-  if (!a || a.attempt.userId !== user.id) throw new Error("Not found");
-  await db.assumption.delete({ where: { id } });
 }
 
 export async function addCalculation(

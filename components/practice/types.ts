@@ -7,14 +7,6 @@ export interface UiMessage {
   hintLevel?: number | null;
 }
 
-export interface UiAssumption {
-  id: string;
-  key: string;
-  value: string;
-  rating: string | null;
-  aiNote: string | null;
-}
-
 export interface UiCalculation {
   id: string;
   expression: string;
@@ -49,7 +41,6 @@ export interface PracticeData {
   status: string;
   question: PracticeQuestion;
   messages: UiMessage[];
-  assumptions: UiAssumption[];
   calculations: UiCalculation[];
   framework: UiFrameworkNode[];
   mode: AiMode;

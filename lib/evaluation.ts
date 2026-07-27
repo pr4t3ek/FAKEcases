@@ -7,14 +7,27 @@ import {
 import { clamp } from "@/lib/utils";
 import type { AssumptionRating, FeedbackItem } from "@/lib/types";
 
+export interface FrameworkNodeInput {
+  label: string;
+  value?: string | null;
+  multiplier?: string | null;
+}
+
+export interface DerivedAssumption {
+  /** Where the figure came from — the step's label, or that it was said aloud. */
+  key: string;
+  value: string;
+  rating: AssumptionRating;
+  source: "framework" | "chat";
+}
+
 export interface EvaluationInput {
   idealLow: number | null;
   idealHigh: number | null;
   betterApproach: string;
   sampleSolution: string;
   finalEstimate: number | null;
-  frameworkCount: number;
-  assumptions: { value: string; rating?: string | null }[];
+  framework: FrameworkNodeInput[];
   calculationCount: number;
   userMessageText: string[]; // just the user turns' text
   hintsUsed: number;
@@ -56,7 +69,7 @@ function textHas(haystacks: string[], words: string[]): boolean {
   return words.some((w) => t.includes(w));
 }
 
-/** Heuristic auto-rating for a single assumption (used by the assumption panel). */
+/** Heuristic auto-rating for a single stated figure. */
 export function rateAssumption(
   key: string,
   value: string,
@@ -83,10 +96,66 @@ export function rateAssumption(
   };
 }
 
+/** A clause is worth reading as a claim only once it commits to a figure. */
+function quantifiedFragments(text: string): string[] {
+  return text
+    .split(/[.!?;\n]+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0 && /\d/.test(s));
+}
+
+/**
+ * The numbers a candidate actually committed to, read back off their own work
+ * rather than a separate list they had to keep by hand: every figure in the
+ * framework tree, plus every quantified claim in what they said.
+ *
+ * The split in rating is deliberate. A tree box holds a figure but has nowhere
+ * to record *why*, so a step's value is quantified at best — "Excellent" has to
+ * be earned by explaining the number in the conversation, which is what an
+ * interviewer is actually listening for.
+ */
+export function deriveAssumptions(args: {
+  framework: FrameworkNodeInput[];
+  userMessageText: string[];
+}): DerivedAssumption[] {
+  const out: DerivedAssumption[] = [];
+
+  for (const node of args.framework) {
+    const label = node.label.trim() || "Step";
+    for (const [field, raw] of [
+      ["value", node.value],
+      ["rate", node.multiplier],
+    ] as const) {
+      const v = raw?.trim();
+      if (!v) continue;
+      const { rating } = rateAssumption(label, v);
+      out.push({
+        key: field === "rate" ? `${label} (rate)` : label,
+        value: v,
+        // Capped: the tree can't carry a rationale, so it can't earn Excellent.
+        rating: rating === "Excellent" ? "Reasonable" : rating,
+        source: "framework",
+      });
+    }
+  }
+
+  for (const message of args.userMessageText) {
+    for (const fragment of quantifiedFragments(message)) {
+      out.push({
+        key: "Said in chat",
+        value: fragment,
+        rating: rateAssumption("", fragment).rating,
+        source: "chat",
+      });
+    }
+  }
+
+  return out;
+}
+
 export function evaluate(input: EvaluationInput): EvaluationResult {
   const {
-    frameworkCount,
-    assumptions,
+    framework,
     calculationCount,
     userMessageText,
     hintsUsed,
@@ -95,19 +164,22 @@ export function evaluate(input: EvaluationInput): EvaluationResult {
     idealHigh,
   } = input;
 
+  const frameworkCount = framework.length;
+  const assumptions = deriveAssumptions({ framework, userMessageText });
+
   const assumptionCount = assumptions.length;
-  const goodAssumptions = assumptions.filter(
+  // Quantified is the floor, justified is the prize — see deriveAssumptions.
+  const quantified = assumptions.filter(
     (a) => a.rating === "Excellent" || a.rating === "Reasonable",
   ).length;
+  const justified = assumptions.filter((a) => a.rating === "Excellent").length;
   const weakAssumptions = assumptions.filter((a) => a.rating === "Weak").length;
-  const goodRatio = assumptionCount ? goodAssumptions / assumptionCount : 0;
+  const quantifiedRatio = assumptionCount ? quantified / assumptionCount : 0;
+  const justifiedRatio = assumptionCount ? justified / assumptionCount : 0;
 
   const hasSegmentation =
     frameworkCount >= 2 ||
-    textHas(
-      [...assumptions.map((a) => a.value), ...userMessageText],
-      SEGMENT_KEYWORDS,
-    );
+    textHas([...framework.map((f) => f.label), ...userMessageText], SEGMENT_KEYWORDS);
   const businessNuance = textHas(userMessageText, BUSINESS_KEYWORDS);
   const accuracy = computeAccuracy(finalEstimate, idealLow, idealHigh);
   const userMsgCount = userMessageText.length;
@@ -130,8 +202,15 @@ export function evaluate(input: EvaluationInput): EvaluationResult {
     30,
     92,
   );
+  // Derived figures are far more numerous than the handful people used to log
+  // by hand, so the count contribution is capped and most of the headroom sits
+  // in justifying them — otherwise a filled-in tree alone would max this out.
   const assumptionsScore = clamp(
-    40 + assumptionCount * 8 + goodRatio * 25 - weakAssumptions * 8,
+    35 +
+      Math.min(assumptionCount, 6) * 5 +
+      quantifiedRatio * 15 +
+      justifiedRatio * 25 -
+      weakAssumptions * 8,
     25,
     95,
   );
@@ -177,7 +256,9 @@ export function evaluate(input: EvaluationInput): EvaluationResult {
   const feedback = buildFeedback({
     hasSegmentation,
     weakAssumptions,
-    goodRatio,
+    assumptionCount,
+    quantifiedRatio,
+    justifiedRatio,
     accuracy,
     hintsUsed,
     calculationCount,
@@ -197,7 +278,9 @@ export function evaluate(input: EvaluationInput): EvaluationResult {
 function buildFeedback(args: {
   hasSegmentation: boolean;
   weakAssumptions: number;
-  goodRatio: number;
+  assumptionCount: number;
+  quantifiedRatio: number;
+  justifiedRatio: number;
   accuracy: Accuracy;
   hintsUsed: number;
   calculationCount: number;
@@ -212,11 +295,17 @@ function buildFeedback(args: {
       : { tone: "warning", text: "You jumped toward a number without segmenting. Break the population into groups that behave differently." },
   );
 
-  if (args.goodRatio >= 0.6) {
-    items.push({ tone: "positive", text: "Your assumptions were mostly quantified and reasonable, which makes your logic auditable." });
+  // The three states worth distinguishing: no numbers at all, numbers with no
+  // stated basis, and numbers you actually defended.
+  if (args.assumptionCount === 0) {
+    items.push({ tone: "warning", text: "You never committed to a number. Put figures on your steps and say what each one is based on." });
+  } else if (args.justifiedRatio >= 0.3) {
+    items.push({ tone: "positive", text: "You said where your numbers came from, not just what they were — that's what makes an estimate defensible." });
+  } else if (args.quantifiedRatio >= 0.6) {
+    items.push({ tone: "tip", text: "Your figures are all there, but you rarely said where they came from. Talk through the basis for your biggest drivers." });
   }
   if (args.weakAssumptions > 0) {
-    items.push({ tone: "warning", text: "Some assumptions lacked justification — always state where each number comes from." });
+    items.push({ tone: "warning", text: "Some steps held something that isn't a usable figure — every box should carry a number you can defend." });
   }
 
   switch (args.accuracy) {
