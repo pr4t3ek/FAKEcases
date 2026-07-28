@@ -37,14 +37,27 @@ async function call(system: string, messages: { role: string; content: string }[
   return text;
 }
 
+/**
+ * Adapters are stream-first, but this one still uses the non-streaming endpoint —
+ * it is kept as a paid upgrade path, not the primary provider, so it yields its
+ * whole reply as a single delta rather than carrying the cost of a second
+ * streaming implementation.
+ */
+async function* once(text: Promise<string>): AsyncGenerator<string> {
+  yield await text;
+}
+
 export const anthropicAdapter: LlmAdapter = {
   name: "anthropic",
-  async reply(ctx: InterviewerContext) {
-    const { system, messages } = buildReplyMessages(ctx);
-    return call(system, messages);
+  get model() {
+    return env.llm.model?.trim() || DEFAULT_MODEL;
   },
-  async hint(ctx: InterviewerContext, level: number) {
+  reply(ctx: InterviewerContext) {
+    const { system, messages } = buildReplyMessages(ctx);
+    return once(call(system, messages));
+  },
+  hint(ctx: InterviewerContext, level: number) {
     const { system, messages } = buildHintMessages(ctx, level);
-    return call(system, messages);
+    return once(call(system, messages));
   },
 };

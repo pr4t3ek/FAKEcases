@@ -3,7 +3,9 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { loadInterviewerContext } from "@/lib/practice-context";
-import { interviewerReply } from "@/lib/llm";
+import { interviewerReplyStream, isRealProvider } from "@/lib/llm";
+import { checkBudget, recordLlmCall } from "@/lib/llm/budget";
+import { ndjsonResponse, type StreamLine } from "@/lib/llm/stream";
 import type { AiMode } from "@/lib/config";
 
 const schema = z.object({
@@ -13,6 +15,8 @@ const schema = z.object({
 });
 
 export async function POST(req: Request) {
+  // Everything that can fail before the stream opens answers with plain JSON, so
+  // the client can distinguish "request rejected" from "turn went wrong midway".
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -36,12 +40,30 @@ export async function POST(req: Request) {
   const loaded = await loadInterviewerContext(attemptId, mode as AiMode);
   if (!loaded) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const { content: reply, provider } = await interviewerReply(loaded.ctx);
+  const budget = await checkBudget(user.id);
+  const turn = interviewerReplyStream(loaded.ctx, { budgetBlocked: !budget.ok });
 
-  await db.message.create({
-    data: { attemptId, role: "assistant", mode, content: reply },
+  return ndjsonResponse(async function* (): AsyncGenerator<StreamLine> {
+    let text = "";
+
+    for await (const delta of turn.deltas) {
+      text += delta;
+      yield { t: "delta", v: delta };
+    }
+
+    const { provider, model, fallbackReason, interrupted } = turn.outcome;
+
+    // Persist before closing the stream, not after: work scheduled past the end of
+    // the response body can be cut short on serverless, losing the turn.
+    if (text) {
+      await db.message.create({
+        data: { attemptId, role: "assistant", mode, content: text, provider, model },
+      });
+      await db.attempt.update({ where: { id: attemptId }, data: { mode } });
+      if (isRealProvider(provider)) await recordLlmCall();
+    }
+
+    if (interrupted) yield { t: "error", code: interrupted };
+    yield { t: "done", provider, model, fallbackReason };
   });
-  await db.attempt.update({ where: { id: attemptId }, data: { mode } });
-
-  return NextResponse.json({ reply, provider });
 }

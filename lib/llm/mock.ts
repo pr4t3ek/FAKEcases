@@ -177,44 +177,70 @@ function replyEvaluator(ctx: InterviewerContext): string {
   return parts.join(" ");
 }
 
+/** The mock's full reply for a context. Synchronous and deterministic. */
+export function mockReplyText(ctx: InterviewerContext): string {
+  switch (ctx.mode) {
+    case "teacher":
+      return replyTeacher(ctx);
+    case "evaluator":
+      return replyEvaluator(ctx);
+    default:
+      return replyInterviewer(ctx);
+  }
+}
+
+/** The mock's hint for a level. Synchronous and deterministic. */
+export function mockHintText(ctx: InterviewerContext, level: number): string {
+  const q = ctx.question;
+  const maxLevel = hintConfig.levels;
+  if (level <= 1) {
+    return pick(
+      [
+        "Think about who actually uses or buys this — is the whole population really your market?",
+        "Start from a base you know (like a city's population) and narrow it down step by step.",
+        "What's the single biggest driver of this number? Estimate that first.",
+      ],
+      seedFor(ctx, "hint1"),
+    );
+  }
+  if (level < maxLevel) {
+    return pick(
+      [
+        "Break the population into meaningful segments, then apply a usage or purchase rate to each.",
+        "Consider frequency: how often is this bought or replaced per year? Multiply that through your target segment.",
+        "Split into who owns it vs how often they replace it — those are two different assumptions.",
+      ],
+      seedFor(ctx, "hint2"),
+    );
+  }
+  // Final hint: near-complete direction using the better-approach, but no final number.
+  return `Here's the structure to use: ${q.betterApproach} Now put your own numbers to each step — I'll still let you compute the final figure yourself.`;
+}
+
+/**
+ * Emit a pre-computed string as deltas.
+ *
+ * The mock has nothing to wait for, so this adds no artificial delay — it exists
+ * so offline dev and the real provider drive the exact same rendering path in the
+ * UI, rather than the mock quietly taking a single-shot shortcut that hides
+ * streaming bugs until a key is set.
+ */
+function* chunk(text: string): Generator<string> {
+  const WORDS_PER_CHUNK = 6;
+  const words = text.split(/(\s+)/).filter(Boolean);
+  for (let i = 0; i < words.length; i += WORDS_PER_CHUNK * 2) {
+    yield words.slice(i, i + WORDS_PER_CHUNK * 2).join("");
+  }
+}
+
 export const mockAdapter: LlmAdapter = {
   name: "mock",
 
-  async reply(ctx) {
-    switch (ctx.mode) {
-      case "teacher":
-        return replyTeacher(ctx);
-      case "evaluator":
-        return replyEvaluator(ctx);
-      default:
-        return replyInterviewer(ctx);
-    }
+  async *reply(ctx) {
+    yield* chunk(mockReplyText(ctx));
   },
 
-  async hint(ctx, level) {
-    const q = ctx.question;
-    const maxLevel = hintConfig.levels;
-    if (level <= 1) {
-      return pick(
-        [
-          "Think about who actually uses or buys this — is the whole population really your market?",
-          "Start from a base you know (like a city's population) and narrow it down step by step.",
-          "What's the single biggest driver of this number? Estimate that first.",
-        ],
-        seedFor(ctx, "hint1"),
-      );
-    }
-    if (level < maxLevel) {
-      return pick(
-        [
-          "Break the population into meaningful segments, then apply a usage or purchase rate to each.",
-          "Consider frequency: how often is this bought or replaced per year? Multiply that through your target segment.",
-          "Split into who owns it vs how often they replace it — those are two different assumptions.",
-        ],
-        seedFor(ctx, "hint2"),
-      );
-    }
-    // Final hint: near-complete direction using the better-approach, but no final number.
-    return `Here's the structure to use: ${q.betterApproach} Now put your own numbers to each step — I'll still let you compute the final figure yourself.`;
+  async *hint(ctx, level) {
+    yield* chunk(mockHintText(ctx, level));
   },
 };

@@ -43,13 +43,34 @@ Useful scripts: `pnpm typecheck` · `pnpm build` · `pnpm test` · `pnpm db:rese
 By default the interviewer runs on an **offline deterministic mock** (great for demos/tests, no
 cost). To use a real model, it's a **config change, not a code change**:
 
-1. `cp .env.example .env.local`
-2. Add **one** line, e.g. `ANTHROPIC_API_KEY=sk-...` (or `OPENAI_API_KEY=...`).
+1. Get a free Gemini key from [Google AI Studio](https://aistudio.google.com/apikey) — no card required.
+2. `cp .env.example .env.local` and add `GEMINI_API_KEY=...`.
    Optionally set `LLM_PROVIDER` and `LLM_MODEL`.
 3. Restart the dev server.
 
-The adapter (`lib/llm/index.ts`) auto-detects the provider from the key and **falls back to the
-mock** on any error (missing key, rate limit, quota). Keys stay **server-side** only.
+The adapter (`lib/llm/index.ts`) auto-detects the provider from the key, streams replies
+token-by-token, and **falls back to the mock** when the provider is unavailable. Anthropic and
+OpenAI also work (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY`) but neither has a free tier. Keys stay
+**server-side** only.
+
+### Know the free-tier ceiling before you deploy
+
+Gemini's free-tier limits are **per API key, so they're shared by every user of the deployment** —
+not per user. At the time of writing that's **250 requests/day** on `gemini-2.5-flash`
+(`gemini-2.5-flash-lite` gives 1,000 for somewhat weaker instruction-following). A practice session
+runs 10–20 turns, so a free key supports roughly **12–25 sessions per day in total**. Check the
+[current limits](https://ai.google.dev/gemini-api/docs/rate-limits) — Google has cut them before.
+
+The app is built to hit that ceiling gracefully rather than break:
+
+- **Two spend guards** in `lib/config/practice.ts` (`llmBudget`) — a per-user hourly cap so one
+  candidate can't drain the day's budget, and a deployment-wide daily cap set below the real limit.
+- **Exceeding either degrades to the mock**, badged "offline interviewer" in the chat, instead of
+  erroring mid-session. Same for a rate limit or an outage.
+- Raise `llmBudget` when you move to a paid tier or a higher-quota model.
+
+Also note free-tier prompts and responses may be used to improve Google's models — worth
+disclosing if you run this publicly.
 
 ---
 
@@ -72,6 +93,7 @@ Framer Motion · Prisma (SQLite dev → Postgres/Supabase prod) · Recharts · V
 | Change hint count / guest cap / panel defaults | `lib/config/practice.ts` |
 | Turn features on/off | `lib/config/flags.ts` |
 | Swap the LLM provider | env vars (`LLM_PROVIDER`, `*_API_KEY`) |
+| Tune LLM rate/spend limits | `lib/config/practice.ts` (`llmBudget`) |
 | Add an achievement | `prisma/seed-data.ts` + award rule in `lib/gamification.ts` |
 
 **Architecture principles:** central typed config (no magic numbers), pluggable adapters behind
@@ -103,8 +125,10 @@ The same codebase runs free/offline locally and as a public web app once these a
 ## Testing
 
 `pnpm test` runs Vitest unit tests covering the evaluation scorer, the mock interviewer's
-**no-early-reveal** behaviour, gamification/rank math, the calculator engine, and the import
-validator.
+**no-early-reveal** behaviour, gamification/rank math, the calculator engine, the import
+validator, and the LLM layer — Gemini message mapping, the NDJSON stream protocol, the
+before/after-first-token fallback split, and the spend guards. Only the network boundary is
+mocked, so the adapter wiring and error classification are exercised for real.
 
 ---
 

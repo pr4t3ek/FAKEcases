@@ -3,7 +3,9 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { loadInterviewerContext } from "@/lib/practice-context";
-import { interviewerHint } from "@/lib/llm";
+import { interviewerHintStream, isRealProvider } from "@/lib/llm";
+import { checkBudget, recordLlmCall } from "@/lib/llm/budget";
+import { ndjsonResponse, type StreamLine } from "@/lib/llm/stream";
 import { hintConfig } from "@/lib/config";
 
 const schema = z.object({
@@ -28,19 +30,39 @@ export async function POST(req: Request) {
   const loaded = await loadInterviewerContext(attemptId);
   if (!loaded) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const { content: hint, provider } = await interviewerHint(loaded.ctx, level);
-
+  const budget = await checkBudget(user.id);
+  const turn = interviewerHintStream(loaded.ctx, level, { budgetBlocked: !budget.ok });
   const hintsUsed = Math.max(attempt.hintsUsed, level);
-  await db.message.create({
-    data: {
-      attemptId,
-      role: "assistant",
-      mode: "coach",
-      content: `💡 Hint ${level}: ${hint}`,
-      hintLevel: level,
-    },
-  });
-  await db.attempt.update({ where: { id: attemptId }, data: { hintsUsed } });
 
-  return NextResponse.json({ hint, level, hintsUsed, provider });
+  return ndjsonResponse(async function* (): AsyncGenerator<StreamLine> {
+    let text = "";
+
+    for await (const delta of turn.deltas) {
+      text += delta;
+      yield { t: "delta", v: delta };
+    }
+
+    const { provider, model, fallbackReason, interrupted } = turn.outcome;
+
+    // The "💡 Hint N:" prefix is stored with the message but not streamed — the
+    // client already rendered it when it created the bubble.
+    if (text) {
+      await db.message.create({
+        data: {
+          attemptId,
+          role: "assistant",
+          mode: "coach",
+          content: `💡 Hint ${level}: ${text}`,
+          hintLevel: level,
+          provider,
+          model,
+        },
+      });
+      await db.attempt.update({ where: { id: attemptId }, data: { hintsUsed } });
+      if (isRealProvider(provider)) await recordLlmCall();
+    }
+
+    if (interrupted) yield { t: "error", code: interrupted };
+    yield { t: "done", provider, model, fallbackReason, hintsUsed, level };
+  });
 }

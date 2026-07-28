@@ -36,10 +36,12 @@ flowchart TB
         Calc["calc.ts\ncalculator engine"]
         Questions["questions.ts\ncontent access"]
         LLM["llm/index.ts\npluggable adapter + fallback"]
+        Budget["llm/budget.ts\nper-user + daily spend guards"]
     end
 
     subgraph Providers["LLM providers"]
         Mock["mock.ts\ndeterministic offline interviewer"]
+        Gemini["gemini.ts\nstreaming, free tier"]
         Anthropic["anthropic.ts"]
         OpenAI["openai.ts"]
     end
@@ -52,13 +54,17 @@ flowchart TB
 
     UI <--> Pages
     UI -- "form submit / fetch" --> Actions
-    UI -- "streaming chat" --> Routes
+    UI -- "streaming chat (NDJSON)" --> Routes
     Pages --> Domain
     Actions --> Domain
     Routes --> Domain
+    Routes --> Budget
+    Budget -. "over quota → serve mock" .-> LLM
     LLM --> Mock
+    LLM --> Gemini
     LLM --> Anthropic
     LLM --> OpenAI
+    Gemini -. "on error, pre-first-token" .-> Mock
     Anthropic -. "on error" .-> Mock
     OpenAI -. "on error" .-> Mock
     Domain --> Prisma
@@ -66,6 +72,7 @@ flowchart TB
     Prisma -. "swap via DATABASE_URL" .-> Postgres
 
     style Mock fill:#2b6cb0,color:#fff
+    style Gemini fill:#2f855a,color:#fff
     style Anthropic fill:#6b46c1,color:#fff
     style OpenAI fill:#6b46c1,color:#fff
 ```
@@ -168,32 +175,53 @@ erDiagram
 
 ---
 
-## 4. LLM interviewer: pluggable adapter with safe fallback
+## 4. LLM interviewer: streaming adapter with safe fallback
 
 ```mermaid
 sequenceDiagram
     participant UI as Practice screen
     participant Route as /api/chat or /api/hint
+    participant Budget as llm/budget.ts
     participant Idx as lib/llm/index.ts
-    participant Env as env.llm.provider
-    participant Adapter as anthropic.ts / openai.ts
+    participant Adapter as gemini.ts (or anthropic/openai)
     participant Mock as mock.ts
 
     UI->>Route: user message / hint request
-    Route->>Idx: interviewerReply(ctx) / interviewerHint(ctx, level)
-    Idx->>Env: detect provider (env var → key sniffing → "mock")
-    Idx->>Adapter: adapter.reply(ctx) [if anthropic/openai]
+    Route->>Budget: checkBudget(userId)
+    Budget-->>Route: ok | user_limit | daily_limit
+    Route->>Idx: interviewerReplyStream(ctx, { budgetBlocked })
+    Idx->>Adapter: adapter.reply(ctx) [provider from env]
+
     alt success
-        Adapter-->>Idx: content
-        Idx-->>Route: { content, provider }
-    else error (no key, rate limit, network)
+        loop each chunk
+            Adapter-->>Idx: delta
+            Idx-->>Route: delta
+            Route-->>UI: {"t":"delta","v":"…"}
+        end
+    else fails before the first token (bad key, quota, network)
         Adapter--xIdx: throws
+        Note over Idx: one retry only if transient (per-minute limit)
         Idx->>Mock: mockAdapter.reply(ctx)
         Mock-->>Idx: deterministic content
-        Idx-->>Route: { content, provider: "mock (fallback)" }
+        Note over Route,UI: provider = "mock (fallback)" → badged in the chat
+    else fails mid-stream
+        Adapter--xIdx: throws after partial text
+        Note over Idx: the mock is NOT spliced on — switching engines<br/>mid-paragraph reads worse than an obvious truncation
+        Route-->>UI: {"t":"error","code":"…"}
     end
-    Route-->>UI: response
+
+    Route->>Route: persist assistant message (+ provider, model)<br/>before closing the stream
+    Route-->>UI: {"t":"done","provider":"…","model":"…"}
 ```
+
+Two design points worth keeping:
+
+- **The failure split is deliberate.** Before any text has streamed, the user has seen nothing, so
+  serving the mock produces a complete, coherent answer. Once real text is on screen, splicing mock
+  output onto the end would change voice and reasoning mid-paragraph — worse than a visibly
+  truncated reply. `tests/llm-stream.test.ts` pins both halves.
+- **Degradation is always visible.** Any mock-produced turn is persisted with its `provider` and
+  badged "offline interviewer" in the chat, so a downgraded answer is never mistaken for the model's.
 
 The mock adapter is deliberately **deterministic and rule-based** (never reveals the
 answer early), so `pnpm test` can assert interviewer behavior without any network calls.
@@ -291,7 +319,8 @@ components/
 
 lib/
 ├── config/            Central typed config: env, flags, evaluation weights, gamification curve, practice defaults
-├── llm/                Pluggable interviewer adapters (mock / anthropic / openai) + prompt builder
+├── llm/                Streaming interviewer adapters (mock / gemini / anthropic / openai),
+│                       prompt builder, NDJSON protocol (stream.ts), spend guards (budget.ts)
 ├── auth.ts             Signed cookie sessions, guest mode, claim-on-signup
 ├── evaluation.ts       Rubric scorer (pure, unit-tested)
 ├── gamification.ts     XP/level/streak/rank rules (pure, unit-tested)
@@ -320,7 +349,7 @@ flowchart LR
     subgraph Prod["Production (opt-in, all via env vars)"]
         P1["Vercel"]
         P2[("Postgres — Supabase / Neon")]
-        P3["Anthropic or OpenAI"]
+        P3["Gemini (free tier)\nor Anthropic / OpenAI (paid)"]
         P4["Supabase Auth-ready seam (lib/auth.ts)"]
     end
 
