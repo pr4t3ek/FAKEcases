@@ -127,9 +127,26 @@ model Message {
   mode      String?
   content   String
   hintLevel Int?
+  /// Which engine produced an assistant turn: "gemini" | "anthropic" | "openai" |
+  /// "mock" | "mock (fallback)". Persisted rather than kept in client state so the
+  /// UI's degraded-answer badge survives a page reload.
+  provider  String?
+  /// Model identifier for the turn, when the provider has one.
+  model     String?
   createdAt DateTime @default(now())
 
   @@index([attemptId])
+}
+
+/// Deployment-wide daily counter of real LLM calls, so the app can stay inside a
+/// shared free-tier quota instead of discovering the ceiling by taking 429s.
+/// One row per UTC day; see `lib/llm/budget.ts`.
+model UsageCounter {
+  id        String   @id @default(cuid())
+  /// UTC date, "YYYY-MM-DD".
+  day       String   @unique
+  count     Int      @default(0)
+  updatedAt DateTime @updatedAt
 }
 
 model Assumption {

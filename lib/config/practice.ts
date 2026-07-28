@@ -10,6 +10,27 @@ export const guestConfig = {
   attemptCap: 3,
 };
 
+/**
+ * LLM spend guards.
+ *
+ * Free-tier quotas are per API key and therefore shared by every user of the
+ * deployment, not per user. Without a per-user cap one enthusiastic candidate can
+ * consume the whole day's budget; without a global cap the app discovers the
+ * ceiling by taking 429s. Both limits degrade to the mock interviewer rather than
+ * erroring — see `lib/llm/budget.ts`.
+ *
+ * `globalRequestsPerDay` is deliberately set below the model's real RPD so there
+ * is headroom left for the seeded opening turns that bypass the chat routes.
+ * Gemini free tier at the time of writing: 250 RPD on gemini-2.5-flash, 1,000 on
+ * gemini-2.5-flash-lite. Raise this if you move to a paid tier or a lighter model.
+ */
+export const llmBudget = {
+  /** Per-user rolling-window cap. */
+  userMessagesPerHour: 40,
+  /** Deployment-wide daily cap on real provider calls (UTC days). */
+  globalRequestsPerDay: 200,
+};
+
 /** Default practice-screen panel widths (percent). User-resizable + persisted. */
 export const panelDefaults = {
   left: 40,

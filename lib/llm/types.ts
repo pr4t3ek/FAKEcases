@@ -36,11 +36,19 @@ export interface InterviewerContext {
   hintsUsed: number;
 }
 
+/**
+ * Adapters are stream-first: every provider yields text deltas, and callers that
+ * cannot stream (e.g. the server action that seeds an attempt's opening turn)
+ * use `collect()` from `./index`. Keeping a single method per operation stops
+ * the streaming and non-streaming paths from drifting apart.
+ */
 export interface LlmAdapter {
   /** The provider name (for diagnostics / UI). */
   readonly name: string;
+  /** Model identifier, when the provider has one. Recorded on each Message. */
+  readonly model?: string;
   /** Generate the next interviewer turn. */
-  reply(ctx: InterviewerContext): Promise<string>;
+  reply(ctx: InterviewerContext): AsyncIterable<string>;
   /** Generate a hint at the given escalating level (1..N). */
-  hint(ctx: InterviewerContext, level: number): Promise<string>;
+  hint(ctx: InterviewerContext, level: number): AsyncIterable<string>;
 }

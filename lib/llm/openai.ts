@@ -40,14 +40,22 @@ async function call(system: string, messages: { role: string; content: string }[
   return text;
 }
 
+/** See the note in `anthropic.ts` — single-delta shim over the non-streaming call. */
+async function* once(text: Promise<string>): AsyncGenerator<string> {
+  yield await text;
+}
+
 export const openaiAdapter: LlmAdapter = {
   name: "openai",
-  async reply(ctx: InterviewerContext) {
-    const { system, messages } = buildReplyMessages(ctx);
-    return call(system, messages);
+  get model() {
+    return env.llm.model?.trim() || DEFAULT_MODEL;
   },
-  async hint(ctx: InterviewerContext, level: number) {
+  reply(ctx: InterviewerContext) {
+    const { system, messages } = buildReplyMessages(ctx);
+    return once(call(system, messages));
+  },
+  hint(ctx: InterviewerContext, level: number) {
     const { system, messages } = buildHintMessages(ctx, level);
-    return call(system, messages);
+    return once(call(system, messages));
   },
 };

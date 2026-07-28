@@ -4,7 +4,8 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getOrCreateGuest } from "@/lib/auth";
 import { guestConfig } from "@/lib/config";
-import { interviewerReply } from "@/lib/llm";
+import { interviewerReply, isRealProvider } from "@/lib/llm";
+import { recordLlmCall } from "@/lib/llm/budget";
 import { toQuestionContext } from "@/lib/question-context";
 
 /**
@@ -41,7 +42,7 @@ export async function startAttempt(questionId: string): Promise<void> {
 
   // Seed the interviewer's opening turn so the chat isn't empty.
   try {
-    const { content } = await interviewerReply({
+    const { content, outcome } = await interviewerReply({
       question: toQuestionContext(question),
       mode: "interviewer",
       messages: [],
@@ -49,9 +50,19 @@ export async function startAttempt(questionId: string): Promise<void> {
       framework: [],
       hintsUsed: 0,
     });
-    await db.message.create({
-      data: { attemptId: attempt.id, role: "assistant", mode: "interviewer", content },
-    });
+    if (content) {
+      await db.message.create({
+        data: {
+          attemptId: attempt.id,
+          role: "assistant",
+          mode: "interviewer",
+          content,
+          provider: outcome.provider,
+          model: outcome.model,
+        },
+      });
+      if (isRealProvider(outcome.provider)) await recordLlmCall();
+    }
   } catch {
     // Non-fatal: the practice screen still works without a seeded opener.
   }
