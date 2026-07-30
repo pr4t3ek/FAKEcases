@@ -2,9 +2,20 @@
 
 import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
-import { evaluate } from "@/lib/evaluation";
+import { evaluate, evaluateQualitative, type RootCause } from "@/lib/evaluation";
 import { updateProgress, recomputeRank } from "@/lib/progress";
 import { applyAttemptRewards } from "@/lib/gamification";
+import { answerModeFor, type TreeMode } from "@/lib/types";
+
+/** Question JSON columns are stored as strings; bad data must not break a submit. */
+function parseJson<T>(raw: string | null): T | null {
+  if (!raw?.trim()) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
 
 export interface SubmitResult {
   ok: boolean;
@@ -40,23 +51,47 @@ export async function submitAttempt(attemptId: string): Promise<SubmitResult> {
     return { ok: true }; // already submitted; page will show the report
   }
 
-  const result = evaluate({
-    idealLow: attempt.question.idealLow,
-    idealHigh: attempt.question.idealHigh,
-    betterApproach: attempt.question.betterApproach,
-    sampleSolution: attempt.question.sampleSolution,
-    finalEstimate: attempt.finalEstimate,
-    // The assumed figures are read back off the tree and the conversation
-    // rather than a list kept by hand — see deriveAssumptions.
-    framework: attempt.framework.map((f) => ({
-      label: f.label,
-      value: f.value,
-      multiplier: f.multiplier,
-    })),
-    calculationCount: attempt.calculations.length,
-    userMessageText: attempt.messages.filter((m) => m.role === "user").map((m) => m.content),
-    hintsUsed: attempt.hintsUsed,
-  });
+  const userMessageText = attempt.messages
+    .filter((m) => m.role === "user")
+    .map((m) => m.content);
+  // The assumed figures — or, in a case, the reasons — are read back off the tree
+  // and the conversation rather than a list kept by hand. See deriveAssumptions.
+  const framework = attempt.framework.map((f) => ({
+    id: f.id,
+    parentId: f.parentId,
+    label: f.label,
+    value: f.value,
+    multiplier: f.multiplier,
+    status: f.status,
+    note: f.note,
+    sourceMessageId: f.sourceMessageId,
+    origin: f.origin,
+  }));
+
+  const answerMode = answerModeFor(attempt.question.type);
+  const result =
+    answerMode === "qualitative"
+      ? evaluateQualitative({
+          framework,
+          userMessageText,
+          finalAnswer: attempt.finalAnswer,
+          hintsUsed: attempt.hintsUsed,
+          treeMode: (attempt.treeMode as TreeMode | null) ?? null,
+          rootCause: parseJson<RootCause>(attempt.question.rootCause),
+          expectedBuckets: parseJson<string[]>(attempt.question.expectedBuckets) ?? [],
+          betterApproach: attempt.question.betterApproach,
+        })
+      : evaluate({
+          idealLow: attempt.question.idealLow,
+          idealHigh: attempt.question.idealHigh,
+          betterApproach: attempt.question.betterApproach,
+          sampleSolution: attempt.question.sampleSolution,
+          finalEstimate: attempt.finalEstimate,
+          framework,
+          calculationCount: attempt.calculations.length,
+          userMessageText,
+          hintsUsed: attempt.hintsUsed,
+        });
 
   await db.evaluation.create({
     data: {
@@ -68,6 +103,7 @@ export async function submitAttempt(attemptId: string): Promise<SubmitResult> {
       segmentation: result.scores.segmentation,
       assumptions: result.scores.assumptions,
       calculation: result.scores.calculation,
+      diagnosis: result.scores.diagnosis,
       communication: result.scores.communication,
       business: result.scores.business,
       confidence: result.scores.confidence,

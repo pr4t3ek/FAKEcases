@@ -39,6 +39,9 @@ async function main() {
         tags: q.tags,
         type: q.type ?? "guesstimate",
         framework: q.framework ?? null,
+        expectedBuckets: q.expectedBuckets ? JSON.stringify(q.expectedBuckets) : null,
+        dataPack: q.dataPack ? JSON.stringify(q.dataPack) : null,
+        rootCause: q.rootCause ? JSON.stringify(q.rootCause) : null,
         source: "seed",
       },
       create: {
@@ -56,6 +59,9 @@ async function main() {
         tags: q.tags,
         type: q.type ?? "guesstimate",
         framework: q.framework ?? null,
+        expectedBuckets: q.expectedBuckets ? JSON.stringify(q.expectedBuckets) : null,
+        dataPack: q.dataPack ? JSON.stringify(q.dataPack) : null,
+        rootCause: q.rootCause ? JSON.stringify(q.rootCause) : null,
         source: "seed",
       },
     });

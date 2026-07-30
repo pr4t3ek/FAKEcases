@@ -35,6 +35,12 @@ export interface SeedQuestion {
   type?: string;
   /** Framework slug this case is written against, for qualitative questions. */
   framework?: string;
+  /** Branches a good answer covers, for MECE coverage scoring. */
+  expectedBuckets?: string[];
+  /** Facts the interviewer releases only when asked about that topic. */
+  dataPack?: { topic: string[]; fact: string }[];
+  /** The branch that actually holds the problem. Presence makes a case diagnostic. */
+  rootCause?: { path: string[]; note?: string };
 }
 
 export const questions: SeedQuestion[] = [
@@ -439,6 +445,47 @@ export const questions: SeedQuestion[] = [
     interviewLevel: "McKinsey",
     type: "qualitative",
     framework: "profitability",
+    // Illustrative seed content, invented to exercise the diagnostic path
+    // end-to-end. The casebook-derived cases are authored separately, from what
+    // the source actually says about each one.
+    expectedBuckets: [
+      "Revenue",
+      "Cost",
+      "Commission / take rate",
+      "Delivery cost",
+      "Discounts",
+      "Order value",
+    ],
+    dataPack: [
+      {
+        topic: ["revenue", "order", "volume", "orders"],
+        fact: "Order volume is flat year-on-year — it has not fallen.",
+      },
+      {
+        topic: ["commission", "take rate", "revenue per order"],
+        fact: "Commission per order is unchanged at 18% of order value.",
+      },
+      {
+        topic: ["order value", "basket", "aov"],
+        fact: "Average order value has slipped about 6%, mostly from tier-2 cities.",
+      },
+      {
+        topic: ["cost", "delivery", "rider", "logistics"],
+        fact: "Delivery cost per order is up 31% year-on-year, driven by rider payouts.",
+      },
+      {
+        topic: ["discount", "promotion", "marketing"],
+        fact: "Discount spend per order is roughly flat.",
+      },
+      {
+        topic: ["packaging", "support", "overhead"],
+        fact: "Packaging and support costs per order are broadly unchanged.",
+      },
+    ],
+    rootCause: {
+      path: ["Cost", "Delivery cost"],
+      note: "Rider payouts per order rose 31% while revenue per order barely moved — the margin is being lost on delivery cost, not on take rate or volume.",
+    },
     betterApproach:
       "Split contribution margin into revenue per order (commission rate, delivery fee, ad income) and cost per order (rider payout, discounts, packaging, support). Isolate which side moved before hypothesising why, and check whether the mix of cities or order values shifted underneath a stable total volume.",
     sampleSolution:

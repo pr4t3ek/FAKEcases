@@ -140,6 +140,26 @@ const STATUS_STYLE: Record<NodeStatus, string> = {
   problem: "border-red-500/50 bg-red-500/10 text-red-600 dark:text-red-400",
 };
 
+/**
+ * The verdict washes the whole row, not just its badge — a 4mm icon is not
+ * something you can scan a twelve-branch tree with, and the point of marking is
+ * to see the shape of the diagnosis at a glance.
+ *
+ * The weights are deliberately uneven. A problem branch is where the candidate
+ * is working, so it is the loudest thing on screen; a cleared branch has been
+ * eliminated and should recede rather than compete for attention. Colour is
+ * never the only signal: the badge keeps its "OK" / "!" text.
+ *
+ * This is exactly what the cool-only family ramp in `framework-depth.ts` buys —
+ * red and green appear nowhere else in the tree, so a washed row can only mean a
+ * judgement, never a nesting level.
+ */
+const STATUS_ROW: Record<NodeStatus, string> = {
+  unknown: "bg-card",
+  healthy: "border-emerald-500/40 bg-emerald-500/[0.07]",
+  problem: "border-red-500/50 bg-red-500/[0.12]",
+};
+
 export function FrameworkBuilder({
   attemptId,
   nodes,
@@ -728,7 +748,8 @@ export function FrameworkBuilder({
             else rowRefs.current.delete(node.id);
           }}
           className={cn(
-            "group/row flex flex-wrap items-start gap-1.5 rounded-lg border bg-card p-2",
+            "group/row flex flex-wrap items-start gap-1.5 rounded-lg border p-2",
+            STATUS_ROW[status],
             dragId === node.id && "opacity-50",
           )}
         >

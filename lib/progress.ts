@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { computeSkillRating, rankForPercentile } from "@/lib/config";
 import { evaluationCategories } from "@/lib/config";
+import { answerModeFor } from "@/lib/types";
 
 /**
  * Recompute a user's Progress rollup from their submitted attempts + evaluations.
@@ -27,8 +28,17 @@ export async function updateProgress(userId: string): Promise<{
     ? Math.round((scores.reduce((s, v) => s + v, 0) / scores.length) * 10) / 10
     : 0;
 
-  const hits = evaluated.filter((a) => a.evaluation!.accuracyHit).length;
-  const accuracy = totalSolved ? Math.round((hits / totalSolved) * 100) : 0;
+  // "Accuracy" means an estimate landed inside its ideal range, which only a
+  // numeric question has. Dividing by every attempt would let a run of cases
+  // silently drag this stat toward zero for something they were never measured
+  // on.
+  const numericAttempts = evaluated.filter(
+    (a) => answerModeFor(a.question.type) === "numeric",
+  );
+  const hits = numericAttempts.filter((a) => a.evaluation!.accuracyHit).length;
+  const accuracy = numericAttempts.length
+    ? Math.round((hits / numericAttempts.length) * 100)
+    : 0;
 
   // Consistency: 100 minus normalized standard deviation of scores.
   let consistency = 0;
@@ -51,10 +61,15 @@ export async function updateProgress(userId: string): Promise<{
     byCategory[key] = entry;
   }
 
-  // Per-skill averages (the 8 evaluation categories).
+  // Per-skill averages. A null category didn't apply to that attempt — no
+  // arithmetic in a case, no diagnosis without a declared root cause, no
+  // structure score on a guided tree — so it is skipped rather than counted as
+  // zero, and a category nobody has been scored on simply doesn't appear.
   const bySkill: Record<string, { avg: number; count: number }> = {};
   for (const cat of evaluationCategories) {
-    const vals = evaluated.map((a) => a.evaluation![cat.key as keyof typeof a.evaluation] as number);
+    const vals = evaluated
+      .map((a) => a.evaluation![cat.key as keyof typeof a.evaluation] as number | null)
+      .filter((v): v is number => typeof v === "number");
     if (vals.length) {
       const avg = vals.reduce((s, v) => s + v, 0) / vals.length;
       bySkill[cat.key] = { avg: Math.round(avg), count: vals.length };

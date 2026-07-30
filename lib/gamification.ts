@@ -55,7 +55,9 @@ export async function applyAttemptRewards(
     overall: number;
     accuracyHit: boolean;
     hintsUsed: number;
-    segmentationScore: number;
+    /** Null when the attempt wasn't scored on structure — a guided tree builds
+     *  itself, so the MECE achievement can't be earned from it. */
+    segmentationScore: number | null;
     totalSolved: number;
   },
 ): Promise<AttemptRewardResult> {
@@ -113,7 +115,7 @@ export async function applyAttemptRewards(
   };
 
   await maybeAward("first-attempt");
-  if (ctx.segmentationScore >= 85) await maybeAward("mece-master");
+  if ((ctx.segmentationScore ?? 0) >= 85) await maybeAward("mece-master");
   if (ctx.accuracyHit) await maybeAward("sharp-shooter");
   if (ctx.hintsUsed === 0) await maybeAward("no-hints");
   if (ctx.overall >= 85) await maybeAward("interview-ready");

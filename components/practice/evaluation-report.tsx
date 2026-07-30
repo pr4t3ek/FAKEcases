@@ -11,9 +11,9 @@ import {
   AlertTriangle,
   Trophy,
 } from "lucide-react";
-import { evaluationCategories } from "@/lib/config";
+import { categoryLabel, evaluationCategories } from "@/lib/config";
 import { formatIndianNumber, toIndianWords, cn } from "@/lib/utils";
-import type { FeedbackItem } from "@/lib/types";
+import type { AnswerMode, FeedbackItem } from "@/lib/types";
 import { startAttempt } from "@/app/actions/attempts";
 import { Brand } from "@/components/brand";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -70,12 +70,25 @@ export function EvaluationReport({
   isGuest,
   question,
   finalEstimate,
+  finalAnswer,
+  answerMode = "numeric",
+  trail,
   evaluation,
 }: {
   questionId: string;
   isGuest: boolean;
   question: { title: string; prompt: string; unit: string | null };
   finalEstimate: number | null;
+  finalAnswer?: string | null;
+  answerMode?: AnswerMode;
+  /** The marked trail against the declared root cause, for a diagnostic case. */
+  trail?: {
+    yours: string[][];
+    actual: string[] | null;
+    cleared: number;
+    unexamined: number;
+    falseClears: string[];
+  } | null;
   evaluation: EvaluationRow;
 }) {
   const feedback: FeedbackItem[] = (() => {
@@ -118,17 +131,25 @@ export function EvaluationReport({
             <div className={cn("text-lg font-semibold", readinessTone[evaluation.readiness])}>
               {evaluation.readiness}
             </div>
-            {finalEstimate != null && (
-              <div className="text-sm text-muted-foreground">
-                Your estimate: {formatIndianNumber(finalEstimate)} · {toIndianWords(finalEstimate)}{" "}
-                {question.unit ?? ""}{" "}
-                {evaluation.accuracyHit ? (
-                  <Badge variant="success" className="ml-1">within range</Badge>
-                ) : (
-                  <Badge variant="muted" className="ml-1">outside ideal range</Badge>
+            {/* A case has no range to land in, so it shows the recommendation
+                rather than a number and an accuracy badge that can't apply. */}
+            {answerMode === "qualitative"
+              ? finalAnswer?.trim() && (
+                  <p className="max-w-lg text-sm text-muted-foreground">
+                    &ldquo;{finalAnswer.trim()}&rdquo;
+                  </p>
+                )
+              : finalEstimate != null && (
+                  <div className="text-sm text-muted-foreground">
+                    Your estimate: {formatIndianNumber(finalEstimate)} ·{" "}
+                    {toIndianWords(finalEstimate)} {question.unit ?? ""}{" "}
+                    {evaluation.accuracyHit ? (
+                      <Badge variant="success" className="ml-1">within range</Badge>
+                    ) : (
+                      <Badge variant="muted" className="ml-1">outside ideal range</Badge>
+                    )}
+                  </div>
                 )}
-              </div>
-            )}
           </Card>
         </motion.div>
 
@@ -147,7 +168,7 @@ export function EvaluationReport({
               return (
                 <div key={cat.key}>
                   <div className="mb-1 flex justify-between text-sm">
-                    <span>{cat.label}</span>
+                    <span>{categoryLabel(cat, answerMode)}</span>
                     <span className="font-medium tabular-nums">{v}</span>
                   </div>
                   <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
@@ -170,11 +191,47 @@ export function EvaluationReport({
             return (
               <p className="mt-4 rounded-lg border border-dashed p-2.5 text-center text-xs text-muted-foreground">
                 Not scored for this question:{" "}
-                {skipped.map((c) => c.label).join(", ")}
+                {skipped.map((c) => categoryLabel(c, answerMode)).join(", ")}
               </p>
             );
           })()}
         </Card>
+
+        {/* Where the diagnosis went, against where the problem actually was. */}
+        {trail && (
+          <Card className="mt-5 p-6">
+            <h2 className="mb-4 font-semibold">Your diagnosis</h2>
+            <dl className="space-y-2.5 text-sm">
+              <div className="flex flex-wrap gap-x-3">
+                <dt className="w-32 shrink-0 text-muted-foreground">You narrowed to</dt>
+                <dd className="font-medium">
+                  {trail.yours.length
+                    ? trail.yours.map((p) => p.join(" → ")).join("  ·  ")
+                    : "— nothing marked"}
+                </dd>
+              </div>
+              {trail.actual && (
+                <div className="flex flex-wrap gap-x-3">
+                  <dt className="w-32 shrink-0 text-muted-foreground">The problem was</dt>
+                  <dd className="font-medium text-success">{trail.actual.join(" → ")}</dd>
+                </div>
+              )}
+              <div className="flex flex-wrap gap-x-3">
+                <dt className="w-32 shrink-0 text-muted-foreground">Ruled out</dt>
+                <dd>
+                  {trail.cleared} branch{trail.cleared === 1 ? "" : "es"}
+                  {trail.unexamined > 0 && `, ${trail.unexamined} never examined`}
+                </dd>
+              </div>
+              {trail.falseClears.length > 0 && (
+                <div className="flex flex-wrap gap-x-3">
+                  <dt className="w-32 shrink-0 text-muted-foreground">Cleared too early</dt>
+                  <dd className="font-medium text-warning">{trail.falseClears.join(", ")}</dd>
+                </div>
+              )}
+            </dl>
+          </Card>
+        )}
 
         {/* Feedback */}
         <Card className="mt-5 p-6">

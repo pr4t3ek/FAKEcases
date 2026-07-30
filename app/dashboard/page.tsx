@@ -23,6 +23,7 @@ const SKILL_SHORT: Record<string, string> = {
   segmentation: "Segment",
   assumptions: "Assumpt.",
   calculation: "Calc",
+  diagnosis: "Diagnosis",
   communication: "Comm.",
   business: "Business",
   confidence: "Confidence",

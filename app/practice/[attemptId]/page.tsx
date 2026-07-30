@@ -6,6 +6,17 @@ import { EvaluationReport } from "@/components/practice/evaluation-report";
 import type { PracticeData } from "@/components/practice/types";
 import type { AiMode } from "@/lib/config";
 import { answerModeFor, type NodeOrigin, type NodeStatus, type TreeMode } from "@/lib/types";
+import { diagnosisTrail } from "@/lib/diagnosis";
+
+/** Question JSON columns are strings; malformed data must not break the report. */
+function parseJson<T>(raw: string | null): T | null {
+  if (!raw?.trim()) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +43,35 @@ export default async function PracticePage({
 
   // Submitted → show the evaluation report.
   if (attempt.status === "submitted" && attempt.evaluation) {
+    const answerMode = answerModeFor(attempt.question.type);
+    const rootCause = parseJson<{ path: string[] }>(attempt.question.rootCause);
+    // The trail section only makes sense when there was a declared answer to
+    // narrow toward; a brainstorm case has nothing to compare against.
+    const marked = diagnosisTrail(
+      attempt.framework.map((f) => ({
+        id: f.id,
+        parentId: f.parentId,
+        label: f.label,
+        status: f.status,
+      })),
+    );
+    const trail =
+      answerMode === "qualitative" && rootCause?.path?.length
+        ? {
+            yours: marked.labelPaths,
+            actual: rootCause.path,
+            cleared: marked.cleared,
+            unexamined: marked.unexamined,
+            falseClears: attempt.framework
+              .filter(
+                (f) =>
+                  f.status === "healthy" &&
+                  rootCause.path.some((p) => f.label.toLowerCase().includes(p.toLowerCase())),
+              )
+              .map((f) => f.label),
+          }
+        : null;
+
     return (
       <EvaluationReport
         questionId={attempt.questionId}
@@ -42,6 +82,9 @@ export default async function PracticePage({
           unit: attempt.question.unit,
         }}
         finalEstimate={attempt.finalEstimate}
+        finalAnswer={attempt.finalAnswer}
+        answerMode={answerMode}
+        trail={trail}
         evaluation={attempt.evaluation}
       />
     );
