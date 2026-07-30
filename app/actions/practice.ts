@@ -37,6 +37,10 @@ export async function saveFramework(
     value?: string | null;
     multiplier?: string | null;
     combine: "sum" | "multiply";
+    status?: string | null;
+    note?: string | null;
+    sourceMessageId?: string | null;
+    origin?: string | null;
   }[],
 ) {
   await assertOwner(attemptId);
@@ -50,6 +54,10 @@ export async function saveFramework(
         value: n.value ?? null,
         multiplier: n.multiplier ?? null,
         combine: n.combine,
+        status: n.status ?? null,
+        note: n.note ?? null,
+        sourceMessageId: n.sourceMessageId ?? null,
+        origin: n.origin ?? null,
         order: i,
       })),
     });
@@ -72,6 +80,15 @@ export async function setMode(attemptId: string, mode: AiMode) {
 export async function setFinalEstimate(attemptId: string, value: number | null) {
   await assertOwner(attemptId);
   await db.attempt.update({ where: { id: attemptId }, data: { finalEstimate: value } });
+}
+
+/** The recommendation in words — the qualitative counterpart of a final estimate. */
+export async function setFinalAnswer(attemptId: string, text: string) {
+  await assertOwner(attemptId);
+  await db.attempt.update({
+    where: { id: attemptId },
+    data: { finalAnswer: text.trim() || null },
+  });
 }
 
 export async function saveTime(attemptId: string, seconds: number) {

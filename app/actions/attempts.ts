@@ -7,6 +7,7 @@ import { guestConfig } from "@/lib/config";
 import { interviewerReply, isRealProvider } from "@/lib/llm";
 import { recordLlmCall } from "@/lib/llm/budget";
 import { toQuestionContext } from "@/lib/question-context";
+import { answerModeFor } from "@/lib/types";
 
 /**
  * Start (or resume) an attempt for a question. Creates a guest session if the
@@ -36,8 +37,19 @@ export async function startAttempt(questionId: string): Promise<void> {
   });
   if (!question) redirect("/library");
 
+  // Fixed at creation and never changed afterwards: if the tree mode could be
+  // switched mid-attempt, "solo" would mean nothing — you could flip to guided,
+  // take the structure, and flip back. Solo is the default; guided is a
+  // deliberate choice made on the question card.
+  const answerMode = answerModeFor(question.type);
   const attempt = await db.attempt.create({
-    data: { userId: user.id, questionId, mode: "interviewer", status: "in_progress" },
+    data: {
+      userId: user.id,
+      questionId,
+      mode: "interviewer",
+      status: "in_progress",
+      treeMode: answerMode === "qualitative" ? "solo" : null,
+    },
   });
 
   // Seed the interviewer's opening turn so the chat isn't empty.

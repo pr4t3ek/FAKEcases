@@ -5,6 +5,7 @@ import { PracticeScreen } from "@/components/practice/practice-screen";
 import { EvaluationReport } from "@/components/practice/evaluation-report";
 import type { PracticeData } from "@/components/practice/types";
 import type { AiMode } from "@/lib/config";
+import { answerModeFor, type NodeOrigin, type NodeStatus, type TreeMode } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +60,11 @@ export default async function PracticePage({
       difficulty: attempt.question.difficulty,
       interviewLevel: attempt.question.interviewLevel,
       unit: attempt.question.unit,
+      answerMode: answerModeFor(attempt.question.type),
+      framework: attempt.question.framework,
+      // Only whether facts exist crosses to the client — the facts themselves
+      // stay server-side, or the tree could be read off the page source.
+      hasDataPack: !!attempt.question.dataPack?.trim(),
     },
     messages: attempt.messages
       .filter((m) => m.role !== "system")
@@ -81,9 +87,15 @@ export default async function PracticePage({
       value: f.value,
       multiplier: f.multiplier,
       combine: f.combine === "multiply" ? "multiply" : "sum",
+      status: (f.status as NodeStatus | null) ?? null,
+      note: f.note,
+      sourceMessageId: f.sourceMessageId,
+      origin: (f.origin as NodeOrigin | null) ?? null,
     })),
     mode: (attempt.mode as AiMode) || "interviewer",
     finalEstimate: attempt.finalEstimate,
+    finalAnswer: attempt.finalAnswer,
+    treeMode: (attempt.treeMode as TreeMode | null) ?? null,
     hintsUsed: attempt.hintsUsed,
     timeSpentSec: attempt.timeSpentSec,
   };

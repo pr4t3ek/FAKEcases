@@ -42,6 +42,21 @@ export const panelDefaults = {
   frameworkExpandLeft: 50,
 };
 
+/**
+ * Qualitative attempts give the tree the right-hand column's space.
+ *
+ * That column carries three things, and in this mode two of them are dead: the
+ * calculations list (there is no calculator) and a read-only mirror of the tree
+ * being edited two panels away. Only the answer box earns its width, and it
+ * moves under the tree. The panel is collapsed rather than removed, so the
+ * resize handle brings the summary back for anyone who wants it.
+ */
+export const qualitativePanelDefaults = {
+  left: 64,
+  center: 36,
+  right: 0,
+};
+
 export const aiModes = [
   { key: "interviewer", label: "Interviewer", hint: "Only asks questions" },
   { key: "coach", label: "Coach", hint: "Provides hints" },

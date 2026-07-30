@@ -24,8 +24,59 @@ export const INTERVIEW_LEVEL_LABELS: Record<InterviewLevel, string> = {
   GeneralMBA: "General MBA",
 };
 
-export const QUESTION_TYPES = ["guesstimate", "case"] as const;
+export const QUESTION_TYPES = ["guesstimate", "qualitative", "case"] as const;
 export type QuestionType = (typeof QUESTION_TYPES)[number];
+
+/**
+ * How a question is answered, and therefore how it is built and scored.
+ *
+ * Everything downstream branches on this rather than on `type`, so a question
+ * type that behaves like an issue tree — `case`, eventually — costs one line
+ * here instead of a second pass through the builder, the scorer and the prompts.
+ */
+export const ANSWER_MODES = ["numeric", "qualitative"] as const;
+export type AnswerMode = (typeof ANSWER_MODES)[number];
+
+export function answerModeFor(type: string): AnswerMode {
+  return type === "guesstimate" ? "numeric" : "qualitative";
+}
+
+/**
+ * How much of the tree the app builds for the candidate.
+ *
+ * Fixed when the attempt is created: without the lock, "solo" is theatre —
+ * switch to guided, take the structure, switch back. A guided attempt cannot be
+ * graded on structure (see `lib/evaluation.ts`), which is what keeps the offer
+ * honest rather than free marks.
+ */
+export const TREE_MODES = ["solo", "guided"] as const;
+export type TreeMode = (typeof TREE_MODES)[number];
+
+/**
+ * A branch's diagnostic state. Set only by the candidate and never derived:
+ * marking a child "problem" says nothing about its parent, because "the problem
+ * is somewhere in here" and "this is the cause" are different claims. A trail of
+ * `problem` nodes narrowing to a leaf is what a solved case looks like.
+ */
+export const NODE_STATUSES = ["unknown", "healthy", "problem"] as const;
+export type NodeStatus = (typeof NODE_STATUSES)[number];
+
+export const NODE_STATUS_META: Record<
+  NodeStatus,
+  { label: string; short: string; hint: string }
+> = {
+  unknown: { label: "Not examined", short: "—", hint: "Not looked at yet" },
+  healthy: { label: "Healthy", short: "OK", hint: "Checked — the problem isn't here" },
+  problem: {
+    label: "Problem",
+    short: "!",
+    hint: "The problem is somewhere in here — break it down further",
+  },
+};
+
+/** Where a node came from, so scoring can tell a self-built tree from a supplied one. */
+export const NODE_ORIGINS = ["manual", "chat", "scaffold", "suggested"] as const;
+export type NodeOrigin = (typeof NODE_ORIGINS)[number];
 
 export const ATTEMPT_STATUSES = ["in_progress", "submitted", "abandoned"] as const;
 export type AttemptStatus = (typeof ATTEMPT_STATUSES)[number];

@@ -1,12 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Clock, Layers, NotebookPen, Pause, Play } from "lucide-react";
-import { saveTime } from "@/app/actions/practice";
+import { useEffect, useState } from "react";
+import { Check, Clock, Layers, Loader2, NotebookPen, Pause, Play } from "lucide-react";
+import { toast } from "sonner";
+import { saveTime, setFinalAnswer } from "@/app/actions/practice";
+import { submitAttempt, type SubmitResult } from "@/app/actions/submit";
+import { describeTrail, diagnosisTrail } from "@/lib/diagnosis";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { INTERVIEW_LEVEL_LABELS, type InterviewLevel } from "@/lib/types";
+import { INTERVIEW_LEVEL_LABELS, type InterviewLevel, type TreeMode } from "@/lib/types";
 import { CalculatorPopup } from "./calculator-popup";
 import { FrameworkBuilder } from "./framework-builder";
 import { ReportIssue } from "./report-issue";
@@ -30,6 +34,11 @@ export function ToolsPanel({
   disabled,
   onActiveTool,
   activeTool,
+  treeMode,
+  messageText,
+  answerText,
+  onAnswerTextChange,
+  onSubmitted,
 }: {
   attemptId: string;
   question: PracticeQuestion;
@@ -42,7 +51,13 @@ export function ToolsPanel({
   disabled: boolean;
   onActiveTool: (tool: string) => void;
   activeTool: string;
+  treeMode?: TreeMode | null;
+  messageText?: Map<string, string>;
+  answerText?: string;
+  onAnswerTextChange?: (t: string) => void;
+  onSubmitted?: (r: SubmitResult) => void;
 }) {
+  const qualitative = question.answerMode === "qualitative";
   const [elapsed, setElapsed] = useState(initialTime);
   const [running, setRunning] = useState(!disabled);
   const [notes, setNotes] = useState("");
@@ -93,11 +108,14 @@ export function ToolsPanel({
             )}
           </div>
           <div className="flex items-center gap-3">
-            <CalculatorPopup
-              attemptId={attemptId}
-              calculations={calculations}
-              onAdd={onAddCalc}
-            />
+            {/* No arithmetic in a qualitative case, so no calculator. */}
+            {!qualitative && (
+              <CalculatorPopup
+                attemptId={attemptId}
+                calculations={calculations}
+                onAdd={onAddCalc}
+              />
+            )}
             <ReportIssue questionId={question.id} attemptId={attemptId} />
           </div>
         </div>
@@ -126,6 +144,10 @@ export function ToolsPanel({
               nodes={framework}
               onChange={onFramework}
               onChainResult={onChainResult}
+              answerMode={question.answerMode}
+              treeMode={treeMode}
+              hasDataPack={question.hasDataPack}
+              messageText={messageText}
             />
           </TabsContent>
           <TabsContent value="notes" className="mt-0">
@@ -141,6 +163,76 @@ export function ToolsPanel({
           </TabsContent>
         </div>
       </Tabs>
+
+      {/* The answer moves under the tree, because the column it used to live in
+          is now the tree's. */}
+      {qualitative && onAnswerTextChange && onSubmitted && (
+        <AnswerBar
+          attemptId={attemptId}
+          framework={framework}
+          answerText={answerText ?? ""}
+          onAnswerTextChange={onAnswerTextChange}
+          disabled={disabled}
+          onSubmitted={onSubmitted}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Trail, recommendation and Submit in one strip under the builder. */
+function AnswerBar({
+  attemptId,
+  framework,
+  answerText,
+  onAnswerTextChange,
+  disabled,
+  onSubmitted,
+}: {
+  attemptId: string;
+  framework: UiFrameworkNode[];
+  answerText: string;
+  onAnswerTextChange: (t: string) => void;
+  disabled: boolean;
+  onSubmitted: (r: SubmitResult) => void;
+}) {
+  const [submitting, setSubmitting] = useState(false);
+  const trail = describeTrail(diagnosisTrail(framework));
+
+  async function submit() {
+    setSubmitting(true);
+    try {
+      await setFinalAnswer(attemptId, answerText).catch(() => {});
+      const result = await submitAttempt(attemptId);
+      if (!result.ok) throw new Error(result.error);
+      onSubmitted(result);
+    } catch {
+      toast.error("Couldn't submit. Try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="shrink-0 border-t bg-card/50 p-3">
+      <p className="mb-2 truncate text-[11px] text-muted-foreground" title={trail}>
+        {trail}
+      </p>
+      <div className="flex items-end gap-2">
+        <Textarea
+          value={answerText}
+          onChange={(e) => onAnswerTextChange(e.target.value)}
+          onBlur={() => setFinalAnswer(attemptId, answerText).catch(() => {})}
+          placeholder="Your recommendation — what's the answer, and what would you do?"
+          className="max-h-28 min-h-[44px] flex-1 resize-none text-sm"
+          disabled={disabled}
+          data-tour="estimate"
+        />
+        <Button onClick={submit} disabled={disabled || submitting} className="shrink-0">
+          {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+          Submit
+        </Button>
+      </div>
     </div>
   );
 }

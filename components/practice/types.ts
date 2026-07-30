@@ -1,4 +1,5 @@
 import type { AiMode } from "@/lib/config";
+import type { AnswerMode, NodeOrigin, NodeStatus, TreeMode } from "@/lib/types";
 
 export interface UiMessage {
   id: string;
@@ -28,6 +29,13 @@ export interface UiFrameworkNode {
   multiplier?: string | null;
   /** How this node's children combine into its own computed value (2+ children only). */
   combine: "sum" | "multiply";
+  /** Qualitative only — the candidate's judgement about this branch. Never derived. */
+  status?: NodeStatus | null;
+  /** Qualitative only — optional typed rationale, when none was inherited from chat. */
+  note?: string | null;
+  /** The chat turn this bucket came from; its text is the node's rationale. */
+  sourceMessageId?: string | null;
+  origin?: NodeOrigin | null;
 }
 
 export interface PracticeQuestion {
@@ -38,6 +46,16 @@ export interface PracticeQuestion {
   difficulty: string;
   interviewLevel: string;
   unit: string | null;
+  /** Drives the builder, the answer box, the prompts and the scorer. */
+  answerMode: AnswerMode;
+  /** Framework slug this case is written against, when authored. */
+  framework: string | null;
+  /**
+   * Whether this question has facts to release. Only the presence matters on the
+   * client — the facts themselves stay server-side so the tree can't be read off
+   * the page source.
+   */
+  hasDataPack: boolean;
 }
 
 export interface PracticeData {
@@ -51,6 +69,10 @@ export interface PracticeData {
   framework: UiFrameworkNode[];
   mode: AiMode;
   finalEstimate: number | null;
+  /** The recommendation in words — the qualitative counterpart of finalEstimate. */
+  finalAnswer: string | null;
+  /** Null on numeric attempts; fixed for the life of a qualitative one. */
+  treeMode: TreeMode | null;
   hintsUsed: number;
   timeSpentSec: number;
 }

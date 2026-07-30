@@ -24,11 +24,13 @@ import { Badge } from "@/components/ui/badge";
 interface EvaluationRow {
   overall: number;
   readiness: string;
-  structuring: number;
+  /** Null means "not applicable to this attempt" — see the Evaluation model. */
+  structuring: number | null;
   logic: number;
-  segmentation: number;
+  segmentation: number | null;
   assumptions: number;
-  calculation: number;
+  calculation: number | null;
+  diagnosis: number | null;
   communication: number;
   business: number;
   confidence: number;
@@ -135,7 +137,13 @@ export function EvaluationReport({
           <h2 className="mb-4 font-semibold">Category scores</h2>
           <div className="space-y-3">
             {evaluationCategories.map((cat) => {
-              const v = evaluation[cat.key] as number;
+              const v = evaluation[cat.key] as number | null;
+              // A null category was never in play for this attempt — calculation
+              // on a qualitative question, diagnosis where no root cause is
+              // declared, structure on a guided tree. Saying so is honest; a
+              // zero bar would read as a failure the candidate never had a shot
+              // at, and would drag the eye more than the score it isn't in.
+              if (v == null) return null;
               return (
                 <div key={cat.key}>
                   <div className="mb-1 flex justify-between text-sm">
@@ -154,6 +162,18 @@ export function EvaluationReport({
               );
             })}
           </div>
+          {(() => {
+            const skipped = evaluationCategories.filter(
+              (c) => (evaluation[c.key] as number | null) == null,
+            );
+            if (skipped.length === 0) return null;
+            return (
+              <p className="mt-4 rounded-lg border border-dashed p-2.5 text-center text-xs text-muted-foreground">
+                Not scored for this question:{" "}
+                {skipped.map((c) => c.label).join(", ")}
+              </p>
+            );
+          })()}
         </Card>
 
         {/* Feedback */}
