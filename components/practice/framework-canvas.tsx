@@ -48,8 +48,28 @@ const CARD_BASE_HEIGHT = 72;
 const LINE_HEIGHT = 17;
 const CHIP_ROW_HEIGHT = 24;
 const STAGE_PAD = 32;
-const MIN_ZOOM = 0.4;
-const MAX_ZOOM = 1.5;
+// Wide enough to be worth having at both ends: far enough out to see a
+// twenty-branch tree whole, far enough in to read a card on a laptop screen.
+const MIN_ZOOM = 0.25;
+const MAX_ZOOM = 2.5;
+/**
+ * Divisor on the (pixel-normalised) wheel delta before it becomes a scale
+ * factor. Tuned so one mouse notch is about a fifth in or out, while a
+ * trackpad's stream of small deltas stays smooth rather than snapping.
+ */
+const WHEEL_ZOOM_SENSITIVITY = 500;
+
+/**
+ * Wheel deltas in pixels, whatever units the browser chose to report.
+ *
+ * Firefox sends `deltaMode: 1` (lines) with a delta of about 3 where Chrome
+ * sends 100 pixels, so using the raw number would make a notch of the same
+ * wheel do thirty times less in one browser than the other.
+ */
+function wheelPixels(e: WheelEvent): { dx: number; dy: number } {
+  const scale = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
+  return { dx: e.deltaX * scale, dy: e.deltaY * scale };
+}
 
 const clampZoom = (k: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, k));
 
@@ -65,10 +85,10 @@ export interface FrameworkCanvasProps {
 
   // Mutations. Every one of these is the builder's existing handler.
   setLabel: (id: string, label: string) => void;
-  setNote: (id: string, note: string) => void;
   cycleStatus: (id: string) => void;
   addChild: (id: string) => void;
-  remove: (id: string) => void;
+  /** Confirms first when the branch has anything to lose. See the builder. */
+  requestRemove: (id: string) => void;
   toggleFold: (id: string) => void;
   acceptOffer: (parentId: string, label: string) => void;
   dismissOffers: (id: string) => void;
@@ -204,24 +224,73 @@ export function FrameworkCanvas(props: FrameworkCanvasProps) {
     fit();
   }, [fit, layout.width]);
 
+  /**
+   * Scale about a fixed point in viewport coordinates, so whatever sits under
+   * that point stays under it. The buttons pass the viewport centre; the wheel
+   * passes the pointer.
+   */
+  function zoomAbout(factor: number, originX: number, originY: number) {
+    setView((v) => {
+      const k = clampZoom(v.k * factor);
+      if (k === v.k) return v;
+      const ratio = k / v.k;
+      return { k, x: originX - (originX - v.x) * ratio, y: originY - (originY - v.y) * ratio };
+    });
+  }
+
   function zoomBy(factor: number) {
     const el = viewportRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    const cx = rect.width / 2;
-    const cy = rect.height / 2;
-    setView((v) => {
-      const k = clampZoom(v.k * factor);
-      const ratio = k / v.k;
-      // Anchor on the viewport centre, so zooming keeps what you're looking at.
-      return { k, x: cx - (cx - v.x) * ratio, y: cy - (cy - v.y) * ratio };
-    });
+    zoomAbout(factor, rect.width / 2, rect.height / 2);
   }
+
+  /**
+   * Wheel and trackpad, on the convention every canvas tool uses: wheel pans,
+   * Shift+wheel pans sideways, Ctrl/⌘+wheel zooms. A trackpad pinch arrives as
+   * ctrl+wheel, so pinch-to-zoom comes free with the modifier branch.
+   *
+   * Bound by hand rather than through React's `onWheel`, and that is the whole
+   * reason this is an effect: React attaches wheel listeners **passively** at
+   * the root, so `preventDefault()` inside `onWheel` is ignored and the tools
+   * panel scrolls the diagram out of view instead of the canvas reacting.
+   */
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+
+    function onWheel(e: WheelEvent) {
+      e.preventDefault();
+      const { dx, dy } = wheelPixels(e);
+
+      if (e.ctrlKey || e.metaKey) {
+        const rect = el!.getBoundingClientRect();
+        zoomAbout(
+          Math.exp(-dy / WHEEL_ZOOM_SENSITIVITY),
+          e.clientX - rect.left,
+          e.clientY - rect.top,
+        );
+        return;
+      }
+
+      // Shift makes a vertical wheel scroll sideways, which is what a one-axis
+      // mouse needs on a tree that grows wider than it does tall.
+      const [panX, panY] = e.shiftKey ? [dy, dx] : [dx, dy];
+      setView((v) => ({ ...v, x: v.x - panX, y: v.y - panY }));
+    }
+
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
 
   function handlePanDown(e: ReactPointerEvent<HTMLDivElement>) {
     // Anything inside a card belongs to the card — its inputs, its buttons and
-    // its drag grip all need the pointer.
-    if ((e.target as HTMLElement).closest("[data-node-card]")) return;
+    // its drag grip all need the pointer. So do the zoom controls, which sit
+    // inside the viewport: capturing the pointer here would swallow their
+    // click entirely, because a captured pointer sends its `pointerup` to the
+    // capturing element and the browser then fires no click on the button.
+    const target = e.target as HTMLElement;
+    if (target.closest("[data-node-card]") || target.closest("[data-canvas-controls]")) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     panFrom.current = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y };
   }
@@ -312,8 +381,12 @@ export function FrameworkCanvas(props: FrameworkCanvasProps) {
           })}
         </div>
 
-        {/* Viewport controls. Absolute, so they don't ride the transform. */}
-        <div className="absolute bottom-2 right-2 flex items-center gap-1 rounded-lg border bg-card/90 p-1 shadow-sm backdrop-blur">
+        {/* Viewport controls. Absolute, so they don't ride the transform, and
+            flagged so the pan handler leaves their pointer events alone. */}
+        <div
+          data-canvas-controls
+          className="absolute bottom-2 right-2 flex items-center gap-1 rounded-lg border bg-card/90 p-1 shadow-sm backdrop-blur"
+        >
           <button
             onClick={() => zoomBy(1 / 1.2)}
             className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -458,7 +531,10 @@ function NodeCard({
         </p>
       )}
 
-      {rationale ? (
+      {/* Read-only. A branch earns its reasoning by being talked through in the
+          chat, not by being annotated in a box — which is also the rationale the
+          scorer rates highest. Anything typed before is still shown. */}
+      {rationale && (
         <p
           className={cn(
             "truncate px-1 pt-0.5 text-[11px] leading-snug",
@@ -480,18 +556,6 @@ function NodeCard({
           </span>
           {rationale.kind === "chat" ? `“${rationale.text}”` : rationale.text}
         </p>
-      ) : (
-        // Collapsed to nothing until the card is worked on — an empty rationale
-        // line under every branch is most of a big tree's height for no
-        // information. Kept in the DOM so it stays keyboard-reachable.
-        <div className="h-0 overflow-hidden transition-[height] group-focus-within/card:h-6">
-          <Input
-            value={node.note ?? ""}
-            onChange={(e) => api.setNote(node.id, e.target.value)}
-            placeholder="Why does this matter?"
-            className="h-6 border-0 bg-transparent px-1 text-[11px] text-muted-foreground shadow-none placeholder:text-muted-foreground/50 focus-visible:ring-0"
-          />
-        </div>
       )}
 
       {/* Guided: the branches this framework puts under here. An offer, not an
@@ -578,7 +642,7 @@ function NodeCard({
             <Plus className="h-3.5 w-3.5" />
           </button>
           <button
-            onClick={() => api.remove(node.id)}
+            onClick={() => api.requestRemove(node.id)}
             className="text-muted-foreground hover:text-destructive"
             aria-label="Remove branch"
           >

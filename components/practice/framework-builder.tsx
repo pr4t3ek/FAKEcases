@@ -42,6 +42,13 @@ import {
   sanitizeRateInput,
 } from "@/lib/framework-value";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { cn, formatIndianNumber, toIndianWords } from "@/lib/utils";
 import {
@@ -214,6 +221,12 @@ export function FrameworkBuilder({
   const focusNext = useRef<string | null>(null);
   /** Ghost completion belongs to the row being typed in, not the whole tree. */
   const [focusedId, setFocusedId] = useState<string | null>(null);
+  /** The branch awaiting a delete confirmation. Owned here, so both views share it. */
+  const [pendingDelete, setPendingDelete] = useState<{
+    id: string;
+    label: string;
+    descendants: number;
+  } | null>(null);
 
   // A keyboard edit that restructures the tree (Enter, Tab, Backspace) has to
   // put the caret where the user expects it once React has re-rendered the rows.
@@ -309,8 +322,23 @@ export function FrameworkBuilder({
   function setCombine(id: string, combine: "sum" | "multiply") {
     onChange(nodes.map((n) => (n.id === id ? { ...n, combine } : n)));
   }
-  function setNote(id: string, note: string) {
-    onChange(nodes.map((n) => (n.id === id ? { ...n, note } : n)));
+  /**
+   * Ask before destroying anything worth keeping.
+   *
+   * `remove` takes the whole subtree, so one stray click on a branch that took
+   * five minutes to build is unrecoverable — there is no undo. A blank childless
+   * node has nothing to lose though, and marking a branch "problem" mints one of
+   * those every time, so confirming those too would just tax the main loop.
+   */
+  function requestRemove(id: string) {
+    const node = nodes.find((n) => n.id === id);
+    if (!node) return;
+    const descendants = collectDescendantIds(id).length;
+    if (!node.label.trim() && descendants === 0) {
+      remove(id);
+      return;
+    }
+    setPendingDelete({ id, label: node.label.trim(), descendants });
   }
 
   /**
@@ -938,33 +966,17 @@ export function FrameworkBuilder({
                 marked without asking
               </p>
             )}
-            {subtitle ? (
+            {/* Read-only. A branch earns its reasoning by being talked through
+                in the chat rather than annotated in a box — which is also the
+                rationale `deriveAssumptions` rates highest. Anything typed
+                before the box was removed is still shown. */}
+            {subtitle && (
               <p className="px-1 pt-0.5 text-[11px] leading-snug text-muted-foreground">
                 <span className={cn("mr-1 font-mono", inherited ? "text-primary" : "text-muted-foreground/60")}>
                   {inherited ? "↩" : "✎"}
                 </span>
                 {inherited ? `“${subtitle}”` : subtitle}
               </p>
-            ) : (
-              // An empty rationale costs a full line under every branch, which is
-              // most of a twelve-branch tree's height for no information. It
-              // collapses to nothing and expands when something in the row takes
-              // focus — which is exactly when you're working on that branch,
-              // since clicking a row focuses its label. It stays in the DOM
-              // rather than being conditionally rendered, so it remains reachable
-              // by keyboard.
-              //
-              // Focus, not hover: revealing on hover grew each row by 24px as the
-              // cursor passed over it, so running the mouse down a tree shoved
-              // every row below it around.
-              <div className="h-0 overflow-hidden transition-[height] group-focus-within/row:h-6">
-                <Input
-                  value={node.note ?? ""}
-                  onChange={(e) => setNote(node.id, e.target.value)}
-                  placeholder="Why does this matter? (optional — or say it in the chat)"
-                  className="h-6 border-0 bg-transparent px-1 text-[11px] text-muted-foreground shadow-none placeholder:text-muted-foreground/50 focus-visible:ring-0"
-                />
-              </div>
             )}
           </div>
 
@@ -998,7 +1010,7 @@ export function FrameworkBuilder({
               <Plus className="h-3.5 w-3.5" />
             </button>
             <button
-              onClick={() => remove(node.id)}
+              onClick={() => requestRemove(node.id)}
               className="text-muted-foreground hover:text-destructive"
               aria-label="Remove branch"
             >
@@ -1168,10 +1180,9 @@ export function FrameworkBuilder({
           offersFor={offersFor}
           hintsForNode={hintsForNode}
           setLabel={setLabel}
-          setNote={setNote}
           cycleStatus={cycleStatus}
           addChild={addChild}
-          remove={remove}
+          requestRemove={requestRemove}
           toggleFold={toggleFold}
           acceptOffer={acceptOffer}
           dismissOffers={dismissOffers}
@@ -1239,6 +1250,36 @@ export function FrameworkBuilder({
           )}
         </div>
       )}
+
+      {/* One dialog for both views — the builder owns `remove`, so it owns the
+          question too. Deleting takes the branch's whole subtree and there is no
+          undo, so the count is named rather than left to be discovered. */}
+      <Dialog open={!!pendingDelete} onOpenChange={(open) => !open && setPendingDelete(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogTitle>Delete this branch?</DialogTitle>
+          <DialogDescription>
+            {pendingDelete?.descendants
+              ? `“${pendingDelete.label || "Untitled"}” and the ${pendingDelete.descendants} branch${
+                  pendingDelete.descendants === 1 ? "" : "es"
+                } under it will be removed. This can't be undone.`
+              : `“${pendingDelete?.label || "Untitled"}” will be removed. This can't be undone.`}
+          </DialogDescription>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setPendingDelete(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (pendingDelete) remove(pendingDelete.id);
+                setPendingDelete(null);
+              }}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
