@@ -39,7 +39,8 @@ export function FilterBar({ categories }: { categories: Category[] }) {
   const activeCategory = params.get("category") ?? "";
   const activeDifficulty = params.get("difficulty") ?? "";
   const activeLevel = params.get("level") ?? "";
-  const hasFilters = activeCategory || activeDifficulty || activeLevel || search;
+  const activeType = params.get("type") ?? "";
+  const hasFilters = activeCategory || activeDifficulty || activeLevel || activeType || search;
 
   const selectClass =
     "h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -51,11 +52,22 @@ export function FilterBar({ categories }: { categories: Category[] }) {
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search guesstimates…"
+          placeholder="Search questions…"
           className="pl-9"
         />
       </div>
       <div className="flex flex-wrap items-center gap-2">
+        {/* The library holds two kinds of question now. Without this, a case is
+            only reachable by scrolling past every guesstimate. */}
+        <select
+          className={selectClass}
+          value={activeType}
+          onChange={(e) => setParam("type", e.target.value)}
+        >
+          <option value="">Guesstimates &amp; cases</option>
+          <option value="guesstimate">Guesstimates</option>
+          <option value="qualitative">Cases (issue tree)</option>
+        </select>
         <select
           className={selectClass}
           value={activeCategory}
