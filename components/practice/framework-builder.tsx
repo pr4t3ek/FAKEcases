@@ -223,6 +223,8 @@ export function FrameworkBuilder({
    * decision that keeps the exercise the candidate's.
    */
   const [dismissedOffers, setDismissedOffers] = useState<Set<string>>(new Set());
+  /** Its own flag: `dismissedOffers` is keyed by node id, and roots have none. */
+  const [rootOffersDismissed, setRootOffersDismissed] = useState(false);
   /** The row that should take focus after a keyboard edit restructures the tree. */
   const focusNext = useRef<string | null>(null);
   /** Ghost completion belongs to the row being typed in, not the whole tree. */
@@ -639,6 +641,20 @@ export function FrameworkBuilder({
     return childrenFor(activeFramework, node.label).filter(
       (t) => !existing.has(t.label.toLowerCase()),
     );
+  }
+
+  /**
+   * The framework's own top level, minus whatever the tree already has.
+   *
+   * Exactly `offersFor`'s rule, one level up — which is what this was missing.
+   * Gating the strip on an empty tree meant accepting Revenue took Cost away
+   * with it, so Guided handed over half a top level and then went quiet. The
+   * offers shrink one at a time instead, and a deleted root is offered again.
+   */
+  function rootOffers(): FrameworkNodeTemplate[] {
+    if (!guided || rootOffersDismissed) return [];
+    const existing = new Set(roots.map((r) => r.label.trim().toLowerCase()));
+    return rootsFor(activeFramework).filter((t) => !existing.has(t.label.toLowerCase()));
   }
 
   /**
@@ -1229,28 +1245,40 @@ export function FrameworkBuilder({
         )
       )}
 
-      {/* Guided's opening move. Without this the mode offered nothing at all
-          until a branch was already named and matched the corpus — which meant
-          no guidance on the empty tree every attempt starts from, in the one
-          mode whose whole point is not knowing the structure yet. */}
-      {guided && roots.length === 0 && rootsFor(activeFramework).length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-dashed p-2">
-          <span className="w-full text-[10px] uppercase tracking-wide text-muted-foreground">
-            start with — {activeFramework?.label}
-          </span>
-          {rootsFor(activeFramework).map((t) => (
-            <button
-              key={t.label}
-              onClick={() => acceptOffer(null, t.label)}
-              title={t.hints?.length ? t.hints.join(" · ") : `Add "${t.label}"`}
-              className="rounded-full border border-dashed border-primary/40 px-2 py-0.5 text-[11px] text-primary hover:bg-primary/10"
-            >
-              <Plus className="mr-0.5 inline h-2.5 w-2.5" />
-              {t.label}
-            </button>
-          ))}
-        </div>
-      )}
+      {/* Guided's opening move, and it stays open. Without this the mode offered
+          nothing at all until a branch was already named and matched the corpus.
+          It survives the first pick because a top level is a set, not a single
+          choice — taking Revenue says nothing about whether you still want Cost. */}
+      {(() => {
+        const offers = rootOffers();
+        if (offers.length === 0) return null;
+        return (
+          <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-dashed p-2">
+            <span className="flex w-full items-center text-[10px] uppercase tracking-wide text-muted-foreground">
+              {roots.length === 0 ? "start with" : "suggested top level"} —{" "}
+              {activeFramework?.label}
+              <button
+                onClick={() => setRootOffersDismissed(true)}
+                className="ml-auto px-1 hover:text-foreground"
+                aria-label="Dismiss top-level suggestions"
+              >
+                ✕
+              </button>
+            </span>
+            {offers.map((t) => (
+              <button
+                key={t.label}
+                onClick={() => acceptOffer(null, t.label)}
+                title={t.hints?.length ? t.hints.join(" · ") : `Add "${t.label}"`}
+                className="rounded-full border border-dashed border-primary/40 px-2 py-0.5 text-[11px] text-primary hover:bg-primary/10"
+              >
+                <Plus className="mr-0.5 inline h-2.5 w-2.5" />
+                {t.label}
+              </button>
+            ))}
+          </div>
+        );
+      })()}
 
       {roots.length === 0 ? (
         <p className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
