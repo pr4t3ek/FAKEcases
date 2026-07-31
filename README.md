@@ -20,11 +20,24 @@ data model (ERD), LLM adapter sequence, evaluation rubric, and gamification/rank
 ## Quick start
 
 ```bash
+cp .env.example .env   # Prisma needs DATABASE_URL; .env is gitignored, so a clone has none
 pnpm install
-pnpm db:push        # create the SQLite database from prisma/schema.prisma
-pnpm db:seed        # seed 14 categories, 24 India-only questions, achievements, demo users
-pnpm dev            # http://localhost:3000
+pnpm db:push           # create the SQLite database from prisma/schema.prisma
+pnpm db:seed           # 14 categories, 26 questions (24 guesstimates + 2 cases), achievements, demo users
+pnpm dev               # http://localhost:3000
 ```
+
+The `.env` step is easy to skip and confusing when you do: the app itself defaults
+`DATABASE_URL` (`lib/config/env.ts`), but `prisma/schema.prisma` does not, so it is the
+`db:*` commands that fail rather than the site.
+
+**The database is not in the repo** — `prisma/dev.db` is gitignored, as a binary build
+artifact should be. All the content lives in `prisma/seed-data.ts`, so an empty question
+library means the seed hasn't been run, not that the questions are missing.
+
+**Pulling a branch that changed the schema?** Run `pnpm db:reset` rather than `db:seed`.
+Seeding alone won't add new columns, and Prisma will error on the missing fields. Reset drops
+and rebuilds, so local attempts and sign-ups are discarded.
 
 Then walk the flow: **landing → Start practising (guest, no login) → practice → submit →
 evaluation → sign up to save**. Or sign in with the seeded accounts:
