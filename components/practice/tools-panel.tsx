@@ -16,6 +16,29 @@ import { FrameworkBuilder } from "./framework-builder";
 import { ReportIssue } from "./report-issue";
 import type { PracticeQuestion, UiCalculation, UiFrameworkNode } from "./types";
 
+/**
+ * Branches given a verdict without ever being raised in the conversation.
+ *
+ * Exported because fullscreen pins its own `AnswerBar` and would otherwise
+ * recompute this slightly differently — two answers to the same question.
+ */
+export function unevidencedBranches(
+  framework: UiFrameworkNode[],
+  conversation: string[],
+  hasDataPack: boolean,
+): string[] {
+  if (!hasDataPack) return [];
+  return framework
+    .filter(
+      (n) =>
+        n.label.trim() &&
+        n.status &&
+        n.status !== "unknown" &&
+        !branchDiscussed(n.label, conversation),
+    )
+    .map((n) => n.label.trim());
+}
+
 function fmt(sec: number): string {
   const m = Math.floor(sec / 60).toString().padStart(2, "0");
   const s = Math.floor(sec % 60).toString().padStart(2, "0");
@@ -30,7 +53,9 @@ export function ToolsPanel({
   framework,
   onFramework,
   onChainResult,
-  initialTime,
+  elapsed,
+  running,
+  onRunningChange,
   disabled,
   onActiveTool,
   activeTool,
@@ -40,6 +65,7 @@ export function ToolsPanel({
   answerText,
   onAnswerTextChange,
   onSubmitted,
+  onFullscreen,
 }: {
   attemptId: string;
   question: PracticeQuestion;
@@ -48,7 +74,10 @@ export function ToolsPanel({
   framework: UiFrameworkNode[];
   onFramework: (n: UiFrameworkNode[]) => void;
   onChainResult?: (n: number) => void;
-  initialTime: number;
+  /** The attempt clock, owned by PracticeScreen so fullscreen shares it. */
+  elapsed: number;
+  running: boolean;
+  onRunningChange: (running: boolean) => void;
   disabled: boolean;
   onActiveTool: (tool: string) => void;
   activeTool: string;
@@ -59,6 +88,8 @@ export function ToolsPanel({
   answerText?: string;
   onAnswerTextChange?: (t: string) => void;
   onSubmitted?: (r: SubmitResult) => void;
+  /** Absent when there is nowhere to expand to (narrow screen, or a guesstimate). */
+  onFullscreen?: () => void;
 }) {
   const qualitative = question.answerMode === "qualitative";
   /**
@@ -72,40 +103,16 @@ export function ToolsPanel({
    * purpose: shipping those topics to the browser would tell the candidate which
    * branches have data behind them, and therefore which ones matter.
    */
-  const unevidencedMarks =
-    qualitative && question.hasDataPack
-      ? framework
-          .filter(
-            (n) =>
-              n.label.trim() &&
-              n.status &&
-              n.status !== "unknown" &&
-              !branchDiscussed(n.label, conversation ?? []),
-          )
-          .map((n) => n.label.trim())
-      : [];
+  const unevidencedMarks = qualitative
+    ? unevidencedBranches(framework, conversation ?? [], question.hasDataPack)
+    : [];
 
-  const [elapsed, setElapsed] = useState(initialTime);
-  const [running, setRunning] = useState(!disabled);
   const [notes, setNotes] = useState("");
 
   // Load notes from localStorage (scratchpad is client-only).
   useEffect(() => {
     setNotes(localStorage.getItem(`eq-notes-${attemptId}`) ?? "");
   }, [attemptId]);
-
-  // Timer tick + periodic persistence.
-  useEffect(() => {
-    if (!running) return;
-    const id = setInterval(() => setElapsed((e) => e + 1), 1000);
-    return () => clearInterval(id);
-  }, [running]);
-
-  useEffect(() => {
-    if (disabled) return;
-    const id = setInterval(() => saveTime(attemptId, elapsed).catch(() => {}), 15000);
-    return () => clearInterval(id);
-  }, [attemptId, elapsed, disabled]);
 
   return (
     <div className="flex h-full flex-col">
@@ -126,7 +133,7 @@ export function ToolsPanel({
             {fmt(elapsed)}
             {!disabled && (
               <button
-                onClick={() => setRunning((r) => !r)}
+                onClick={() => onRunningChange(!running)}
                 className="ml-1 text-muted-foreground hover:text-foreground"
                 aria-label={running ? "Pause timer" : "Resume timer"}
               >
@@ -177,6 +184,7 @@ export function ToolsPanel({
               messageText={messageText}
               conversation={conversation}
               questionFramework={question.framework}
+              onFullscreen={onFullscreen}
             />
           </TabsContent>
           <TabsContent value="notes" className="mt-0">
@@ -211,7 +219,8 @@ export function ToolsPanel({
 }
 
 /** Trail, recommendation and Submit in one strip under the builder. */
-function AnswerBar({
+/** Exported so fullscreen can pin the same bar under the tree. */
+export function AnswerBar({
   attemptId,
   framework,
   answerText,

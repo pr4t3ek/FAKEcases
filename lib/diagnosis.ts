@@ -145,6 +145,66 @@ export function describeTrail(trail: DiagnosisTrail): string {
   return bits.join(" · ");
 }
 
+// ── The one contradiction the tree cannot hold ────────────────────────────
+
+/**
+ * "The problem is inside X" and "the problem is nowhere in X" cannot both be
+ * true, so a branch with a `problem` descendant may not be marked `healthy`.
+ *
+ * The rule is one-directional, and the asymmetry is the whole point. A `healthy`
+ * CHILD under a `problem` parent is fine — it says the problem is elsewhere in
+ * that parent, which is exactly how a candidate narrows. Only the other
+ * direction is incoherent.
+ *
+ * This is a constraint, not a derivation: it forbids a contradictory claim
+ * without inventing one. The rest of this module's promise still holds — status
+ * is never inferred, and a `problem` child does not turn its parent `problem`.
+ */
+export function hasProblemDescendant(nodes: DiagnosisNode[], id: string): boolean {
+  const byParent = new Map<string | null, DiagnosisNode[]>();
+  for (const n of nodes) {
+    const arr = byParent.get(n.parentId) ?? [];
+    arr.push(n);
+    byParent.set(n.parentId, arr);
+  }
+  // Iterative, and `seen`-guarded: nothing validates against a cycle on the way
+  // into the database.
+  const seen = new Set<string>([id]);
+  const stack = [...(byParent.get(id) ?? [])];
+  while (stack.length > 0) {
+    const node = stack.pop()!;
+    if (seen.has(node.id)) continue;
+    seen.add(node.id);
+    if (isProblem(node)) return true;
+    stack.push(...(byParent.get(node.id) ?? []));
+  }
+  return false;
+}
+
+/**
+ * The `healthy` ancestors of `id`, whose claim marking `id` as `problem` would
+ * contradict. Root-most last.
+ *
+ * The caller resets these to `unknown` — withdrawing a claim that can no longer
+ * stand — rather than promoting them to `problem`, which would be the app
+ * asserting a judgement the candidate never made and would manufacture the very
+ * trail `scoreDiagnosis` grades.
+ */
+export function contradictedAncestors(nodes: DiagnosisNode[], id: string): string[] {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const out: string[] = [];
+  const seen = new Set<string>([id]);
+  let cursor = byId.get(id);
+  while (cursor?.parentId && !seen.has(cursor.parentId)) {
+    seen.add(cursor.parentId);
+    const parent = byId.get(cursor.parentId);
+    if (!parent) break;
+    if (isHealthy(parent)) out.push(parent.id);
+    cursor = parent;
+  }
+  return out;
+}
+
 /**
  * Has this branch come up in the conversation at all?
  *

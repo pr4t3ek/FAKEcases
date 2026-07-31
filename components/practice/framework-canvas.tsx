@@ -10,6 +10,7 @@ import {
   Maximize2,
   Minus,
   Plus,
+  Scan,
   Search,
   Trash2,
 } from "lucide-react";
@@ -21,6 +22,7 @@ import type { FrameworkNodeTemplate } from "@/lib/config/frameworks";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
+  CARD_HEALTHY,
   CARD_STATUS_BORDER,
   EDGE_STROKE,
   STATUS_STYLE,
@@ -86,6 +88,8 @@ export interface FrameworkCanvasProps {
   // Mutations. Every one of these is the builder's existing handler.
   setLabel: (id: string, label: string) => void;
   cycleStatus: (id: string) => void;
+  /** True when this branch contains a problem, so it can't be cleared. */
+  healthyBlocked: (id: string) => boolean;
   addChild: (id: string) => void;
   /** Confirms first when the branch has anything to lose. See the builder. */
   requestRemove: (id: string) => void;
@@ -113,10 +117,15 @@ export interface FrameworkCanvasProps {
   hasDataPack: boolean;
   conversation: string[];
   messageText?: Map<string, string>;
+
+  /** Fill the parent instead of taking a fixed height — used by fullscreen. */
+  fill?: boolean;
+  /** Omitted when there is nowhere to expand to (i.e. already fullscreen). */
+  onFullscreen?: () => void;
 }
 
 export function FrameworkCanvas(props: FrameworkCanvasProps) {
-  const { nodes, isFolded, messageText, conversation, hasDataPack } = props;
+  const { nodes, isFolded, messageText, conversation, hasDataPack, fill, onFullscreen } = props;
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState({ x: STAGE_PAD, y: STAGE_PAD, k: 1 });
@@ -290,7 +299,7 @@ export function FrameworkCanvas(props: FrameworkCanvasProps) {
     // click entirely, because a captured pointer sends its `pointerup` to the
     // capturing element and the browser then fires no click on the button.
     const target = e.target as HTMLElement;
-    if (target.closest("[data-node-card]") || target.closest("[data-canvas-controls]")) return;
+    if (target.closest("[data-node-card]") || target.closest("[data-canvas-overlay]")) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     panFrom.current = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y };
   }
@@ -307,7 +316,7 @@ export function FrameworkCanvas(props: FrameworkCanvasProps) {
   }
 
   return (
-    <div className="relative">
+    <div className={cn("relative", fill && "flex min-h-0 flex-1 flex-col")}>
       <div
         ref={viewportRef}
         onPointerDown={handlePanDown}
@@ -315,10 +324,12 @@ export function FrameworkCanvas(props: FrameworkCanvasProps) {
         onPointerUp={handlePanUp}
         onPointerCancel={handlePanUp}
         className={cn(
+          "relative overflow-hidden rounded-xl border bg-muted/20",
           // Capped rather than a bare vh: the answer bar below grows a line
           // whenever the diagnosis trail does, and a taller canvas would push
-          // its own zoom controls out of the scrolling panel.
-          "relative h-[clamp(20rem,48vh,32rem)] overflow-hidden rounded-xl border bg-muted/20",
+          // its own zoom controls out of the scrolling panel. Fullscreen has no
+          // such neighbour, so there it just fills.
+          fill ? "min-h-0 flex-1" : "h-[clamp(20rem,48vh,32rem)]",
           panFrom.current ? "cursor-grabbing" : "cursor-grab",
         )}
       >
@@ -384,7 +395,7 @@ export function FrameworkCanvas(props: FrameworkCanvasProps) {
         {/* Viewport controls. Absolute, so they don't ride the transform, and
             flagged so the pan handler leaves their pointer events alone. */}
         <div
-          data-canvas-controls
+          data-canvas-overlay
           className="absolute bottom-2 right-2 flex items-center gap-1 rounded-lg border bg-card/90 p-1 shadow-sm backdrop-blur"
         >
           <button
@@ -412,8 +423,18 @@ export function FrameworkCanvas(props: FrameworkCanvasProps) {
             aria-label="Fit tree to view"
             title="Fit to view"
           >
-            <Maximize2 className="h-3.5 w-3.5" />
+            <Scan className="h-3.5 w-3.5" />
           </button>
+          {onFullscreen && (
+            <button
+              onClick={onFullscreen}
+              className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              aria-label="Open the tree fullscreen"
+              title="Fullscreen — the interviewer moves to a floating window"
+            >
+              <Maximize2 className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -465,11 +486,12 @@ function NodeCard({
       ref={(el) => api.registerRowRef(node.id, el)}
       style={{ left, top, width: CARD_WIDTH }}
       className={cn(
-        // Fill carries the family, border carries the verdict — see
-        // framework-depth.ts. Both have to read at once.
+        // Fill carries the family, border carries the verdict — except on a
+        // cleared branch, which drops the family tint entirely and recedes.
+        // Applied instead of the tint rather than over it, so there is no
+        // specificity fight and no colour left underneath.
         "group/card absolute rounded-xl border-2 p-2 shadow-sm transition-colors",
-        tint.box,
-        CARD_STATUS_BORDER[status],
+        status === "healthy" ? CARD_HEALTHY : cn(tint.box, CARD_STATUS_BORDER[status]),
         api.dragId === node.id && "opacity-50",
       )}
     >
@@ -483,7 +505,12 @@ function NodeCard({
           className="mt-1 shrink-0 cursor-grab touch-none active:cursor-grabbing"
           aria-label="Reorder among siblings"
         >
-          <GripVertical className={cn("h-3.5 w-3.5", tint.grip)} />
+          <GripVertical
+            className={cn(
+              "h-3.5 w-3.5",
+              status === "healthy" ? "text-muted-foreground/50" : tint.grip,
+            )}
+          />
         </span>
 
         <div className="relative min-w-0 flex-1">
@@ -510,7 +537,11 @@ function NodeCard({
 
         <button
           onClick={() => api.cycleStatus(node.id)}
-          title={`${meta.label} — ${meta.hint}. Click to change.`}
+          title={
+            api.healthyBlocked(node.id)
+              ? `${meta.label} — ${meta.hint}. Can't be cleared: a branch inside it is marked as the problem.`
+              : `${meta.label} — ${meta.hint}. Click to change.`
+          }
           aria-label={`Status: ${meta.label}`}
           className={cn(
             "mt-0.5 h-5 shrink-0 rounded border px-1.5 font-mono text-[10px] font-semibold transition-colors",

@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Panel, PanelGroup, PanelResizeHandle, type ImperativePanelHandle } from "react-resizable-panels";
 import { toast } from "sonner";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Clock, Minimize2, Pause, Play } from "lucide-react";
 import { panelDefaults, qualitativePanelDefaults, type AiMode } from "@/lib/config";
 import { setFinalEstimate as persistFinalEstimate } from "@/app/actions/practice";
 import { Brand } from "@/components/brand";
@@ -13,7 +13,10 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { SubmitResult } from "@/app/actions/submit";
 import { useMediaQuery } from "./use-media-query";
-import { ToolsPanel } from "./tools-panel";
+import { formatElapsed, useAttemptTimer } from "./use-attempt-timer";
+import { AnswerBar, ToolsPanel, unevidencedBranches } from "./tools-panel";
+import { FrameworkBuilder } from "./framework-builder";
+import { FloatingChat } from "./floating-chat";
 import { ChatPanel } from "./chat-panel";
 import { ProgressPanel } from "./progress-panel";
 import { OnboardingOverlay } from "./onboarding-overlay";
@@ -53,6 +56,30 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
   // activate it, and an inactive TabsContent isn't in the DOM to point at.
   const [mobileTab, setMobileTab] = useState("chat");
   const [activeTool, setActiveTool] = useState("framework");
+  /**
+   * Fullscreen is an in-app overlay, so every piece of state above stays put and
+   * both chromes render from the same source — nothing to duplicate or sync.
+   * Offered only where the canvas is: a case, on a wide screen.
+   */
+  const [fullscreen, setFullscreen] = useState(false);
+  const canFullscreen = qualitative && isWide && !disabled;
+
+  const { elapsed, running, setRunning } = useAttemptTimer(
+    data.attemptId,
+    data.timeSpentSec,
+    disabled,
+  );
+
+  useEffect(() => {
+    if (!fullscreen) return;
+    function onKey(e: KeyboardEvent) {
+      // Radix stops Esc propagating while a dialog is open, so the delete
+      // confirm closes first and fullscreen survives — the right order.
+      if (e.key === "Escape") setFullscreen(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [fullscreen]);
 
   const onActiveTool = useCallback(
     (tool: string) => {
@@ -100,6 +127,11 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
     router.refresh();
   }
 
+  const conversation = messages.map((m) => m.content);
+  const unevidencedMarks = qualitative
+    ? unevidencedBranches(framework, conversation, data.question.hasDataPack)
+    : [];
+
   const tools = (
     <ToolsPanel
       attemptId={data.attemptId}
@@ -109,16 +141,19 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
       framework={framework}
       onFramework={setFramework}
       onChainResult={handleChainResult}
-      initialTime={data.timeSpentSec}
+      elapsed={elapsed}
+      running={running}
+      onRunningChange={setRunning}
       disabled={disabled}
       onActiveTool={onActiveTool}
       activeTool={activeTool}
       treeMode={data.treeMode}
       messageText={messageText}
-      conversation={messages.map((m) => m.content)}
+      conversation={conversation}
       answerText={answerText}
       onAnswerTextChange={setAnswerText}
       onSubmitted={handleSubmitted}
+      onFullscreen={canFullscreen ? () => setFullscreen(true) : undefined}
     />
   );
   const chat = (
@@ -148,6 +183,62 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
       onAnswerTextChange={setAnswerText}
     />
   );
+
+  if (fullscreen) {
+    return (
+      <div className="fixed inset-0 z-40 flex flex-col bg-background">
+        <header className="flex h-12 shrink-0 items-center gap-3 border-b px-4">
+          <h1 className="min-w-0 flex-1 truncate text-sm font-medium">{data.question.prompt}</h1>
+          <span className="inline-flex shrink-0 items-center gap-1.5 text-sm tabular-nums text-muted-foreground">
+            <Clock className="h-4 w-4" />
+            {formatElapsed(elapsed)}
+            <button
+              onClick={() => setRunning(!running)}
+              className="ml-1 hover:text-foreground"
+              aria-label={running ? "Pause timer" : "Resume timer"}
+            >
+              {running ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+            </button>
+          </span>
+          <button
+            onClick={() => setFullscreen(false)}
+            className="inline-flex shrink-0 items-center gap-1 rounded border px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+            title="Exit fullscreen (Esc)"
+          >
+            <Minimize2 className="h-3.5 w-3.5" /> Exit
+          </button>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-hidden p-3">
+          <FrameworkBuilder
+            attemptId={data.attemptId}
+            nodes={framework}
+            onChange={setFramework}
+            answerMode={data.question.answerMode}
+            treeMode={data.treeMode}
+            hasDataPack={data.question.hasDataPack}
+            messageText={messageText}
+            conversation={conversation}
+            questionFramework={data.question.framework}
+            canvasFill
+          />
+        </div>
+
+        <AnswerBar
+          attemptId={data.attemptId}
+          framework={framework}
+          answerText={answerText}
+          onAnswerTextChange={setAnswerText}
+          disabled={disabled}
+          onSubmitted={handleSubmitted}
+          unevidencedMarks={unevidencedMarks}
+        />
+
+        {/* The interviewer, as a window you can put wherever the tree isn't. */}
+        <FloatingChat title="Interviewer">{chat}</FloatingChat>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen flex-col">

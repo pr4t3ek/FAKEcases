@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   branchDiscussed,
+  contradictedAncestors,
   describeTrail,
   describeTrailLive,
   diagnosisTrail,
+  hasProblemDescendant,
   type DiagnosisNode,
 } from "@/lib/diagnosis";
 
@@ -189,5 +191,80 @@ describe("branchDiscussed", () => {
 
   it("is case and punctuation insensitive", () => {
     expect(branchDiscussed("Rider payouts", ["RIDER-PAYOUTS have risen"])).toBe(true);
+  });
+});
+
+describe("hasProblemDescendant", () => {
+  it("finds a problem child", () => {
+    const tree = [n("cost", null), n("delivery", "cost", "problem")];
+    expect(hasProblemDescendant(tree, "cost")).toBe(true);
+  });
+
+  it("finds a problem grandchild", () => {
+    const tree = [
+      n("cost", null),
+      n("delivery", "cost"),
+      n("riders", "delivery", "problem"),
+    ];
+    expect(hasProblemDescendant(tree, "cost")).toBe(true);
+  });
+
+  it("is false when the subtree is clear", () => {
+    const tree = [
+      n("cost", null),
+      n("delivery", "cost", "healthy"),
+      n("packaging", "cost"),
+    ];
+    expect(hasProblemDescendant(tree, "cost")).toBe(false);
+  });
+
+  // The rule is one-directional: a problem PARENT says nothing about whether a
+  // child may be cleared, which is exactly how a candidate narrows.
+  it("does not look upward", () => {
+    const tree = [n("cost", null, "problem"), n("packaging", "cost")];
+    expect(hasProblemDescendant(tree, "packaging")).toBe(false);
+  });
+
+  it("ignores a problem mark on the node itself", () => {
+    const tree = [n("cost", null, "problem"), n("packaging", "cost")];
+    expect(hasProblemDescendant(tree, "cost")).toBe(false);
+  });
+
+  it("terminates on a cycle", () => {
+    const tree = [n("a", "b"), n("b", "a", "problem")];
+    expect(hasProblemDescendant(tree, "a")).toBe(true);
+  });
+});
+
+describe("contradictedAncestors", () => {
+  it("returns healthy ancestors, nearest first", () => {
+    const tree = [
+      n("cost", null, "healthy"),
+      n("delivery", "cost", "healthy"),
+      n("riders", "delivery"),
+    ];
+    expect(contradictedAncestors(tree, "riders")).toEqual(["delivery", "cost"]);
+  });
+
+  it("skips ancestors that were never cleared", () => {
+    const tree = [
+      n("cost", null, "healthy"),
+      n("delivery", "cost", "problem"),
+      n("riders", "delivery"),
+    ];
+    expect(contradictedAncestors(tree, "riders")).toEqual(["cost"]);
+  });
+
+  it("returns nothing for a root", () => {
+    expect(contradictedAncestors([n("cost", null, "healthy")], "cost")).toEqual([]);
+  });
+
+  it("stops at a missing parent instead of throwing", () => {
+    expect(contradictedAncestors([n("orphan", "gone")], "orphan")).toEqual([]);
+  });
+
+  it("terminates on a cycle", () => {
+    const tree = [n("a", "b", "healthy"), n("b", "a", "healthy")];
+    expect(contradictedAncestors(tree, "a")).toEqual(["b"]);
   });
 });

@@ -10,13 +10,25 @@ import { toQuestionContext } from "@/lib/question-context";
 import { answerModeFor, type TreeMode } from "@/lib/types";
 
 /**
+ * Returned instead of redirecting when the candidate asks for a tree mode that
+ * the in-progress attempt isn't in. `redirect()` throws, so the happy path never
+ * reaches a return and this union costs the caller nothing.
+ */
+export interface StartConflict {
+  conflict: true;
+  attemptId: string;
+  existingTreeMode: TreeMode;
+}
+
+/**
  * Start (or resume) an attempt for a question. Creates a guest session if the
  * visitor isn't logged in. Enforces the guest attempt cap with a soft wall.
  */
 export async function startAttempt(
   questionId: string,
   requestedTreeMode?: TreeMode,
-): Promise<void> {
+  opts: { abandonExisting?: boolean } = {},
+): Promise<StartConflict | void> {
   const user = await getOrCreateGuest();
 
   // Resume an existing in-progress attempt if one exists.
@@ -24,7 +36,27 @@ export async function startAttempt(
     where: { userId: user.id, questionId, status: "in_progress" },
     orderBy: { createdAt: "desc" },
   });
-  if (existing) redirect(`/practice/${existing.id}`);
+  if (existing) {
+    // Resuming used to happen before the requested mode was even read, so
+    // asking for Guided on a question already open in Solo silently handed back
+    // the Solo attempt — no guidance, no explanation. The tree mode is fixed at
+    // creation and cannot be switched in place (that is what keeps "solo"
+    // meaningful), so the only honest options are resume or start over, and
+    // that is the candidate's call rather than ours.
+    const conflicts = !!requestedTreeMode && existing.treeMode !== requestedTreeMode;
+    if (!conflicts) redirect(`/practice/${existing.id}`);
+    if (!opts.abandonExisting) {
+      return {
+        conflict: true,
+        attemptId: existing.id,
+        existingTreeMode: (existing.treeMode as TreeMode | null) ?? "solo",
+      };
+    }
+    await db.attempt.update({
+      where: { id: existing.id },
+      data: { status: "abandoned" },
+    });
+  }
 
   // Guest soft wall.
   if (user.isGuest) {

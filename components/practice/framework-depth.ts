@@ -15,9 +15,9 @@
  *
  * The ramp stays in the cool half of the wheel on purpose. The builder spends
  * amber on an unrecognized or legacy value, emerald/amber on the shares-total
- * check, red on delete — and in qualitative mode every row carries a red/green
- * traffic light. Structure must never look like status, so no family hue goes
- * near red or green.
+ * check, red on delete — and in qualitative mode green marks the problem branch.
+ * Structure must never look like status, so no family hue goes near red or
+ * green.
  *
  * Every class here is a complete literal string: Tailwind scans this file for
  * names, and a constructed one (`bg-${hue}-50`) would silently emit no CSS.
@@ -104,11 +104,21 @@ export function familyStyle(rootIndex: number, depth: number) {
 
 // ── Status ────────────────────────────────────────────────────────────────
 
-/** The traffic-light badge. Shared by the outline and the canvas card. */
+/**
+ * The status badge. Shared by the outline and the canvas card.
+ *
+ * Green marks the PROBLEM branch, which is deliberately the opposite of the
+ * usual traffic light. In a case the problem branch is the find — the thing the
+ * candidate is hunting and then works inside — so it earns the one loud colour
+ * on screen. A cleared branch is finished with, and gets no colour at all.
+ *
+ * Because that convention is unusual, the badge text (`OK` / `!`) matters more
+ * here than in a normal palette, not less: colour is never the only signal.
+ */
 export const STATUS_STYLE: Record<NodeStatus, string> = {
   unknown: "border-input bg-background text-muted-foreground/60",
-  healthy: "border-emerald-500/50 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-  problem: "border-red-500/50 bg-red-500/10 text-red-600 dark:text-red-400",
+  healthy: "border-input bg-muted text-muted-foreground",
+  problem: "border-emerald-500/60 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
 };
 
 /**
@@ -123,8 +133,8 @@ export const STATUS_STYLE: Record<NodeStatus, string> = {
  */
 export const STATUS_ROW: Record<NodeStatus, string> = {
   unknown: "bg-card",
-  healthy: "border-emerald-500/40 bg-emerald-500/[0.07]",
-  problem: "border-red-500/50 bg-red-500/[0.12]",
+  healthy: "border-border bg-muted/40 opacity-60",
+  problem: "border-emerald-500/50 bg-emerald-500/[0.12]",
 };
 
 /**
@@ -137,17 +147,29 @@ export const STATUS_ROW: Record<NodeStatus, string> = {
  */
 export const CARD_STATUS_BORDER: Record<NodeStatus, string> = {
   unknown: "",
-  healthy: "!border-emerald-500 dark:!border-emerald-400",
-  problem: "!border-red-500 dark:!border-red-400",
+  healthy: "",
+  problem: "!border-emerald-500 dark:!border-emerald-400",
 };
 
 /**
- * Connector stroke. An edge into a marked branch takes that branch's colour, so
- * the trail of problem marks — which IS the diagnosis being graded — can be
- * followed down the diagram without reading a single label.
+ * A cleared branch's whole card, replacing the family tint rather than layering
+ * over it.
+ *
+ * Applied INSTEAD of `familyStyle`, so there is no specificity fight and no
+ * colour left underneath: eliminated means eliminated. The cost is real and
+ * intended — you can no longer tell by colour which top-level branch a cleared
+ * node came from. Family hue still identifies everything still in play.
+ */
+export const CARD_HEALTHY = "border-border bg-muted/40 opacity-60";
+
+/**
+ * Connector stroke. The edge into a problem branch goes green, so the trail —
+ * which IS the diagnosis being graded — can be followed down the diagram
+ * without reading a single label. An edge into a cleared branch stays neutral
+ * and recedes with it.
  */
 export const EDGE_STROKE: Record<NodeStatus, string> = {
   unknown: "hsl(var(--border))",
-  healthy: "rgb(16 185 129 / 0.55)",
-  problem: "rgb(239 68 68 / 0.75)",
+  healthy: "hsl(var(--border))",
+  problem: "rgb(16 185 129 / 0.75)",
 };
