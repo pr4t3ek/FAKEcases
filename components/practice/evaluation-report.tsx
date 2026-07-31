@@ -99,7 +99,8 @@ export function EvaluationReport({
     }
   })();
 
-  const retry = startAttempt.bind(null, questionId);
+  // Both args bound so the retry form action takes no parameters.
+  const retry = startAttempt.bind(null, questionId, undefined);
 
   return (
     <div className="min-h-screen">

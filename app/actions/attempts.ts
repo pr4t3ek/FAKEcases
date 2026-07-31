@@ -7,13 +7,16 @@ import { guestConfig } from "@/lib/config";
 import { interviewerReply, isRealProvider } from "@/lib/llm";
 import { recordLlmCall } from "@/lib/llm/budget";
 import { toQuestionContext } from "@/lib/question-context";
-import { answerModeFor } from "@/lib/types";
+import { answerModeFor, type TreeMode } from "@/lib/types";
 
 /**
  * Start (or resume) an attempt for a question. Creates a guest session if the
  * visitor isn't logged in. Enforces the guest attempt cap with a soft wall.
  */
-export async function startAttempt(questionId: string): Promise<void> {
+export async function startAttempt(
+  questionId: string,
+  requestedTreeMode?: TreeMode,
+): Promise<void> {
   const user = await getOrCreateGuest();
 
   // Resume an existing in-progress attempt if one exists.
@@ -40,15 +43,22 @@ export async function startAttempt(questionId: string): Promise<void> {
   // Fixed at creation and never changed afterwards: if the tree mode could be
   // switched mid-attempt, "solo" would mean nothing — you could flip to guided,
   // take the structure, and flip back. Solo is the default; guided is a
-  // deliberate choice made on the question card.
+  // deliberate choice made on the question card, and costs the candidate their
+  // structure score (see evaluateQualitative).
   const answerMode = answerModeFor(question.type);
+  const treeMode =
+    answerMode === "qualitative"
+      ? requestedTreeMode === "guided"
+        ? "guided"
+        : "solo"
+      : null;
   const attempt = await db.attempt.create({
     data: {
       userId: user.id,
       questionId,
       mode: "interviewer",
       status: "in_progress",
-      treeMode: answerMode === "qualitative" ? "solo" : null,
+      treeMode,
     },
   });
 

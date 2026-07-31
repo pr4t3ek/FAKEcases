@@ -15,6 +15,14 @@ import {
 import { saveFramework } from "@/app/actions/practice";
 import { evaluateExpression } from "@/lib/calc";
 import { branchDiscussed } from "@/lib/diagnosis";
+import type { FrameworkNodeTemplate } from "@/lib/config/frameworks";
+import {
+  childrenFor,
+  completeLabel,
+  detectFramework,
+  frameworkNamed,
+  rootsFor,
+} from "@/lib/framework-suggest";
 import {
   indentNode,
   insertSiblingAfter,
@@ -172,6 +180,7 @@ export function FrameworkBuilder({
   onAskAbout,
   messageText,
   conversation = [],
+  questionFramework = null,
 }: {
   attemptId: string;
   nodes: UiFrameworkNode[];
@@ -186,6 +195,8 @@ export function FrameworkBuilder({
   messageText?: Map<string, string>;
   /** Every turn so far, for the "did you ask before judging?" check. */
   conversation?: string[];
+  /** The framework this case is authored against, when it declares one. */
+  questionFramework?: string | null;
 }) {
   const qualitative = answerMode === "qualitative";
   const [dragId, setDragId] = useState<string | null>(null);
@@ -202,8 +213,17 @@ export function FrameworkBuilder({
    */
   const [folded, setFolded] = useState<Set<string>>(new Set());
   const [opened, setOpened] = useState<Set<string>>(new Set());
+  /**
+   * Branches Guided has offered under a node and the candidate hasn't dealt with
+   * yet. Offers are transient: dismissed here, never persisted, and never
+   * inserted without a tap — a chip is an offer, and accepting it is the
+   * decision that keeps the exercise the candidate's.
+   */
+  const [dismissedOffers, setDismissedOffers] = useState<Set<string>>(new Set());
   /** The row that should take focus after a keyboard edit restructures the tree. */
   const focusNext = useRef<string | null>(null);
+  /** Ghost completion belongs to the row being typed in, not the whole tree. */
+  const [focusedId, setFocusedId] = useState<string | null>(null);
 
   // A keyboard edit that restructures the tree (Enter, Tab, Backspace) has to
   // put the caret where the user expects it once React has re-rendered the rows.
@@ -371,7 +391,33 @@ export function FrameworkBuilder({
    * keep moving focus. Each of these has a mouse equivalent too — the row's "+",
    * the bin, the drag handle — so nothing here is the only way to do anything.
    */
-  function handleLabelKeyDown(e: ReactKeyboardEvent<HTMLInputElement>, node: UiFrameworkNode) {
+  function handleLabelKeyDown(
+    e: ReactKeyboardEvent<HTMLInputElement>,
+    node: UiFrameworkNode,
+    ghost?: string | null,
+  ) {
+    // Tab accepts a pending completion before it means "indent" — the caret is
+    // mid-word, so indenting is not what the candidate is asking for. Accepting
+    // a framework's NAME brings its top level with it, which is the two-keystroke
+    // path from "profit…" to a whole structure.
+    if (ghost && e.key === "Tab" && !e.shiftKey) {
+      e.preventDefault();
+      const named = frameworkNamed(ghost);
+      if (named && guided) {
+        // The framework itself isn't a branch — replace the row with its roots.
+        const roots = rootsFor(named).map((t) => ({
+          ...blankNode(node.parentId, t.label),
+          origin: "scaffold" as const,
+        }));
+        const withoutPlaceholder = nodes.filter((n) => n.id !== node.id);
+        focusNext.current = roots[0]?.id ?? null;
+        onChange([...withoutPlaceholder, ...roots]);
+      } else {
+        setLabel(node.id, ghost);
+      }
+      return;
+    }
+
     const isIndent = e.key === "Tab" && !e.shiftKey;
     const isOutdent = (e.key === "Tab" && e.shiftKey) || (e.altKey && e.key === "ArrowLeft");
     const isAltIndent = e.altKey && e.key === "ArrowRight";
@@ -506,6 +552,39 @@ export function FrameworkBuilder({
   const attachTarget = resolveAttachTarget(nodes);
   /** A step the user hasn't named yet still has to be referrable to. */
   const attachName = attachTarget && (attachTarget.label.trim() || "the step above");
+
+  // Which framework this tree is in. The question's own declaration outranks
+  // inference — it is a fact, not a guess — and detection is sticky, so one
+  // ambiguous branch added late doesn't switch the tree's framework.
+  const guess = qualitative
+    ? detectFramework(
+        nodes.map((n) => n.label),
+        { authored: questionFramework, established: questionFramework },
+      )
+    : { framework: null, confident: false, candidates: [] };
+  const activeFramework = guess.framework;
+  const guided = qualitative && treeMode === "guided";
+
+  /** The branches a framework would put under this node, minus what's there. */
+  function offersFor(node: UiFrameworkNode): FrameworkNodeTemplate[] {
+    if (!guided || dismissedOffers.has(node.id) || !node.label.trim()) return [];
+    const existing = new Set(
+      childrenOf(node.id).map((c) => c.label.trim().toLowerCase()),
+    );
+    return childrenFor(activeFramework, node.label).filter(
+      (t) => !existing.has(t.label.toLowerCase()),
+    );
+  }
+
+  function acceptOffer(parentId: string, template: FrameworkNodeTemplate) {
+    const fresh = blankNode(parentId, template.label);
+    onChange([...nodes, { ...fresh, origin: "scaffold" as const }]);
+    setOpened((prev) => new Set(prev).add(parentId));
+  }
+
+  function dismissOffers(nodeId: string) {
+    setDismissedOffers((prev) => new Set(prev).add(nodeId));
+  }
   /** A field that has text in it but doesn't parse — silently treated as ×1. */
   function isUnrecognized(raw: string | null | undefined): boolean {
     return !!raw?.trim() && parseNodeValue(raw) === null;
@@ -751,6 +830,9 @@ export function FrameworkBuilder({
       !!status &&
       status !== "unknown" &&
       !branchDiscussed(node.label, conversation);
+    // Only for the row being typed in — a whole tree of ghosts would be noise.
+    const ghost =
+      qualitative && focusedId === node.id ? completeLabel(node.label, activeFramework) : null;
 
     return (
       <div key={node.id} className={cn("space-y-1 rounded-xl border p-1", tint.box)}>
@@ -792,17 +874,33 @@ export function FrameworkBuilder({
           )}
 
           <div className="flex min-w-0 flex-1 flex-col">
-            <Input
-              ref={(el) => {
-                if (el) labelRefs.current.set(node.id, el);
-                else labelRefs.current.delete(node.id);
-              }}
-              value={node.label}
-              onChange={(e) => setLabel(node.id, e.target.value)}
-              onKeyDown={(e) => handleLabelKeyDown(e, node)}
-              placeholder="Name this branch"
-              className="h-6 min-w-[5rem] flex-1 border-0 bg-transparent px-1 text-sm font-medium shadow-none focus-visible:ring-0"
-            />
+            {/* Ghost completion sits behind the input, showing only the part
+                still to type. Free in both modes — it saves keystrokes, not
+                reasoning, which is the line the whole feature set draws. */}
+            <div className="relative">
+              {ghost && (
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0 flex items-center truncate px-1 text-sm font-medium"
+                >
+                  <span className="invisible">{node.label}</span>
+                  <span className="text-muted-foreground/40">{ghost.slice(node.label.length)}</span>
+                </span>
+              )}
+              <Input
+                ref={(el) => {
+                  if (el) labelRefs.current.set(node.id, el);
+                  else labelRefs.current.delete(node.id);
+                }}
+                value={node.label}
+                onChange={(e) => setLabel(node.id, e.target.value)}
+                onKeyDown={(e) => handleLabelKeyDown(e, node, ghost)}
+                onFocus={() => setFocusedId(node.id)}
+                onBlur={() => setFocusedId((id) => (id === node.id ? null : id))}
+                placeholder="Name this branch"
+                className="relative h-6 min-w-[5rem] flex-1 border-0 bg-transparent px-1 text-sm font-medium shadow-none focus-visible:ring-0"
+              />
+            </div>
             {unevidenced && (
               <p
                 className="flex items-start gap-1 px-1 pt-0.5 text-[11px] leading-snug text-warning"
@@ -880,6 +978,39 @@ export function FrameworkBuilder({
             </button>
           </div>
         </div>
+
+        {/* Guided: the branches this framework puts under here. Greyed, one tap
+            to accept, and dismissible — an offer, not an insertion, so choosing
+            which branch to take stays the candidate's decision at every level. */}
+        {(() => {
+          const offers = offersFor(node);
+          if (offers.length === 0) return null;
+          return (
+            <div className="ml-2 flex flex-wrap items-center gap-1 rounded-lg border border-dashed p-1.5">
+              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                suggested
+              </span>
+              {offers.map((t) => (
+                <button
+                  key={t.label}
+                  onClick={() => acceptOffer(node.id, t)}
+                  title={t.hints?.length ? t.hints.join(" · ") : `Add "${t.label}"`}
+                  className="rounded-full border border-dashed border-primary/40 px-2 py-0.5 text-[11px] text-primary hover:bg-primary/10"
+                >
+                  <Plus className="mr-0.5 inline h-2.5 w-2.5" />
+                  {t.label}
+                </button>
+              ))}
+              <button
+                onClick={() => dismissOffers(node.id)}
+                className="ml-auto px-1 text-[11px] text-muted-foreground hover:text-foreground"
+                aria-label="Dismiss suggestions"
+              >
+                ✕
+              </button>
+            </div>
+          );
+        })()}
 
         {children.length > 0 &&
           (isFolded ? (

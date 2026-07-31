@@ -176,6 +176,7 @@ export function ToolsPanel({
               hasDataPack={question.hasDataPack}
               messageText={messageText}
               conversation={conversation}
+              questionFramework={question.framework}
             />
           </TabsContent>
           <TabsContent value="notes" className="mt-0">
