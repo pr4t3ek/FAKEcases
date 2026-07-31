@@ -741,14 +741,14 @@ export function FrameworkBuilder({
     const subtitle = inherited?.trim() || node.note?.trim() || "";
 
     return (
-      <div key={node.id} className={cn("space-y-1.5 rounded-xl border p-1.5", tint.box)}>
+      <div key={node.id} className={cn("space-y-1 rounded-xl border p-1", tint.box)}>
         <div
           ref={(el) => {
             if (el) rowRefs.current.set(node.id, el);
             else rowRefs.current.delete(node.id);
           }}
           className={cn(
-            "group/row flex flex-wrap items-start gap-1.5 rounded-lg border p-2",
+            "group/row flex flex-wrap items-start gap-1.5 rounded-lg border p-1.5",
             STATUS_ROW[status],
             dragId === node.id && "opacity-50",
           )}
@@ -759,7 +759,7 @@ export function FrameworkBuilder({
             onPointerUp={handleGripPointerUp}
             onPointerCancel={handleGripPointerUp}
             style={{ touchAction: "none" }}
-            className="mt-1 shrink-0 cursor-grab touch-none active:cursor-grabbing"
+            className="mt-0.5 shrink-0 cursor-grab touch-none active:cursor-grabbing"
           >
             <GripVertical className={cn("h-4 w-4", tint.grip)} />
           </span>
@@ -767,7 +767,7 @@ export function FrameworkBuilder({
           {children.length > 0 && (
             <button
               onClick={() => toggleFold(node.id)}
-              className="mt-1 shrink-0 text-muted-foreground hover:text-foreground"
+              className="mt-0.5 shrink-0 text-muted-foreground hover:text-foreground"
               aria-label={isFolded ? "Expand branch" : "Collapse branch"}
               aria-expanded={!isFolded}
             >
@@ -779,48 +779,55 @@ export function FrameworkBuilder({
             </button>
           )}
 
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <div className="flex items-center gap-1.5">
-              <Input
-                ref={(el) => {
-                  if (el) labelRefs.current.set(node.id, el);
-                  else labelRefs.current.delete(node.id);
-                }}
-                value={node.label}
-                onChange={(e) => setLabel(node.id, e.target.value)}
-                onKeyDown={(e) => handleLabelKeyDown(e, node)}
-                placeholder="Name this branch"
-                className="h-7 min-w-[5rem] flex-1 border-0 bg-transparent px-1 text-sm font-medium shadow-none focus-visible:ring-0"
-              />
-            </div>
+          <div className="flex min-w-0 flex-1 flex-col">
+            <Input
+              ref={(el) => {
+                if (el) labelRefs.current.set(node.id, el);
+                else labelRefs.current.delete(node.id);
+              }}
+              value={node.label}
+              onChange={(e) => setLabel(node.id, e.target.value)}
+              onKeyDown={(e) => handleLabelKeyDown(e, node)}
+              placeholder="Name this branch"
+              className="h-6 min-w-[5rem] flex-1 border-0 bg-transparent px-1 text-sm font-medium shadow-none focus-visible:ring-0"
+            />
             {subtitle ? (
-              <p className="px-1 text-[11px] leading-snug text-muted-foreground">
+              <p className="px-1 pt-0.5 text-[11px] leading-snug text-muted-foreground">
                 <span className={cn("mr-1 font-mono", inherited ? "text-primary" : "text-muted-foreground/60")}>
                   {inherited ? "↩" : "✎"}
                 </span>
                 {inherited ? `“${subtitle}”` : subtitle}
               </p>
             ) : (
-              // The rationale is optional and usually inherited from the chat, so
-              // the prompt stays quiet until you're actually on the row —
-              // repeated down a ten-branch tree it reads as ten unfilled fields.
-              // The input itself is always present, so keyboard users still reach it.
-              <Input
-                value={node.note ?? ""}
-                onChange={(e) => setNote(node.id, e.target.value)}
-                placeholder="Why does this matter? (optional — or say it in the chat)"
-                className="h-6 border-0 bg-transparent px-1 text-[11px] text-muted-foreground shadow-none placeholder:text-transparent focus-visible:ring-0 group-hover/row:placeholder:text-muted-foreground/50 focus:placeholder:text-muted-foreground/50"
-              />
+              // An empty rationale costs a full line under every branch, which is
+              // most of a twelve-branch tree's height for no information. It
+              // collapses to nothing and expands when something in the row takes
+              // focus — which is exactly when you're working on that branch,
+              // since clicking a row focuses its label. It stays in the DOM
+              // rather than being conditionally rendered, so it remains reachable
+              // by keyboard.
+              //
+              // Focus, not hover: revealing on hover grew each row by 24px as the
+              // cursor passed over it, so running the mouse down a tree shoved
+              // every row below it around.
+              <div className="h-0 overflow-hidden transition-[height] group-focus-within/row:h-6">
+                <Input
+                  value={node.note ?? ""}
+                  onChange={(e) => setNote(node.id, e.target.value)}
+                  placeholder="Why does this matter? (optional — or say it in the chat)"
+                  className="h-6 border-0 bg-transparent px-1 text-[11px] text-muted-foreground shadow-none placeholder:text-muted-foreground/50 focus-visible:ring-0"
+                />
+              </div>
             )}
           </div>
 
-          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+          <div className="ml-auto flex shrink-0 items-center gap-1.5 pt-px">
             <button
               onClick={() => cycleStatus(node.id)}
               title={`${meta.label} — ${meta.hint}. Click to change.`}
               aria-label={`Status: ${meta.label}`}
               className={cn(
-                "h-6 rounded-md border px-2 font-mono text-[11px] font-semibold transition-colors",
+                "h-5 rounded border px-1.5 font-mono text-[10px] font-semibold transition-colors",
                 STATUS_STYLE[status],
               )}
             >
@@ -862,10 +869,11 @@ export function FrameworkBuilder({
               {children.length} branch{children.length === 1 ? "" : "es"} hidden — show
             </button>
           ) : (
-            // A tighter inset than the numeric builder past the first couple of
-            // levels: an issue tree goes deeper, and the indent is what runs the
-            // row out of width.
-            <div className={cn("space-y-1.5", depth >= 2 ? "ml-1.5" : "ml-3")}>
+            // A tighter inset than the numeric builder, tighter still past the
+            // first couple of levels: an issue tree goes deeper, and the indent
+            // is what runs the row out of width. Containment and the family hue
+            // already carry the nesting, so the staircase only has to hint.
+            <div className={cn("space-y-1", depth >= 2 ? "ml-1" : "ml-2")}>
               {children.map((c) => renderNode(c, depth + 1))}
             </div>
           ))}
