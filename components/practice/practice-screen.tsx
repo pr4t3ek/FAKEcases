@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Panel, PanelGroup, PanelResizeHandle, type ImperativePanelHandle } from "react-resizable-panels";
@@ -12,6 +12,7 @@ import { Brand } from "@/components/brand";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { SubmitResult } from "@/app/actions/submit";
+import { useMediaQuery } from "./use-media-query";
 import { ToolsPanel } from "./tools-panel";
 import { ChatPanel } from "./chat-panel";
 import { ProgressPanel } from "./progress-panel";
@@ -23,18 +24,6 @@ import type {
   UiFrameworkNode,
   UiMessage,
 } from "./types";
-
-function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(false);
-  useEffect(() => {
-    const m = window.matchMedia(query);
-    setMatches(m.matches);
-    const handler = (e: MediaQueryListEvent) => setMatches(e.matches);
-    m.addEventListener("change", handler);
-    return () => m.removeEventListener("change", handler);
-  }, [query]);
-  return matches;
-}
 
 export function PracticeScreen({ data }: { data: PracticeData }) {
   const router = useRouter();

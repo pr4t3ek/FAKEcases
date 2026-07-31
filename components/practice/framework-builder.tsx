@@ -44,7 +44,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn, formatIndianNumber, toIndianWords } from "@/lib/utils";
-import { depthStyle, familyStyle } from "./framework-depth";
+import {
+  STATUS_ROW,
+  STATUS_STYLE,
+  depthStyle,
+  familyStyle,
+} from "./framework-depth";
+import { FrameworkCanvas } from "./framework-canvas";
+import { useMediaQuery } from "./use-media-query";
 import type { UiFrameworkNode } from "./types";
 
 /**
@@ -144,32 +151,6 @@ const PALETTE = [
 /** Traffic light, in the order a candidate cycles through it. */
 const STATUS_CYCLE: NodeStatus[] = ["unknown", "healthy", "problem"];
 
-const STATUS_STYLE: Record<NodeStatus, string> = {
-  unknown: "border-input bg-background text-muted-foreground/60",
-  healthy: "border-emerald-500/50 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-  problem: "border-red-500/50 bg-red-500/10 text-red-600 dark:text-red-400",
-};
-
-/**
- * The verdict washes the whole row, not just its badge — a 4mm icon is not
- * something you can scan a twelve-branch tree with, and the point of marking is
- * to see the shape of the diagnosis at a glance.
- *
- * The weights are deliberately uneven. A problem branch is where the candidate
- * is working, so it is the loudest thing on screen; a cleared branch has been
- * eliminated and should recede rather than compete for attention. Colour is
- * never the only signal: the badge keeps its "OK" / "!" text.
- *
- * This is exactly what the cool-only family ramp in `framework-depth.ts` buys —
- * red and green appear nowhere else in the tree, so a washed row can only mean a
- * judgement, never a nesting level.
- */
-const STATUS_ROW: Record<NodeStatus, string> = {
-  unknown: "bg-card",
-  healthy: "border-emerald-500/40 bg-emerald-500/[0.07]",
-  problem: "border-red-500/50 bg-red-500/[0.12]",
-};
-
 export function FrameworkBuilder({
   attemptId,
   nodes,
@@ -200,6 +181,14 @@ export function FrameworkBuilder({
   questionFramework?: string | null;
 }) {
   const qualitative = answerMode === "qualitative";
+  /**
+   * A case tree is drawn as a flow diagram, but only where there is room for
+   * one. Below this the panel is a phone-width tab, where a pannable canvas is
+   * unusable and the indented outline is genuinely the better tool — so the
+   * outline stays, rather than being replaced everywhere.
+   */
+  const isWide = useMediaQuery("(min-width: 1024px)");
+  const asCanvas = qualitative && isWide;
   const [dragId, setDragId] = useState<string | null>(null);
   const [customLabel, setCustomLabel] = useState("");
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -486,12 +475,16 @@ export function FrameworkBuilder({
     const draggedNode = nodes.find((n) => n.id === draggedId);
     if (!draggedNode) return;
     const siblings = nodes.filter((n) => n.parentId === draggedNode.parentId);
-    const y = e.clientY;
+    // Same feature, different axis. Siblings are stacked in the outline and sit
+    // shoulder to shoulder on the canvas, so the drop target is whichever one
+    // the pointer is over along the axis they actually vary on.
     const overNode = siblings.find((s) => {
       const el = rowRefs.current.get(s.id);
       if (!el) return false;
       const rect = el.getBoundingClientRect();
-      return y >= rect.top && y <= rect.bottom;
+      return asCanvas
+        ? e.clientX >= rect.left && e.clientX <= rect.right
+        : e.clientY >= rect.top && e.clientY <= rect.bottom;
     });
     if (overNode && overNode.id !== draggedId) {
       const fromIdx = siblings.findIndex((s) => s.id === draggedId);
@@ -601,6 +594,24 @@ export function FrameworkBuilder({
 
   function dismissOffers(nodeId: string) {
     setDismissedOffers((prev) => new Set(prev).add(nodeId));
+  }
+
+  // Shared with the canvas, so both views fold the same branches and complete
+  // the same labels — the state lives here and only the drawing differs.
+  function isNodeFolded(nodeId: string, childCount: number): boolean {
+    return childCount > 0 && folded.has(nodeId) && !opened.has(nodeId);
+  }
+  function ghostFor(node: UiFrameworkNode): string | null {
+    // Only for the row being typed in — a whole tree of ghosts would be noise.
+    return focusedId === node.id ? completeLabel(node.label, activeFramework) : null;
+  }
+  function registerLabelRef(id: string, el: HTMLInputElement | null) {
+    if (el) labelRefs.current.set(id, el);
+    else labelRefs.current.delete(id);
+  }
+  function registerRowRef(id: string, el: HTMLElement | null) {
+    if (el) rowRefs.current.set(id, el as HTMLDivElement);
+    else rowRefs.current.delete(id);
   }
   /** A field that has text in it but doesn't parse — silently treated as ×1. */
   function isUnrecognized(raw: string | null | undefined): boolean {
@@ -1111,13 +1122,16 @@ export function FrameworkBuilder({
         </Button>
       </div>
 
+      {/* The canvas carries its own version of this line, under the diagram. */}
       {qualitative ? (
-        <p className="text-[11px] text-muted-foreground">
-          New branches sit <span className="font-medium text-foreground">side by side</span>. To
-          break one down, use its <Plus className="inline h-3 w-3 align-text-bottom" /> — or press{" "}
-          <span className="font-mono">Enter</span> for the next branch and{" "}
-          <span className="font-mono">Tab</span> to nest it under the one above.
-        </p>
+        !asCanvas && (
+          <p className="text-[11px] text-muted-foreground">
+            New branches sit <span className="font-medium text-foreground">side by side</span>. To
+            break one down, use its <Plus className="inline h-3 w-3 align-text-bottom" /> — or
+            press <span className="font-mono">Enter</span> for the next branch and{" "}
+            <span className="font-mono">Tab</span> to nest it under the one above.
+          </p>
+        )
       ) : (
         // Where the next pick lands, so nesting doesn't read as a misfired button.
         attachName && (
@@ -1146,6 +1160,34 @@ export function FrameworkBuilder({
             </>
           )}
         </p>
+      ) : asCanvas ? (
+        <FrameworkCanvas
+          nodes={nodes}
+          isFolded={isNodeFolded}
+          ghostFor={ghostFor}
+          offersFor={offersFor}
+          hintsForNode={hintsForNode}
+          setLabel={setLabel}
+          setNote={setNote}
+          cycleStatus={cycleStatus}
+          addChild={addChild}
+          remove={remove}
+          toggleFold={toggleFold}
+          acceptOffer={acceptOffer}
+          dismissOffers={dismissOffers}
+          onLabelKeyDown={handleLabelKeyDown}
+          onAskAbout={onAskAbout}
+          registerLabelRef={registerLabelRef}
+          registerRowRef={registerRowRef}
+          onFocusNode={setFocusedId}
+          dragId={dragId}
+          onGripDown={handleGripPointerDown}
+          onGripMove={handleGripPointerMove}
+          onGripUp={handleGripPointerUp}
+          hasDataPack={hasDataPack}
+          conversation={conversation}
+          messageText={messageText}
+        />
       ) : (
         // An issue tree gets deeper than an estimate chain, so the tree scrolls
         // sideways inside its own box rather than pushing the page wide.
