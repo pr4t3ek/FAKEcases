@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Sparkles } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { listCategories, listQuestions } from "@/lib/questions";
+import { answerModeFor } from "@/lib/types";
 import { AppHeader } from "@/components/app/app-header";
 import { FilterBar } from "@/components/library/filter-bar";
 import { QuestionCard } from "@/components/library/question-card";
@@ -22,8 +23,21 @@ export default async function LibraryPage({
       difficulty: sp.difficulty,
       interviewLevel: sp.level,
       search: sp.q,
+      type: sp.type,
     }),
   ]);
+
+  // Say what's actually in the list. The old copy called every question a
+  // guesstimate, which told anyone hunting for a case that the library held
+  // none — while the cases sat at the bottom of the page.
+  const caseCount = questions.filter((q) => answerModeFor(q.type) === "qualitative").length;
+  const guesstimateCount = questions.length - caseCount;
+  const summary = [
+    guesstimateCount > 0 && `${guesstimateCount} guesstimate${guesstimateCount === 1 ? "" : "s"}`,
+    caseCount > 0 && `${caseCount} case${caseCount === 1 ? "" : "s"}`,
+  ]
+    .filter(Boolean)
+    .join(" and ");
 
   return (
     <div className="min-h-screen">
@@ -32,8 +46,7 @@ export default async function LibraryPage({
         <div className="mb-6">
           <h1 className="text-2xl font-bold tracking-tight">Question Library</h1>
           <p className="mt-1 text-muted-foreground">
-            {questions.length} India-only guesstimate{questions.length === 1 ? "" : "s"}. Pick any —
-            everything is free to practise.
+            {summary || "No questions"}, India-only. Pick any — everything is free to practise.
           </p>
         </div>
 
