@@ -24,6 +24,8 @@
  * That is why the family ramp is written out rather than generated.
  */
 
+import type { NodeStatus } from "@/lib/types";
+
 export const DEPTH_STYLES = [
   {
     box: "border-sky-300 bg-sky-50 dark:border-sky-500/30 dark:bg-sky-500/10",
@@ -99,3 +101,53 @@ export function familyStyle(rootIndex: number, depth: number) {
   const family = FAMILY_STYLES[Math.max(0, rootIndex) % FAMILY_STYLES.length];
   return family[Math.max(0, depth) % family.length];
 }
+
+// ── Status ────────────────────────────────────────────────────────────────
+
+/** The traffic-light badge. Shared by the outline and the canvas card. */
+export const STATUS_STYLE: Record<NodeStatus, string> = {
+  unknown: "border-input bg-background text-muted-foreground/60",
+  healthy: "border-emerald-500/50 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  problem: "border-red-500/50 bg-red-500/10 text-red-600 dark:text-red-400",
+};
+
+/**
+ * The verdict washes the whole row in the OUTLINE, where a row is the only
+ * surface a node has and a 4mm badge is not something you can scan a
+ * twelve-branch tree with.
+ *
+ * The weights are deliberately uneven. A problem branch is where the candidate
+ * is working, so it is the loudest thing on screen; a cleared branch has been
+ * eliminated and should recede rather than compete for attention. Colour is
+ * never the only signal: the badge keeps its "OK" / "!" text.
+ */
+export const STATUS_ROW: Record<NodeStatus, string> = {
+  unknown: "bg-card",
+  healthy: "border-emerald-500/40 bg-emerald-500/[0.07]",
+  problem: "border-red-500/50 bg-red-500/[0.12]",
+};
+
+/**
+ * On the CANVAS the verdict takes the border instead of the fill, because the
+ * fill is already spoken for: a card's background carries its family hue, and
+ * washing it green the moment a branch is marked would erase which top-level
+ * branch it belongs to — exactly the thing the family ramp exists to show. A
+ * heavy border reads as loudly at a glance and leaves the fill alone, so a card
+ * says "Cost family" and "ruled out" at the same time.
+ */
+export const CARD_STATUS_BORDER: Record<NodeStatus, string> = {
+  unknown: "",
+  healthy: "!border-emerald-500 dark:!border-emerald-400",
+  problem: "!border-red-500 dark:!border-red-400",
+};
+
+/**
+ * Connector stroke. An edge into a marked branch takes that branch's colour, so
+ * the trail of problem marks — which IS the diagnosis being graded — can be
+ * followed down the diagram without reading a single label.
+ */
+export const EDGE_STROKE: Record<NodeStatus, string> = {
+  unknown: "hsl(var(--border))",
+  healthy: "rgb(16 185 129 / 0.55)",
+  problem: "rgb(239 68 68 / 0.75)",
+};
