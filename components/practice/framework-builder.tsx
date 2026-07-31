@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { saveFramework } from "@/app/actions/practice";
 import { evaluateExpression } from "@/lib/calc";
-import { branchDiscussed } from "@/lib/diagnosis";
+import { branchDiscussed, contradictedAncestors, hasProblemDescendant } from "@/lib/diagnosis";
 import type { FrameworkNodeTemplate } from "@/lib/config/frameworks";
 import {
   childrenFor,
@@ -170,6 +170,8 @@ export function FrameworkBuilder({
   messageText,
   conversation = [],
   questionFramework = null,
+  canvasFill = false,
+  onFullscreen,
 }: {
   attemptId: string;
   nodes: UiFrameworkNode[];
@@ -186,6 +188,10 @@ export function FrameworkBuilder({
   conversation?: string[];
   /** The framework this case is authored against, when it declares one. */
   questionFramework?: string | null;
+  /** Fullscreen: the canvas fills its parent rather than taking a fixed height. */
+  canvasFill?: boolean;
+  /** Omitted when already fullscreen, which hides the expand control. */
+  onFullscreen?: () => void;
 }) {
   const qualitative = answerMode === "qualitative";
   /**
@@ -355,12 +361,49 @@ export function FrameworkBuilder({
    * Marking "healthy" folds the branch away: it has been eliminated, so it earns
    * a line rather than a screen.
    */
+  /**
+   * Can this branch be cleared? Not while something inside it is marked as the
+   * problem — "the problem is in X" and "the problem is nowhere in X" cannot
+   * both be true. See `lib/diagnosis.ts`.
+   */
+  function healthyBlocked(id: string): boolean {
+    return hasProblemDescendant(nodes, id);
+  }
+
   function cycleStatus(id: string) {
     const node = nodes.find((n) => n.id === id);
     if (!node) return;
+    // Healthy drops out of the cycle entirely while the branch contains a
+    // problem, rather than being offered and then rejected.
+    const blocked = healthyBlocked(id);
+    const cycle = blocked ? STATUS_CYCLE.filter((s) => s !== "healthy") : STATUS_CYCLE;
     const current = (node.status ?? "unknown") as NodeStatus;
-    const next = STATUS_CYCLE[(STATUS_CYCLE.indexOf(current) + 1) % STATUS_CYCLE.length];
-    let updated = nodes.map((n) => (n.id === id ? { ...n, status: next } : n));
+    // A node already marked healthy isn't in the reduced cycle (indexOf -1), so
+    // it steps to the front of it — back to unexamined.
+    const next = cycle[(cycle.indexOf(current) + 1) % cycle.length];
+
+    // Marking this branch as the problem withdraws any ancestor's claim to have
+    // cleared it. Withdrawn to "unexamined", never promoted to "problem": the
+    // app does not get to assert a judgement the candidate never made.
+    const withdrawn =
+      next === "problem" ? new Set(contradictedAncestors(nodes, id)) : new Set<string>();
+
+    let updated = nodes.map((n) =>
+      n.id === id
+        ? { ...n, status: next }
+        : withdrawn.has(n.id)
+          ? { ...n, status: "unknown" as NodeStatus }
+          : n,
+    );
+    // A withdrawn branch was folded away when it was cleared; it is back in play
+    // now, and leaving it collapsed would hide the trail being built inside it.
+    if (withdrawn.size > 0) {
+      setFolded((prev) => {
+        const copy = new Set(prev);
+        for (const wid of withdrawn) copy.delete(wid);
+        return copy;
+      });
+    }
 
     if (next === "problem" && childrenOf(id).length === 0) {
       const child = blankNode(id, "");
@@ -614,10 +657,11 @@ export function FrameworkBuilder({
     );
   }
 
-  function acceptOffer(parentId: string, label: string) {
+  /** `null` adds a root — the framework's own top level, offered on an empty tree. */
+  function acceptOffer(parentId: string | null, label: string) {
     const fresh = blankNode(parentId, label);
     onChange([...nodes, { ...fresh, origin: "scaffold" as const }]);
-    setOpened((prev) => new Set(prev).add(parentId));
+    if (parentId) setOpened((prev) => new Set(prev).add(parentId));
   }
 
   function dismissOffers(nodeId: string) {
@@ -983,7 +1027,11 @@ export function FrameworkBuilder({
           <div className="ml-auto flex shrink-0 items-center gap-1.5 pt-px">
             <button
               onClick={() => cycleStatus(node.id)}
-              title={`${meta.label} — ${meta.hint}. Click to change.`}
+              title={
+                healthyBlocked(node.id)
+                  ? `${meta.label} — ${meta.hint}. Can't be cleared: a branch inside it is marked as the problem.`
+                  : `${meta.label} — ${meta.hint}. Click to change.`
+              }
               aria-label={`Status: ${meta.label}`}
               className={cn(
                 "h-5 rounded border px-1.5 font-mono text-[10px] font-semibold transition-colors",
@@ -1098,7 +1146,7 @@ export function FrameworkBuilder({
   }
 
   return (
-    <div className="space-y-3">
+    <div className={cn("space-y-3", canvasFill && "flex h-full min-h-0 flex-col")}>
       {!qualitative && (
         <div className="flex flex-wrap gap-1.5">
           {PALETTE.map((p) => (
@@ -1116,6 +1164,32 @@ export function FrameworkBuilder({
               {p}
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Which mode this attempt is in. It is fixed at creation and changes how
+          the tree is scored, so leaving it invisible made a mode that silently
+          failed to start impossible to notice. */}
+      {qualitative && treeMode && (
+        <div className="flex items-center gap-1.5">
+          <span
+            className={cn(
+              "rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide",
+              guided
+                ? "border-primary/40 bg-primary/10 text-primary"
+                : "border-input text-muted-foreground",
+            )}
+            title={
+              guided
+                ? "Guided: branches are suggested as you name each parent. Structure isn't scored."
+                : "Solo: you build the structure yourself, and it's scored."
+            }
+          >
+            {guided ? "Guided" : "Solo"}
+          </span>
+          <span className="text-[10px] text-muted-foreground">
+            {guided ? "structure suggested, not scored" : "your own structure, scored"}
+          </span>
         </div>
       )}
 
@@ -1155,6 +1229,29 @@ export function FrameworkBuilder({
         )
       )}
 
+      {/* Guided's opening move. Without this the mode offered nothing at all
+          until a branch was already named and matched the corpus — which meant
+          no guidance on the empty tree every attempt starts from, in the one
+          mode whose whole point is not knowing the structure yet. */}
+      {guided && roots.length === 0 && rootsFor(activeFramework).length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-dashed p-2">
+          <span className="w-full text-[10px] uppercase tracking-wide text-muted-foreground">
+            start with — {activeFramework?.label}
+          </span>
+          {rootsFor(activeFramework).map((t) => (
+            <button
+              key={t.label}
+              onClick={() => acceptOffer(null, t.label)}
+              title={t.hints?.length ? t.hints.join(" · ") : `Add "${t.label}"`}
+              className="rounded-full border border-dashed border-primary/40 px-2 py-0.5 text-[11px] text-primary hover:bg-primary/10"
+            >
+              <Plus className="mr-0.5 inline h-2.5 w-2.5" />
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {roots.length === 0 ? (
         <p className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
           {qualitative ? (
@@ -1181,6 +1278,7 @@ export function FrameworkBuilder({
           hintsForNode={hintsForNode}
           setLabel={setLabel}
           cycleStatus={cycleStatus}
+          healthyBlocked={healthyBlocked}
           addChild={addChild}
           requestRemove={requestRemove}
           toggleFold={toggleFold}
@@ -1198,6 +1296,8 @@ export function FrameworkBuilder({
           hasDataPack={hasDataPack}
           conversation={conversation}
           messageText={messageText}
+          fill={canvasFill}
+          onFullscreen={onFullscreen}
         />
       ) : (
         // An issue tree gets deeper than an estimate chain, so the tree scrolls

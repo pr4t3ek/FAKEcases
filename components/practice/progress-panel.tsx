@@ -37,10 +37,12 @@ function FrameworkTreeItem({
   return (
     <div className={cn("space-y-1 rounded-lg border p-1", tint.box)}>
       <span className={cn("inline-block rounded border px-1.5 py-0.5", tint.chip)}>
-        {status === "problem" && <span className="mr-1 text-red-600 dark:text-red-400">!</span>}
-        {status === "healthy" && (
-          <span className="mr-1 text-emerald-600 dark:text-emerald-400">OK</span>
+        {/* Green is the problem branch here too — see framework-depth.ts. The
+            mirror has to match the builder or the same tree reads two ways. */}
+        {status === "problem" && (
+          <span className="mr-1 text-emerald-600 dark:text-emerald-400">!</span>
         )}
+        {status === "healthy" && <span className="mr-1 text-muted-foreground">OK</span>}
         {node.label}
         {detail ? ` — ${detail}` : ""}
       </span>

@@ -1,9 +1,25 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { startAttempt } from "@/app/actions/attempts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { INTERVIEW_LEVEL_LABELS, answerModeFor, type InterviewLevel } from "@/lib/types";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  INTERVIEW_LEVEL_LABELS,
+  answerModeFor,
+  type InterviewLevel,
+  type TreeMode,
+} from "@/lib/types";
 
 interface QuestionCardData {
   id: string;
@@ -23,11 +39,32 @@ const diffVariant: Record<string, "success" | "warning" | "destructive"> = {
 
 export function QuestionCard({ question }: { question: QuestionCardData }) {
   const qualitative = answerModeFor(question.type) === "qualitative";
-  // Both arguments bound, so each form action takes no parameters — a bound
-  // action with a trailing optional arg would be typed as taking the FormData.
-  const startSolo = startAttempt.bind(null, question.id, "solo");
-  const startGuided = startAttempt.bind(null, question.id, "guided");
-  const start = startAttempt.bind(null, question.id, undefined);
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  /**
+   * Set when the candidate asked for a mode the in-progress attempt isn't in.
+   * The mode is fixed at creation, so this is a genuine fork rather than
+   * something we can quietly reconcile.
+   */
+  const [conflict, setConflict] = useState<{
+    wanted: TreeMode;
+    attemptId: string;
+    existing: TreeMode;
+  } | null>(null);
+
+  function begin(treeMode?: TreeMode, abandonExisting = false) {
+    startTransition(async () => {
+      // The action redirects on success, so anything returned is a conflict.
+      const result = await startAttempt(question.id, treeMode, { abandonExisting });
+      if (result?.conflict && treeMode) {
+        setConflict({
+          wanted: treeMode,
+          attemptId: result.attemptId,
+          existing: result.existingTreeMode,
+        });
+      }
+    });
+  }
 
   return (
     <Card className="flex flex-col p-5 transition-shadow hover:shadow-md">
@@ -47,28 +84,65 @@ export function QuestionCard({ question }: { question: QuestionCardData }) {
         // make "solo" meaningless — switch to guided, take the structure, switch
         // back — so the choice is made before the timer starts.
         <div className="mt-4 space-y-2">
-          <form action={startSolo}>
-            <Button type="submit" className="w-full" variant="outline">
-              Practise this <ArrowRight />
-            </Button>
-          </form>
-          <form action={startGuided} className="text-center">
+          <Button
+            onClick={() => begin("solo")}
+            disabled={pending}
+            className="w-full"
+            variant="outline"
+          >
+            Practise this <ArrowRight />
+          </Button>
+          <div className="text-center">
             <button
-              type="submit"
+              onClick={() => begin("guided")}
+              disabled={pending}
               className="text-[11px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
               title="Branches are suggested as you name each parent. You're scored on the diagnosis, not on the structure."
             >
               or try it guided — structure suggested, and not scored
             </button>
-          </form>
+          </div>
         </div>
       ) : (
-        <form action={start} className="mt-4">
-          <Button type="submit" className="w-full" variant="outline">
-            Practise this <ArrowRight />
-          </Button>
-        </form>
+        <Button
+          onClick={() => begin()}
+          disabled={pending}
+          className="mt-4 w-full"
+          variant="outline"
+        >
+          Practise this <ArrowRight />
+        </Button>
       )}
+
+      <Dialog open={!!conflict} onOpenChange={(open) => !open && setConflict(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogTitle>This case is already open</DialogTitle>
+          <DialogDescription>
+            You have an attempt in progress in{" "}
+            <strong>{conflict?.existing === "guided" ? "guided" : "solo"}</strong> mode. The mode is
+            fixed when an attempt starts — switching it mid-case would make solo meaningless — so
+            you can carry on with that one, or start again in{" "}
+            <strong>{conflict?.wanted === "guided" ? "guided" : "solo"}</strong>.
+          </DialogDescription>
+          <DialogFooter>
+            <Button
+              variant="secondary"
+              onClick={() => conflict && router.push(`/practice/${conflict.attemptId}`)}
+            >
+              Resume {conflict?.existing === "guided" ? "guided" : "solo"} attempt
+            </Button>
+            <Button
+              onClick={() => {
+                const wanted = conflict?.wanted;
+                setConflict(null);
+                if (wanted) begin(wanted, true);
+              }}
+            >
+              Start fresh in {conflict?.wanted === "guided" ? "guided" : "solo"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

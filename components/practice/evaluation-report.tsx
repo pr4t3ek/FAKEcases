@@ -100,7 +100,12 @@ export function EvaluationReport({
   })();
 
   // Both args bound so the retry form action takes no parameters.
-  const retry = startAttempt.bind(null, questionId, undefined);
+  // Retry names no tree mode, so `startAttempt` can never return a conflict here
+  // — it always redirects. The wrapper just drops the union so this stays a
+  // plain form action.
+  const retry = async () => {
+    await startAttempt(questionId);
+  };
 
   return (
     <div className="min-h-screen">
