@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import {
+  AlertTriangle,
   ArrowRight,
   ChevronDown,
   ChevronRight,
@@ -13,7 +14,7 @@ import {
 } from "lucide-react";
 import { saveFramework } from "@/app/actions/practice";
 import { evaluateExpression } from "@/lib/calc";
-import { describeTrail, diagnosisTrail } from "@/lib/diagnosis";
+import { branchDiscussed } from "@/lib/diagnosis";
 import {
   indentNode,
   insertSiblingAfter,
@@ -170,6 +171,7 @@ export function FrameworkBuilder({
   hasDataPack = false,
   onAskAbout,
   messageText,
+  conversation = [],
 }: {
   attemptId: string;
   nodes: UiFrameworkNode[];
@@ -182,6 +184,8 @@ export function FrameworkBuilder({
   onAskAbout?: (label: string) => void;
   /** Message id → text, so a promoted node can show the sentence it came from. */
   messageText?: Map<string, string>;
+  /** Every turn so far, for the "did you ask before judging?" check. */
+  conversation?: string[];
 }) {
   const qualitative = answerMode === "qualitative";
   const [dragId, setDragId] = useState<string | null>(null);
@@ -739,6 +743,14 @@ export function FrameworkBuilder({
     const isFolded = children.length > 0 && folded.has(node.id) && !opened.has(node.id);
     const inherited = node.sourceMessageId ? messageText?.get(node.sourceMessageId) : undefined;
     const subtitle = inherited?.trim() || node.note?.trim() || "";
+    // Judging a branch is a claim about the business. Building one is only a
+    // hypothesis, so it never warns — this fires on the verdict alone.
+    const unevidenced =
+      hasDataPack &&
+      !!node.label.trim() &&
+      !!status &&
+      status !== "unknown" &&
+      !branchDiscussed(node.label, conversation);
 
     return (
       <div key={node.id} className={cn("space-y-1 rounded-xl border p-1", tint.box)}>
@@ -791,6 +803,15 @@ export function FrameworkBuilder({
               placeholder="Name this branch"
               className="h-6 min-w-[5rem] flex-1 border-0 bg-transparent px-1 text-sm font-medium shadow-none focus-visible:ring-0"
             />
+            {unevidenced && (
+              <p
+                className="flex items-start gap-1 px-1 pt-0.5 text-[11px] leading-snug text-warning"
+                title="You've judged this branch without raising it with the interviewer. You may well be right — but an interviewer will ask what you checked."
+              >
+                <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
+                marked without asking
+              </p>
+            )}
             {subtitle ? (
               <p className="px-1 pt-0.5 text-[11px] leading-snug text-muted-foreground">
                 <span className={cn("mr-1 font-mono", inherited ? "text-primary" : "text-muted-foreground/60")}>

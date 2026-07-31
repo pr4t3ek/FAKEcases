@@ -5,7 +5,7 @@ import {
   accuracyTolerance,
   type ReadinessBand,
 } from "@/lib/config";
-import { diagnosisTrail, type DiagnosisNode } from "@/lib/diagnosis";
+import { branchDiscussed, diagnosisTrail, type DiagnosisNode } from "@/lib/diagnosis";
 import { clamp } from "@/lib/utils";
 import type { AnswerMode, AssumptionRating, FeedbackItem, TreeMode } from "@/lib/types";
 
@@ -398,6 +398,8 @@ export interface DiagnosisScore {
   landed: boolean;
   clearedFirst: number;
   falseClears: string[];
+  /** Branches judged without ever being raised in the conversation. */
+  unevidenced: number;
 }
 
 /**
@@ -417,6 +419,14 @@ export interface DiagnosisScore {
 export function scoreDiagnosis(
   nodes: FrameworkNodeInput[],
   rootCause: RootCause,
+  /**
+   * The whole transcript, so a verdict reached without checking anything scores
+   * below the same verdict reached by asking. Deliberately the SAME loose test
+   * the builder warns with, rather than the stricter one the server could run
+   * against the real data pack — nobody should be penalised for something the
+   * interface never flagged.
+   */
+  conversation: string[] = [],
 ): DiagnosisScore {
   const diagnosable: DiagnosisNode[] = nodes.map((n, i) => ({
     id: n.id ?? String(i),
@@ -426,7 +436,9 @@ export function scoreDiagnosis(
   }));
   const trail = diagnosisTrail(diagnosable);
   const target = rootCause.path.filter((p) => p.trim());
-  if (target.length === 0) return { score: 50, landed: false, clearedFirst: 0, falseClears: [] };
+  if (target.length === 0) {
+    return { score: 50, landed: false, clearedFirst: 0, falseClears: [], unevidenced: 0 };
+  }
 
   // How deep into the declared path did any single trail get?
   let bestDepth = 0;
@@ -449,14 +461,33 @@ export function scoreDiagnosis(
   // rather than a lucky first guess.
   const clearedFirst = nodes.filter((n) => n.status === "healthy").length;
 
+  // Verdicts reached without raising the branch at all. Guessing right is worth
+  // something, but not as much as diagnosing right.
+  const unevidenced = conversation.length
+    ? nodes.filter(
+        (n) =>
+          n.label.trim() &&
+          n.status &&
+          n.status !== "unknown" &&
+          !branchDiscussed(n.label, conversation),
+      ).length
+    : 0;
+
   let score = 25 + (bestDepth / target.length) * 45;
   if (landed) score += 10;
   score += Math.min(clearedFirst, 4) * 4;
   score -= falseClears.length * 18;
+  score -= Math.min(unevidenced, 4) * 5;
   // A trail that never terminated has located a region, not a cause.
   if (!trail.complete && landed) score -= 6;
 
-  return { score: clamp(Math.round(score), 10, 97), landed, clearedFirst, falseClears };
+  return {
+    score: clamp(Math.round(score), 10, 97),
+    landed,
+    clearedFirst,
+    falseClears,
+    unevidenced,
+  };
 }
 
 /**
@@ -497,7 +528,9 @@ export function evaluateQualitative(input: QualitativeEvaluationInput): Evaluati
   const duplicateSiblings = countDuplicateSiblings(framework);
 
   const marked = framework.filter((n) => n.status && n.status !== "unknown").length;
-  const diagnosisResult = rootCause ? scoreDiagnosis(framework, rootCause) : null;
+  const diagnosisResult = rootCause
+    ? scoreDiagnosis(framework, rootCause, userMessageText)
+    : null;
 
   // Guided builds the tree for the candidate, so grading them on it would be the
   // app marking its own work. Null, not zero — see EvaluationScores.

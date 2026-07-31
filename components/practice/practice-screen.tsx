@@ -126,6 +126,7 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
       activeTool={activeTool}
       treeMode={data.treeMode}
       messageText={messageText}
+      conversation={messages.map((m) => m.content)}
       answerText={answerText}
       onAnswerTextChange={setAnswerText}
       onSubmitted={handleSubmitted}

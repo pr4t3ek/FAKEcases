@@ -169,10 +169,21 @@ function markedAny(ctx: InterviewerContext): boolean {
  */
 function factFor(ctx: InterviewerContext, text: string): string | null {
   const hay = lc(text);
+  // Best match, not first match. Topics overlap — "order" appears in both the
+  // volume fact and "delivery cost per order" — so returning the first hit
+  // answers a question about delivery costs with a fact about order volume.
+  // The longest matched topic wins, since a longer term is a more specific one.
+  let best: { fact: string; specificity: number } | null = null;
   for (const entry of ctx.dataPack ?? []) {
-    if (entry.topic.some((t) => hay.includes(lc(t)))) return entry.fact;
+    for (const topic of entry.topic) {
+      const t = lc(topic);
+      if (!hay.includes(t)) continue;
+      if (!best || t.length > best.specificity) {
+        best = { fact: entry.fact, specificity: t.length };
+      }
+    }
   }
-  return null;
+  return best?.fact ?? null;
 }
 
 function replyCase(ctx: InterviewerContext): string {

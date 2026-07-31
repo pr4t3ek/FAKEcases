@@ -276,3 +276,37 @@ describe("evaluateQualitative", () => {
     expect(result.feedback.some((f) => /recommendation/i.test(f.text))).toBe(true);
   });
 });
+
+describe("evidence in scoreDiagnosis", () => {
+  const rootCause = { path: ["Cost", "Delivery cost per order"] };
+  const marked = [
+    node("c", null, "Cost", { status: "problem" }),
+    node("d", "c", "Delivery cost per order", { status: "problem" }),
+  ];
+
+  // Guessing right is worth something; diagnosing right is worth more. The badge
+  // during the attempt and the score afterwards have to be the same judgement.
+  it("scores a verdict reached by asking above the same verdict reached blind", () => {
+    const asked = scoreDiagnosis(marked, rootCause, [
+      "what has happened to delivery cost per order?",
+    ]);
+    const blind = scoreDiagnosis(marked, rootCause, ["I'll go with cost."]);
+    expect(asked.unevidenced).toBe(0);
+    expect(blind.unevidenced).toBeGreaterThan(0);
+    expect(asked.score).toBeGreaterThan(blind.score);
+  });
+
+  // Retro-compatibility: existing callers that pass no transcript must not be
+  // penalised for evidence they were never asked to supply.
+  it("penalises nothing when no conversation is supplied", () => {
+    expect(scoreDiagnosis(marked, rootCause).unevidenced).toBe(0);
+  });
+
+  it("ignores unmarked branches — building is a hypothesis, not a claim", () => {
+    const unmarkedTree = [
+      node("c", null, "Cost"),
+      node("d", "c", "Delivery cost per order"),
+    ];
+    expect(scoreDiagnosis(unmarkedTree, rootCause, ["nothing relevant"]).unevidenced).toBe(0);
+  });
+});

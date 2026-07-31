@@ -192,3 +192,30 @@ describe("mock interviewer releasing authored data", () => {
     expect(text).not.toMatch(/\d+%/);
   });
 });
+
+describe("mock interviewer picking between overlapping facts", () => {
+  // Topics overlap by nature: "order" belongs to both order volume and delivery
+  // cost per order. First-match returned the wrong fact to a direct question,
+  // which is the exact failure authored data exists to prevent.
+  const pack = [
+    { topic: ["revenue", "order", "volume"], fact: "Order volume is flat year-on-year." },
+    { topic: ["cost", "delivery", "rider"], fact: "Delivery cost per order is up 31%." },
+  ];
+  const caseCtx = (content: string) =>
+    ctx({
+      answerMode: "qualitative",
+      dataPack: pack,
+      messages: [{ role: "user", content }],
+    });
+
+  it("answers about delivery cost with the delivery fact, not the order-volume one", async () => {
+    const text = await collect(mockAdapter.reply(caseCtx("What has happened to delivery cost per order?")));
+    expect(text).toContain("up 31%");
+    expect(text).not.toContain("flat year-on-year");
+  });
+
+  it("still answers about volume with the volume fact", async () => {
+    const text = await collect(mockAdapter.reply(caseCtx("How has order volume moved?")));
+    expect(text).toContain("flat year-on-year");
+  });
+});

@@ -115,7 +115,23 @@ export function diagnosisTrail(nodes: DiagnosisNode[]): DiagnosisTrail {
   };
 }
 
-/** One-line summary for the builder footer and the report. */
+/**
+ * What the candidate sees WHILE working. Their own marked path and nothing else.
+ *
+ * Deliberately free of counts and verdicts. "2 unexamined" tells them how much
+ * is left to look at, and "diagnosis complete" tells them they have bottomed
+ * out — both are progress signals no interviewer would ever give, and a
+ * candidate would learn to drill until the app stopped saying "still drilling".
+ * The path itself is only a readback of what they marked, so it guides nothing.
+ */
+export function describeTrailLive(trail: DiagnosisTrail): string {
+  if (trail.labelPaths.length === 0) {
+    return "Mark branches as you rule them out, and where you think the problem is.";
+  }
+  return trail.labelPaths.map((p) => p.join(" → ")).join("  ·  ");
+}
+
+/** The full picture, for the report — after submitting, this is feedback. */
 export function describeTrail(trail: DiagnosisTrail): string {
   if (trail.labelPaths.length === 0) {
     return trail.unexamined > 0
@@ -127,4 +143,28 @@ export function describeTrail(trail: DiagnosisTrail): string {
   if (trail.unexamined > 0) bits.push(`${trail.unexamined} unexamined`);
   bits.push(trail.complete ? "diagnosis complete" : "still drilling");
   return bits.join(" · ");
+}
+
+/**
+ * Has this branch come up in the conversation at all?
+ *
+ * The evidence test for "did you check before you judged". Deliberately loose
+ * and deliberately client-safe: it reads only the transcript, so the app never
+ * has to ship the question's fact topics to the browser — which would itself
+ * tell a candidate which branches have data behind them, and therefore which
+ * ones matter.
+ */
+const STOPWORDS = new Set([
+  "the", "and", "for", "per", "from", "with", "cost", "costs", "side", "level",
+  "other", "new", "total", "value", "rate", "number",
+]);
+
+export function branchDiscussed(label: string, conversation: string[]): boolean {
+  const words = label
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length > 3 && !STOPWORDS.has(w));
+  if (words.length === 0) return true; // nothing distinctive to look for
+  const hay = conversation.join(" ").toLowerCase();
+  return words.some((w) => hay.includes(w));
 }

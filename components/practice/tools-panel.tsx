@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Clock, Layers, Loader2, NotebookPen, Pause, Play } from "lucide-react";
+import { AlertTriangle, Check, Clock, Layers, Loader2, NotebookPen, Pause, Play } from "lucide-react";
 import { toast } from "sonner";
 import { saveTime, setFinalAnswer } from "@/app/actions/practice";
 import { submitAttempt, type SubmitResult } from "@/app/actions/submit";
-import { describeTrail, diagnosisTrail } from "@/lib/diagnosis";
+import { branchDiscussed, describeTrailLive, diagnosisTrail } from "@/lib/diagnosis";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -36,6 +36,7 @@ export function ToolsPanel({
   activeTool,
   treeMode,
   messageText,
+  conversation,
   answerText,
   onAnswerTextChange,
   onSubmitted,
@@ -53,11 +54,37 @@ export function ToolsPanel({
   activeTool: string;
   treeMode?: TreeMode | null;
   messageText?: Map<string, string>;
+  /** Every turn in the conversation, for the "did you ask?" check. */
+  conversation?: string[];
   answerText?: string;
   onAnswerTextChange?: (t: string) => void;
   onSubmitted?: (r: SubmitResult) => void;
 }) {
   const qualitative = question.answerMode === "qualitative";
+  /**
+   * Branches given a verdict without ever being raised in the conversation.
+   *
+   * Only a judgement needs backing — adding, renaming and nesting branches are
+   * hypotheses and never warn. And only on a question that has facts to ask
+   * about, or a pure brainstorm case would nag on every mark.
+   *
+   * The test reads the transcript rather than the question's fact topics on
+   * purpose: shipping those topics to the browser would tell the candidate which
+   * branches have data behind them, and therefore which ones matter.
+   */
+  const unevidencedMarks =
+    qualitative && question.hasDataPack
+      ? framework
+          .filter(
+            (n) =>
+              n.label.trim() &&
+              n.status &&
+              n.status !== "unknown" &&
+              !branchDiscussed(n.label, conversation ?? []),
+          )
+          .map((n) => n.label.trim())
+      : [];
+
   const [elapsed, setElapsed] = useState(initialTime);
   const [running, setRunning] = useState(!disabled);
   const [notes, setNotes] = useState("");
@@ -148,6 +175,7 @@ export function ToolsPanel({
               treeMode={treeMode}
               hasDataPack={question.hasDataPack}
               messageText={messageText}
+              conversation={conversation}
             />
           </TabsContent>
           <TabsContent value="notes" className="mt-0">
@@ -174,6 +202,7 @@ export function ToolsPanel({
           onAnswerTextChange={onAnswerTextChange}
           disabled={disabled}
           onSubmitted={onSubmitted}
+          unevidencedMarks={unevidencedMarks}
         />
       )}
     </div>
@@ -188,6 +217,7 @@ function AnswerBar({
   onAnswerTextChange,
   disabled,
   onSubmitted,
+  unevidencedMarks,
 }: {
   attemptId: string;
   framework: UiFrameworkNode[];
@@ -195,9 +225,15 @@ function AnswerBar({
   onAnswerTextChange: (t: string) => void;
   disabled: boolean;
   onSubmitted: (r: SubmitResult) => void;
+  /** Branches judged without ever being raised in the conversation. */
+  unevidencedMarks: string[];
 }) {
   const [submitting, setSubmitting] = useState(false);
-  const trail = describeTrail(diagnosisTrail(framework));
+  // The live variant: their marked path and nothing else. Counts and a
+  // completeness verdict would tell them how much is left and when to stop,
+  // which is the app doing the judging. Both appear on the report instead.
+  const trail = describeTrailLive(diagnosisTrail(framework));
+  const unevidenced = unevidencedMarks.length;
 
   async function submit() {
     setSubmitting(true);
@@ -218,6 +254,18 @@ function AnswerBar({
       <p className="mb-2 truncate text-[11px] text-muted-foreground" title={trail}>
         {trail}
       </p>
+      {/* A tally, never a block — the candidate may well be right, but an
+          unchecked verdict should be on the record before they commit to it. */}
+      {unevidenced > 0 && !disabled && (
+        <p className="mb-2 flex items-start gap-1.5 text-[11px] text-warning">
+          <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
+          <span>
+            {unevidenced} branch{unevidenced === 1 ? "" : "es"} marked without asking about
+            {unevidenced === 1 ? " it" : " them"} — {unevidencedMarks.slice(0, 3).join(", ")}
+            {unevidenced > 3 ? "…" : ""}
+          </span>
+        </p>
+      )}
       <div className="flex items-end gap-2">
         <Textarea
           value={answerText}

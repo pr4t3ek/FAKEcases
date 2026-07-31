@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { describeTrail, diagnosisTrail, type DiagnosisNode } from "@/lib/diagnosis";
+import {
+  branchDiscussed,
+  describeTrail,
+  describeTrailLive,
+  diagnosisTrail,
+  type DiagnosisNode,
+} from "@/lib/diagnosis";
 
 const n = (
   id: string,
@@ -130,5 +136,58 @@ describe("describeTrail", () => {
       diagnosisTrail([n("cost", null, "problem", "Cost"), n("fixed", "cost", undefined, "Fixed")]),
     );
     expect(text).toContain("still drilling");
+  });
+});
+
+describe("describeTrailLive", () => {
+  // Counts and a completeness verdict tell a candidate how much is left and when
+  // to stop. During the attempt that is the app doing the judging, so the live
+  // line carries their own marked path and nothing derived from it.
+  it("shows the path but never counts or a verdict", () => {
+    const trail = diagnosisTrail([
+      n("cost", null, "problem", "Cost"),
+      n("delivery", "cost", "problem", "Delivery"),
+      n("rev", null, "healthy", "Revenue"),
+      n("pack", null, undefined, "Packaging"),
+    ]);
+    const live = describeTrailLive(trail);
+    expect(live).toContain("Cost → Delivery");
+    expect(live).not.toMatch(/cleared|unexamined|complete|drilling/i);
+  });
+
+  it("instructs rather than reporting progress when nothing is marked", () => {
+    const live = describeTrailLive(diagnosisTrail([n("cost", null, undefined, "Cost")]));
+    expect(live).toMatch(/mark branches/i);
+    expect(live).not.toMatch(/\d/);
+  });
+
+  // The report is feedback, not guidance, so it keeps everything.
+  it("still reports counts and completeness in the report variant", () => {
+    const trail = diagnosisTrail([n("cost", null, "problem", "Cost")]);
+    expect(describeTrail(trail)).toMatch(/cleared/);
+  });
+});
+
+describe("branchDiscussed", () => {
+  it("matches a branch raised in the conversation", () => {
+    expect(branchDiscussed("Delivery cost per order", ["what happened to delivery?"])).toBe(true);
+  });
+
+  it("does not match a branch never mentioned", () => {
+    expect(branchDiscussed("Packaging", ["tell me about delivery costs"])).toBe(false);
+  });
+
+  // Generic words are what every branch has in common, so matching on them would
+  // clear branches nobody asked about.
+  it("ignores generic words shared across branches", () => {
+    expect(branchDiscussed("Fixed cost", ["what about the cost side?"])).toBe(false);
+  });
+
+  it("treats a label with nothing distinctive as discussed, rather than nagging", () => {
+    expect(branchDiscussed("Cost", ["anything"])).toBe(true);
+  });
+
+  it("is case and punctuation insensitive", () => {
+    expect(branchDiscussed("Rider payouts", ["RIDER-PAYOUTS have risen"])).toBe(true);
   });
 });
