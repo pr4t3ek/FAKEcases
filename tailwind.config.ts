@@ -1,4 +1,11 @@
 import type { Config } from "tailwindcss";
+// A static import, not require(). This file is an ES module — `import type`
+// above, `export default` below — so `require` is not defined in it, and
+// Tailwind's loader only made that work by accident: it tries `require(path)`
+// first and falls back to jiti, whose transform happens to supply a shim. From
+// Node 22.18 type-stripping is on by default, so the first attempt now gets far
+// enough to evaluate the file as real ESM and dies on the require() call.
+import animate from "tailwindcss-animate";
 
 const config: Config = {
   darkMode: ["class"],
@@ -78,7 +85,7 @@ const config: Config = {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [animate],
 };
 
 export default config;
