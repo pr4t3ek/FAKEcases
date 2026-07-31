@@ -81,6 +81,25 @@ export function rootsFor(framework: Framework | null): FrameworkNodeTemplate[] {
   return framework?.children ?? [];
 }
 
+/**
+ * The prompts a framework attaches to a branch — "cost of raw materials",
+ * "#suppliers × contract × duration".
+ *
+ * These are what a corpus leaf carries instead of children, so without them the
+ * deepest level of a Guided tree is a dead end and the most specific detail in
+ * the corpus never reaches anyone.
+ */
+export function hintsFor(framework: Framework | null, label: string): string[] {
+  if (!framework || !label.trim()) return [];
+  let found: string[] = [];
+  walk(framework.children, (node) => {
+    if (found.length === 0 && matchesLabel(node, label) && node.hints?.length) {
+      found = node.hints;
+    }
+  });
+  return found;
+}
+
 // ── 2. Completing a label as it is typed ──────────────────────────────────
 
 /**

@@ -21,6 +21,7 @@ import {
   completeLabel,
   detectFramework,
   frameworkNamed,
+  hintsFor,
   rootsFor,
 } from "@/lib/framework-suggest";
 import {
@@ -576,8 +577,24 @@ export function FrameworkBuilder({
     );
   }
 
-  function acceptOffer(parentId: string, template: FrameworkNodeTemplate) {
-    const fresh = blankNode(parentId, template.label);
+  /**
+   * The prompts a framework leaf carries instead of children.
+   *
+   * Without these, accepting a chip for something like "Procuring Raw Materials"
+   * offers nothing further and the tree bottoms out — the corpus's most specific
+   * detail would only ever be seen as a tooltip on a chip that no longer exists.
+   * Filtered against what's already there, exactly like the child offers.
+   */
+  function hintsForNode(node: UiFrameworkNode): string[] {
+    if (!guided || dismissedOffers.has(node.id) || !node.label.trim()) return [];
+    const existing = new Set(childrenOf(node.id).map((c) => c.label.trim().toLowerCase()));
+    return hintsFor(activeFramework, node.label).filter(
+      (h) => !existing.has(h.toLowerCase()),
+    );
+  }
+
+  function acceptOffer(parentId: string, label: string) {
+    const fresh = blankNode(parentId, label);
     onChange([...nodes, { ...fresh, origin: "scaffold" as const }]);
     setOpened((prev) => new Set(prev).add(parentId));
   }
@@ -993,7 +1010,7 @@ export function FrameworkBuilder({
               {offers.map((t) => (
                 <button
                   key={t.label}
-                  onClick={() => acceptOffer(node.id, t)}
+                  onClick={() => acceptOffer(node.id, t.label)}
                   title={t.hints?.length ? t.hints.join(" · ") : `Add "${t.label}"`}
                   className="rounded-full border border-dashed border-primary/40 px-2 py-0.5 text-[11px] text-primary hover:bg-primary/10"
                 >
@@ -1009,6 +1026,30 @@ export function FrameworkBuilder({
                 ✕
               </button>
             </div>
+          );
+        })()}
+
+        {/* A leaf's prompts. Quieter than the chip strip on purpose — a hint is
+            a thought worth having, not a box the framework says you need. */}
+        {(() => {
+          const hints = hintsForNode(node);
+          if (hints.length === 0) return null;
+          return (
+            <p className="ml-2 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 px-1 text-[11px] text-muted-foreground">
+              <span className="text-muted-foreground/60">consider</span>
+              {hints.map((h, i) => (
+                <span key={h} className="contents">
+                  <button
+                    onClick={() => acceptOffer(node.id, h)}
+                    title={`Add "${h}" as a branch`}
+                    className="underline decoration-dotted underline-offset-2 hover:text-primary"
+                  >
+                    {h}
+                  </button>
+                  {i < hints.length - 1 && <span className="text-muted-foreground/40">·</span>}
+                </span>
+              ))}
+            </p>
           );
         })()}
 

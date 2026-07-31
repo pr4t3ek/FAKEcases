@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { childrenFor, completeLabel, detectFramework, rootsFor } from "@/lib/framework-suggest";
+import {
+  childrenFor,
+  completeLabel,
+  detectFramework,
+  hintsFor,
+  rootsFor,
+} from "@/lib/framework-suggest";
 import { FRAMEWORKS, frameworkBySlug } from "@/lib/config/frameworks";
 
 const profitability = frameworkBySlug("profitability")!;
@@ -152,5 +158,29 @@ describe("the corpus itself", () => {
   it("has unique slugs", () => {
     const slugs = FRAMEWORKS.map((f) => f.slug);
     expect(new Set(slugs).size).toBe(slugs.length);
+  });
+});
+
+describe("hintsFor", () => {
+  // A corpus leaf carries hints instead of children. Without surfacing them the
+  // deepest level of a Guided tree is a dead end and the most specific detail in
+  // the corpus is never seen.
+  it("gives a leaf's prompts", () => {
+    const hints = hintsFor(profitability, "Procuring Raw Materials");
+    expect(hints.length).toBeGreaterThan(0);
+    expect(hints.join(" ")).toMatch(/raw materials/i);
+  });
+
+  it("reaches a leaf through an alias", () => {
+    expect(hintsFor(profitability, "Pre-Purchase").join(" ")).toMatch(/awareness/i);
+  });
+
+  it("is empty for a branch that has real children instead", () => {
+    expect(hintsFor(profitability, "Cost")).toEqual([]);
+  });
+
+  it("is empty without a framework, or for an unknown branch", () => {
+    expect(hintsFor(null, "Anything")).toEqual([]);
+    expect(hintsFor(profitability, "Zebra")).toEqual([]);
   });
 });
