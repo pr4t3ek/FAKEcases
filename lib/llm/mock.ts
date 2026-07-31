@@ -107,7 +107,117 @@ const ACK_QUESTION = [
   "I'd turn that back to you: what would you assume, and how would you justify it?",
 ];
 
+// ── Case bank ─────────────────────────────────────────────────────────────
+// The banks above are market-sizing specific — they ask for populations and
+// frequencies, which is nonsense on "why are margins falling". A case is worked
+// in a different order, so the offline interviewer follows that order instead:
+// scope, structure, narrow, commit.
+
+const CASE_OPENING = [
+  "Before we structure this — what exactly are we solving for, and by when?",
+  "Good problem. What's the objective here, and what would success look like for the client?",
+  "Let's scope it first. What would you want to know about the business before you break this down?",
+];
+
+const CASE_PUSH_STRUCTURE = [
+  "That's useful context. How would you break this problem down? I'd like to see the whole space before we go deep.",
+  "Okay — give me your structure. What are the two or three buckets that between them cover this?",
+  "Before we dig in: what's your framework here, and why those branches?",
+];
+
+const CASE_PUSH_MECE = [
+  "Those branches overlap a bit — could the same cause sit in two of them? Tighten it up.",
+  "Is that structure exhaustive? What's missing from the top level?",
+  "Good start on structure. Which of those branches would you look at first, and why that one?",
+];
+
+const CASE_PUSH_NARROW = [
+  "You've marked where you think the problem is. What's inside that branch — break it one level further.",
+  "Fine, so it's in there. Now narrow it: what specifically within that would you check?",
+  "You've ruled some things out. What does that leave, and what would you look at next?",
+];
+
+const CASE_PUSH_EVIDENCE = [
+  "What makes you say that? An interviewer will ask what you've checked before you rule something out.",
+  "You've cleared that branch — on what basis? Ask me for what you need.",
+  "Careful: that's a claim about the business. What would you want to see before committing to it?",
+];
+
+const CASE_PUSH_ANSWER = [
+  "You've narrowed it down. So what's your recommendation, and what would you do about it?",
+  "Time to commit. What's your answer, and what's the first thing the client should change?",
+  "Good — now land it. State your conclusion and the action that follows from it.",
+];
+
+const CASE_NO_DATA = [
+  "I don't have data on that. Make a reasonable assumption and tell me why it's reasonable.",
+  "Nothing on that here — what would you assume, and how would that change your approach?",
+];
+
+function markedProblem(ctx: InterviewerContext): boolean {
+  return ctx.framework.some((f) => f.status === "problem");
+}
+function markedAny(ctx: InterviewerContext): boolean {
+  return ctx.framework.some((f) => f.status === "problem" || f.status === "healthy");
+}
+
+/**
+ * The authored fact for whatever the candidate just asked about, if there is
+ * one. The case's truth lives in the question row, so the offline interviewer
+ * can release data exactly as a real provider would — which is what makes a
+ * diagnostic case playable with no API key at all.
+ */
+function factFor(ctx: InterviewerContext, text: string): string | null {
+  const hay = lc(text);
+  // Best match, not first match. Topics overlap — "order" appears in both the
+  // volume fact and "delivery cost per order" — so returning the first hit
+  // answers a question about delivery costs with a fact about order volume.
+  // The longest matched topic wins, since a longer term is a more specific one.
+  let best: { fact: string; specificity: number } | null = null;
+  for (const entry of ctx.dataPack ?? []) {
+    for (const topic of entry.topic) {
+      const t = lc(topic);
+      if (!hay.includes(t)) continue;
+      if (!best || t.length > best.specificity) {
+        best = { fact: entry.fact, specificity: t.length };
+      }
+    }
+  }
+  return best?.fact ?? null;
+}
+
+function replyCase(ctx: InterviewerContext): string {
+  const turns = userTurnCount(ctx);
+  const last = lastUserMessage(ctx);
+
+  if (turns === 0) return pick(CASE_OPENING, seedFor(ctx, "case-open"));
+  if (mentions(last, ["stuck", "don't know", "dont know", "no idea", "help", "not sure"])) {
+    return pick(CASE_PUSH_STRUCTURE, seedFor(ctx, "case-stuck"));
+  }
+  // Asked about a branch: state the authored fact and push on. Never more than
+  // one, and never a fact that wasn't asked for.
+  const fact = factFor(ctx, last);
+  if (fact) {
+    return `${fact} What does that tell you, and where does it point you next?`;
+  }
+  // No authored data for it — decline rather than invent, which is the whole
+  // reason the facts are authored in the first place.
+  if (last.trim().endsWith("?")) {
+    return pick(CASE_NO_DATA, seedFor(ctx, "case-nodata"));
+  }
+  if (ctx.finalAnswer?.trim()) {
+    return pick(CASE_PUSH_EVIDENCE, seedFor(ctx, "case-evidence"));
+  }
+  if (ctx.framework.length === 0) return pick(CASE_PUSH_STRUCTURE, seedFor(ctx, "case-struct"));
+  if (ctx.framework.length < 2) return pick(CASE_PUSH_MECE, seedFor(ctx, "case-mece"));
+  if (!markedAny(ctx)) return pick(CASE_PUSH_MECE, seedFor(ctx, "case-mece2"));
+  if (markedProblem(ctx)) return pick(CASE_PUSH_NARROW, seedFor(ctx, "case-narrow"));
+  return pick(CASE_PUSH_ANSWER, seedFor(ctx, "case-answer"));
+}
+
 function replyInterviewer(ctx: InterviewerContext): string {
+  if (ctx.answerMode === "qualitative") return replyCase(ctx);
+
   const turns = userTurnCount(ctx);
   const last = lastUserMessage(ctx);
 
@@ -193,6 +303,33 @@ export function mockReplyText(ctx: InterviewerContext): string {
 export function mockHintText(ctx: InterviewerContext, level: number): string {
   const q = ctx.question;
   const maxLevel = hintConfig.levels;
+
+  if (ctx.answerMode === "qualitative") {
+    if (level <= 1) {
+      return pick(
+        [
+          "Have you scoped it? Before structuring, be clear on the objective, the timeline, and how this business actually makes money.",
+          "Start from the whole space, not the first idea. What are the two or three buckets that between them cover this problem?",
+          "Ask before you assert — what would you need to know to rule any branch in or out?",
+        ],
+        seedFor(ctx, "case-hint1"),
+      );
+    }
+    if (level < maxLevel) {
+      return pick(
+        [
+          "Check your top level is exhaustive, then pick the branch you'd investigate first and break it down one more level.",
+          "Rule things out explicitly. Clearing a branch is as much progress as flagging one.",
+          "Your structure is fine — the insight is a level deeper. What sits inside the branch you're most suspicious of?",
+        ],
+        seedFor(ctx, "case-hint2"),
+      );
+    }
+    // Still the structure, never which branch holds the problem — that is the
+    // thing being graded.
+    return `Here's the structure to use: ${q.betterApproach} Work down it one level at a time, ruling branches out as you go — I'll still let you find the cause yourself.`;
+  }
+
   if (level <= 1) {
     return pick(
       [

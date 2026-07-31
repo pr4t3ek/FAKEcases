@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { resolveAttachTarget } from "@/lib/framework-tree";
+import {
+  descendantIds,
+  indentNode,
+  insertSiblingAfter,
+  outdentNode,
+  resolveAttachTarget,
+  rootIndexOf,
+} from "@/lib/framework-tree";
 
 type Node = { id: string; parentId: string | null; label: string };
 
@@ -72,5 +79,99 @@ describe("resolveAttachTarget", () => {
     // the walk back to a node it has already visited.
     const nodes = [n("a", null), n("b", "a"), n("a", "b", "duplicate of a")];
     expect(resolveAttachTarget(nodes)?.id).toBe("b");
+  });
+});
+
+describe("outline editing", () => {
+  const chain = () => [n("revenue", null), n("price", "revenue"), n("volume", "revenue"), n("cost", null)];
+
+  it("inserts a sibling directly after its anchor, not at the end", () => {
+    const next = insertSiblingAfter(chain(), "price", n("fresh", null));
+    const ids = next.map((x) => x.id);
+    expect(ids).toEqual(["revenue", "price", "fresh", "volume", "cost"]);
+    // It takes the anchor's parent, whatever was passed in.
+    expect(next.find((x) => x.id === "fresh")?.parentId).toBe("revenue");
+  });
+
+  // Inserting after a node that has children must clear the whole subtree, or
+  // the new sibling lands in the middle of its own predecessor's descendants.
+  it("skips past the anchor's subtree", () => {
+    const next = insertSiblingAfter(chain(), "revenue", n("fresh", null));
+    expect(next.map((x) => x.id)).toEqual(["revenue", "price", "volume", "fresh", "cost"]);
+  });
+
+  it("appends when the anchor is unknown", () => {
+    const next = insertSiblingAfter(chain(), "nope", n("fresh", null));
+    expect(next.at(-1)?.id).toBe("fresh");
+  });
+
+  it("indents a node under its previous sibling", () => {
+    const next = indentNode(chain(), "cost");
+    expect(next.find((x) => x.id === "cost")?.parentId).toBe("revenue");
+  });
+
+  // A first child has nobody to be adopted by. Outliners no-op here rather than
+  // erroring, and so does this.
+  it("does not indent a first child or a first root", () => {
+    expect(indentNode(chain(), "revenue")).toEqual(chain());
+    expect(indentNode(chain(), "price")).toEqual(chain());
+  });
+
+  it("outdents to the parent's level, seated after the old parent", () => {
+    const next = outdentNode(chain(), "price");
+    expect(next.find((x) => x.id === "price")?.parentId).toBeNull();
+    expect(next.map((x) => x.id)).toEqual(["revenue", "volume", "price", "cost"]);
+  });
+
+  it("does not outdent a root", () => {
+    expect(outdentNode(chain(), "revenue")).toEqual(chain());
+  });
+
+  it("never loses or duplicates a node", () => {
+    for (const op of [indentNode, outdentNode]) {
+      for (const id of ["revenue", "price", "volume", "cost"]) {
+        const next = op(chain(), id);
+        expect(next).toHaveLength(4);
+        expect(new Set(next.map((x) => x.id)).size).toBe(4);
+      }
+    }
+  });
+});
+
+describe("rootIndexOf", () => {
+  const tree = [
+    n("revenue", null),
+    n("price", "revenue"),
+    n("cost", null),
+    n("fixed", "cost"),
+    n("rent", "fixed"),
+  ];
+
+  it("gives every node the index of the root branch it descends from", () => {
+    expect(rootIndexOf(tree, "revenue")).toBe(0);
+    expect(rootIndexOf(tree, "price")).toBe(0);
+    expect(rootIndexOf(tree, "cost")).toBe(1);
+    expect(rootIndexOf(tree, "rent")).toBe(1);
+  });
+
+  it("returns -1 for an unknown id", () => {
+    expect(rootIndexOf(tree, "ghost")).toBe(-1);
+  });
+
+  // Nothing validates stored data against cycles, and this runs inside a render.
+  it("does not hang on a cycle", () => {
+    const cyclic = [n("a", "b"), n("b", "a")];
+    expect(rootIndexOf(cyclic, "a")).toBe(-1);
+  });
+});
+
+describe("descendantIds", () => {
+  it("collects the whole subtree, depth-first", () => {
+    const tree = [n("cost", null), n("fixed", "cost"), n("rent", "fixed"), n("variable", "cost")];
+    expect(descendantIds(tree, "cost")).toEqual(["fixed", "rent", "variable"]);
+  });
+
+  it("is empty for a leaf", () => {
+    expect(descendantIds([n("leaf", null)], "leaf")).toEqual([]);
   });
 });

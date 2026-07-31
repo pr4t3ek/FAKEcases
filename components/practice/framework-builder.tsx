@@ -1,11 +1,37 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { PointerEvent as ReactPointerEvent } from "react";
-import { ArrowRight, GripVertical, Plus, Trash2 } from "lucide-react";
+import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
+import {
+  AlertTriangle,
+  ArrowRight,
+  ChevronDown,
+  ChevronRight,
+  GripVertical,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { saveFramework } from "@/app/actions/practice";
 import { evaluateExpression } from "@/lib/calc";
-import { resolveAttachTarget } from "@/lib/framework-tree";
+import { branchDiscussed } from "@/lib/diagnosis";
+import type { FrameworkNodeTemplate } from "@/lib/config/frameworks";
+import {
+  childrenFor,
+  completeLabel,
+  detectFramework,
+  frameworkNamed,
+  hintsFor,
+  rootsFor,
+} from "@/lib/framework-suggest";
+import {
+  indentNode,
+  insertSiblingAfter,
+  outdentNode,
+  resolveAttachTarget,
+  rootIndexOf,
+} from "@/lib/framework-tree";
+import { NODE_STATUS_META, type AnswerMode, type NodeStatus, type TreeMode } from "@/lib/types";
 import {
   isLegacyChildRate,
   isLegacyChildValue,
@@ -18,7 +44,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn, formatIndianNumber, toIndianWords } from "@/lib/utils";
-import { depthStyle } from "./framework-depth";
+import { depthStyle, familyStyle } from "./framework-depth";
 import type { UiFrameworkNode } from "./types";
 
 /**
@@ -115,22 +141,100 @@ const PALETTE = [
   "Final Estimate",
 ];
 
+/** Traffic light, in the order a candidate cycles through it. */
+const STATUS_CYCLE: NodeStatus[] = ["unknown", "healthy", "problem"];
+
+const STATUS_STYLE: Record<NodeStatus, string> = {
+  unknown: "border-input bg-background text-muted-foreground/60",
+  healthy: "border-emerald-500/50 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  problem: "border-red-500/50 bg-red-500/10 text-red-600 dark:text-red-400",
+};
+
+/**
+ * The verdict washes the whole row, not just its badge — a 4mm icon is not
+ * something you can scan a twelve-branch tree with, and the point of marking is
+ * to see the shape of the diagnosis at a glance.
+ *
+ * The weights are deliberately uneven. A problem branch is where the candidate
+ * is working, so it is the loudest thing on screen; a cleared branch has been
+ * eliminated and should recede rather than compete for attention. Colour is
+ * never the only signal: the badge keeps its "OK" / "!" text.
+ *
+ * This is exactly what the cool-only family ramp in `framework-depth.ts` buys —
+ * red and green appear nowhere else in the tree, so a washed row can only mean a
+ * judgement, never a nesting level.
+ */
+const STATUS_ROW: Record<NodeStatus, string> = {
+  unknown: "bg-card",
+  healthy: "border-emerald-500/40 bg-emerald-500/[0.07]",
+  problem: "border-red-500/50 bg-red-500/[0.12]",
+};
+
 export function FrameworkBuilder({
   attemptId,
   nodes,
   onChange,
   onChainResult,
+  answerMode = "numeric",
+  treeMode = null,
+  hasDataPack = false,
+  onAskAbout,
+  messageText,
+  conversation = [],
+  questionFramework = null,
 }: {
   attemptId: string;
   nodes: UiFrameworkNode[];
   onChange: (nodes: UiFrameworkNode[]) => void;
   onChainResult?: (n: number) => void;
+  answerMode?: AnswerMode;
+  treeMode?: TreeMode | null;
+  hasDataPack?: boolean;
+  /** Sends "tell me about this branch" into the chat. */
+  onAskAbout?: (label: string) => void;
+  /** Message id → text, so a promoted node can show the sentence it came from. */
+  messageText?: Map<string, string>;
+  /** Every turn so far, for the "did you ask before judging?" check. */
+  conversation?: string[];
+  /** The framework this case is authored against, when it declares one. */
+  questionFramework?: string | null;
 }) {
+  const qualitative = answerMode === "qualitative";
   const [dragId, setDragId] = useState<string | null>(null);
   const [customLabel, setCustomLabel] = useState("");
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const dragIdRef = useRef<string | null>(null);
+  /**
+   * Folding is a view concern, so it lives in component state rather than the
+   * saved tree. `opened` records branches the user expanded by hand: a healthy
+   * branch folds itself away (it has been eliminated, so it costs a line instead
+   * of a screen), but a manual expand always wins — nothing the user opened is
+   * allowed to close itself again.
+   */
+  const [folded, setFolded] = useState<Set<string>>(new Set());
+  const [opened, setOpened] = useState<Set<string>>(new Set());
+  /**
+   * Branches Guided has offered under a node and the candidate hasn't dealt with
+   * yet. Offers are transient: dismissed here, never persisted, and never
+   * inserted without a tap — a chip is an offer, and accepting it is the
+   * decision that keeps the exercise the candidate's.
+   */
+  const [dismissedOffers, setDismissedOffers] = useState<Set<string>>(new Set());
+  /** The row that should take focus after a keyboard edit restructures the tree. */
+  const focusNext = useRef<string | null>(null);
+  /** Ghost completion belongs to the row being typed in, not the whole tree. */
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+
+  // A keyboard edit that restructures the tree (Enter, Tab, Backspace) has to
+  // put the caret where the user expects it once React has re-rendered the rows.
+  const labelRefs = useRef<Map<string, HTMLInputElement>>(new Map());
+  useEffect(() => {
+    const id = focusNext.current;
+    if (!id) return;
+    focusNext.current = null;
+    labelRefs.current.get(id)?.focus();
+  }, [nodes]);
 
   // Debounced persistence whenever the tree changes.
   useEffect(() => {
@@ -145,6 +249,10 @@ export function FrameworkBuilder({
           value: n.value ?? undefined,
           multiplier: n.multiplier ?? undefined,
           combine: n.combine,
+          status: n.status ?? undefined,
+          note: n.note ?? undefined,
+          sourceMessageId: n.sourceMessageId ?? undefined,
+          origin: n.origin ?? undefined,
         })),
       ).catch(() => {});
     }, 600);
@@ -155,18 +263,30 @@ export function FrameworkBuilder({
   }, [nodes]);
 
   function add(parentId: string | null, label: string) {
-    onChange([
-      ...nodes,
-      { id: newId(), parentId, label, value: "", multiplier: "", combine: "sum" },
-    ]);
+    onChange([...nodes, blankNode(parentId, label)]);
+  }
+  function blankNode(parentId: string | null, label: string): UiFrameworkNode {
+    return {
+      id: newId(),
+      parentId,
+      label,
+      value: "",
+      multiplier: "",
+      combine: "sum",
+      ...(qualitative ? { status: "unknown" as NodeStatus, origin: "manual" as const } : {}),
+    };
   }
   /**
-   * A picked step extends the chain rather than starting a second one — only
-   * an empty tree gets a root. Resolved at click time so it always reads the
-   * current `nodes` prop, which the parent screen owns.
+   * Where a picked step lands, and the one place the two modes disagree about
+   * shape rather than about fields.
+   *
+   * An estimate is ONE narrowing chain — population sliced by segmentation times
+   * frequency — so every pick after the first extends the tip. An issue tree is
+   * the opposite: Revenue and Cost are peers, and a case usually opens with two
+   * or three top-level branches. So qualitative picks start new roots.
    */
   function addStep(label: string) {
-    add(resolveAttachTarget(nodes)?.id ?? null, label);
+    add(qualitative ? null : (resolveAttachTarget(nodes)?.id ?? null), label);
   }
   function addCustom() {
     const label = customLabel.trim();
@@ -176,6 +296,9 @@ export function FrameworkBuilder({
   }
   function addChild(parentId: string) {
     add(parentId, "New step");
+  }
+  function childrenOf(id: string): UiFrameworkNode[] {
+    return nodes.filter((n) => n.parentId === id);
   }
   function collectDescendantIds(id: string): string[] {
     const direct = nodes.filter((n) => n.parentId === id).map((n) => n.id);
@@ -196,6 +319,140 @@ export function FrameworkBuilder({
   }
   function setCombine(id: string, combine: "sum" | "multiply") {
     onChange(nodes.map((n) => (n.id === id ? { ...n, combine } : n)));
+  }
+  function setNote(id: string, note: string) {
+    onChange(nodes.map((n) => (n.id === id ? { ...n, note } : n)));
+  }
+
+  /**
+   * Advance a branch's traffic light — and, when it turns red, open the next
+   * question.
+   *
+   * Marking "problem" means "the cause is somewhere in here", which is only
+   * useful if the candidate then looks inside. So a red mark on a childless
+   * branch immediately creates the first child and focuses it: one gesture both
+   * records the judgement and asks "where in here?", which is what keeps a case
+   * moving under a timer. A red mark never touches the parent — "the problem is
+   * in here" and "this is the cause" are separate claims.
+   *
+   * Marking "healthy" folds the branch away: it has been eliminated, so it earns
+   * a line rather than a screen.
+   */
+  function cycleStatus(id: string) {
+    const node = nodes.find((n) => n.id === id);
+    if (!node) return;
+    const current = (node.status ?? "unknown") as NodeStatus;
+    const next = STATUS_CYCLE[(STATUS_CYCLE.indexOf(current) + 1) % STATUS_CYCLE.length];
+    let updated = nodes.map((n) => (n.id === id ? { ...n, status: next } : n));
+
+    if (next === "problem" && childrenOf(id).length === 0) {
+      const child = blankNode(id, "");
+      updated = [...updated, child];
+      focusNext.current = child.id;
+      setOpened((prev) => new Set(prev).add(id));
+      setFolded((prev) => {
+        const copy = new Set(prev);
+        copy.delete(id);
+        return copy;
+      });
+    }
+    if (next === "healthy") {
+      setFolded((prev) => new Set(prev).add(id));
+      setOpened((prev) => {
+        const copy = new Set(prev);
+        copy.delete(id);
+        return copy;
+      });
+    }
+    onChange(updated);
+  }
+
+  function toggleFold(id: string) {
+    const isFolded = folded.has(id) && !opened.has(id);
+    if (isFolded) {
+      setOpened((prev) => new Set(prev).add(id));
+      setFolded((prev) => {
+        const copy = new Set(prev);
+        copy.delete(id);
+        return copy;
+      });
+    } else {
+      setFolded((prev) => new Set(prev).add(id));
+      setOpened((prev) => {
+        const copy = new Set(prev);
+        copy.delete(id);
+        return copy;
+      });
+    }
+  }
+
+  /**
+   * Outline keys on the label input only. Every other field keeps native
+   * tabbing, and `Alt+←/→` mirrors indent/outdent for anyone who needs Tab to
+   * keep moving focus. Each of these has a mouse equivalent too — the row's "+",
+   * the bin, the drag handle — so nothing here is the only way to do anything.
+   */
+  function handleLabelKeyDown(
+    e: ReactKeyboardEvent<HTMLInputElement>,
+    node: UiFrameworkNode,
+    ghost?: string | null,
+  ) {
+    // Tab accepts a pending completion before it means "indent" — the caret is
+    // mid-word, so indenting is not what the candidate is asking for. Accepting
+    // a framework's NAME brings its top level with it, which is the two-keystroke
+    // path from "profit…" to a whole structure.
+    if (ghost && e.key === "Tab" && !e.shiftKey) {
+      e.preventDefault();
+      const named = frameworkNamed(ghost);
+      if (named && guided) {
+        // The framework itself isn't a branch — replace the row with its roots.
+        const roots = rootsFor(named).map((t) => ({
+          ...blankNode(node.parentId, t.label),
+          origin: "scaffold" as const,
+        }));
+        const withoutPlaceholder = nodes.filter((n) => n.id !== node.id);
+        focusNext.current = roots[0]?.id ?? null;
+        onChange([...withoutPlaceholder, ...roots]);
+      } else {
+        setLabel(node.id, ghost);
+      }
+      return;
+    }
+
+    const isIndent = e.key === "Tab" && !e.shiftKey;
+    const isOutdent = (e.key === "Tab" && e.shiftKey) || (e.altKey && e.key === "ArrowLeft");
+    const isAltIndent = e.altKey && e.key === "ArrowRight";
+
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const fresh = blankNode(node.parentId, "");
+      focusNext.current = fresh.id;
+      onChange(insertSiblingAfter(nodes, node.id, fresh));
+      return;
+    }
+    if (isIndent || isAltIndent) {
+      e.preventDefault();
+      focusNext.current = node.id;
+      onChange(indentNode(nodes, node.id));
+      return;
+    }
+    if (isOutdent) {
+      e.preventDefault();
+      focusNext.current = node.id;
+      onChange(outdentNode(nodes, node.id));
+      return;
+    }
+    // Backspace on an already-empty label removes the row, but only when it has
+    // nothing underneath — deleting a subtree by holding backspace would be a
+    // nasty way to lose work.
+    if (e.key === "Backspace" && !node.label && childrenOf(node.id).length === 0) {
+      e.preventDefault();
+      const siblings = nodes.filter((n) => n.parentId === node.parentId);
+      const position = siblings.findIndex((s) => s.id === node.id);
+      const previous = position > 0 ? siblings[position - 1] : null;
+      focusNext.current = previous?.id ?? node.parentId ?? null;
+      remove(node.id);
+    }
   }
   function reorderSibling(parentId: string | null, fromIndex: number, toIndex: number) {
     if (fromIndex === toIndex) return;
@@ -296,6 +553,55 @@ export function FrameworkBuilder({
   const attachTarget = resolveAttachTarget(nodes);
   /** A step the user hasn't named yet still has to be referrable to. */
   const attachName = attachTarget && (attachTarget.label.trim() || "the step above");
+
+  // Which framework this tree is in. The question's own declaration outranks
+  // inference — it is a fact, not a guess — and detection is sticky, so one
+  // ambiguous branch added late doesn't switch the tree's framework.
+  const guess = qualitative
+    ? detectFramework(
+        nodes.map((n) => n.label),
+        { authored: questionFramework, established: questionFramework },
+      )
+    : { framework: null, confident: false, candidates: [] };
+  const activeFramework = guess.framework;
+  const guided = qualitative && treeMode === "guided";
+
+  /** The branches a framework would put under this node, minus what's there. */
+  function offersFor(node: UiFrameworkNode): FrameworkNodeTemplate[] {
+    if (!guided || dismissedOffers.has(node.id) || !node.label.trim()) return [];
+    const existing = new Set(
+      childrenOf(node.id).map((c) => c.label.trim().toLowerCase()),
+    );
+    return childrenFor(activeFramework, node.label).filter(
+      (t) => !existing.has(t.label.toLowerCase()),
+    );
+  }
+
+  /**
+   * The prompts a framework leaf carries instead of children.
+   *
+   * Without these, accepting a chip for something like "Procuring Raw Materials"
+   * offers nothing further and the tree bottoms out — the corpus's most specific
+   * detail would only ever be seen as a tooltip on a chip that no longer exists.
+   * Filtered against what's already there, exactly like the child offers.
+   */
+  function hintsForNode(node: UiFrameworkNode): string[] {
+    if (!guided || dismissedOffers.has(node.id) || !node.label.trim()) return [];
+    const existing = new Set(childrenOf(node.id).map((c) => c.label.trim().toLowerCase()));
+    return hintsFor(activeFramework, node.label).filter(
+      (h) => !existing.has(h.toLowerCase()),
+    );
+  }
+
+  function acceptOffer(parentId: string, label: string) {
+    const fresh = blankNode(parentId, label);
+    onChange([...nodes, { ...fresh, origin: "scaffold" as const }]);
+    setOpened((prev) => new Set(prev).add(parentId));
+  }
+
+  function dismissOffers(nodeId: string) {
+    setDismissedOffers((prev) => new Set(prev).add(nodeId));
+  }
   /** A field that has text in it but doesn't parse — silently treated as ×1. */
   function isUnrecognized(raw: string | null | undefined): boolean {
     return !!raw?.trim() && parseNodeValue(raw) === null;
@@ -312,7 +618,11 @@ export function FrameworkBuilder({
   // `byParent`, so it's a render concern, not part of the data.
   function renderNode(node: UiFrameworkNode, depth: number) {
     const children = byParent.get(node.id) ?? [];
-    const tint = depthStyle(depth);
+    // Numeric colours by depth (one root, so depth is the only axis). Qualitative
+    // colours by family — hue from the root branch, shade from depth — because
+    // with several roots "same colour = same top-level branch" has to read first.
+    const tint = qualitative ? familyStyle(rootIndexOf(nodes, node.id), depth) : depthStyle(depth);
+    if (qualitative) return renderQualitativeNode(node, depth, children, tint);
     const resolved = resolvedMap.get(node.id) ?? 0;
     const ownUnrecognized = isUnrecognized(node.value) || isUnrecognized(node.multiplier);
     const showValue = liveMap.get(node.id) ?? false;
@@ -512,32 +822,288 @@ export function FrameworkBuilder({
     );
   }
 
+  /**
+   * A qualitative row: no value, no rate, no computed figure. What replaces them
+   * is a judgement (the traffic light), a way to check it (the magnifier) and a
+   * rationale the candidate did not have to type — the sentence they said in
+   * chat, or a fact the interviewer gave them, shown as a subtitle.
+   */
+  function renderQualitativeNode(
+    node: UiFrameworkNode,
+    depth: number,
+    children: UiFrameworkNode[],
+    tint: { box: string; grip: string },
+  ) {
+    const status = (node.status ?? "unknown") as NodeStatus;
+    const meta = NODE_STATUS_META[status];
+    const isFolded = children.length > 0 && folded.has(node.id) && !opened.has(node.id);
+    const inherited = node.sourceMessageId ? messageText?.get(node.sourceMessageId) : undefined;
+    const subtitle = inherited?.trim() || node.note?.trim() || "";
+    // Judging a branch is a claim about the business. Building one is only a
+    // hypothesis, so it never warns — this fires on the verdict alone.
+    const unevidenced =
+      hasDataPack &&
+      !!node.label.trim() &&
+      !!status &&
+      status !== "unknown" &&
+      !branchDiscussed(node.label, conversation);
+    // Only for the row being typed in — a whole tree of ghosts would be noise.
+    const ghost =
+      qualitative && focusedId === node.id ? completeLabel(node.label, activeFramework) : null;
+
+    return (
+      <div key={node.id} className={cn("space-y-1 rounded-xl border p-1", tint.box)}>
+        <div
+          ref={(el) => {
+            if (el) rowRefs.current.set(node.id, el);
+            else rowRefs.current.delete(node.id);
+          }}
+          className={cn(
+            "group/row flex flex-wrap items-start gap-1.5 rounded-lg border p-1.5",
+            STATUS_ROW[status],
+            dragId === node.id && "opacity-50",
+          )}
+        >
+          <span
+            onPointerDown={(e) => handleGripPointerDown(e, node.id)}
+            onPointerMove={handleGripPointerMove}
+            onPointerUp={handleGripPointerUp}
+            onPointerCancel={handleGripPointerUp}
+            style={{ touchAction: "none" }}
+            className="mt-0.5 shrink-0 cursor-grab touch-none active:cursor-grabbing"
+          >
+            <GripVertical className={cn("h-4 w-4", tint.grip)} />
+          </span>
+
+          {children.length > 0 && (
+            <button
+              onClick={() => toggleFold(node.id)}
+              className="mt-0.5 shrink-0 text-muted-foreground hover:text-foreground"
+              aria-label={isFolded ? "Expand branch" : "Collapse branch"}
+              aria-expanded={!isFolded}
+            >
+              {isFolded ? (
+                <ChevronRight className="h-3.5 w-3.5" />
+              ) : (
+                <ChevronDown className="h-3.5 w-3.5" />
+              )}
+            </button>
+          )}
+
+          <div className="flex min-w-0 flex-1 flex-col">
+            {/* Ghost completion sits behind the input, showing only the part
+                still to type. Free in both modes — it saves keystrokes, not
+                reasoning, which is the line the whole feature set draws. */}
+            <div className="relative">
+              {ghost && (
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0 flex items-center truncate px-1 text-sm font-medium"
+                >
+                  <span className="invisible">{node.label}</span>
+                  <span className="text-muted-foreground/40">{ghost.slice(node.label.length)}</span>
+                </span>
+              )}
+              <Input
+                ref={(el) => {
+                  if (el) labelRefs.current.set(node.id, el);
+                  else labelRefs.current.delete(node.id);
+                }}
+                value={node.label}
+                onChange={(e) => setLabel(node.id, e.target.value)}
+                onKeyDown={(e) => handleLabelKeyDown(e, node, ghost)}
+                onFocus={() => setFocusedId(node.id)}
+                onBlur={() => setFocusedId((id) => (id === node.id ? null : id))}
+                placeholder="Name this branch"
+                className="relative h-6 min-w-[5rem] flex-1 border-0 bg-transparent px-1 text-sm font-medium shadow-none focus-visible:ring-0"
+              />
+            </div>
+            {unevidenced && (
+              <p
+                className="flex items-start gap-1 px-1 pt-0.5 text-[11px] leading-snug text-warning"
+                title="You've judged this branch without raising it with the interviewer. You may well be right — but an interviewer will ask what you checked."
+              >
+                <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
+                marked without asking
+              </p>
+            )}
+            {subtitle ? (
+              <p className="px-1 pt-0.5 text-[11px] leading-snug text-muted-foreground">
+                <span className={cn("mr-1 font-mono", inherited ? "text-primary" : "text-muted-foreground/60")}>
+                  {inherited ? "↩" : "✎"}
+                </span>
+                {inherited ? `“${subtitle}”` : subtitle}
+              </p>
+            ) : (
+              // An empty rationale costs a full line under every branch, which is
+              // most of a twelve-branch tree's height for no information. It
+              // collapses to nothing and expands when something in the row takes
+              // focus — which is exactly when you're working on that branch,
+              // since clicking a row focuses its label. It stays in the DOM
+              // rather than being conditionally rendered, so it remains reachable
+              // by keyboard.
+              //
+              // Focus, not hover: revealing on hover grew each row by 24px as the
+              // cursor passed over it, so running the mouse down a tree shoved
+              // every row below it around.
+              <div className="h-0 overflow-hidden transition-[height] group-focus-within/row:h-6">
+                <Input
+                  value={node.note ?? ""}
+                  onChange={(e) => setNote(node.id, e.target.value)}
+                  placeholder="Why does this matter? (optional — or say it in the chat)"
+                  className="h-6 border-0 bg-transparent px-1 text-[11px] text-muted-foreground shadow-none placeholder:text-muted-foreground/50 focus-visible:ring-0"
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="ml-auto flex shrink-0 items-center gap-1.5 pt-px">
+            <button
+              onClick={() => cycleStatus(node.id)}
+              title={`${meta.label} — ${meta.hint}. Click to change.`}
+              aria-label={`Status: ${meta.label}`}
+              className={cn(
+                "h-5 rounded border px-1.5 font-mono text-[10px] font-semibold transition-colors",
+                STATUS_STYLE[status],
+              )}
+            >
+              {meta.short}
+            </button>
+            {hasDataPack && onAskAbout && (
+              <button
+                onClick={() => onAskAbout(node.label.trim() || "this branch")}
+                className="text-muted-foreground hover:text-primary"
+                title="Ask the interviewer about this branch"
+                aria-label="Ask about this branch"
+              >
+                <Search className="h-3.5 w-3.5" />
+              </button>
+            )}
+            <button
+              onClick={() => addChild(node.id)}
+              className="text-muted-foreground hover:text-primary"
+              aria-label="Add a branch under this step"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={() => remove(node.id)}
+              className="text-muted-foreground hover:text-destructive"
+              aria-label="Remove branch"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Guided: the branches this framework puts under here. Greyed, one tap
+            to accept, and dismissible — an offer, not an insertion, so choosing
+            which branch to take stays the candidate's decision at every level. */}
+        {(() => {
+          const offers = offersFor(node);
+          if (offers.length === 0) return null;
+          return (
+            <div className="ml-2 flex flex-wrap items-center gap-1 rounded-lg border border-dashed p-1.5">
+              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                suggested
+              </span>
+              {offers.map((t) => (
+                <button
+                  key={t.label}
+                  onClick={() => acceptOffer(node.id, t.label)}
+                  title={t.hints?.length ? t.hints.join(" · ") : `Add "${t.label}"`}
+                  className="rounded-full border border-dashed border-primary/40 px-2 py-0.5 text-[11px] text-primary hover:bg-primary/10"
+                >
+                  <Plus className="mr-0.5 inline h-2.5 w-2.5" />
+                  {t.label}
+                </button>
+              ))}
+              <button
+                onClick={() => dismissOffers(node.id)}
+                className="ml-auto px-1 text-[11px] text-muted-foreground hover:text-foreground"
+                aria-label="Dismiss suggestions"
+              >
+                ✕
+              </button>
+            </div>
+          );
+        })()}
+
+        {/* A leaf's prompts. Quieter than the chip strip on purpose — a hint is
+            a thought worth having, not a box the framework says you need. */}
+        {(() => {
+          const hints = hintsForNode(node);
+          if (hints.length === 0) return null;
+          return (
+            <p className="ml-2 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 px-1 text-[11px] text-muted-foreground">
+              <span className="text-muted-foreground/60">consider</span>
+              {hints.map((h, i) => (
+                <span key={h} className="contents">
+                  <button
+                    onClick={() => acceptOffer(node.id, h)}
+                    title={`Add "${h}" as a branch`}
+                    className="underline decoration-dotted underline-offset-2 hover:text-primary"
+                  >
+                    {h}
+                  </button>
+                  {i < hints.length - 1 && <span className="text-muted-foreground/40">·</span>}
+                </span>
+              ))}
+            </p>
+          );
+        })()}
+
+        {children.length > 0 &&
+          (isFolded ? (
+            <button
+              onClick={() => toggleFold(node.id)}
+              className="ml-3 block text-left text-[11px] text-muted-foreground hover:text-foreground"
+            >
+              {children.length} branch{children.length === 1 ? "" : "es"} hidden — show
+            </button>
+          ) : (
+            // A tighter inset than the numeric builder, tighter still past the
+            // first couple of levels: an issue tree goes deeper, and the indent
+            // is what runs the row out of width. Containment and the family hue
+            // already carry the nesting, so the staircase only has to hint.
+            <div className={cn("space-y-1", depth >= 2 ? "ml-1" : "ml-2")}>
+              {children.map((c) => renderNode(c, depth + 1))}
+            </div>
+          ))}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-1.5">
-        {PALETTE.map((p) => (
-          <button
-            key={p}
-            onClick={() => addStep(p)}
-            title={
-              attachName
-                ? `Adds a step under “${attachName}”, continuing the chain`
-                : "Adds the starting step this estimate builds from"
-            }
-            className="rounded-full border border-dashed px-2.5 py-1 text-xs text-muted-foreground hover:border-primary hover:text-primary"
-          >
-            <Plus className="mr-1 inline h-3 w-3" />
-            {p}
-          </button>
-        ))}
-      </div>
+      {!qualitative && (
+        <div className="flex flex-wrap gap-1.5">
+          {PALETTE.map((p) => (
+            <button
+              key={p}
+              onClick={() => addStep(p)}
+              title={
+                attachName
+                  ? `Adds a step under “${attachName}”, continuing the chain`
+                  : "Adds the starting step this estimate builds from"
+              }
+              className="rounded-full border border-dashed px-2.5 py-1 text-xs text-muted-foreground hover:border-primary hover:text-primary"
+            >
+              <Plus className="mr-1 inline h-3 w-3" />
+              {p}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="flex items-center gap-1.5">
         <Input
           value={customLabel}
           onChange={(e) => setCustomLabel(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && addCustom()}
-          placeholder="Custom step (e.g. Conversion Rate)"
+          placeholder={
+            qualitative ? "Add a branch (e.g. Revenue)" : "Custom step (e.g. Conversion Rate)"
+          }
           className="h-7 flex-1 text-xs"
         />
         <Button variant="secondary" onClick={addCustom} className="h-7 shrink-0 px-2.5 text-xs">
@@ -545,27 +1111,53 @@ export function FrameworkBuilder({
         </Button>
       </div>
 
-      {/* Where the next pick lands, so nesting doesn't read as a misfired button. */}
-      {attachName && (
+      {qualitative ? (
         <p className="text-[11px] text-muted-foreground">
-          Next step goes under <span className="font-medium text-foreground">{attachName}</span>. To
-          split a step into segments instead, use that row's{" "}
-          <Plus className="inline h-3 w-3 align-text-bottom" />.
+          New branches sit <span className="font-medium text-foreground">side by side</span>. To
+          break one down, use its <Plus className="inline h-3 w-3 align-text-bottom" /> — or press{" "}
+          <span className="font-mono">Enter</span> for the next branch and{" "}
+          <span className="font-mono">Tab</span> to nest it under the one above.
         </p>
+      ) : (
+        // Where the next pick lands, so nesting doesn't read as a misfired button.
+        attachName && (
+          <p className="text-[11px] text-muted-foreground">
+            Next step goes under <span className="font-medium text-foreground">{attachName}</span>.
+            To split a step into segments instead, use that row's{" "}
+            <Plus className="inline h-3 w-3 align-text-bottom" />.
+          </p>
+        )
       )}
 
       {roots.length === 0 ? (
         <p className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
-          Build your estimation tree — add a starting step above. Each step you add after it
-          continues the chain underneath, and a row's{" "}
-          <Plus className="inline h-3 w-3 align-text-bottom" /> branches that step into segments.
-          Structure is graded.
+          {qualitative ? (
+            <>
+              Start by asking the interviewer what you&apos;re actually solving for — the
+              objective, the timeline, how the business makes money. Then break the problem into
+              branches here and mark each one as you rule it in or out.
+            </>
+          ) : (
+            <>
+              Build your estimation tree — add a starting step above. Each step you add after it
+              continues the chain underneath, and a row&apos;s{" "}
+              <Plus className="inline h-3 w-3 align-text-bottom" /> branches that step into
+              segments. Structure is graded.
+            </>
+          )}
         </p>
       ) : (
-        <div className="space-y-1.5">{roots.map((r) => renderNode(r, 0))}</div>
+        // An issue tree gets deeper than an estimate chain, so the tree scrolls
+        // sideways inside its own box rather than pushing the page wide.
+        <div className={cn("space-y-1.5", qualitative && "overflow-x-auto")}>
+          {roots.map((r) => renderNode(r, 0))}
+        </div>
       )}
 
-      {roots.length > 0 && (
+      {/* The trail lives in the answer bar under the tree, next to Submit —
+          repeating it here as well just made the same sentence appear twice. */}
+
+      {roots.length > 0 && !qualitative && (
         <div className="rounded-lg border bg-muted/30 p-2.5 text-xs">
           {grandTotal !== null ? (
             <div className="flex flex-wrap items-center justify-between gap-2">

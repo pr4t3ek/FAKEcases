@@ -9,14 +9,25 @@ export interface QuestionFilters {
   difficulty?: string;
   interviewLevel?: string;
   search?: string;
+  /** One of QUESTION_TYPES. Omitted means every practisable type. */
+  type?: string;
 }
+
+/**
+ * The types a candidate can actually practise today. `case` is reserved in
+ * `QUESTION_TYPES` but has no runtime yet, so it stays out of the library rather
+ * than offering a question that can't be answered.
+ */
+const PRACTISABLE_TYPES = ["guesstimate", "qualitative"];
 
 export async function listCategories() {
   return db.category.findMany({ orderBy: { order: "asc" } });
 }
 
 export async function listQuestions(filters: QuestionFilters = {}) {
-  const where: Record<string, unknown> = { type: "guesstimate" };
+  const where: Record<string, unknown> = {
+    type: filters.type ? filters.type : { in: PRACTISABLE_TYPES },
+  };
   if (filters.categorySlug) {
     const cat = await db.category.findUnique({ where: { slug: filters.categorySlug } });
     if (cat) where.categoryId = cat.id;
@@ -66,7 +77,7 @@ export async function recommendQuestions(userId: string, limit = 3) {
 
   const pool = await db.question.findMany({
     where: {
-      type: "guesstimate",
+      type: { in: PRACTISABLE_TYPES },
       id: { notIn: [...attemptedIds] },
       ...(weakCategoryId ? { categoryId: weakCategoryId } : {}),
     },
@@ -77,7 +88,10 @@ export async function recommendQuestions(userId: string, limit = 3) {
 
   // Top up with any unattempted questions.
   const extra = await db.question.findMany({
-    where: { type: "guesstimate", id: { notIn: [...attemptedIds, ...pool.map((p) => p.id)] } },
+    where: {
+      type: { in: PRACTISABLE_TYPES },
+      id: { notIn: [...attemptedIds, ...pool.map((p) => p.id)] },
+    },
     include: { category: true },
     take: limit - pool.length,
   });

@@ -3,12 +3,14 @@
 import { useState } from "react";
 import { Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { setFinalEstimate } from "@/app/actions/practice";
+import { setFinalAnswer, setFinalEstimate } from "@/app/actions/practice";
 import { submitAttempt, type SubmitResult } from "@/app/actions/submit";
 import { evaluateExpression } from "@/lib/calc";
+import type { AnswerMode } from "@/lib/types";
 import { formatIndianNumber, toIndianWords, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { depthStyle } from "./framework-depth";
 import type { UiCalculation, UiFrameworkNode } from "./types";
 
@@ -28,11 +30,19 @@ function FrameworkTreeItem({
 }) {
   const children = all.filter((n) => n.parentId === node.id);
   const tint = depthStyle(depth);
+  // A qualitative node has no value to show, so the mirror carries its verdict
+  // and its rationale instead — the two things that make the tree readable.
+  const status = node.status ?? null;
+  const detail = node.value?.trim() || node.note?.trim() || "";
   return (
     <div className={cn("space-y-1 rounded-lg border p-1", tint.box)}>
       <span className={cn("inline-block rounded border px-1.5 py-0.5", tint.chip)}>
+        {status === "problem" && <span className="mr-1 text-red-600 dark:text-red-400">!</span>}
+        {status === "healthy" && (
+          <span className="mr-1 text-emerald-600 dark:text-emerald-400">OK</span>
+        )}
         {node.label}
-        {node.value?.trim() ? `: ${node.value.trim()}` : ""}
+        {detail ? ` — ${detail}` : ""}
       </span>
       {children.length > 0 && (
         // Half the builder's inset — same staircase, but this column is narrow.
@@ -55,6 +65,9 @@ export function ProgressPanel({
   onEstimateTextChange,
   disabled,
   onSubmitted,
+  answerMode = "numeric",
+  answerText = "",
+  onAnswerTextChange,
 }: {
   attemptId: string;
   unit: string | null;
@@ -64,20 +77,32 @@ export function ProgressPanel({
   onEstimateTextChange: (t: string) => void;
   disabled: boolean;
   onSubmitted: (r: SubmitResult) => void;
+  answerMode?: AnswerMode;
+  answerText?: string;
+  onAnswerTextChange?: (t: string) => void;
 }) {
   const [submitting, setSubmitting] = useState(false);
+  const qualitative = answerMode === "qualitative";
 
   function commitEstimate() {
     const n = evaluateExpression(estimateText);
     setFinalEstimate(attemptId, n).catch(() => {});
   }
+  function commitAnswer() {
+    setFinalAnswer(attemptId, answerText).catch(() => {});
+  }
 
   async function submit() {
     setSubmitting(true);
     try {
-      // ensure latest estimate is persisted first
-      const n = evaluateExpression(estimateText);
-      await setFinalEstimate(attemptId, n).catch(() => {});
+      // Persist the answer before asking for a verdict on it — the scorer reads
+      // the row, not the component.
+      if (qualitative) {
+        await setFinalAnswer(attemptId, answerText).catch(() => {});
+      } else {
+        const n = evaluateExpression(estimateText);
+        await setFinalEstimate(attemptId, n).catch(() => {});
+      }
       const result = await submitAttempt(attemptId);
       if (!result.ok) throw new Error(result.error);
       onSubmitted(result);
@@ -91,8 +116,8 @@ export function ProgressPanel({
   return (
     <div className="flex h-full flex-col">
       <div className="scrollbar-thin flex-1 space-y-5 overflow-y-auto p-4">
-        {/* Calculations summary */}
-        <section>
+        {/* Calculations summary — nothing to show without a calculator. */}
+        <section hidden={qualitative}>
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Calculations ({calculations.length})
           </h3>
@@ -136,26 +161,39 @@ export function ProgressPanel({
           data-tour="estimate"
           className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground"
         >
-          Final estimate {unit ? `(${unit})` : ""}
+          {qualitative ? "Final recommendation" : `Final estimate ${unit ? `(${unit})` : ""}`}
         </label>
-        <Input
-          value={estimateText}
-          onChange={(e) => onEstimateTextChange(e.target.value)}
-          onBlur={commitEstimate}
-          placeholder="e.g. 80L or 8000000"
-          className="mb-1 font-mono"
-          disabled={disabled}
-        />
-        {(() => {
-          const n = evaluateExpression(estimateText);
-          return n !== null ? (
-            <p className="mb-3 text-xs text-muted-foreground">
-              = {formatIndianNumber(n)} · {toIndianWords(n)}
-            </p>
-          ) : (
-            <div className="mb-3" />
-          );
-        })()}
+        {qualitative ? (
+          <Textarea
+            value={answerText}
+            onChange={(e) => onAnswerTextChange?.(e.target.value)}
+            onBlur={commitAnswer}
+            placeholder="What's your answer, and what would you do about it?"
+            className="mb-3 min-h-[88px] text-sm"
+            disabled={disabled}
+          />
+        ) : (
+          <>
+            <Input
+              value={estimateText}
+              onChange={(e) => onEstimateTextChange(e.target.value)}
+              onBlur={commitEstimate}
+              placeholder="e.g. 80L or 8000000"
+              className="mb-1 font-mono"
+              disabled={disabled}
+            />
+            {(() => {
+              const n = evaluateExpression(estimateText);
+              return n !== null ? (
+                <p className="mb-3 text-xs text-muted-foreground">
+                  = {formatIndianNumber(n)} · {toIndianWords(n)}
+                </p>
+              ) : (
+                <div className="mb-3" />
+              );
+            })()}
+          </>
+        )}
         <Button
           data-tour="submit"
           className="w-full"

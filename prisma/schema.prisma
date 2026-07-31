@@ -65,11 +65,26 @@ model Question {
   category       Category @relation(fields: [categoryId], references: [id])
   difficulty     String   // "Easy" | "Medium" | "Hard"
   interviewLevel String   // "BCG" | "McKinsey" | "Bain" | "Big4" | "PM" | "Product" | "GeneralMBA"
-  type           String   @default("guesstimate") // "guesstimate" | "case" (Phase 2)
+  type           String   @default("guesstimate") // "guesstimate" | "qualitative" | "case"
 
   idealLow       Float?
   idealHigh      Float?
   unit           String?
+
+  /// Slug of the framework this case is written against ("profitability",
+  /// "market-entry", …). The strongest signal for deciding which framework a
+  /// candidate is building, and authored rather than inferred.
+  framework      String?
+  /// JSON array of buckets a good answer covers, used by MECE coverage scoring.
+  expectedBuckets String?
+  /// JSON array of facts the interviewer releases only when asked about that
+  /// branch: [{ "topic": ["cost","delivery"], "fact": "…" }]. Injecting these
+  /// stops the model inventing figures that contradict the sample solution.
+  dataPack       String?
+  /// JSON { "path": ["Cost","Delivery cost"], "note": "…" } — the branch that
+  /// actually holds the problem. Its presence is what makes a question
+  /// diagnostic; without it there is no diagnosis score.
+  rootCause      String?
 
   betterApproach String   @default("")
   sampleSolution String   @default("")
@@ -103,6 +118,11 @@ model Attempt {
   timeSpentSec  Int       @default(0)
   hintsUsed     Int       @default(0)
   finalEstimate Float?
+  /// The recommendation in words, for questions that don't end in a number.
+  finalAnswer   String?
+  /// "solo" | "guided" — how much of the tree the app offers. Fixed at creation:
+  /// a mid-attempt switch would make "solo" meaningless. Null on numeric attempts.
+  treeMode      String?
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -184,9 +204,22 @@ model FrameworkNode {
   /// Optional second factor, kept apart from `value` so a segment can carry a
   /// share of its parent AND its own rate ("50%" × "3 cups/day"). Blank = 1.
   multiplier String?
+  /// Free-text rationale. Present in the schema from the start but only written
+  /// to by qualitative attempts, where it is the optional typed alternative to a
+  /// rationale inherited from chat (see `sourceMessageId`).
   note      String?
   order     Int             @default(0)
   combine   String          @default("sum") // "sum" | "multiply" — how this node's children combine (meaningful only with 2+ children)
+  /// "unknown" | "healthy" | "problem" — the candidate's own judgement about this
+  /// branch. Never derived from children: a red child does not redden its parent.
+  status    String?
+  /// The chat turn this bucket was promoted from, or the turn that revealed the
+  /// fact backing it. The node's rationale is that message, so a candidate who
+  /// thinks aloud never types a justification twice.
+  sourceMessageId String?
+  /// "manual" | "chat" | "scaffold" | "suggested" — lets scoring tell a tree the
+  /// candidate built from one they accepted wholesale.
+  origin    String?
   parentId  String?
   parent    FrameworkNode?  @relation("NodeChildren", fields: [parentId], references: [id])
   children  FrameworkNode[] @relation("NodeChildren")
@@ -204,11 +237,19 @@ model Evaluation {
   overall       Int
   readiness     String
 
-  structuring   Int
+  /// Nullable categories are "not applicable to this attempt", not "scored zero".
+  /// A null is skipped by the weighted mean, which renormalises over what remains,
+  /// so an overall stays comparable across modes instead of being dragged down by
+  /// a category the attempt could never have earned:
+  ///   calculation  — null for qualitative attempts (no arithmetic)
+  ///   diagnosis    — null unless the question declares a root cause
+  ///   structuring, segmentation — null for guided attempts (the app built the tree)
+  structuring   Int?
   logic         Int
-  segmentation  Int
+  segmentation  Int?
   assumptions   Int
-  calculation   Int
+  calculation   Int?
+  diagnosis     Int?
   communication Int
   business      Int
   confidence    Int

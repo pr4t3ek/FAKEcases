@@ -29,10 +29,19 @@ export interface AssumptionCtx {
 export interface InterviewerContext {
   question: QuestionContext;
   mode: AiMode;
+  /** Which exercise this is: a market-sizing estimate, or a case. */
+  answerMode?: "numeric" | "qualitative";
   messages: ConvMessage[];
   assumptions: AssumptionCtx[];
-  framework: { label: string }[];
+  /** `status` is the candidate's own verdict on a branch; qualitative only. */
+  framework: { label: string; status?: string | null }[];
   finalEstimate?: number | null;
+  finalAnswer?: string | null;
+  /**
+   * Facts the interviewer may state when asked about that topic. Authored per
+   * question so the model reports data rather than inventing it.
+   */
+  dataPack?: { topic: string[]; fact: string }[];
   hintsUsed: number;
 }
 

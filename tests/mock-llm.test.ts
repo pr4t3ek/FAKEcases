@@ -83,3 +83,139 @@ describe("mock interviewer", () => {
     expect(chunks.join("")).toEqual(await collect(mockAdapter.reply(ctx({ mode: "teacher" }))));
   });
 });
+
+describe("mock interviewer on a case", () => {
+  const caseCtx = (partial: Partial<InterviewerContext> = {}) =>
+    ctx({ answerMode: "qualitative", ...partial });
+
+  // The market-sizing banks ask for populations and frequencies, which is
+  // nonsense on "why are margins falling".
+  it("opens by scoping rather than asking for a population", async () => {
+    const text = await collect(mockAdapter.reply(caseCtx()));
+    expect(text).toMatch(/objective|solving for|scope/i);
+    expect(text).not.toMatch(/population|frequency/i);
+  });
+
+  it("asks for a structure once the conversation has started", async () => {
+    const text = await collect(
+      mockAdapter.reply(caseCtx({ messages: [{ role: "user", content: "Costs seem high to me." }] })),
+    );
+    expect(text).toMatch(/break|structure|framework|buckets|exhaustive/i);
+  });
+
+  // Marking a branch is the drill-down gesture, so the interviewer's job is to
+  // make them go one level further, never to say whether they're right.
+  it("pushes the candidate to narrow once they flag a branch", async () => {
+    const text = await collect(
+      mockAdapter.reply(
+        caseCtx({
+          messages: [{ role: "user", content: "I think it's on the cost side." }],
+          framework: [
+            { label: "Revenue", status: "healthy" },
+            { label: "Cost", status: "problem" },
+          ],
+        }),
+      ),
+    );
+    expect(text).toMatch(/inside|narrow|further|next|specifically|rule/i);
+  });
+
+  it("asks for a recommendation once branches are ruled out", async () => {
+    const text = await collect(
+      mockAdapter.reply(
+        caseCtx({
+          messages: [{ role: "user", content: "Revenue looks fine." }],
+          framework: [
+            { label: "Revenue", status: "healthy" },
+            { label: "Cost", status: "healthy" },
+          ],
+        }),
+      ),
+    );
+    expect(text).toMatch(/recommend|conclusion|commit|answer/i);
+  });
+
+  // Offline it has no data pack, and inventing a figure is exactly the failure
+  // the authored facts exist to prevent.
+  it("refuses to invent data when asked a direct question", async () => {
+    const text = await collect(
+      mockAdapter.reply(
+        caseCtx({ messages: [{ role: "user", content: "What happened to delivery costs?" }] }),
+      ),
+    );
+    expect(text).toMatch(/don't have|nothing on that|assume/i);
+    expect(text).not.toMatch(/\d+%/);
+  });
+
+  it("never names the branch holding the problem, even at the last hint", async () => {
+    const text = await collect(mockAdapter.hint(caseCtx(), 3));
+    expect(text).toMatch(/structure/i);
+    expect(text).toMatch(/yourself/i);
+  });
+});
+
+describe("mock interviewer releasing authored data", () => {
+  const pack = [
+    { topic: ["delivery", "rider"], fact: "Delivery cost per order is up 31% year-on-year." },
+    { topic: ["commission", "take rate"], fact: "Commission per order is unchanged at 18%." },
+  ];
+  const caseCtx = (partial: Partial<InterviewerContext> = {}) =>
+    ctx({ answerMode: "qualitative", dataPack: pack, ...partial });
+
+  // Offline has to be playable, not just non-broken: the case's truth lives in
+  // the question row, so the mock can release it exactly as a real provider does.
+  it("states the fact for the branch it was asked about", async () => {
+    const text = await collect(
+      mockAdapter.reply(
+        caseCtx({ messages: [{ role: "user", content: "What's happened to delivery cost?" }] }),
+      ),
+    );
+    expect(text).toContain("up 31% year-on-year");
+  });
+
+  it("releases only the fact that was asked for", async () => {
+    const text = await collect(
+      mockAdapter.reply(
+        caseCtx({ messages: [{ role: "user", content: "Tell me about delivery." }] }),
+      ),
+    );
+    expect(text).not.toContain("18%");
+  });
+
+  it("declines rather than inventing when nothing covers the question", async () => {
+    const text = await collect(
+      mockAdapter.reply(
+        caseCtx({ messages: [{ role: "user", content: "What about staff attrition?" }] }),
+      ),
+    );
+    expect(text).toMatch(/don't have|nothing on that|assume/i);
+    expect(text).not.toMatch(/\d+%/);
+  });
+});
+
+describe("mock interviewer picking between overlapping facts", () => {
+  // Topics overlap by nature: "order" belongs to both order volume and delivery
+  // cost per order. First-match returned the wrong fact to a direct question,
+  // which is the exact failure authored data exists to prevent.
+  const pack = [
+    { topic: ["revenue", "order", "volume"], fact: "Order volume is flat year-on-year." },
+    { topic: ["cost", "delivery", "rider"], fact: "Delivery cost per order is up 31%." },
+  ];
+  const caseCtx = (content: string) =>
+    ctx({
+      answerMode: "qualitative",
+      dataPack: pack,
+      messages: [{ role: "user", content }],
+    });
+
+  it("answers about delivery cost with the delivery fact, not the order-volume one", async () => {
+    const text = await collect(mockAdapter.reply(caseCtx("What has happened to delivery cost per order?")));
+    expect(text).toContain("up 31%");
+    expect(text).not.toContain("flat year-on-year");
+  });
+
+  it("still answers about volume with the volume fact", async () => {
+    const text = await collect(mockAdapter.reply(caseCtx("How has order volume moved?")));
+    expect(text).toContain("flat year-on-year");
+  });
+});

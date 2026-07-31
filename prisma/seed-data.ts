@@ -24,12 +24,23 @@ export interface SeedQuestion {
   category: string; // slug
   difficulty: "Easy" | "Medium" | "Hard";
   interviewLevel: string;
-  idealLow: number;
-  idealHigh: number;
-  unit: string;
+  /** Omitted for qualitative questions, which don't end in a number. */
+  idealLow?: number;
+  idealHigh?: number;
+  unit?: string;
   betterApproach: string;
   sampleSolution: string;
   tags: string;
+  /** "guesstimate" (default) | "qualitative". */
+  type?: string;
+  /** Framework slug this case is written against, for qualitative questions. */
+  framework?: string;
+  /** Branches a good answer covers, for MECE coverage scoring. */
+  expectedBuckets?: string[];
+  /** Facts the interviewer releases only when asked about that topic. */
+  dataPack?: { topic: string[]; fact: string }[];
+  /** The branch that actually holds the problem. Presence makes a case diagnostic. */
+  rootCause?: { path: string[]; note?: string };
 }
 
 export const questions: SeedQuestion[] = [
@@ -416,6 +427,86 @@ export const questions: SeedQuestion[] = [
     sampleSolution:
       "~50,000 orders/month × ~₹800 AOV × 12 ≈ ₹48 cr; a larger mid-size brand doing ~2–3 lakh orders/month reaches ~₹200–300 cr.",
     tags: "ecommerce,orders,aov",
+  },
+
+  // ── Qualitative ────────────────────────────────────────────────────────
+  // Answered with an issue tree and a recommendation rather than a number, so
+  // no ideal range and no unit. These two carry no data pack or root cause yet,
+  // which makes them brainstorm-style: structure and reasoning are scored, and
+  // there is no diagnosis to grade. Diagnostic cases (facts released on request,
+  // a declared root cause) are authored from the casebook separately.
+  {
+    externalId: "qual-food-delivery-margin",
+    title: "Falling delivery margins at a food-delivery platform",
+    prompt:
+      "A food-delivery platform in India has seen its per-order contribution margin fall over the last four quarters, even though order volumes are steady. Why might that be happening, and what would you look at first?",
+    category: "startups",
+    difficulty: "Medium",
+    interviewLevel: "McKinsey",
+    type: "qualitative",
+    framework: "profitability",
+    // Illustrative seed content, invented to exercise the diagnostic path
+    // end-to-end. The casebook-derived cases are authored separately, from what
+    // the source actually says about each one.
+    expectedBuckets: [
+      "Revenue",
+      "Cost",
+      "Commission / take rate",
+      "Delivery cost",
+      "Discounts",
+      "Order value",
+    ],
+    dataPack: [
+      {
+        topic: ["revenue", "order", "volume", "orders"],
+        fact: "Order volume is flat year-on-year — it has not fallen.",
+      },
+      {
+        topic: ["commission", "take rate", "revenue per order"],
+        fact: "Commission per order is unchanged at 18% of order value.",
+      },
+      {
+        topic: ["order value", "basket", "aov"],
+        fact: "Average order value has slipped about 6%, mostly from tier-2 cities.",
+      },
+      {
+        topic: ["cost", "delivery", "rider", "logistics"],
+        fact: "Delivery cost per order is up 31% year-on-year, driven by rider payouts.",
+      },
+      {
+        topic: ["discount", "promotion", "marketing"],
+        fact: "Discount spend per order is roughly flat.",
+      },
+      {
+        topic: ["packaging", "support", "overhead"],
+        fact: "Packaging and support costs per order are broadly unchanged.",
+      },
+    ],
+    rootCause: {
+      path: ["Cost", "Delivery cost"],
+      note: "Rider payouts per order rose 31% while revenue per order barely moved — the margin is being lost on delivery cost, not on take rate or volume.",
+    },
+    betterApproach:
+      "Split contribution margin into revenue per order (commission rate, delivery fee, ad income) and cost per order (rider payout, discounts, packaging, support). Isolate which side moved before hypothesising why, and check whether the mix of cities or order values shifted underneath a stable total volume.",
+    sampleSolution:
+      "Steady volume with falling margin points at price or cost per order rather than demand. Common culprits in India: rider payouts rising with fuel and competition for supply, deeper discounting to hold share, and a mix shift toward smaller orders in tier-2 cities where the fixed delivery cost is spread over a lower basket.",
+    tags: "profitability,unit economics,delivery",
+  },
+  {
+    externalId: "qual-ev-two-wheeler-entry",
+    title: "Should a two-wheeler maker enter electric scooters?",
+    prompt:
+      "An established Indian two-wheeler manufacturer is considering entering the electric scooter market. How would you structure the decision, and what would make you say no?",
+    category: "transportation",
+    difficulty: "Medium",
+    interviewLevel: "BCG",
+    type: "qualitative",
+    framework: "market-entry",
+    betterApproach:
+      "Start with the strategic objective — why enter, and what does success look like — before sizing anything. Then industry conditions (market size and growth, competitors and their reaction, customer segments, barriers such as battery supply and charging), then how to enter: build, acquire, or partner.",
+    sampleSolution:
+      "The decision usually turns on whether existing assets transfer. Dealer network, brand trust and service reach carry over; battery chemistry, power electronics and charging partnerships do not. A 'no' is defensible if the capability gap needs a partner the client can't get on good terms, or if the segment's margins stay negative until volumes the client can't reach.",
+    tags: "market entry,ev,strategy",
   },
 ];
 

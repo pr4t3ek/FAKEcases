@@ -1,16 +1,25 @@
 import {
+  categoryWeight,
   evaluationCategories,
   readinessForScore,
   accuracyTolerance,
   type ReadinessBand,
 } from "@/lib/config";
+import { branchDiscussed, diagnosisTrail, type DiagnosisNode } from "@/lib/diagnosis";
 import { clamp } from "@/lib/utils";
-import type { AssumptionRating, FeedbackItem } from "@/lib/types";
+import type { AnswerMode, AssumptionRating, FeedbackItem, TreeMode } from "@/lib/types";
 
 export interface FrameworkNodeInput {
   label: string;
   value?: string | null;
   multiplier?: string | null;
+  /** Qualitative fields. Absent on numeric attempts. */
+  id?: string;
+  parentId?: string | null;
+  status?: string | null;
+  note?: string | null;
+  sourceMessageId?: string | null;
+  origin?: string | null;
 }
 
 export interface DerivedAssumption {
@@ -33,21 +42,55 @@ export interface EvaluationInput {
   hintsUsed: number;
 }
 
+/**
+ * A null score means "this category was never in play for this attempt", which
+ * is a different claim from zero and has to survive into the database as one.
+ * Calculation is null on a case with no arithmetic; diagnosis is null when the
+ * question declares no root cause. Scoring a category the attempt could not have
+ * earned would drag the overall down for a reason the candidate can't act on.
+ */
+export interface EvaluationScores {
+  structuring: number | null;
+  logic: number;
+  segmentation: number | null;
+  assumptions: number;
+  calculation: number | null;
+  diagnosis: number | null;
+  communication: number;
+  business: number;
+  confidence: number;
+}
+
 export interface EvaluationResult {
   overall: number;
   readiness: ReadinessBand;
-  scores: {
-    structuring: number;
-    logic: number;
-    segmentation: number;
-    assumptions: number;
-    calculation: number;
-    communication: number;
-    business: number;
-    confidence: number;
-  };
+  scores: EvaluationScores;
   accuracyHit: boolean;
   feedback: FeedbackItem[];
+}
+
+/**
+ * Weighted mean over the categories that applied, renormalised.
+ *
+ * Skipping rather than zeroing is what keeps an overall comparable across modes:
+ * a case scored on seven categories and an estimate scored on eight both land on
+ * the same 0–100 scale, so XP, rank and the readiness bands need no per-mode
+ * arithmetic of their own.
+ */
+export function weightedOverall(
+  scores: EvaluationScores,
+  answerMode: AnswerMode,
+): number {
+  let weightedSum = 0;
+  let weightTotal = 0;
+  for (const cat of evaluationCategories) {
+    const score = scores[cat.key];
+    const weight = categoryWeight(cat, answerMode);
+    if (score == null || weight === 0) continue;
+    weightedSum += score * weight;
+    weightTotal += weight;
+  }
+  return weightTotal === 0 ? 0 : Math.round(weightedSum / weightTotal);
 }
 
 type Accuracy = "hit" | "near" | "far" | "none";
@@ -96,6 +139,22 @@ export function rateAssumption(
   };
 }
 
+/**
+ * In a case, a clause counts once it explains rather than merely asserts. The
+ * causal vocabulary is what an interviewer is listening for — "costs rose
+ * because riders are paid more" is a claim you can push back on, "costs rose"
+ * is not.
+ */
+const REASONING_WORDS =
+  /(because|since|due to|driven by|which means|so that|therefore|as a result|suggests|implies|given|assuming|if .* then|leads to|caused by)/i;
+
+function reasonedFragments(text: string): string[] {
+  return text
+    .split(/[.!?;\n]+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 15 && REASONING_WORDS.test(s));
+}
+
 /** A clause is worth reading as a claim only once it commits to a figure. */
 function quantifiedFragments(text: string): string[] {
   return text
@@ -117,8 +176,44 @@ function quantifiedFragments(text: string): string[] {
 export function deriveAssumptions(args: {
   framework: FrameworkNodeInput[];
   userMessageText: string[];
+  answerMode?: AnswerMode;
 }): DerivedAssumption[] {
   const out: DerivedAssumption[] = [];
+
+  // A case's claims are reasons, not figures, so requiring a digit would floor
+  // every qualitative attempt by construction. The rating split survives the
+  // change of currency: a branch whose rationale was inherited from something the
+  // candidate actually said in the conversation can earn "Excellent", because
+  // they did explain it; a note typed into the box is capped, for the same reason
+  // a numeric tree box is — a label has room for a claim but not for its basis.
+  if (args.answerMode === "qualitative") {
+    for (const node of args.framework) {
+      const label = node.label.trim() || "Branch";
+      const spoken = !!node.sourceMessageId?.trim();
+      const note = node.note?.trim();
+      if (!spoken && !note) {
+        out.push({ key: label, value: "", rating: "NeedsJustification", source: "framework" });
+        continue;
+      }
+      out.push({
+        key: label,
+        value: note ?? "(said in the conversation)",
+        rating: spoken ? "Excellent" : "Reasonable",
+        source: spoken ? "chat" : "framework",
+      });
+    }
+    for (const message of args.userMessageText) {
+      for (const fragment of reasonedFragments(message)) {
+        out.push({
+          key: "Said in chat",
+          value: fragment,
+          rating: "Excellent",
+          source: "chat",
+        });
+      }
+    }
+    return out;
+  }
 
   for (const node of args.framework) {
     const label = node.label.trim() || "Step";
@@ -232,26 +327,21 @@ export function evaluate(input: EvaluationInput): EvaluationResult {
   );
   const confidence = clamp(80 - hintsUsed * 12 + (finalEstimate != null ? 8 : 0), 30, 92);
 
-  const scores = {
+  const scores: EvaluationScores = {
     structuring,
     logic,
     segmentation,
     assumptions: assumptionsScore,
     calculation,
+    // A market-sizing estimate has no branch to localise, so this category never
+    // applied to it.
+    diagnosis: null,
     communication,
     business,
     confidence,
   };
 
-  // Weighted overall using config weights.
-  let weightedSum = 0;
-  let weightTotal = 0;
-  for (const cat of evaluationCategories) {
-    const s = scores[cat.key];
-    weightedSum += s * cat.weight;
-    weightTotal += cat.weight;
-  }
-  const overall = Math.round(weightedSum / weightTotal);
+  const overall = weightedOverall(scores, "numeric");
 
   const feedback = buildFeedback({
     hasSegmentation,
@@ -273,6 +363,364 @@ export function evaluate(input: EvaluationInput): EvaluationResult {
     accuracyHit: accuracy === "hit",
     feedback,
   };
+}
+
+// ── Qualitative ───────────────────────────────────────────────────────────
+
+export interface RootCause {
+  /** Labels from the root down to the branch that actually holds the problem. */
+  path: string[];
+  note?: string;
+}
+
+export interface QualitativeEvaluationInput {
+  framework: FrameworkNodeInput[];
+  userMessageText: string[];
+  finalAnswer: string | null;
+  hintsUsed: number;
+  treeMode: TreeMode | null;
+  rootCause: RootCause | null;
+  expectedBuckets: string[];
+  betterApproach: string;
+}
+
+const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
+
+/** Loose match: a candidate's wording rarely equals the authored label exactly. */
+function labelMatches(candidate: string, target: string): boolean {
+  const a = norm(candidate);
+  const b = norm(target);
+  return a === b || a.includes(b) || b.includes(a);
+}
+
+export interface DiagnosisScore {
+  score: number;
+  landed: boolean;
+  clearedFirst: number;
+  falseClears: string[];
+  /** Branches judged without ever being raised in the conversation. */
+  unevidenced: number;
+}
+
+/**
+ * Grade a marked-up tree against the branch that actually holds the problem.
+ *
+ * Deliberately not an LLM call: the question declares its own answer, so this is
+ * a comparison, not a judgement. That keeps a candidate's score identical
+ * offline, instant, free, and testable — the same reason the mock interviewer
+ * exists.
+ *
+ * Three things are worth different amounts. Landing on the declared branch is
+ * most of it. Eliminating siblings on the way down is the difference between
+ * diagnosing and guessing, so it is rewarded separately. And clearing a branch
+ * that was on the true path is the expensive mistake — the candidate ruled out
+ * the answer — so it is penalised rather than merely unrewarded.
+ */
+export function scoreDiagnosis(
+  nodes: FrameworkNodeInput[],
+  rootCause: RootCause,
+  /**
+   * The whole transcript, so a verdict reached without checking anything scores
+   * below the same verdict reached by asking. Deliberately the SAME loose test
+   * the builder warns with, rather than the stricter one the server could run
+   * against the real data pack — nobody should be penalised for something the
+   * interface never flagged.
+   */
+  conversation: string[] = [],
+): DiagnosisScore {
+  const diagnosable: DiagnosisNode[] = nodes.map((n, i) => ({
+    id: n.id ?? String(i),
+    parentId: n.parentId ?? null,
+    label: n.label,
+    status: n.status,
+  }));
+  const trail = diagnosisTrail(diagnosable);
+  const target = rootCause.path.filter((p) => p.trim());
+  if (target.length === 0) {
+    return { score: 50, landed: false, clearedFirst: 0, falseClears: [], unevidenced: 0 };
+  }
+
+  // How deep into the declared path did any single trail get?
+  let bestDepth = 0;
+  for (const path of trail.labelPaths) {
+    let depth = 0;
+    for (const step of target) {
+      if (path.slice(depth).some((label) => labelMatches(label, step))) depth++;
+      else break;
+    }
+    bestDepth = Math.max(bestDepth, depth);
+  }
+  const landed = bestDepth >= target.length;
+
+  // Branches cleared that the answer actually ran through: the costly error.
+  const falseClears = nodes
+    .filter((n) => n.status === "healthy" && target.some((t) => labelMatches(n.label, t)))
+    .map((n) => n.label);
+
+  // Eliminating siblings before drilling is what makes a trail a diagnosis
+  // rather than a lucky first guess.
+  const clearedFirst = nodes.filter((n) => n.status === "healthy").length;
+
+  // Verdicts reached without raising the branch at all. Guessing right is worth
+  // something, but not as much as diagnosing right.
+  const unevidenced = conversation.length
+    ? nodes.filter(
+        (n) =>
+          n.label.trim() &&
+          n.status &&
+          n.status !== "unknown" &&
+          !branchDiscussed(n.label, conversation),
+      ).length
+    : 0;
+
+  let score = 25 + (bestDepth / target.length) * 45;
+  if (landed) score += 10;
+  score += Math.min(clearedFirst, 4) * 4;
+  score -= falseClears.length * 18;
+  score -= Math.min(unevidenced, 4) * 5;
+  // A trail that never terminated has located a region, not a cause.
+  if (!trail.complete && landed) score -= 6;
+
+  return {
+    score: clamp(Math.round(score), 10, 97),
+    landed,
+    clearedFirst,
+    falseClears,
+    unevidenced,
+  };
+}
+
+/**
+ * Score a case: an issue tree, a recommendation, and the conversation that got
+ * there. Shares the rating vocabulary with `evaluate()` but none of its
+ * arithmetic — there is no ideal range to land in.
+ */
+export function evaluateQualitative(input: QualitativeEvaluationInput): EvaluationResult {
+  const { userMessageText, finalAnswer, hintsUsed, treeMode, rootCause } = input;
+  // Marking a branch as the problem opens an empty child to fill in, so an
+  // unfinished tree legitimately contains blank rows. They are a prompt, not a
+  // branch — counting them would dilute the rationale ratio and inflate breadth.
+  const framework = input.framework.filter((n) => n.label.trim());
+
+  const roots = framework.filter((n) => !n.parentId);
+  const depth = treeDepth(framework);
+  const assumptions = deriveAssumptions({
+    framework,
+    userMessageText,
+    answerMode: "qualitative",
+  });
+  const justified = assumptions.filter((a) => a.rating === "Excellent").length;
+  const justifiedRatio = assumptions.length ? justified / assumptions.length : 0;
+  const withRationale = framework.filter(
+    (n) => n.sourceMessageId?.trim() || n.note?.trim(),
+  ).length;
+  const rationaleRatio = framework.length ? withRationale / framework.length : 0;
+
+  // Coverage against the branches the question says a good answer reaches, when
+  // it declares them; otherwise judge the shape — breadth at the top and at
+  // least one level of decomposition under it.
+  const covered = input.expectedBuckets.filter((b) =>
+    framework.some((n) => labelMatches(n.label, b)),
+  ).length;
+  const coverageRatio = input.expectedBuckets.length
+    ? covered / input.expectedBuckets.length
+    : null;
+  const duplicateSiblings = countDuplicateSiblings(framework);
+
+  const marked = framework.filter((n) => n.status && n.status !== "unknown").length;
+  const diagnosisResult = rootCause
+    ? scoreDiagnosis(framework, rootCause, userMessageText)
+    : null;
+
+  // Guided builds the tree for the candidate, so grading them on it would be the
+  // app marking its own work. Null, not zero — see EvaluationScores.
+  const guided = treeMode === "guided";
+  const structuring = guided
+    ? null
+    : clamp(35 + Math.min(roots.length, 4) * 9 + Math.min(depth, 3) * 8, 25, 95);
+  const segmentation = guided
+    ? null
+    : clamp(
+        (coverageRatio !== null ? 35 + coverageRatio * 55 : 45 + Math.min(roots.length, 4) * 9) -
+          duplicateSiblings * 10,
+        25,
+        95,
+      );
+
+  const logic = clamp(
+    45 + (depth >= 2 ? 15 : 0) + (marked >= 2 ? 12 : 0) + (diagnosisResult?.landed ? 10 : 0),
+    30,
+    92,
+  );
+  const assumptionsScore = clamp(
+    35 + Math.min(assumptions.length, 6) * 4 + rationaleRatio * 20 + justifiedRatio * 25,
+    25,
+    95,
+  );
+  const communication = clamp(
+    40 + Math.min(userMessageText.length, 6) * 7 + (finalAnswer?.trim() ? 12 : 0),
+    30,
+    92,
+  );
+  const business = clamp(
+    45 +
+      (textHas(userMessageText, BUSINESS_KEYWORDS) ? 18 : 0) +
+      Math.min(marked, 5) * 4,
+    30,
+    92,
+  );
+  const confidence = clamp(
+    80 - hintsUsed * 12 + (finalAnswer?.trim() ? 8 : 0),
+    30,
+    92,
+  );
+
+  const scores: EvaluationScores = {
+    structuring,
+    logic,
+    segmentation,
+    assumptions: assumptionsScore,
+    // No arithmetic in a case, so this category never applied.
+    calculation: null,
+    diagnosis: diagnosisResult ? diagnosisResult.score : null,
+    communication,
+    business,
+    confidence,
+  };
+
+  return {
+    overall: weightedOverall(scores, "qualitative"),
+    readiness: readinessForScore(weightedOverall(scores, "qualitative")),
+    scores,
+    // Reserved for a numeric estimate landing in range; a case has no range.
+    accuracyHit: false,
+    feedback: buildQualitativeFeedback({
+      roots: roots.length,
+      depth,
+      marked,
+      rationaleRatio,
+      justifiedRatio,
+      coverageRatio,
+      duplicateSiblings,
+      diagnosis: diagnosisResult,
+      hasAnswer: !!finalAnswer?.trim(),
+      hintsUsed,
+      guided,
+      betterApproach: input.betterApproach,
+    }),
+  };
+}
+
+function treeDepth(nodes: FrameworkNodeInput[]): number {
+  const byId = new Map(nodes.map((n) => [n.id ?? "", n]));
+  let deepest = 0;
+  for (const node of nodes) {
+    let d = 1;
+    let cursor = node;
+    const seen = new Set<string>();
+    while (cursor.parentId && !seen.has(cursor.parentId)) {
+      seen.add(cursor.parentId);
+      const parent = byId.get(cursor.parentId);
+      if (!parent) break;
+      cursor = parent;
+      d++;
+    }
+    deepest = Math.max(deepest, d);
+  }
+  return deepest;
+}
+
+/** Overlapping siblings are the commonest way a tree stops being MECE. */
+function countDuplicateSiblings(nodes: FrameworkNodeInput[]): number {
+  const byParent = new Map<string, string[]>();
+  for (const n of nodes) {
+    const key = n.parentId ?? "__root";
+    byParent.set(key, [...(byParent.get(key) ?? []), norm(n.label)]);
+  }
+  let duplicates = 0;
+  for (const labels of byParent.values()) {
+    const seen = new Set<string>();
+    for (const label of labels) {
+      if (!label) continue;
+      if (seen.has(label)) duplicates++;
+      seen.add(label);
+    }
+  }
+  return duplicates;
+}
+
+function buildQualitativeFeedback(args: {
+  roots: number;
+  depth: number;
+  marked: number;
+  rationaleRatio: number;
+  justifiedRatio: number;
+  coverageRatio: number | null;
+  duplicateSiblings: number;
+  diagnosis: DiagnosisScore | null;
+  hasAnswer: boolean;
+  hintsUsed: number;
+  guided: boolean;
+  betterApproach: string;
+}): FeedbackItem[] {
+  const items: FeedbackItem[] = [];
+
+  if (args.roots === 0) {
+    items.push({ tone: "warning", text: "You didn't break the problem down. Start with two or three branches that between them cover the whole question." });
+  } else if (args.roots < 2) {
+    items.push({ tone: "warning", text: "One branch isn't a structure. Split the problem so the pieces cover it between them — revenue and cost, or internal and external." });
+  } else if (args.depth < 2) {
+    items.push({ tone: "tip", text: "Your top-level split is sound, but you stopped there. The insight is usually one or two levels down." });
+  } else {
+    items.push({ tone: "positive", text: "Good structure — you broke the problem into branches and then broke those down again." });
+  }
+
+  if (args.duplicateSiblings > 0) {
+    items.push({ tone: "warning", text: "Some branches at the same level overlap, so the same cause can hide in two places. Keep siblings mutually exclusive." });
+  }
+  if (args.coverageRatio !== null && args.coverageRatio < 0.5) {
+    items.push({ tone: "warning", text: "Your tree missed several angles a strong answer would cover. Before drilling, check the top level is exhaustive." });
+  }
+
+  // The diagnostic loop is the thing being taught, so its feedback is specific.
+  if (args.diagnosis) {
+    if (args.diagnosis.falseClears.length > 0) {
+      items.push({
+        tone: "warning",
+        text: `You ruled out ${args.diagnosis.falseClears.join(", ")} — but the answer ran through it. Clearing a branch is a claim; check the data before you make it.`,
+      });
+    }
+    if (args.diagnosis.landed) {
+      items.push({ tone: "positive", text: "You narrowed to the branch that actually held the problem — that's the whole exercise." });
+    } else {
+      items.push({ tone: "tip", text: "You didn't reach the branch the problem was really in. Work down one level at a time, eliminating as you go." });
+    }
+    if (args.diagnosis.clearedFirst === 0) {
+      items.push({ tone: "tip", text: "You never marked anything as ruled out. Eliminating branches out loud is what separates a diagnosis from a guess." });
+    }
+  } else if (args.marked === 0) {
+    items.push({ tone: "tip", text: "You built the tree but never marked it. Use the branches to say what you've ruled out and where you think the problem sits." });
+  }
+
+  if (args.rationaleRatio >= 0.6 || args.justifiedRatio >= 0.3) {
+    items.push({ tone: "positive", text: "You said why each branch mattered, not just what it was — that's what makes a structure persuasive." });
+  } else {
+    items.push({ tone: "tip", text: "Most branches carried no reasoning. Say why a branch matters as you add it — talking it through in the chat is enough." });
+  }
+
+  if (!args.hasAnswer) {
+    items.push({ tone: "warning", text: "You never committed to a recommendation. Always close with an answer and what you'd do about it." });
+  }
+  if (args.hintsUsed === 0) {
+    items.push({ tone: "positive", text: "You worked through it without hints — great independence." });
+  }
+  if (args.guided) {
+    items.push({ tone: "tip", text: "This was a guided attempt, so structure wasn't scored. Try it in solo mode to see how your own framework holds up." });
+  }
+  if (args.betterApproach) {
+    items.push({ tone: "tip", text: `A consultant's angle: ${args.betterApproach}` });
+  }
+  return items;
 }
 
 function buildFeedback(args: {
