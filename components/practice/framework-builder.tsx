@@ -158,6 +158,9 @@ const PALETTE = [
 /** Traffic light, in the order a candidate cycles through it. */
 const STATUS_CYCLE: NodeStatus[] = ["unknown", "healthy", "problem"];
 
+/** Stable identity, so a default prop doesn't retrigger effects every render. */
+const EMPTY_DEMO: UiFrameworkNode[] = [];
+
 export function FrameworkBuilder({
   attemptId,
   nodes,
@@ -172,6 +175,7 @@ export function FrameworkBuilder({
   questionFramework = null,
   canvasFill = false,
   onFullscreen,
+  demoNodes = EMPTY_DEMO,
 }: {
   attemptId: string;
   nodes: UiFrameworkNode[];
@@ -192,6 +196,12 @@ export function FrameworkBuilder({
   canvasFill?: boolean;
   /** Omitted when already fullscreen, which hides the expand control. */
   onFullscreen?: () => void;
+  /**
+   * Tutorial illustration branches. Merged into what the canvas draws and
+   * nowhere else — deliberately kept out of `nodes`, which is debounce-saved
+   * wholesale, so a demo branch can never be persisted or scored.
+   */
+  demoNodes?: UiFrameworkNode[];
 }) {
   const qualitative = answerMode === "qualitative";
   /**
@@ -1187,7 +1197,7 @@ export function FrameworkBuilder({
           the tree is scored, so leaving it invisible made a mode that silently
           failed to start impossible to notice. */}
       {qualitative && treeMode && (
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5" data-tour="tree-mode">
           <span
             className={cn(
               "rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide",
@@ -1280,7 +1290,12 @@ export function FrameworkBuilder({
         );
       })()}
 
-      {roots.length === 0 ? (
+      {/* Demo branches count towards having something to draw, or the tutorial's
+          tree steps would fall back to the empty-state text and illustrate
+          nothing — the canvas has to be mounted for them to appear in. `roots`
+          itself stays real, so the chain maths and the root offers are
+          unaffected. */}
+      {roots.length === 0 && demoNodes.length === 0 ? (
         <p className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
           {qualitative ? (
             <>
@@ -1299,7 +1314,7 @@ export function FrameworkBuilder({
         </p>
       ) : asCanvas ? (
         <FrameworkCanvas
-          nodes={nodes}
+          nodes={demoNodes.length ? [...nodes, ...demoNodes] : nodes}
           isFolded={isNodeFolded}
           ghostFor={ghostFor}
           offersFor={offersFor}
