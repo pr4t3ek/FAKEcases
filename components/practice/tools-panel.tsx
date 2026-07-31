@@ -66,6 +66,7 @@ export function ToolsPanel({
   onAnswerTextChange,
   onSubmitted,
   onFullscreen,
+  demoNodes,
 }: {
   attemptId: string;
   question: PracticeQuestion;
@@ -90,6 +91,8 @@ export function ToolsPanel({
   onSubmitted?: (r: SubmitResult) => void;
   /** Absent when there is nowhere to expand to (narrow screen, or a guesstimate). */
   onFullscreen?: () => void;
+  /** Tutorial illustration branches — drawn, never saved. */
+  demoNodes?: UiFrameworkNode[];
 }) {
   const qualitative = question.answerMode === "qualitative";
   /**
@@ -185,6 +188,7 @@ export function ToolsPanel({
               conversation={conversation}
               questionFramework={question.framework}
               onFullscreen={onFullscreen}
+              demoNodes={demoNodes}
             />
           </TabsContent>
           <TabsContent value="notes" className="mt-0">
@@ -286,7 +290,12 @@ export function AnswerBar({
           disabled={disabled}
           data-tour="estimate"
         />
-        <Button onClick={submit} disabled={disabled || submitting} className="shrink-0">
+        <Button
+          onClick={submit}
+          disabled={disabled || submitting}
+          className="shrink-0"
+          data-tour="submit"
+        >
           {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
           Submit
         </Button>

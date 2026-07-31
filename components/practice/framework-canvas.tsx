@@ -177,6 +177,9 @@ export function FrameworkCanvas(props: FrameworkCanvasProps) {
   function isUnevidenced(node: UiFrameworkNode): boolean {
     const status = node.status ?? "unknown";
     return (
+      // Never on a tutorial illustration: it is a real warning about the
+      // candidate's own work, and firing it on a drawing is just noise.
+      !node.id.startsWith("demo:") &&
       hasDataPack &&
       !!node.label.trim() &&
       status !== "unknown" &&
@@ -396,6 +399,7 @@ export function FrameworkCanvas(props: FrameworkCanvasProps) {
             flagged so the pan handler leaves their pointer events alone. */}
         <div
           data-canvas-overlay
+          data-tour="canvas-controls"
           className="absolute bottom-2 right-2 flex items-center gap-1 rounded-lg border bg-card/90 p-1 shadow-sm backdrop-blur"
         >
           <button
@@ -476,9 +480,13 @@ function NodeCard({
   const status = (node.status ?? "unknown") as NodeStatus;
   const meta = NODE_STATUS_META[status];
   const tint = familyStyle(rootIndex, depth);
-  const ghost = api.ghostFor(node);
-  const offers = api.offersFor(node);
-  const hints = api.hintsForNode(node);
+  // A tutorial illustration, not the candidate's work. It is never in `nodes`,
+  // so its controls would be inert anyway — better to say so than to offer
+  // buttons that quietly do nothing.
+  const isDemo = node.id.startsWith("demo:");
+  const ghost = isDemo ? null : api.ghostFor(node);
+  const offers = isDemo ? [] : api.offersFor(node);
+  const hints = isDemo ? [] : api.hintsForNode(node);
 
   return (
     <div
@@ -492,9 +500,15 @@ function NodeCard({
         // specificity fight and no colour left underneath.
         "group/card absolute rounded-xl border-2 p-2 shadow-sm transition-colors",
         status === "healthy" ? CARD_HEALTHY : cn(tint.box, CARD_STATUS_BORDER[status]),
+        isDemo && "border-dashed",
         api.dragId === node.id && "opacity-50",
       )}
     >
+      {isDemo && (
+        <span className="pointer-events-none absolute -top-2 left-2 rounded-full border border-dashed bg-background px-1.5 text-[9px] uppercase tracking-wide text-muted-foreground">
+          example
+        </span>
+      )}
       <div className="flex items-start gap-1">
         <span
           onPointerDown={(e) => api.onGripDown(e, node.id)}

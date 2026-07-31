@@ -3,9 +3,17 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ArrowLeft, ArrowRight, GraduationCap, X } from "lucide-react";
-import { evaluationCategories, hintConfig, readinessBands } from "@/lib/config";
+import {
+  categoryLabel,
+  categoryWeight,
+  evaluationCategories,
+  hintConfig,
+  readinessBands,
+} from "@/lib/config";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import type { AnswerMode, NodeStatus } from "@/lib/types";
+import type { UiFrameworkNode } from "./types";
 
 /**
  * A guided walkthrough of the practice screen, anchored to the real elements via
@@ -27,9 +35,197 @@ type Step = {
   tool?: "framework" | "notes";
   /** Rendered instead of body on the closing step. */
   rubric?: boolean;
+  /**
+   * Illustration branches to show on the canvas for this step.
+   *
+   * Render-only and never persisted — see `demoNode`. The tour advances the
+   * picture itself rather than asking the candidate to perform the gesture
+   * correctly first, which is what lets a step about marking a branch actually
+   * show one being marked.
+   */
+  demo?: UiFrameworkNode[];
 };
 
 const HINTS = hintConfig.levels;
+
+/**
+ * A branch that exists only for the length of the tutorial.
+ *
+ * The `demo:` prefix is load-bearing. These are merged in at the point the
+ * canvas is rendered and never enter the builder's `nodes`, because that array
+ * is debounce-saved wholesale — a demo branch that reached it would be written
+ * to the database and then scored, handing out marks for structure the tutorial
+ * drew. The prefix also lets the canvas style them as examples.
+ */
+function demoNode(
+  id: string,
+  label: string,
+  parentId: string | null = null,
+  status: NodeStatus = "unknown",
+): UiFrameworkNode {
+  return {
+    id: `demo:${id}`,
+    parentId: parentId ? `demo:${parentId}` : null,
+    label,
+    value: "",
+    multiplier: "",
+    combine: "sum",
+    status,
+    origin: "manual",
+  };
+}
+
+const DEMO_BARE = [demoNode("revenue", "Revenue"), demoNode("cost", "Cost")];
+const DEMO_MARKED = [
+  demoNode("revenue", "Revenue", null, "healthy"),
+  demoNode("cost", "Cost", null, "problem"),
+];
+const DEMO_DRILLED = [
+  ...DEMO_MARKED,
+  demoNode("delivery", "Delivery cost", "cost", "problem"),
+  demoNode("packaging", "Packaging", "cost", "healthy"),
+];
+
+const CASE_STEPS: Step[] = [
+  {
+    title: "How a case works here",
+    body:
+      "A case doesn't end in a number. You break the problem into branches, rule them in or out " +
+      "by asking the interviewer, and narrow to the one that actually holds the cause. This tour " +
+      "shows the screen and exactly how it's marked.",
+  },
+  {
+    target: "question",
+    panel: "tools",
+    title: "The question, and your timer",
+    body:
+      "Your prompt with its category, difficulty and the interviewer style it mirrors. The timer " +
+      "starts automatically and you can pause it whenever you like.",
+    scoring: "Time is not scored at all — it's here for realism, not pressure.",
+  },
+  {
+    target: "tree-mode",
+    panel: "tools",
+    tool: "framework",
+    title: "Solo or Guided",
+    body:
+      "Solo means you build the structure yourself. Guided suggests the framework's branches as " +
+      "you go. It's fixed when the attempt starts — switching mid-case would make solo meaningless.",
+    scoring:
+      "Guided is an honest trade, not a free pass: it suggests the structure, so structure isn't " +
+      "scored. Diagnosis still is, and it's the heaviest category either way.",
+  },
+  {
+    target: "framework",
+    panel: "tools",
+    tool: "framework",
+    demo: DEMO_BARE,
+    title: "Your issue tree",
+    body:
+      "Break the problem into branches that between them cover the whole question — revenue and " +
+      "cost, internal and external. They sit side by side, and a branch's + adds a level " +
+      "underneath it. The two dashed branches here are just an example.",
+    scoring:
+      "This is MECE Coverage. Siblings that overlap cost you, because the same cause can then " +
+      "hide in two places.",
+  },
+  {
+    target: "framework",
+    panel: "tools",
+    tool: "framework",
+    demo: DEMO_MARKED,
+    title: "Rule branches in and out",
+    body:
+      "Each branch carries a verdict. Green is where the problem is — the branch you're chasing, " +
+      "and the loudest thing on screen. A branch you've cleared goes grey and folds away, because " +
+      "it's finished with. Watch the example: Cost is now the problem, Revenue has been ruled out.",
+    scoring:
+      "Clearing branches on the way down is what separates a diagnosis from a guess, and it's " +
+      "rewarded separately. Clearing one the answer actually ran through is the expensive mistake.",
+  },
+  {
+    target: "framework",
+    panel: "tools",
+    tool: "framework",
+    demo: DEMO_DRILLED,
+    title: "Narrow until you reach the cause",
+    body:
+      "Flagging a branch as the problem opens the next level under it. Keep going until you land " +
+      "on a branch with nothing left underneath — that trail, Cost → Delivery cost, is your answer.",
+    scoring:
+      "Diagnosis is the heaviest category on a case. Stopping at “it's a cost problem” has " +
+      "located a region, not a cause.",
+  },
+  {
+    target: "composer",
+    panel: "chat",
+    title: "Ask, and think aloud",
+    body:
+      "Ask the interviewer about a branch before you judge it — on a case with data, it will give " +
+      "you the figure for that branch and nothing more. The magnifier on a branch asks about it " +
+      "directly. Say your reasoning out loud as you go.",
+    scoring:
+      "This is where Rationale Quality is won: a branch you explained in the conversation scores " +
+      "highest. Judging a branch you never asked about is flagged on your report.",
+  },
+  {
+    target: "modes",
+    panel: "chat",
+    title: "Choose how much help you want",
+    body:
+      "Interviewer only asks questions. Coach nudges you. Teacher explains outright. Evaluator " +
+      "grades as you go. Switch at any time.",
+    scoring: "The mode itself is never scored — pick whatever helps you learn today.",
+  },
+  {
+    target: "hint",
+    panel: "chat",
+    title: `${HINTS} escalating hints`,
+    body:
+      `Each hint reveals a little more, and none of them says which branch holds the problem. ` +
+      `After all ${HINTS}, the button switches you to Teacher mode for a full explanation.`,
+    scoring: "Every hint costs 12 points of Confidence — so spend them when you're genuinely stuck.",
+  },
+  {
+    target: "canvas-controls",
+    panel: "tools",
+    tool: "framework",
+    // Keeps the illustration up: the controls live on the canvas, and an empty
+    // tree falls back to the empty-state text, so there'd be nothing to point at.
+    demo: DEMO_DRILLED,
+    title: "Room to work",
+    body:
+      "Drag the background to pan, scroll to move, Ctrl or ⌘ with the wheel to zoom. Fit brings " +
+      "the whole tree back. Fullscreen gives the tree the window and puts the interviewer in a " +
+      "window you can drag wherever you like.",
+    scoring: "None of this is scored — it's just space to think in.",
+  },
+  {
+    target: "estimate",
+    panel: "tools",
+    title: "Commit to a recommendation",
+    body:
+      "Say what the answer is and what you'd do about it. A diagnosis with no recommendation is " +
+      "an unfinished case.",
+    scoring: "Leaving this blank is called out directly on your report.",
+  },
+  {
+    target: "submit",
+    panel: "tools",
+    title: "Submit when you're ready",
+    body:
+      "This closes the attempt and produces your scorecard, XP and rank movement. The model " +
+      "answer unlocks only after you submit — so commit first.",
+    scoring: "Nothing is graded until you press this.",
+  },
+  {
+    rubric: true,
+    title: "How a case is scored",
+    body:
+      "Weighted categories averaged into one score out of 100. There's no arithmetic in a case, " +
+      "so Calculation doesn't apply — Diagnosis carries that weight instead.",
+  },
+];
 
 const STEPS: Step[] = [
   {
@@ -143,18 +339,57 @@ const STEPS: Step[] = [
 
 export function TutorialTour({
   onReveal,
+  answerMode = "numeric",
+  autoStart = false,
+  onDemo,
+  onSuppressChange,
 }: {
   /** Asks the practice screen to reveal a panel / tool tab before measuring. */
   onReveal: (panel?: string, tool?: string) => void;
+  /** A case is a different exercise, so it gets a different tour. */
+  answerMode?: AnswerMode;
+  /** Open once on mount — the practice screen decides when that's warranted. */
+  autoStart?: boolean;
+  /** Illustration branches for the current step. Always emptied on close. */
+  onDemo?: (nodes: UiFrameworkNode[]) => void;
+  /** The candidate ticked "don't show this again". */
+  onSuppressChange?: (suppressed: boolean) => void;
 }) {
+  const qualitative = answerMode === "qualitative";
+  const steps = qualitative ? CASE_STEPS : STEPS;
+
   const [open, setOpen] = useState(false);
   const [i, setI] = useState(0);
   const [rect, setRect] = useState<DOMRect | null>(null);
   const [cardH, setCardH] = useState(0);
+  const [suppress, setSuppress] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
+  const started = useRef(false);
 
-  const step = STEPS[i];
-  const isLast = i === STEPS.length - 1;
+  const step = steps[i];
+  const isLast = i === steps.length - 1;
+
+  // Once per mount. The practice screen has already decided this attempt has
+  // never been toured, so re-opening on a re-render would be a nuisance.
+  useEffect(() => {
+    if (!autoStart || started.current) return;
+    started.current = true;
+    setI(0);
+    setOpen(true);
+  }, [autoStart]);
+
+  // The illustration follows the step, and is cleared whenever the tour closes —
+  // including on Esc, the ✕ and the click-off layer, which is why this lives in
+  // an effect rather than being wired to each of them.
+  useEffect(() => {
+    if (!onDemo) return;
+    onDemo(open ? (step?.demo ?? []) : []);
+  }, [open, step, onDemo]);
+
+  function close() {
+    setOpen(false);
+    onSuppressChange?.(suppress);
+  }
 
   // Read-only: never scrolls. Scrolling here would fire the scroll listener
   // below, which would measure again and scroll again — the highlight and card
@@ -221,8 +456,8 @@ export function TutorialTour({
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-      if (e.key === "ArrowRight") setI((n) => Math.min(n + 1, STEPS.length - 1));
+      if (e.key === "Escape") close();
+      if (e.key === "ArrowRight") setI((n) => Math.min(n + 1, steps.length - 1));
       if (e.key === "ArrowLeft") setI((n) => Math.max(n - 1, 0));
     }
     window.addEventListener("keydown", onKey);
@@ -290,7 +525,7 @@ export function TutorialTour({
             <button
               aria-label="Close tutorial"
               tabIndex={-1}
-              onClick={() => setOpen(false)}
+              onClick={close}
               className="absolute inset-0 h-full w-full cursor-default"
             />
 
@@ -302,12 +537,12 @@ export function TutorialTour({
               <div className="mb-2 flex items-start justify-between gap-2">
                 <div>
                   <div className="text-[11px] font-semibold uppercase tracking-wide text-primary">
-                    Step {i + 1} of {STEPS.length}
+                    Step {i + 1} of {steps.length}
                   </div>
                   <h2 className="text-base font-semibold leading-snug">{step.title}</h2>
                 </div>
                 <button
-                  onClick={() => setOpen(false)}
+                  onClick={close}
                   aria-label="Close tutorial"
                   className="shrink-0 text-muted-foreground hover:text-foreground"
                 >
@@ -334,12 +569,19 @@ export function TutorialTour({
                         </tr>
                       </thead>
                       <tbody className="tabular-nums">
-                        {evaluationCategories.map((c) => (
-                          <tr key={c.key} className="border-t">
-                            <td className="py-1 pr-2">{c.label}</td>
-                            <td className="py-1 text-right font-mono">{c.weight.toFixed(1)}</td>
-                          </tr>
-                        ))}
+                        {/* Zero-weight rows are dropped rather than shown as
+                            0.0: on a case Calculation genuinely doesn't apply,
+                            and listing it would imply marks left on the table. */}
+                        {evaluationCategories
+                          .filter((c) => categoryWeight(c, answerMode) > 0)
+                          .map((c) => (
+                            <tr key={c.key} className="border-t">
+                              <td className="py-1 pr-2">{categoryLabel(c, answerMode)}</td>
+                              <td className="py-1 text-right font-mono">
+                                {categoryWeight(c, answerMode).toFixed(1)}
+                              </td>
+                            </tr>
+                          ))}
                       </tbody>
                     </table>
                   </div>
@@ -356,9 +598,24 @@ export function TutorialTour({
                 </div>
               )}
 
+              {/* Offered on every step, not just the last: someone who already
+                  knows the screen should be able to turn this off at the point
+                  they realise they don't need it. */}
+              {onSuppressChange && (
+                <label className="mt-3 flex cursor-pointer items-center gap-2 text-[11px] text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={suppress}
+                    onChange={(e) => setSuppress(e.target.checked)}
+                    className="h-3 w-3 accent-current"
+                  />
+                  Don&apos;t show this automatically again
+                </label>
+              )}
+
               <div className="mt-4 flex items-center justify-between gap-2">
                 <div className="flex gap-1" aria-hidden>
-                  {STEPS.map((_, n) => (
+                  {steps.map((_, n) => (
                     <span
                       key={n}
                       className={cn(
@@ -369,13 +626,18 @@ export function TutorialTour({
                   ))}
                 </div>
                 <div className="flex gap-2">
+                  {!isLast && (
+                    <Button variant="ghost" onClick={close} className="h-7 px-2 text-xs">
+                      Skip
+                    </Button>
+                  )}
                   {i > 0 && (
                     <Button variant="secondary" onClick={() => setI(i - 1)} className="h-7 px-2 text-xs">
                       <ArrowLeft className="mr-1 h-3 w-3" /> Back
                     </Button>
                   )}
                   <Button
-                    onClick={() => (isLast ? setOpen(false) : setI(i + 1))}
+                    onClick={() => (isLast ? close() : setI(i + 1))}
                     className="h-7 px-2.5 text-xs"
                   >
                     {isLast ? "Got it" : "Next"}

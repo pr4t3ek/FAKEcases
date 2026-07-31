@@ -64,6 +64,25 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
   const [fullscreen, setFullscreen] = useState(false);
   const canFullscreen = qualitative && isWide && !disabled;
 
+  /** Tutorial illustration branches. Render-only; never persisted or scored. */
+  const [demoNodes, setDemoNodes] = useState<UiFrameworkNode[]>([]);
+  /**
+   * Whether the tour should open by itself.
+   *
+   * Once per ATTEMPT rather than per page load, so a mid-case refresh doesn't
+   * replay it, and a candidate who has seen enough can switch it off for good.
+   * Resolved in an effect because `localStorage` doesn't exist on the server and
+   * reading it during render would hydrate wrong.
+   */
+  const [autoTour, setAutoTour] = useState(false);
+  useEffect(() => {
+    if (!qualitative || disabled) return;
+    const seen = `eq-tour-seen-${data.attemptId}`;
+    if (localStorage.getItem("eq-tour-off") || localStorage.getItem(seen)) return;
+    localStorage.setItem(seen, "1");
+    setAutoTour(true);
+  }, [qualitative, disabled, data.attemptId]);
+
   const { elapsed, running, setRunning } = useAttemptTimer(
     data.attemptId,
     data.timeSpentSec,
@@ -154,6 +173,7 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
       onAnswerTextChange={setAnswerText}
       onSubmitted={handleSubmitted}
       onFullscreen={canFullscreen ? () => setFullscreen(true) : undefined}
+      demoNodes={demoNodes}
     />
   );
   const chat = (
@@ -221,6 +241,7 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
             conversation={conversation}
             questionFramework={data.question.framework}
             canvasFill
+            demoNodes={demoNodes}
           />
         </div>
 
@@ -242,7 +263,11 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
 
   return (
     <div className="flex h-screen flex-col">
-      {data.showOnboarding && <OnboardingOverlay answerMode={data.question.answerMode} />}
+      {/* On a case the tour opens by itself and covers the same ground, so the
+          welcome card would be a second modal stacked on the first. */}
+      {data.showOnboarding && !autoTour && (
+        <OnboardingOverlay answerMode={data.question.answerMode} />
+      )}
       {/* Top bar */}
       <header className="flex h-14 shrink-0 items-center justify-between border-b px-4">
         <div className="flex items-center gap-3">
@@ -252,7 +277,13 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
           <Brand href={data.isGuest ? "/library" : "/dashboard"} />
         </div>
         <div className="flex items-center gap-2">
-          <TutorialTour onReveal={revealForTutorial} />
+          <TutorialTour
+            onReveal={revealForTutorial}
+            answerMode={data.question.answerMode}
+            autoStart={autoTour}
+            onDemo={setDemoNodes}
+            onSuppressChange={(off) => off && localStorage.setItem("eq-tour-off", "1")}
+          />
           {data.isGuest && (
             <Link href="/signup" className="text-xs font-medium text-primary hover:underline">
               Sign up to save progress
