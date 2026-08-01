@@ -312,19 +312,27 @@ const PLANS = [
     name: "Free",
     price: "₹0",
     period: "forever",
-    features: ["Unlimited practice", "AI interviewer + hints", "8-category evaluation", "Progress tracking & streaks", "All India-only questions"],
+    features: ["Unlimited practice", "Guesstimates and cases", "AI interviewer + hints", "Scored evaluation & feedback", "Progress tracking & streaks"],
     cta: "Start free",
     href: "/library",
     highlight: false,
+    // Everything the app does today is in this plan.
+    planned: false,
   },
   {
     name: "Pro",
     price: "₹499",
     period: "per month",
     features: ["Everything in Free", "Advanced analytics", "Mock interview sessions", "Company-specific sets", "Priority AI evaluations", "Interview readiness reports"],
-    cta: "Go Pro",
-    href: "/signup",
+    cta: "Not available yet",
+    href: "/library",
     highlight: true,
+    /**
+     * No payments are wired up. The card stays because it's the product's
+     * intended shape, but it must not read as purchasable — the button used to
+     * say "Go Pro" and quietly drop you into a free signup.
+     */
+    planned: true,
   },
 ];
 
@@ -334,8 +342,8 @@ function Pricing({ isAuthed }: { isAuthed: boolean }) {
       <div className="container">
         <SectionHeading
           eyebrow="Pricing"
-          title="Start free. Upgrade when you're serious."
-          subtitle="Every question is free to practise — Pro adds analytics and mock interviews."
+          title="Everything is free."
+          subtitle="Every question is free to practise. Pro is what's planned next — it isn't purchasable yet."
         />
         <div className="mx-auto mt-12 grid max-w-4xl gap-6 md:grid-cols-2">
           {PLANS.map((p) => (
@@ -346,8 +354,8 @@ function Pricing({ isAuthed }: { isAuthed: boolean }) {
                 p.highlight && "border-primary shadow-lg ring-1 ring-primary/20",
               )}
             >
-              {p.highlight && (
-                <Badge className="absolute -top-3 left-8">Most popular</Badge>
+              {p.planned && (
+                <Badge variant="muted" className="absolute -top-3 left-8">Planned</Badge>
               )}
               <h3 className="text-lg font-semibold">{p.name}</h3>
               <div className="mt-4 flex items-baseline gap-1">
@@ -362,13 +370,15 @@ function Pricing({ isAuthed }: { isAuthed: boolean }) {
                   </li>
                 ))}
               </ul>
-              <Button
-                asChild
-                className="mt-8 w-full"
-                variant={p.highlight ? "default" : "outline"}
-              >
-                <Link href={isAuthed && p.name === "Free" ? "/dashboard" : p.href}>{p.cta}</Link>
-              </Button>
+              {p.planned ? (
+                <Button className="mt-8 w-full" variant="outline" disabled>
+                  {p.cta}
+                </Button>
+              ) : (
+                <Button asChild className="mt-8 w-full">
+                  <Link href={isAuthed ? "/dashboard" : p.href}>{p.cta}</Link>
+                </Button>
+              )}
             </div>
           ))}
         </div>

@@ -5,7 +5,13 @@ import { useRouter } from "next/navigation";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { createQuestion, updateQuestion, deleteQuestion } from "@/app/actions/admin";
-import { DIFFICULTIES, INTERVIEW_LEVELS, INTERVIEW_LEVEL_LABELS } from "@/lib/types";
+import {
+  DIFFICULTIES,
+  INTERVIEW_LEVELS,
+  INTERVIEW_LEVEL_LABELS,
+  PRACTISABLE_TYPES,
+  answerModeFor,
+} from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,14 +32,37 @@ export interface AdminQuestion {
   categoryId: string;
   difficulty: string;
   interviewLevel: string;
+  type: string;
   idealLow: number | null;
   idealHigh: number | null;
   unit: string | null;
+  /** Case-only columns; JSON is stored as text (see prisma/schema.prisma). */
+  framework: string | null;
+  expectedBuckets: string | null;
+  dataPack: string | null;
+  rootCause: string | null;
   betterApproach: string;
   sampleSolution: string;
   tags: string | null;
   source: string;
   category: { name: string };
+}
+
+/** Only the types the library will actually show — see PRACTISABLE_TYPES. */
+const QUESTION_TYPE_LABELS: Record<string, string> = {
+  guesstimate: "Guesstimate (ends in a number)",
+  qualitative: "Case (ends in a recommendation)",
+};
+
+/** `["Revenue","Cost"]` on the way in, `Revenue|Cost` in the field. */
+function bucketsToField(raw: string | null): string {
+  if (!raw?.trim()) return "";
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.join(" | ") : raw;
+  } catch {
+    return raw;
+  }
 }
 
 interface Category {
@@ -47,9 +76,14 @@ const empty = {
   categoryId: "",
   difficulty: "Medium",
   interviewLevel: "McKinsey",
+  type: "guesstimate",
   idealLow: "",
   idealHigh: "",
   unit: "",
+  framework: "",
+  expectedBuckets: "",
+  rootCause: "",
+  dataPack: "",
   betterApproach: "",
   sampleSolution: "",
   tags: "",
@@ -74,9 +108,14 @@ function QuestionForm({
           categoryId: initial.categoryId,
           difficulty: initial.difficulty,
           interviewLevel: initial.interviewLevel,
+          type: initial.type || "guesstimate",
           idealLow: String(initial.idealLow ?? ""),
           idealHigh: String(initial.idealHigh ?? ""),
           unit: initial.unit ?? "",
+          framework: initial.framework ?? "",
+          expectedBuckets: bucketsToField(initial.expectedBuckets),
+          rootCause: initial.rootCause ?? "",
+          dataPack: initial.dataPack ?? "",
           betterApproach: initial.betterApproach,
           sampleSolution: initial.sampleSolution,
           tags: initial.tags ?? "",
@@ -89,16 +128,31 @@ function QuestionForm({
     setForm((f) => ({ ...f, [k]: v }));
   }
 
+  const isNumeric = answerModeFor(form.type) === "numeric";
+
   async function save() {
     setSaving(true);
     try {
-      const payload = { ...form };
-      if (questionId) await updateQuestion(questionId, payload);
-      else await createQuestion(payload);
+      // Send only the side that applies. Switching type leaves the other side's
+      // values in local state, and posting them would trip the cross-field rule
+      // that stops a case carrying a fabricated ideal range.
+      const payload = isNumeric
+        ? { ...form, framework: "", expectedBuckets: "", rootCause: "", dataPack: "" }
+        : { ...form, idealLow: "", idealHigh: "", unit: "" };
+      const result = questionId
+        ? await updateQuestion(questionId, payload)
+        : await createQuestion(payload);
+
+      // The schema names the field and the reason ("rootCause: must be valid
+      // JSON"), which beats a generic failure the author has to guess at.
+      if (!result.ok) {
+        toast.error(result.error ?? "Save failed — check the required fields.");
+        return;
+      }
       toast.success(questionId ? "Question updated" : "Question created");
       onDone();
     } catch {
-      toast.error("Save failed — check required fields (India-only content).");
+      toast.error("Save failed — you may have been signed out.");
     } finally {
       setSaving(false);
     }
@@ -123,11 +177,49 @@ function QuestionForm({
           {INTERVIEW_LEVELS.map((l) => <option key={l} value={l}>{INTERVIEW_LEVEL_LABELS[l]}</option>)}
         </select>
       </div>
-      <div className="grid grid-cols-3 gap-2">
-        <Input type="number" placeholder="Ideal low" value={form.idealLow} onChange={(e) => set("idealLow", e.target.value)} />
-        <Input type="number" placeholder="Ideal high" value={form.idealHigh} onChange={(e) => set("idealHigh", e.target.value)} />
-        <Input placeholder="Unit" value={form.unit} onChange={(e) => set("unit", e.target.value)} />
-      </div>
+      <select className={selectClass} value={form.type} onChange={(e) => set("type", e.target.value)}>
+        {PRACTISABLE_TYPES.map((t) => (
+          <option key={t} value={t}>{QUESTION_TYPE_LABELS[t] ?? t}</option>
+        ))}
+      </select>
+
+      {/* The two types are graded by different scorers and need different
+          authoring. Showing both sets at once invites a case with an ideal
+          range, which is the shape the server now refuses. */}
+      {isNumeric ? (
+        <div className="grid grid-cols-3 gap-2">
+          <Input type="number" placeholder="Ideal low" value={form.idealLow} onChange={(e) => set("idealLow", e.target.value)} />
+          <Input type="number" placeholder="Ideal high" value={form.idealHigh} onChange={(e) => set("idealHigh", e.target.value)} />
+          <Input placeholder="Unit" value={form.unit} onChange={(e) => set("unit", e.target.value)} />
+        </div>
+      ) : (
+        <div className="space-y-3 rounded-lg border border-dashed p-3">
+          <p className="text-xs text-muted-foreground">
+            Case fields. Without a <code>rootCause</code> the case still works, but there is
+            nothing to score Diagnosis against.
+          </p>
+          <Input
+            placeholder="Framework slug (profitability, market-entry, …)"
+            value={form.framework}
+            onChange={(e) => set("framework", e.target.value)}
+          />
+          <Input
+            placeholder="Expected buckets — Revenue | Cost | Competition"
+            value={form.expectedBuckets}
+            onChange={(e) => set("expectedBuckets", e.target.value)}
+          />
+          <Textarea
+            placeholder={'Root cause JSON — {"path":["Cost","Delivery cost"],"note":"…"}'}
+            value={form.rootCause}
+            onChange={(e) => set("rootCause", e.target.value)}
+          />
+          <Textarea
+            placeholder={'Data pack JSON — [{"topic":["cost"],"fact":"…"}]'}
+            value={form.dataPack}
+            onChange={(e) => set("dataPack", e.target.value)}
+          />
+        </div>
+      )}
       <Textarea placeholder="Better approach" value={form.betterApproach} onChange={(e) => set("betterApproach", e.target.value)} />
       <Textarea placeholder="Sample solution (hidden until submit)" value={form.sampleSolution} onChange={(e) => set("sampleSolution", e.target.value)} />
       <Input placeholder="Tags (comma-separated)" value={form.tags} onChange={(e) => set("tags", e.target.value)} />

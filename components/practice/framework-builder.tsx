@@ -12,6 +12,7 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
+import { toast } from "sonner";
 import { saveFramework } from "@/app/actions/practice";
 import { evaluateExpression } from "@/lib/calc";
 import { branchDiscussed, contradictedAncestors, hasProblemDescendant } from "@/lib/diagnosis";
@@ -192,8 +193,8 @@ export function FrameworkBuilder({
     descendants: number;
   } | null>(null);
 
-  // A keyboard edit that restructures the tree (Enter, Tab, Backspace) has to
-  // put the caret where the user expects it once React has re-rendered the rows.
+  // A keyboard edit that restructures the tree (Enter, Tab) has to put the caret
+  // where the user expects it once React has re-rendered the rows.
   const labelRefs = useRef<Map<string, HTMLInputElement>>(new Map());
   useEffect(() => {
     const id = focusNext.current;
@@ -220,7 +221,12 @@ export function FrameworkBuilder({
           sourceMessageId: n.sourceMessageId ?? undefined,
           origin: n.origin ?? undefined,
         })),
-      ).catch(() => {});
+      ).catch(() => {
+        // A rejected save now leaves the previous tree intact on the server, so
+        // the honest thing is to say the autosave didn't land rather than let
+        // the candidate keep working against a copy that isn't being stored.
+        toast.error("Couldn't save your framework — your last saved version is still safe.");
+      });
     }, 600);
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -460,17 +466,10 @@ export function FrameworkBuilder({
       onChange(outdentNode(nodes, node.id));
       return;
     }
-    // Backspace on an already-empty label removes the row, but only when it has
-    // nothing underneath — deleting a subtree by holding backspace would be a
-    // nasty way to lose work.
-    if (e.key === "Backspace" && !node.label && childrenOf(node.id).length === 0) {
-      e.preventDefault();
-      const siblings = nodes.filter((n) => n.parentId === node.parentId);
-      const position = siblings.findIndex((s) => s.id === node.id);
-      const previous = position > 0 ? siblings[position - 1] : null;
-      focusNext.current = previous?.id ?? node.parentId ?? null;
-      remove(node.id);
-    }
+    // Backspace deliberately does nothing structural. It used to remove an
+    // empty row, which put deletion on the same key as ordinary typing: clear a
+    // label to rename it, press once more, and the branch is gone. Removal is
+    // the delete control, which asks first.
   }
   function reorderSibling(parentId: string | null, fromIndex: number, toIndex: number) {
     if (fromIndex === toIndex) return;
@@ -839,7 +838,7 @@ export function FrameworkBuilder({
               <Plus className="h-3.5 w-3.5" />
             </button>
             <button
-              onClick={() => remove(node.id)}
+              onClick={() => requestRemove(node.id)}
               className="text-muted-foreground hover:text-destructive"
               aria-label="Remove step"
             >
@@ -1378,7 +1377,7 @@ export function FrameworkBuilder({
               <span className="font-mono">×</span> box holds a rate on top of that —{" "}
               <span className="font-mono">30%</span> <span className="font-mono">× 4</span> reads
               &ldquo;a third of them, 4 a day each&rdquo;. Leave either box blank to pass the
-              parent's value straight through.
+              parent&apos;s value straight through.
             </p>
           )}
         </div>

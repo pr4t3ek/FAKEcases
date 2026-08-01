@@ -2,7 +2,8 @@
 const nextConfig = {
   reactStrictMode: true,
   eslint: {
-    // Lint is run separately; don't fail production builds on lint.
+    // Lint runs as its own step (`pnpm lint`, eslint.config.mjs), so a build
+    // doesn't pay for it twice or fail on a style rule.
     ignoreDuringBuilds: true,
   },
 };

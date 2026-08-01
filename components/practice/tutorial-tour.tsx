@@ -440,10 +440,12 @@ export function TutorialTour({
     onDemo(open ? (step?.demo ?? []) : []);
   }, [open, step, onDemo]);
 
-  function close() {
+  // Memoised so the Esc listener below can depend on it honestly instead of
+  // re-binding on every render.
+  const close = useCallback(() => {
     setOpen(false);
     onSuppressChange?.(suppress);
-  }
+  }, [onSuppressChange, suppress]);
 
   // Read-only: never scrolls. Scrolling here would fire the scroll listener
   // below, which would measure again and scroll again — the highlight and card
@@ -516,7 +518,7 @@ export function TutorialTour({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
+  }, [open, close, steps.length]);
 
   function start() {
     setI(0);

@@ -1,8 +1,9 @@
 # EstimateIQ — Architecture & Documentation
 
 EstimateIQ is a **local-first, zero-key** Next.js app that lets MBA / consulting / PM
-candidates practise India-focused market-sizing guesstimates against an AI interviewer,
-then get a scored evaluation and gamified progress (XP, levels, streaks, percentile rank).
+candidates practise India-focused market-sizing guesstimates and business cases against
+an AI interviewer, then get a scored evaluation and gamified progress (XP, levels,
+streaks, percentile rank).
 
 This document is the visual companion to the root [`README.md`](../README.md): it covers
 system architecture, the request/data flow, the data model, and the scoring & gamification
@@ -97,9 +98,9 @@ flowchart LR
 
     subgraph Practice["Practice screen (/practice/[attemptId])"]
         E1["Chat panel\n↔ AI interviewer"]
-        E2["Framework builder"]
-        E3["Assumptions list\n(rated live)"]
-        E4["Calculator"]
+        E2["Framework builder\n(tree canvas; issue tree on a case)"]
+        E3["Assumptions, derived from\nthe tree + the transcript"]
+        E4["Calculator (draggable popup)"]
         E5["Hints (escalating,\nnever the answer)"]
     end
 
@@ -150,28 +151,40 @@ erDiagram
     Question {
         string difficulty "Easy | Medium | Hard"
         string interviewLevel "BCG | McKinsey | Bain..."
-        string type "guesstimate | case (Phase 2)"
-        float idealLow
-        float idealHigh
+        string type "guesstimate | qualitative | case"
+        float idealLow "guesstimate only"
+        float idealHigh "guesstimate only"
+        string rootCause "case only — JSON"
+        string expectedBuckets "case only — JSON"
+        string dataPack "case only — JSON"
     }
     Attempt {
         string status "in_progress | submitted | abandoned"
+        string treeMode "solo | guided — null on a guesstimate"
         int hintsUsed
         float finalEstimate
+        string finalAnswer "the recommendation, on a case"
     }
     Evaluation {
         int overall
         string readiness
-        int structuring
+        int structuring "null when guided"
         int logic
-        int segmentation
+        int segmentation "null when guided"
         int assumptions
-        int calculation
+        int calculation "null on a case"
+        int diagnosis "null without a root cause"
         int communication
         int business
         int confidence
     }
 ```
+
+**Two question types, one pipeline.** `answerModeFor(type)` (`lib/types.ts`) maps a
+question to `numeric` or `qualitative`, and everything downstream — the builder, the
+scorer, the prompts — branches on that rather than on `type` itself. A nullable score
+means "this category never applied to this attempt", which is a different claim from
+zero and is preserved as one all the way into the database.
 
 ---
 
@@ -230,39 +243,62 @@ answer early), so `pnpm test` can assert interviewer behavior without any networ
 
 ## 5. Evaluation rubric
 
-Every submitted attempt is scored across 8 weighted categories (`lib/config/evaluation.ts`),
-producing an overall score and a readiness band.
+There are 9 categories in `lib/config/evaluation.ts`, and no attempt is scored on all of
+them. Each carries two weights — one for a guesstimate, one for a case — and a weight of
+0 takes it out of that mode entirely. The weighted mean renormalises over whatever
+applied, so a case scored on 7 categories and an estimate scored on 8 land on the same
+0–100 scale, and XP, rank and the readiness bands need no per-mode arithmetic.
 
 ```mermaid
 flowchart TD
     subgraph Inputs
-        I1["Framework nodes"]
-        I2["Assumptions + ratings"]
+        I1["Framework / issue tree"]
+        I2["Assumptions, derived from
+            the tree + the transcript"]
         I3["Calculations"]
-        I4["Final estimate vs.\nideal range"]
+        I4["Final estimate vs. ideal range
+            — or the recommendation"]
         I5["Chat message quality"]
-        I6["Hints used"]
+        I6["Hints used · solution revealed"]
     end
 
-    Inputs --> Scorer["evaluate()\nlib/evaluation.ts"]
+    Inputs --> Mode{"answerModeFor(type)"}
+    Mode -->|numeric| Scorer["evaluate()"]
+    Mode -->|qualitative| ScorerQ["evaluateQualitative()"]
 
-    Scorer --> S1["Structuring ×1.4"]
-    Scorer --> S2["Logic ×1.2"]
-    Scorer --> S3["Segmentation ×1.3"]
-    Scorer --> S4["Assumptions ×1.2"]
-    Scorer --> S5["Calculation ×1.2"]
-    Scorer --> S6["Communication ×0.9"]
-    Scorer --> S7["Business sense ×1.0"]
-    Scorer --> S8["Confidence ×0.8"]
+    Scorer --> W["Weighted mean over the
+                  categories that applied"]
+    ScorerQ --> W
 
-    S1 & S2 & S3 & S4 & S5 & S6 & S7 & S8 --> Overall["Weighted overall (0-100)"]
-
+    W --> Overall["Overall (0-100)"]
     Overall --> Band{"Readiness band"}
     Band -->|"≥ 85"| R1["Interview Ready"]
     Band -->|"≥ 70"| R2["Advanced"]
     Band -->|"≥ 50"| R3["Intermediate"]
     Band -->|"< 50"| R4["Beginner"]
 ```
+
+| Category | Guesstimate | Case | Not scored when |
+|---|---|---|---|
+| Problem Structuring | ×1.4 | ×1.0 | guided attempt |
+| Logical Thinking | ×1.2 | ×1.2 | — |
+| Segmentation / MECE Coverage | ×1.3 | ×1.0 | guided attempt |
+| Assumption / Rationale Quality | ×1.2 | ×1.2 | — |
+| Calculation Accuracy | ×1.2 | — | case (no arithmetic) |
+| Diagnosis | — | ×1.6 | no declared root cause |
+| Communication | ×0.9 | ×1.0 | — |
+| Business Sense | ×1.0 | ×1.2 | — |
+| Confidence | ×0.8 | ×0.8 | — |
+
+Structure is worth less on a case — the frameworks recur, so reproducing one isn't the
+skill — and Diagnosis carries that weight instead, because localising the problem inside
+a known tree is the hard part.
+
+**Help is priced, not free.** Hints cost Confidence as they escalate, and Teacher mode —
+the one AI mode whose prompt actually works the problem — costs the equivalent of the
+whole hint ladder. A guided tree isn't scored on structure at all, because the app built
+it. Each is derived from what was persisted (`Message.mode`, `Attempt.treeMode`) rather
+than tracked separately, and each is disclosed in the report.
 
 ---
 
@@ -286,7 +322,7 @@ flowchart LR
 
     Submit --> Skill["computeSkillRating()"]
     Skill --> SR["recency-weighted mean of\nlast evaluation scores\n+ consistency bonus"]
-    SR --> Percentile["recomputeRank():\npercentile among all\nranked users' skillRating"]
+    SR --> Percentile["recomputeRank():\npercentile among registered\nranked users (guests excluded)"]
 
     Percentile --> Rank{"rank band"}
     Rank -->|"≥ 90th pct"| Diamond["💎 Diamond"]
@@ -330,7 +366,8 @@ lib/
 
 prisma/
 ├── schema.prisma       Data model (see ERD above)
-└── seed-data.ts / seed.ts   14 categories, 24 India-only questions, achievements, demo users
+└── seed-data.ts / seed.ts   14 categories, 26 India-only questions (24 guesstimates
+                             + 2 cases), 8 achievements, demo users, benchmark cohort
 ```
 
 ---

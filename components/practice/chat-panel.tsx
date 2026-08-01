@@ -8,6 +8,13 @@ import { readNdjson } from "@/lib/llm/stream";
 import { setMode as persistMode } from "@/app/actions/practice";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import type { UiMessage } from "./types";
 
@@ -39,6 +46,13 @@ export function ChatPanel({
   const [busy, setBusy] = useState(false);
   /** True until the first delta lands, so the spinner only covers real dead air. */
   const [awaitingFirstToken, setAwaitingFirstToken] = useState(false);
+  /**
+   * Teacher mode states the answer and is charged for at submit, so the switch is
+   * confirmed rather than instant. Asked once: having accepted the cost, being
+   * re-prompted on every switch back would be nagging, not informing.
+   */
+  const [confirmingTeacher, setConfirmingTeacher] = useState(false);
+  const [teacherAccepted, setTeacherAccepted] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -143,11 +157,24 @@ export function ChatPanel({
 
   async function changeMode(next: AiMode) {
     if (next === mode) return;
+    // Gate the one mode that hands over the answer; every other switch is free.
+    if (next === "teacher" && !teacherAccepted) {
+      setConfirmingTeacher(true);
+      return;
+    }
     onMode(next);
     persistMode(attemptId, next).catch(() => {});
     if (next === "teacher") {
       await send("Please walk me through how a consultant would approach this.", "teacher");
     }
+  }
+
+  async function acceptTeacher() {
+    setConfirmingTeacher(false);
+    setTeacherAccepted(true);
+    onMode("teacher");
+    persistMode(attemptId, "teacher").catch(() => {});
+    await send("Please walk me through how a consultant would approach this.", "teacher");
   }
 
   async function requestHint() {
@@ -248,7 +275,11 @@ export function ChatPanel({
             disabled={busy || disabled}
           >
             <Lightbulb className="h-3.5 w-3.5" />
-            {hintsExhausted ? "Explain (Teacher)" : `Hint ${Math.min(hintsUsed + 1, hintConfig.levels)}`}
+            {/* Not "Explain" — the next step after the hints run out is the answer
+                itself, and it costs. Naming it that way is the honest default. */}
+            {hintsExhausted
+              ? "Reveal solution (costs marks)"
+              : `Hint ${Math.min(hintsUsed + 1, hintConfig.levels)}`}
           </Button>
           <span className="text-xs text-muted-foreground">
             Hints used: {hintsUsed}/{hintConfig.levels}
@@ -273,6 +304,29 @@ export function ChatPanel({
           </Button>
         </div>
       </div>
+
+      <Dialog
+        open={confirmingTeacher}
+        onOpenChange={(open) => !open && setConfirmingTeacher(false)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogTitle>Have the solution explained?</DialogTitle>
+          <DialogDescription>
+            Teacher mode works the whole problem through, so your Confidence score
+            is reduced — about the same as using every hint. Your evaluation will
+            say it happened. You can always retry the question cold for a clean
+            score.
+          </DialogDescription>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmingTeacher(false)}>
+              Keep trying
+            </Button>
+            <Button onClick={acceptTeacher} disabled={busy}>
+              Explain it
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

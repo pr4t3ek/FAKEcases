@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { DIFFICULTIES, INTERVIEW_LEVELS } from "@/lib/types";
+import {
+  questionCoreSchema,
+  refineQuestion,
+  toQuestionColumns,
+} from "@/lib/question-schema";
+import { PRACTISABLE_TYPES } from "@/lib/types";
 
 /** Single source of truth for question reads/writes + bulk import. */
 
@@ -14,11 +19,10 @@ export interface QuestionFilters {
 }
 
 /**
- * The types a candidate can actually practise today. `case` is reserved in
- * `QUESTION_TYPES` but has no runtime yet, so it stays out of the library rather
- * than offering a question that can't be answered.
+ * See `PRACTISABLE_TYPES` in lib/types — `case` stays out of the library until it
+ * has a runtime. Spread into a mutable array for Prisma's `in` filter.
  */
-const PRACTISABLE_TYPES = ["guesstimate", "qualitative"];
+const practisable: string[] = [...PRACTISABLE_TYPES];
 
 export async function listCategories() {
   return db.category.findMany({ orderBy: { order: "asc" } });
@@ -26,7 +30,7 @@ export async function listCategories() {
 
 export async function listQuestions(filters: QuestionFilters = {}) {
   const where: Record<string, unknown> = {
-    type: filters.type ? filters.type : { in: PRACTISABLE_TYPES },
+    type: filters.type ? filters.type : { in: practisable },
   };
   if (filters.categorySlug) {
     const cat = await db.category.findUnique({ where: { slug: filters.categorySlug } });
@@ -77,7 +81,7 @@ export async function recommendQuestions(userId: string, limit = 3) {
 
   const pool = await db.question.findMany({
     where: {
-      type: { in: PRACTISABLE_TYPES },
+      type: { in: practisable },
       id: { notIn: [...attemptedIds] },
       ...(weakCategoryId ? { categoryId: weakCategoryId } : {}),
     },
@@ -89,7 +93,7 @@ export async function recommendQuestions(userId: string, limit = 3) {
   // Top up with any unattempted questions.
   const extra = await db.question.findMany({
     where: {
-      type: { in: PRACTISABLE_TYPES },
+      type: { in: practisable },
       id: { notIn: [...attemptedIds, ...pool.map((p) => p.id)] },
     },
     include: { category: true },
@@ -100,21 +104,18 @@ export async function recommendQuestions(userId: string, limit = 3) {
 
 // ── Import ────────────────────────────────────────────────────────────────
 
-export const questionImportSchema = z.object({
-  title: z.string().min(3),
-  prompt: z.string().min(5),
-  category: z.string().min(1), // slug or name
-  difficulty: z.enum(DIFFICULTIES),
-  interviewLevel: z.enum(INTERVIEW_LEVELS),
-  idealLow: z.coerce.number().nonnegative(),
-  idealHigh: z.coerce.number().nonnegative(),
-  unit: z.string().optional().default(""),
-  betterApproach: z.string().min(3),
-  sampleSolution: z.string().min(3),
-  sourceUrl: z.string().url().optional().or(z.literal("")).optional(),
-  externalId: z.string().optional(),
-  tags: z.string().optional().default(""),
-});
+/**
+ * The shared authoring contract, plus the fields only a bulk import has: the
+ * category named by slug or name rather than id, and the provenance columns used
+ * to dedupe re-imports.
+ */
+export const questionImportSchema = questionCoreSchema
+  .extend({
+    category: z.string().min(1), // slug or name
+    sourceUrl: z.string().url().optional().or(z.literal("")).optional(),
+    externalId: z.string().optional(),
+  })
+  .superRefine(refineQuestion);
 
 export type QuestionImportRow = z.infer<typeof questionImportSchema>;
 
@@ -163,10 +164,8 @@ export async function importQuestions(
       errors.push({ row: i + 1, errors: [`Unknown category "${parsed.data.category}"`] });
       continue;
     }
-    if (parsed.data.idealHigh < parsed.data.idealLow) {
-      errors.push({ row: i + 1, errors: ["idealHigh must be ≥ idealLow"] });
-      continue;
-    }
+    // The ideal-range ordering check now lives in `refineQuestion`, alongside the
+    // rule about which question types have a range at all.
     valid.push({ row: i + 1, data: parsed.data, categoryId });
   }
 
@@ -177,17 +176,8 @@ export async function importQuestions(
     for (const { data, categoryId } of valid) {
       const externalId = data.externalId?.trim() || undefined;
       const payload = {
-        title: data.title,
-        prompt: data.prompt,
+        ...toQuestionColumns(data),
         categoryId,
-        difficulty: data.difficulty,
-        interviewLevel: data.interviewLevel,
-        idealLow: data.idealLow,
-        idealHigh: data.idealHigh,
-        unit: data.unit || null,
-        betterApproach: data.betterApproach,
-        sampleSolution: data.sampleSolution,
-        tags: data.tags || null,
         sourceUrl: data.sourceUrl || null,
         source: "import" as const,
       };

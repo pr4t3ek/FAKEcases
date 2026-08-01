@@ -1,9 +1,9 @@
 # EstimateIQ
 
 **Duolingo for consulting guesstimates.** An interactive web app where MBA / consulting / PM
-candidates practise **India-focused** market-sizing and demand guesstimates while an AI interviewer
-guides them with Socratic questions, escalating hints (never the answer early) and a detailed
-evaluation.
+candidates practise **India-focused** market-sizing guesstimates and business cases while an AI
+interviewer guides them with Socratic questions, escalating hints (never the answer early) and a
+detailed evaluation.
 
 It is built **local-first / zero-key**: it runs and is fully usable with **no external services** —
 a local SQLite database, dev auth, and a deterministic offline "mock" interviewer. Real
@@ -98,13 +98,13 @@ Framer Motion · Prisma (SQLite dev → Postgres/Supabase prod) · Recharts · V
 
 | I want to… | Edit |
 |---|---|
-| Add / edit questions | Admin panel (`/admin`) or `prisma/seed-data.ts` |
+| Add / edit questions and cases | Admin panel (`/admin`), CSV/JSON import, or `prisma/seed-data.ts` |
 | Change the interviewer's behaviour / wording | `lib/llm/prompts.ts` |
 | Tune XP, levels, streak rules | `lib/config/gamification.ts` |
 | Change rank percentile bands (Silver→Diamond) | `lib/config/gamification.ts` (`rankBands`) |
 | Adjust evaluation rubric weights / readiness bands | `lib/config/evaluation.ts` |
 | Change hint count / guest cap / panel defaults | `lib/config/practice.ts` |
-| Turn features on/off | `lib/config/flags.ts` |
+| Change what a question may contain | `lib/question-schema.ts` (one contract for admin + import) |
 | Swap the LLM provider | env vars (`LLM_PROVIDER`, `*_API_KEY`) |
 | Tune LLM rate/spend limits | `lib/config/practice.ts` (`llmBudget`) |
 | Add an achievement | `prisma/seed-data.ts` + award rule in `lib/gamification.ts` |
@@ -123,6 +123,27 @@ follow the same convention (the import panel shows a reminder).
 
 ---
 
+## Two question types
+
+A **guesstimate** ends in a number and is scored against an ideal range. A **case** ends in a
+recommendation and is scored on whether the candidate's issue tree localised the declared root
+cause. `answerModeFor(type)` in `lib/types.ts` is the fork; everything downstream branches on
+that rather than on `type`, so adding a type that behaves like an issue tree costs one line.
+
+Both are authored through the same contract (`lib/question-schema.ts`), used by the admin panel
+and the CSV/JSON importer alike — download the CSV template from the import panel for a worked
+example of each. A case can't be saved with an ideal range, and a guesstimate can't be saved with
+a root cause; a malformed `rootCause` is a save error rather than a case that silently can't
+score Diagnosis.
+
+**Help is priced.** Hints cost Confidence as they escalate. Teacher mode — the one AI mode whose
+prompt actually works the problem — costs the equivalent of the whole hint ladder and is disclosed
+in the report. A **guided** tree isn't scored on structure at all, since the app built it. Each is
+derived from what was persisted rather than tracked separately, so none of it can drift out of
+sync with the transcript.
+
+---
+
 ## Deploying to production
 
 1. **Host** on Vercel (push the repo, import it).
@@ -131,22 +152,49 @@ follow the same convention (the import panel shows a reminder).
 3. **Auth:** the dev cookie session is Supabase-Auth-ready (`lib/auth.ts` is the seam).
 4. Set env vars in the host dashboard (DB, `AUTH_SECRET`, optional LLM key). Redeploy.
 
-The same codebase runs free/offline locally and as a public web app once these are set.
+The same codebase runs free/offline locally and as a public web app once these are set — but read
+the limitations below first.
+
+---
+
+## Known limitations
+
+This is built and tuned as a **portfolio / demo** app. It runs end to end, but some surfaces are
+deliberately unfinished, and it's better to say so than to let you find out:
+
+- **Password reset doesn't send anything.** `/forgot-password` is UI only — no email provider is
+  wired up, and there's no admin reset either, so a forgotten password means a new account.
+- **The Pro tier on the landing page is not purchasable.** No Stripe integration exists; the
+  pricing card is illustrative.
+- **Sessions don't expire server-side.** The signed cookie carries a timestamp that `verify()`
+  ignores, so only the cookie's own `maxAge` bounds a session.
+- **Guest rows accumulate.** Every visitor who starts practising gets a `User` row and nothing
+  prunes them. They're kept out of the rank population, but they are never collected.
+- **Signing in from a guest session migrates attempts only.** Bookmarks and achievements earned
+  as a guest are dropped. Signing *up* from a guest session upgrades the row in place and keeps
+  everything.
+- **`recomputeRank` only updates the submitting user**, so everyone else's percentile is stale
+  until they next submit. At real scale this belongs in a scheduled job.
 
 ---
 
 ## Testing
 
-`pnpm test` runs Vitest unit tests covering the evaluation scorer, the mock interviewer's
-**no-early-reveal** behaviour, gamification/rank math, the calculator engine, the import
-validator, and the LLM layer — Gemini message mapping, the NDJSON stream protocol, the
-before/after-first-token fallback split, and the spend guards. Only the network boundary is
-mocked, so the adapter wiring and error classification are exercised for real.
+`pnpm test` runs Vitest unit tests covering the evaluation scorer (both modes), the diagnosis
+matcher, the priced-help rules, the mock interviewer's **no-early-reveal** behaviour,
+gamification/rank math and the rank population filter, the calculator engine, the question
+authoring contract, the framework save payload, and the LLM layer — Gemini message mapping, the
+NDJSON stream protocol, the before/after-first-token fallback split, and the spend guards. Only
+the network boundary and the database are mocked, so the adapter wiring and error classification
+are exercised for real.
+
+Also useful: `pnpm typecheck` (strict, clean), `pnpm lint`, `pnpm build`.
 
 ---
 
-## Deferred / future (config-stub or Phase 2)
+## Deferred / future
 
 Stripe payments, PostHog analytics, voice/STT, whiteboard, peer leaderboard, adaptive difficulty,
-weekly report emails — each structured as an additive plug-in. **Phase 2:** qualitative case
-interviews (the `Question.type` discriminator is already in the schema).
+weekly report emails — each structured as an additive plug-in. The `case` value in
+`QUESTION_TYPES` is reserved for the full-length interview format and has no runtime yet, so the
+library filters it out and the admin panel doesn't offer it (see `PRACTISABLE_TYPES`).

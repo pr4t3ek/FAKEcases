@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   deriveAssumptions,
   evaluateQualitative,
+  labelMatches,
   scoreDiagnosis,
   weightedOverall,
   type EvaluationScores,
@@ -274,6 +275,66 @@ describe("evaluateQualitative", () => {
   it("flags a missing recommendation", () => {
     const result = evaluateQualitative(baseInput({ finalAnswer: null }));
     expect(result.feedback.some((f) => /recommendation/i.test(f.text))).toBe(true);
+  });
+
+  // The case counterpart of the guesstimate rule: Teacher mode names the root
+  // cause, so an attempt that used it cannot score as one that found it.
+  it("charges for a case that was walked through", () => {
+    const worked = baseInput({
+      framework: [node("c", null, "Cost"), node("d", "c", "Delivery cost")],
+      finalAnswer: "Delivery cost per order is the problem.",
+      rootCause: { path: ["Cost", "Delivery cost"] },
+    });
+    const cold = evaluateQualitative(worked);
+    const told = evaluateQualitative({ ...worked, solutionRevealed: true });
+    expect(told.scores.confidence).toBeLessThan(cold.scores.confidence);
+    expect(told.overall).toBeLessThan(cold.overall);
+    expect(told.feedback.some((f) => /Teacher mode/i.test(f.text))).toBe(true);
+  });
+
+  it("withholds the independence praise once the case was handed over", () => {
+    const told = evaluateQualitative(baseInput({ hintsUsed: 0, solutionRevealed: true }));
+    expect(told.feedback.some((f) => /without hints/i.test(f.text))).toBe(false);
+  });
+});
+
+describe("labelMatches", () => {
+  it("matches identical labels regardless of case and spacing", () => {
+    expect(labelMatches("  Delivery   COST ", "delivery cost")).toBe(true);
+  });
+
+  // The tolerance that has to survive: a candidate writes the short form of a
+  // branch the question spells out in full, or the other way round.
+  it("matches a run of whole words either way round", () => {
+    expect(labelMatches("Delivery cost", "Delivery cost per order")).toBe(true);
+    expect(labelMatches("Rider delivery cost per order", "Delivery cost")).toBe(true);
+    expect(labelMatches("Cost", "Cost")).toBe(true);
+  });
+
+  /**
+   * The hole this closes. Plain substring containment let a one-character label
+   * match almost any authored step, so a tree of junk labels scored as a
+   * diagnosis without ever naming the root cause.
+   */
+  it("refuses to match on a fragment of a word", () => {
+    expect(labelMatches("s", "Costs")).toBe(false);
+    expect(labelMatches("cost", "Costs")).toBe(false);
+    expect(labelMatches("e", "Delivery cost per order")).toBe(false);
+  });
+
+  it("refuses a run of words that isn't contiguous", () => {
+    expect(labelMatches("delivery order", "delivery cost per order")).toBe(false);
+  });
+
+  it("refuses empty labels", () => {
+    expect(labelMatches("", "Cost")).toBe(false);
+    expect(labelMatches("   ", "Cost")).toBe(false);
+  });
+
+  it("stops a junk tree from landing on the root cause", () => {
+    const junk = [node("a", null, "s"), node("b", "a", "e", { status: "problem" })];
+    const result = scoreDiagnosis(junk, { path: ["Costs", "Delivery"] });
+    expect(result.landed).toBe(false);
   });
 });
 

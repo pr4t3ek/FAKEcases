@@ -6,6 +6,7 @@ import {
   ArrowRight,
   CheckCircle2,
   Download,
+  GraduationCap,
   Lightbulb,
   RotateCcw,
   AlertTriangle,
@@ -73,6 +74,7 @@ export function EvaluationReport({
   finalAnswer,
   answerMode = "numeric",
   trail,
+  solutionRevealed = false,
   evaluation,
 }: {
   questionId: string;
@@ -81,6 +83,8 @@ export function EvaluationReport({
   finalEstimate: number | null;
   finalAnswer?: string | null;
   answerMode?: AnswerMode;
+  /** Teacher mode worked the problem through, which Confidence was charged for. */
+  solutionRevealed?: boolean;
   /** The marked trail against the declared root cause, for a diagnostic case. */
   trail?: {
     yours: string[][];
@@ -201,6 +205,17 @@ export function EvaluationReport({
               </p>
             );
           })()}
+          {/* Say what the score reflects. A Confidence number the candidate can't
+              account for reads as noise; one they can is a reason to retry. */}
+          {solutionRevealed && (
+            <p className="mt-3 flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 p-2.5 text-xs">
+              <GraduationCap className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+              <span>
+                Teacher mode walked you through this one, so Confidence is scored
+                accordingly. Retry it cold for an untouched score.
+              </span>
+            </p>
+          )}
         </Card>
 
         {/* Where the diagnosis went, against where the problem actually was. */}
