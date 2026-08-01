@@ -85,6 +85,25 @@ outline view's trash button was also switched from calling `remove()` directly t
 through the existing `requestRemove()` confirmation, matching every other delete control
 in the app.
 
+### 8. Subject icons on library cards
+
+Every card in `/library` looked identical — three badges, a title, two lines of prompt —
+so a grid of them could only be read, not scanned. Each card now leads with an icon for
+what the question is actually about: a phone for the smartphone question, a train for the
+Delhi Metro one, a syringe for insulin.
+
+The icon is derived, not authored. `lib/question-icon.ts` matches the title and tags
+against an ordered rule list (whole words only, narrowest rule first) and falls back to
+`Category.icon` — a column that had been populated since the schema was written and read
+by nothing until now. A question added through the admin panel or a CSV import therefore
+gets an icon with no extra authoring. `components/library/question-icon.tsx` maps the name
+to a statically imported `lucide-react` component, so only the icons actually used reach
+the bundle (~6 kB for the set).
+
+`tests/question-icon.test.ts` pins the expected icon for all 26 seeded questions by name,
+plus the specificity orderings that matter ("credit card" before both "car" and "banking",
+"food delivery" before "food", "hospital bed" before "hospital").
+
 ---
 
 All items verified with `pnpm typecheck`, `pnpm lint`, `pnpm test` (257 tests), and

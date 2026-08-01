@@ -20,6 +20,8 @@ import {
   type InterviewLevel,
   type TreeMode,
 } from "@/lib/types";
+import { iconNameForQuestion } from "@/lib/question-icon";
+import { QuestionIcon } from "@/components/library/question-icon";
 
 interface QuestionCardData {
   id: string;
@@ -28,7 +30,8 @@ interface QuestionCardData {
   difficulty: string;
   interviewLevel: string;
   type: string;
-  category: { name: string };
+  tags: string | null;
+  category: { name: string; icon: string | null };
 }
 
 const diffVariant: Record<string, "success" | "warning" | "destructive"> = {
@@ -76,8 +79,19 @@ export function QuestionCard({ question }: { question: QuestionCardData }) {
         </Badge>
         {qualitative && <Badge variant="outline">Issue tree</Badge>}
       </div>
-      <h3 className="font-semibold leading-snug">{question.title}</h3>
-      <p className="mt-1.5 line-clamp-2 flex-1 text-sm text-muted-foreground">{question.prompt}</p>
+      {/* The icon carries the subject so a grid of cards can be scanned without
+          reading every title — see lib/question-icon.ts. */}
+      <div className="flex flex-1 gap-3">
+        <QuestionIcon name={iconNameForQuestion({
+          title: question.title,
+          tags: question.tags,
+          categoryIcon: question.category.icon,
+        })} />
+        <div className="min-w-0">
+          <h3 className="font-semibold leading-snug">{question.title}</h3>
+          <p className="mt-1.5 line-clamp-2 text-sm text-muted-foreground">{question.prompt}</p>
+        </div>
+      </div>
 
       {qualitative ? (
         // Chosen here and fixed for the attempt. Offering it mid-attempt would
