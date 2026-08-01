@@ -1,6 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { deriveAssumptions, evaluate, rateAssumption } from "@/lib/evaluation";
+import {
+  deriveAssumptions,
+  evaluate,
+  rateAssumption,
+  solutionWasRevealed,
+} from "@/lib/evaluation";
 import type { EvaluationInput } from "@/lib/evaluation";
+import { hintConfig } from "@/lib/config";
 
 const base: EvaluationInput = {
   idealLow: 6_000_000,
@@ -120,6 +126,58 @@ describe("assumption quality from derived figures", () => {
     const none = evaluate({ ...base, framework: [], userMessageText: ["not sure really"] });
     expect(none.scores.assumptions).toBeLessThan(45);
     expect(none.feedback.some((f) => /never committed to a number/i.test(f.text))).toBe(true);
+  });
+
+  // Teacher mode states the answer. Identical work either side of it must not
+  // score the same, or "never reveal the answer early" is only true of the chat.
+  it("charges for a solution that was walked through", () => {
+    const cold = evaluate(base);
+    const told = evaluate({ ...base, solutionRevealed: true });
+    expect(told.scores.confidence).toBeLessThan(cold.scores.confidence);
+    expect(told.overall).toBeLessThan(cold.overall);
+    expect(told.feedback.some((f) => /Teacher mode/i.test(f.text))).toBe(true);
+  });
+
+  it("costs at least as much as exhausting the hint ladder", () => {
+    const allHints = evaluate({ ...base, hintsUsed: hintConfig.levels });
+    const told = evaluate({ ...base, solutionRevealed: true });
+    expect(told.scores.confidence).toBeLessThanOrEqual(allHints.scores.confidence);
+  });
+
+  it("withholds the independence praise once the answer was handed over", () => {
+    const told = evaluate({ ...base, hintsUsed: 0, solutionRevealed: true });
+    expect(told.feedback.some((f) => /without hints/i.test(f.text))).toBe(false);
+  });
+});
+
+describe("solutionWasRevealed", () => {
+  it("detects a teacher-mode answer in the transcript", () => {
+    expect(
+      solutionWasRevealed([
+        { role: "user", mode: "interviewer" },
+        { role: "assistant", mode: "teacher" },
+      ]),
+    ).toBe(true);
+  });
+
+  // Picking the mode and changing your mind before a reply lands reveals
+  // nothing, so the user turn alone must not trip it.
+  it("ignores a user turn tagged teacher with no reply", () => {
+    expect(solutionWasRevealed([{ role: "user", mode: "teacher" }])).toBe(false);
+  });
+
+  it("is false for an ordinary session", () => {
+    expect(
+      solutionWasRevealed([
+        { role: "user", mode: "interviewer" },
+        { role: "assistant", mode: "interviewer" },
+        { role: "assistant", mode: "coach" },
+      ]),
+    ).toBe(false);
+  });
+
+  it("tolerates a null mode", () => {
+    expect(solutionWasRevealed([{ role: "assistant", mode: null }])).toBe(false);
   });
 });
 

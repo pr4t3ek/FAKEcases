@@ -28,6 +28,15 @@ export const QUESTION_TYPES = ["guesstimate", "qualitative", "case"] as const;
 export type QuestionType = (typeof QUESTION_TYPES)[number];
 
 /**
+ * The types a candidate can actually practise today, and therefore the only ones
+ * worth authoring. `case` is reserved in `QUESTION_TYPES` for the full-length
+ * interview format and has no runtime yet, so the library filters it out — which
+ * makes it a trap in an authoring dropdown, not an option.
+ */
+export const PRACTISABLE_TYPES = ["guesstimate", "qualitative"] as const;
+export type PractisableType = (typeof PRACTISABLE_TYPES)[number];
+
+/**
  * How a question is answered, and therefore how it is built and scored.
  *
  * Everything downstream branches on this rather than on `type`, so a question

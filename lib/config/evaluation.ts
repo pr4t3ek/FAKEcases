@@ -1,6 +1,10 @@
 /**
- * Evaluation rubric configuration: the 8 scored categories, their weights,
- * and the readiness bands. Tweak scoring here without touching the scorer.
+ * Evaluation rubric configuration: the 9 scored categories, their weights, and
+ * the readiness bands. Tweak scoring here without touching the scorer.
+ *
+ * No attempt is scored on all 9 — a weight of 0, or a null score, takes a
+ * category out of the mean for that attempt (see `weightedOverall`). A
+ * guesstimate is scored on 8 and a case on 7.
  */
 
 /**

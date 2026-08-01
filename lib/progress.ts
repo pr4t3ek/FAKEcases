@@ -101,9 +101,15 @@ export async function updateProgress(userId: string): Promise<{
 }
 
 /**
- * Recompute this user's skill rating, percentile (against the whole population,
- * incl. the seeded benchmark cohort) and rank band. In production this would be
- * a scheduled job; per-submit is fine at this scale.
+ * Recompute this user's skill rating, percentile and rank band, measured against
+ * the seeded benchmark cohort and every other registered user. In production this
+ * would be a scheduled job; per-submit is fine at this scale.
+ *
+ * Guests are scored but never counted in the population. Every visitor who
+ * clicks "Start practising" gets a real User row, and those rows are transient —
+ * abandoned, or absorbed into an account at signup. Letting them into the
+ * distribution would mean a candidate's rank moved with the volume of drive-by
+ * traffic rather than with anyone's skill.
  */
 export async function recomputeRank(userId: string): Promise<{
   rank: string;
@@ -122,7 +128,7 @@ export async function recomputeRank(userId: string): Promise<{
   let percentile: number | null = null;
   if (skillRating != null) {
     const population = await db.user.findMany({
-      where: { skillRating: { not: null }, id: { not: userId } },
+      where: { skillRating: { not: null }, isGuest: false, id: { not: userId } },
       select: { skillRating: true },
     });
     const ratings = population.map((u) => u.skillRating!).filter((r) => r != null);

@@ -12,6 +12,7 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
+import { toast } from "sonner";
 import { saveFramework } from "@/app/actions/practice";
 import { evaluateExpression } from "@/lib/calc";
 import { branchDiscussed, contradictedAncestors, hasProblemDescendant } from "@/lib/diagnosis";
@@ -220,7 +221,12 @@ export function FrameworkBuilder({
           sourceMessageId: n.sourceMessageId ?? undefined,
           origin: n.origin ?? undefined,
         })),
-      ).catch(() => {});
+      ).catch(() => {
+        // A rejected save now leaves the previous tree intact on the server, so
+        // the honest thing is to say the autosave didn't land rather than let
+        // the candidate keep working against a copy that isn't being stored.
+        toast.error("Couldn't save your framework — your last saved version is still safe.");
+      });
     }, 600);
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -1378,7 +1384,7 @@ export function FrameworkBuilder({
               <span className="font-mono">×</span> box holds a rate on top of that —{" "}
               <span className="font-mono">30%</span> <span className="font-mono">× 4</span> reads
               &ldquo;a third of them, 4 a day each&rdquo;. Leave either box blank to pass the
-              parent's value straight through.
+              parent&apos;s value straight through.
             </p>
           )}
         </div>

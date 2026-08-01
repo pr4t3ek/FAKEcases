@@ -40,7 +40,39 @@ export interface EvaluationInput {
   calculationCount: number;
   userMessageText: string[]; // just the user turns' text
   hintsUsed: number;
+  /** The candidate asked Teacher mode to work the problem — see `solutionWasRevealed`. */
+  solutionRevealed?: boolean;
 }
+
+/**
+ * Did the candidate have the solution walked through for them?
+ *
+ * Teacher mode is the one AI mode whose prompt explicitly solves the problem
+ * ("showing the reasoning and a sample estimate" — `lib/llm/prompts.ts`), so an
+ * attempt that used it is not the same exercise as one that didn't. The signal is
+ * read back off the persisted turns rather than tracked separately, for the same
+ * reason assumptions are derived rather than hand-kept: there is only one place
+ * for it to drift out of sync with, and that place is the transcript itself.
+ *
+ * Only an *assistant* turn counts. Selecting the mode and changing your mind
+ * before a reply arrives reveals nothing, and shouldn't be charged for.
+ */
+export function solutionWasRevealed(
+  messages: { role: string; mode?: string | null }[],
+): boolean {
+  return messages.some((m) => m.role === "assistant" && m.mode === "teacher");
+}
+
+/**
+ * What a walked-through solution costs, in Confidence points.
+ *
+ * Pitched at the full hint ladder (3 × `HINT_PENALTY`) because it buys strictly
+ * more: the hints escalate but never state the answer, while Teacher mode is the
+ * answer. Charging less would leave "exhaust the hints, then ask Teacher" as the
+ * cheapest route through the app, which is precisely backwards.
+ */
+const HINT_PENALTY = 12;
+const SOLUTION_REVEAL_PENALTY = 36;
 
 /**
  * A null score means "this category was never in play for this attempt", which
@@ -257,6 +289,7 @@ export function evaluate(input: EvaluationInput): EvaluationResult {
     finalEstimate,
     idealLow,
     idealHigh,
+    solutionRevealed = false,
   } = input;
 
   const frameworkCount = framework.length;
@@ -325,7 +358,14 @@ export function evaluate(input: EvaluationInput): EvaluationResult {
     30,
     92,
   );
-  const confidence = clamp(80 - hintsUsed * 12 + (finalEstimate != null ? 8 : 0), 30, 92);
+  const confidence = clamp(
+    80 -
+      hintsUsed * HINT_PENALTY -
+      (solutionRevealed ? SOLUTION_REVEAL_PENALTY : 0) +
+      (finalEstimate != null ? 8 : 0),
+    30,
+    92,
+  );
 
   const scores: EvaluationScores = {
     structuring,
@@ -351,6 +391,7 @@ export function evaluate(input: EvaluationInput): EvaluationResult {
     justifiedRatio,
     accuracy,
     hintsUsed,
+    solutionRevealed,
     calculationCount,
     businessNuance,
     betterApproach: input.betterApproach,
@@ -382,15 +423,44 @@ export interface QualitativeEvaluationInput {
   rootCause: RootCause | null;
   expectedBuckets: string[];
   betterApproach: string;
+  /** The candidate asked Teacher mode to work the case — see `solutionWasRevealed`. */
+  solutionRevealed?: boolean;
 }
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 
-/** Loose match: a candidate's wording rarely equals the authored label exactly. */
-function labelMatches(candidate: string, target: string): boolean {
+/** Shortest label allowed to match by containment rather than outright. */
+const MIN_CONTAINMENT_LEN = 3;
+
+/** Is `needle` a run of whole consecutive words inside `haystack`? */
+function containsWordRun(haystack: string[], needle: string[]): boolean {
+  if (needle.length === 0 || needle.length > haystack.length) return false;
+  for (let i = 0; i <= haystack.length - needle.length; i++) {
+    if (needle.every((word, j) => haystack[i + j] === word)) return true;
+  }
+  return false;
+}
+
+/**
+ * Loose match: a candidate's wording rarely equals the authored label exactly,
+ * so "Delivery cost" has to match the authored "Delivery cost per order".
+ *
+ * Loose, but not free. Plain substring containment matched on any fragment, so a
+ * branch labelled "s" matched the target "Costs" and a tree of one-letter labels
+ * scored as a diagnosis. Matching runs of *whole words* keeps the tolerance that
+ * matters — extra qualifiers on either side — and drops the part that let a
+ * candidate land on the root cause without naming it.
+ */
+export function labelMatches(candidate: string, target: string): boolean {
   const a = norm(candidate);
   const b = norm(target);
-  return a === b || a.includes(b) || b.includes(a);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  // A fragment too short to be a word worth matching on can only match exactly.
+  if (Math.min(a.length, b.length) < MIN_CONTAINMENT_LEN) return false;
+  const wordsA = a.split(" ");
+  const wordsB = b.split(" ");
+  return containsWordRun(wordsA, wordsB) || containsWordRun(wordsB, wordsA);
 }
 
 export interface DiagnosisScore {
@@ -496,7 +566,14 @@ export function scoreDiagnosis(
  * arithmetic — there is no ideal range to land in.
  */
 export function evaluateQualitative(input: QualitativeEvaluationInput): EvaluationResult {
-  const { userMessageText, finalAnswer, hintsUsed, treeMode, rootCause } = input;
+  const {
+    userMessageText,
+    finalAnswer,
+    hintsUsed,
+    treeMode,
+    rootCause,
+    solutionRevealed = false,
+  } = input;
   // Marking a branch as the problem opens an empty child to fill in, so an
   // unfinished tree legitimately contains blank rows. They are a prompt, not a
   // branch — counting them would dilute the rationale ratio and inflate breadth.
@@ -570,7 +647,10 @@ export function evaluateQualitative(input: QualitativeEvaluationInput): Evaluati
     92,
   );
   const confidence = clamp(
-    80 - hintsUsed * 12 + (finalAnswer?.trim() ? 8 : 0),
+    80 -
+      hintsUsed * HINT_PENALTY -
+      (solutionRevealed ? SOLUTION_REVEAL_PENALTY : 0) +
+      (finalAnswer?.trim() ? 8 : 0),
     30,
     92,
   );
@@ -605,6 +685,7 @@ export function evaluateQualitative(input: QualitativeEvaluationInput): Evaluati
       diagnosis: diagnosisResult,
       hasAnswer: !!finalAnswer?.trim(),
       hintsUsed,
+      solutionRevealed,
       guided,
       betterApproach: input.betterApproach,
     }),
@@ -660,6 +741,7 @@ function buildQualitativeFeedback(args: {
   diagnosis: DiagnosisScore | null;
   hasAnswer: boolean;
   hintsUsed: number;
+  solutionRevealed: boolean;
   guided: boolean;
   betterApproach: string;
 }): FeedbackItem[] {
@@ -711,7 +793,10 @@ function buildQualitativeFeedback(args: {
   if (!args.hasAnswer) {
     items.push({ tone: "warning", text: "You never committed to a recommendation. Always close with an answer and what you'd do about it." });
   }
-  if (args.hintsUsed === 0) {
+  // "Without help" has to mean without any of it, or the praise is hollow.
+  if (args.solutionRevealed) {
+    items.push({ tone: "warning", text: "You had Teacher mode work the case through, so Confidence is scored accordingly. Retry it cold — following a diagnosis and reaching one are different skills, and only the second one gets tested in the room." });
+  } else if (args.hintsUsed === 0) {
     items.push({ tone: "positive", text: "You worked through it without hints — great independence." });
   }
   if (args.guided) {
@@ -731,6 +816,7 @@ function buildFeedback(args: {
   justifiedRatio: number;
   accuracy: Accuracy;
   hintsUsed: number;
+  solutionRevealed: boolean;
   calculationCount: number;
   businessNuance: boolean;
   betterApproach: string;
@@ -774,7 +860,10 @@ function buildFeedback(args: {
   if (args.calculationCount === 0) {
     items.push({ tone: "tip", text: "Show explicit calculations — use the calculator so your arithmetic is visible and checkable." });
   }
-  if (args.hintsUsed === 0) {
+  // "Without help" has to mean without any of it, or the praise is hollow.
+  if (args.solutionRevealed) {
+    items.push({ tone: "warning", text: "You had Teacher mode work the problem through, so Confidence is scored accordingly. Retry it cold — reading a solution and producing one are different skills, and only the second one gets tested in the room." });
+  } else if (args.hintsUsed === 0) {
     items.push({ tone: "positive", text: "You worked through it without hints — great independence." });
   }
   items.push(

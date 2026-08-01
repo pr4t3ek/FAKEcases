@@ -4,71 +4,73 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
-import { DIFFICULTIES, INTERVIEW_LEVELS, FEEDBACK_STATUSES } from "@/lib/types";
+import { FEEDBACK_STATUSES } from "@/lib/types";
+import {
+  questionCoreSchema,
+  refineQuestion,
+  toQuestionColumns,
+} from "@/lib/question-schema";
 
 async function assertAdmin() {
   const user = await getSessionUser();
   if (!user || user.role !== "admin") throw new Error("Forbidden");
 }
 
-const questionSchema = z.object({
-  title: z.string().min(3),
-  prompt: z.string().min(5),
-  categoryId: z.string().min(1),
-  difficulty: z.enum(DIFFICULTIES),
-  interviewLevel: z.enum(INTERVIEW_LEVELS),
-  idealLow: z.coerce.number().nonnegative(),
-  idealHigh: z.coerce.number().nonnegative(),
-  unit: z.string().optional().default(""),
-  betterApproach: z.string().min(3),
-  sampleSolution: z.string().min(3),
-  tags: z.string().optional().default(""),
-});
+/** The shared authoring contract, plus the category as the admin form names it. */
+const questionSchema = questionCoreSchema
+  .extend({ categoryId: z.string().min(1) })
+  .superRefine(refineQuestion);
 
-export async function createQuestion(input: unknown) {
+export interface SaveResult {
+  ok: boolean;
+  /** The first validation failure, phrased for the author. */
+  error?: string;
+}
+
+/**
+ * Validation failures are *returned*, not thrown.
+ *
+ * Next redacts a thrown Server Action error in production, so a throw would
+ * reach the admin as "an error occurred" — useless when the actual problem is
+ * "rootCause must be valid JSON" and the fix is one character. Only genuinely
+ * exceptional things (not an admin, database down) still throw.
+ */
+function firstError(err: z.ZodError): string {
+  const issue = err.issues[0];
+  if (!issue) return "Save failed.";
+  const field = issue.path.join(".");
+  return field ? `${field}: ${issue.message}` : issue.message;
+}
+
+export async function createQuestion(input: unknown): Promise<SaveResult> {
   await assertAdmin();
-  const data = questionSchema.parse(input);
+  const parsed = questionSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: firstError(parsed.error) };
+
   await db.question.create({
     data: {
-      title: data.title,
-      prompt: data.prompt,
-      categoryId: data.categoryId,
-      difficulty: data.difficulty,
-      interviewLevel: data.interviewLevel,
-      idealLow: data.idealLow,
-      idealHigh: data.idealHigh,
-      unit: data.unit || null,
-      betterApproach: data.betterApproach,
-      sampleSolution: data.sampleSolution,
-      tags: data.tags || null,
+      ...toQuestionColumns(parsed.data),
+      categoryId: parsed.data.categoryId,
       source: "admin",
     },
   });
   revalidatePath("/admin");
   revalidatePath("/library");
+  return { ok: true };
 }
 
-export async function updateQuestion(id: string, input: unknown) {
+export async function updateQuestion(id: string, input: unknown): Promise<SaveResult> {
   await assertAdmin();
-  const data = questionSchema.parse(input);
+  const parsed = questionSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: firstError(parsed.error) };
+
   await db.question.update({
     where: { id },
-    data: {
-      title: data.title,
-      prompt: data.prompt,
-      categoryId: data.categoryId,
-      difficulty: data.difficulty,
-      interviewLevel: data.interviewLevel,
-      idealLow: data.idealLow,
-      idealHigh: data.idealHigh,
-      unit: data.unit || null,
-      betterApproach: data.betterApproach,
-      sampleSolution: data.sampleSolution,
-      tags: data.tags || null,
-    },
+    data: { ...toQuestionColumns(parsed.data), categoryId: parsed.data.categoryId },
   });
   revalidatePath("/admin");
   revalidatePath("/library");
+  return { ok: true };
 }
 
 export async function deleteQuestion(id: string) {

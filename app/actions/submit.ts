@@ -2,7 +2,12 @@
 
 import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
-import { evaluate, evaluateQualitative, type RootCause } from "@/lib/evaluation";
+import {
+  evaluate,
+  evaluateQualitative,
+  solutionWasRevealed,
+  type RootCause,
+} from "@/lib/evaluation";
 import { updateProgress, recomputeRank } from "@/lib/progress";
 import { applyAttemptRewards } from "@/lib/gamification";
 import { answerModeFor, type TreeMode } from "@/lib/types";
@@ -54,6 +59,9 @@ export async function submitAttempt(attemptId: string): Promise<SubmitResult> {
   const userMessageText = attempt.messages
     .filter((m) => m.role === "user")
     .map((m) => m.content);
+  // Teacher mode states the answer, so an attempt that used it is a different
+  // exercise from one that didn't. Read off the transcript, not tracked apart.
+  const solutionRevealed = solutionWasRevealed(attempt.messages);
   // The assumed figures — or, in a case, the reasons — are read back off the tree
   // and the conversation rather than a list kept by hand. See deriveAssumptions.
   const framework = attempt.framework.map((f) => ({
@@ -80,6 +88,7 @@ export async function submitAttempt(attemptId: string): Promise<SubmitResult> {
           rootCause: parseJson<RootCause>(attempt.question.rootCause),
           expectedBuckets: parseJson<string[]>(attempt.question.expectedBuckets) ?? [],
           betterApproach: attempt.question.betterApproach,
+          solutionRevealed,
         })
       : evaluate({
           idealLow: attempt.question.idealLow,
@@ -91,6 +100,7 @@ export async function submitAttempt(attemptId: string): Promise<SubmitResult> {
           calculationCount: attempt.calculations.length,
           userMessageText,
           hintsUsed: attempt.hintsUsed,
+          solutionRevealed,
         });
 
   await db.evaluation.create({

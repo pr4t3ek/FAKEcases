@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+import { frameworkSchema, type FrameworkNodePayload } from "@/lib/framework-payload";
 import type { AiMode } from "@/lib/config";
 
 async function assertOwner(attemptId: string): Promise<string> {
@@ -25,29 +26,25 @@ export async function addCalculation(
   return { id: created.id, expression: created.expression, resultText: created.resultText };
 }
 
-/** Full-replace the framework tree. Client generates stable ids so parent/child
+/**
+ * Full-replace the framework tree. Client generates stable ids so parent/child
  * links survive the replace; parentId is linked in a second pass so every row
- * exists before any self-referencing FK is set. */
-export async function saveFramework(
-  attemptId: string,
-  nodes: {
-    id: string;
-    parentId: string | null;
-    label: string;
-    value?: string | null;
-    multiplier?: string | null;
-    combine: "sum" | "multiply";
-    status?: string | null;
-    note?: string | null;
-    sourceMessageId?: string | null;
-    origin?: string | null;
-  }[],
-) {
+ * exists before any self-referencing FK is set.
+ *
+ * All three statements share one transaction. Split across separate calls, a
+ * failure anywhere after the delete left the candidate with no tree at all —
+ * the one outcome an autosave must never produce.
+ */
+export async function saveFramework(attemptId: string, nodes: FrameworkNodePayload[]) {
   await assertOwner(attemptId);
-  await db.frameworkNode.deleteMany({ where: { attemptId } });
-  if (nodes.length) {
-    await db.frameworkNode.createMany({
-      data: nodes.map((n, i) => ({
+  const parsed = frameworkSchema.parse(nodes);
+
+  await db.$transaction(async (tx) => {
+    await tx.frameworkNode.deleteMany({ where: { attemptId } });
+    if (!parsed.length) return;
+
+    await tx.frameworkNode.createMany({
+      data: parsed.map((n, i) => ({
         id: n.id,
         attemptId,
         label: n.label,
@@ -61,15 +58,11 @@ export async function saveFramework(
         order: i,
       })),
     });
-    const withParent = nodes.filter((n) => n.parentId);
-    if (withParent.length) {
-      await db.$transaction(
-        withParent.map((n) =>
-          db.frameworkNode.update({ where: { id: n.id }, data: { parentId: n.parentId } }),
-        ),
-      );
+
+    for (const n of parsed.filter((n) => n.parentId)) {
+      await tx.frameworkNode.update({ where: { id: n.id }, data: { parentId: n.parentId } });
     }
-  }
+  });
 }
 
 export async function setMode(attemptId: string, mode: AiMode) {

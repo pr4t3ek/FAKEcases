@@ -7,6 +7,7 @@ import type { PracticeData } from "@/components/practice/types";
 import type { AiMode } from "@/lib/config";
 import { answerModeFor, type NodeOrigin, type NodeStatus, type TreeMode } from "@/lib/types";
 import { diagnosisTrail } from "@/lib/diagnosis";
+import { labelMatches, solutionWasRevealed } from "@/lib/evaluation";
 
 /** Question JSON columns are strings; malformed data must not break the report. */
 function parseJson<T>(raw: string | null): T | null {
@@ -62,11 +63,13 @@ export default async function PracticePage({
             actual: rootCause.path,
             cleared: marked.cleared,
             unexamined: marked.unexamined,
+            // Same matcher the scorer used, so the report can't name a branch
+            // as cleared-too-early that the Diagnosis score never charged for.
             falseClears: attempt.framework
               .filter(
                 (f) =>
                   f.status === "healthy" &&
-                  rootCause.path.some((p) => f.label.toLowerCase().includes(p.toLowerCase())),
+                  rootCause.path.some((p) => labelMatches(f.label, p)),
               )
               .map((f) => f.label),
           }
@@ -85,6 +88,9 @@ export default async function PracticePage({
         finalAnswer={attempt.finalAnswer}
         answerMode={answerMode}
         trail={trail}
+        // Re-derived from the transcript rather than stored on the report, so it
+        // always agrees with what the scorer charged for.
+        solutionRevealed={solutionWasRevealed(attempt.messages)}
         evaluation={attempt.evaluation}
       />
     );
