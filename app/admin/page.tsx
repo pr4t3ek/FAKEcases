@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { loadUserAdminStats } from "@/lib/admin-stats";
 import { MODE_PROMPTS } from "@/lib/llm/prompts";
 import { aiModes } from "@/lib/config";
 import { AppHeader } from "@/components/app/app-header";
@@ -11,6 +12,7 @@ import { QuestionManager } from "@/components/admin/question-manager";
 import { CategoryManager } from "@/components/admin/category-manager";
 import { ImportPanel } from "@/components/admin/import-panel";
 import { FeedbackQueue } from "@/components/admin/feedback-queue";
+import { UserDashboard } from "@/components/admin/user-dashboard";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +20,7 @@ export default async function AdminPage() {
   const user = await getSessionUser();
   if (!user || user.role !== "admin") redirect("/login");
 
-  const [questions, categories, feedback, openCount] = await Promise.all([
+  const [questions, categories, feedback, openCount, userStats] = await Promise.all([
     db.question.findMany({ include: { category: true }, orderBy: { createdAt: "desc" } }),
     db.category.findMany({
       orderBy: { order: "asc" },
@@ -30,6 +32,7 @@ export default async function AdminPage() {
       take: 100,
     }),
     db.questionFeedback.count({ where: { status: "Open" } }),
+    loadUserAdminStats(),
   ]);
 
   return (
@@ -37,10 +40,14 @@ export default async function AdminPage() {
       <AppHeader user={user} />
       <main className="container py-8">
         <h1 className="text-2xl font-bold tracking-tight">Admin</h1>
-        <p className="mt-1 text-muted-foreground">Manage questions, categories, imports and feedback.</p>
+        <p className="mt-1 text-muted-foreground">
+          Manage questions, categories and imports; review feedback and how the app is being used.
+        </p>
 
-        <Tabs defaultValue="questions" className="mt-6">
+        {/* Users leads: it's the overview, and the content tabs are a click away. */}
+        <Tabs defaultValue="users" className="mt-6">
           <TabsList className="flex-wrap">
+            <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="questions">Questions</TabsTrigger>
             <TabsTrigger value="categories">Categories</TabsTrigger>
             <TabsTrigger value="import">Import</TabsTrigger>
@@ -50,6 +57,10 @@ export default async function AdminPage() {
             </TabsTrigger>
             <TabsTrigger value="prompts">Prompts</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="users" className="mt-4">
+            <UserDashboard stats={userStats} />
+          </TabsContent>
 
           <TabsContent value="questions" className="mt-4">
             <QuestionManager
