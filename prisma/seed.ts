@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../lib/password";
+import { BENCHMARK_EMAIL_DOMAIN } from "../lib/user-segment";
 import { categories, questions, achievements } from "./seed-data";
 
 const db = new PrismaClient();
@@ -111,12 +112,16 @@ async function main() {
 
   // Benchmark cohort for rank cold-start: synthetic users with a skill-rating
   // spread so a solo/offline user still gets a sensible percentile.
+  //
+  // The email domain is how everything downstream tells these apart from real
+  // accounts — the admin Users tab keeps them out of its headline counts — so it
+  // comes from the shared constant rather than being spelled out here.
   const benchmarkCount = 40;
   for (let i = 0; i < benchmarkCount; i++) {
     // spread ratings ~35..92 with a gentle bell-ish shape
     const t = i / (benchmarkCount - 1);
     const rating = Math.round(35 + 57 * Math.pow(t, 0.9));
-    const email = `benchmark_${i}@seed.estimateiq`;
+    const email = `benchmark_${i}${BENCHMARK_EMAIL_DOMAIN}`;
     await db.user.upsert({
       where: { email },
       update: { skillRating: rating },

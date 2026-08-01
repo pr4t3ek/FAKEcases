@@ -104,6 +104,30 @@ the bundle (~6 kB for the set).
 plus the specificity orderings that matter ("credit card" before both "car" and "banking",
 "food delivery" before "food", "hospital bed" before "hospital").
 
+### 9. A Users dashboard in the admin panel
+
+`/admin` managed content and showed nothing about the people using the app, though every
+figure was already in the database. There's now a **Users** tab — read-only — with headline
+counts, a 30-day signups chart, a rank distribution, and a searchable, sortable, filterable
+user table.
+
+The thing that shaped the design: **a fresh install has 42 users and 40 of them are fake.**
+`prisma/seed.ts` mints 40 synthetic `benchmark_N@seed.estimateiq` accounts purely to give
+the percentile rank a cold-start population. Reporting 42 users would be off by twenty
+times. `lib/user-segment.ts` classifies every row as `registered` / `guest` / `benchmark`,
+`lib/admin-stats.ts` excludes benchmark rows from every headline number, and the tab says
+so in a line under the cards. They stay reachable behind a Benchmark filter so the rank
+population is still auditable. The seed now imports the domain constant rather than
+spelling it out, so the writer and the readers can't drift apart.
+
+One label worth getting right: `User.lastActiveDate` is written on *submit*
+(`lib/gamification.ts`), not on login, so the column is "Last practised" rather than "Last
+active" — calling it activity would overstate engagement.
+
+Chart styling (`CHART_TOOLTIP_STYLE`, `CHART_TICK`) was extracted from
+`components/dashboard/charts.tsx` and shared rather than copied. Rows are capped at 500
+rather than paginated, which is commented as the deliberate demo-scale choice it is.
+
 ---
 
 All items verified with `pnpm typecheck`, `pnpm lint`, `pnpm test` (257 tests), and
