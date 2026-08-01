@@ -537,8 +537,18 @@ export function FrameworkBuilder({
   //   rollup — what the step contributes UPWARD: a leaf contributes its
   //     resolved value; a parent combines its branches via Sum or Multiply
   //     (its own manual toggle). Only this feeds the Chain result below.
+  /**
+   * What gets DRAWN: the real tree plus any tutorial illustration.
+   *
+   * The maps below are derived render state, so the examples have to be in here
+   * or a numeric demo card would resolve to nothing and show "= –" — it would
+   * demonstrate the layout and none of the arithmetic. `nodes` remains the
+   * source for everything that leaves the component: persistence, the attach
+   * target, and the chain result.
+   */
+  const renderNodes = demoNodes.length ? [...nodes, ...demoNodes] : nodes;
   const byParent = new Map<string | null, UiFrameworkNode[]>();
-  for (const n of nodes) {
+  for (const n of renderNodes) {
     const arr = byParent.get(n.parentId) ?? [];
     arr.push(n);
     byParent.set(n.parentId, arr);
@@ -664,7 +674,19 @@ export function FrameworkBuilder({
   const anyParsed = nodes.some(
     (n) => parseNodeValue(n.value) !== null || parseNodeValue(n.multiplier) !== null,
   );
-  const grandTotal = anyParsed ? roots.reduce((sum, r) => sum + (rollupMap.get(r.id) ?? 0), 0) : null;
+  /**
+   * The chain result sums REAL roots only.
+   *
+   * This is the line that keeps the tutorial out of the candidate's answer.
+   * `roots` comes from the merged render tree, so an example root is sitting in
+   * it while a demo step is on screen — and this total feeds "Use as final
+   * estimate", one click from being submitted.
+   */
+  const grandTotal = anyParsed
+    ? roots
+        .filter((r) => !r.id.startsWith("demo:"))
+        .reduce((sum, r) => sum + (rollupMap.get(r.id) ?? 0), 0)
+    : null;
   const unrecognizedCount = nodes.filter(
     (n) => isUnrecognized(n.value) || isUnrecognized(n.multiplier),
   ).length;
@@ -1235,12 +1257,10 @@ export function FrameworkBuilder({
         );
       })()}
 
-      {/* Demo branches count towards having something to draw, or the tutorial's
-          tree steps would fall back to the empty-state text and illustrate
-          nothing — the canvas has to be mounted for them to appear in. `roots`
-          itself stays real, so the chain maths and the root offers are
-          unaffected. */}
-      {roots.length === 0 && demoNodes.length === 0 ? (
+      {/* `roots` comes from the merged render tree, so an illustration counts
+          as something to draw — otherwise the tutorial's tree steps would fall
+          back to the empty-state text and illustrate nothing. */}
+      {roots.length === 0 ? (
         <p className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
           {qualitative ? (
             <>
@@ -1251,7 +1271,7 @@ export function FrameworkBuilder({
           ) : (
             <>
               Build your estimation tree — add a starting step above. Each step you add after it
-              continues the chain underneath, and a row&apos;s{" "}
+              continues the chain underneath, and a {asCanvas ? "card" : "row"}&apos;s{" "}
               <Plus className="inline h-3 w-3 align-text-bottom" /> branches that step into
               segments. Structure is graded.
             </>
@@ -1259,7 +1279,7 @@ export function FrameworkBuilder({
         </p>
       ) : asCanvas ? (
         <FrameworkCanvas
-          nodes={demoNodes.length ? [...nodes, ...demoNodes] : nodes}
+          nodes={renderNodes}
           isFolded={isNodeFolded}
           ghostFor={ghostFor}
           offersFor={offersFor}

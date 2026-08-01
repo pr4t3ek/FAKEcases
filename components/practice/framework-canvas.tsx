@@ -631,6 +631,10 @@ function NumericCard({
 }: NodeCardProps) {
   const n = api.numeric!;
   const tint = depthStyle(depth);
+  // A tutorial illustration, not the candidate's work. It is never in `nodes`,
+  // so its controls are inert — better to look like an example than to offer
+  // buttons that quietly do nothing.
+  const isDemo = node.id.startsWith("demo:");
   // A child step is a slice of its parent, so its boxes are constrained: a
   // 0–100% share, and a plain positive rate. Only a root can name an absolute
   // quantity to start the chain from.
@@ -648,9 +652,15 @@ function NumericCard({
       className={cn(
         "group/card absolute rounded-xl border-2 bg-card p-2 shadow-sm transition-colors",
         tint.box,
+        isDemo && "border-dashed",
         api.dragId === node.id && "opacity-50",
       )}
     >
+      {isDemo && (
+        <span className="pointer-events-none absolute -top-2 left-2 rounded-full border border-dashed bg-background px-1.5 text-[9px] uppercase tracking-wide text-muted-foreground">
+          example
+        </span>
+      )}
       <div className="flex items-center gap-1">
         <span
           onPointerDown={(e) => api.onGripDown(e, node.id)}

@@ -75,6 +75,32 @@ function demoNode(
   };
 }
 
+/** The numeric twin: a step carries figures rather than a verdict. */
+function demoStep(
+  id: string,
+  label: string,
+  value: string,
+  parentId: string | null = null,
+  multiplier = "",
+): UiFrameworkNode {
+  return {
+    id: `demo:${id}`,
+    parentId: parentId ? `demo:${parentId}` : null,
+    label,
+    value,
+    multiplier,
+    combine: "sum",
+    origin: "manual",
+  };
+}
+
+const DEMO_ROOT = [demoStep("pop", "Population", "2cr")];
+const DEMO_SPLIT = [
+  ...DEMO_ROOT,
+  demoStep("adults", "Adults", "70%", "pop"),
+  demoStep("children", "Children", "30%", "pop"),
+];
+
 const DEMO_BARE = [demoNode("revenue", "Revenue"), demoNode("cost", "Cost")];
 const DEMO_MARKED = [
   demoNode("revenue", "Revenue", null, "healthy"),
@@ -256,19 +282,46 @@ const STEPS: Step[] = [
     target: "framework",
     panel: "tools",
     tool: "framework",
-    title: "The framework builder — the biggest lever",
+    demo: DEMO_ROOT,
+    title: "Your estimation tree — the biggest lever",
     body:
       "Break the problem into steps, drawn as a tree. The first one you add is the starting step " +
-      "and every step after it continues the chain underneath — use a card's + when you want to " +
-      "split that step into segments instead. Each card takes an absolute figure (1.3cr) on a " +
-      "starting step or a share of its parent (65%) below one; the × box holds a rate, like 3 " +
-      "cups a day, and the card shows what the two resolve to. Where a step splits, a chip on " +
-      "the junction says whether the branches add or multiply, and checks that percentage shares " +
-      "total 100%. The chain result can be pushed straight into your final estimate.",
+      "and takes an absolute figure — the dashed example here holds 2cr, and the card shows what " +
+      "it resolves to. Every step you add after it continues the chain underneath.",
     scoring:
       "This drives the two heaviest categories — Problem Structuring (weight 1.4) and " +
       "Segmentation (1.3). Every step you add lifts them, up to five steps. The figures in the " +
       "boxes are also read as your assumptions, so there's no separate list to keep.",
+  },
+  {
+    target: "framework",
+    panel: "tools",
+    tool: "framework",
+    demo: DEMO_SPLIT,
+    title: "Split a step into segments",
+    body:
+      "A card's + breaks that step into pieces that behave differently. A segment takes a share " +
+      "of the step above it rather than an absolute figure — watch the example split into 70% " +
+      "and 30%, each resolving against the 2cr above. The × box holds a rate on top of that, " +
+      "like 3 cups a day.",
+    scoring:
+      "The chip on the junction says whether the pieces add or multiply, and totals their " +
+      "shares. Coming to less than 100% is fine — you only have to model the slices your " +
+      "estimate needs. It flags you only if they add up to more than the whole.",
+  },
+  {
+    target: "canvas-controls",
+    panel: "tools",
+    tool: "framework",
+    // Same reason as the case tour: the controls live on the canvas, and an
+    // empty tree falls back to the empty-state text with nothing to point at.
+    demo: DEMO_SPLIT,
+    title: "Room to work",
+    body:
+      "Drag the background to pan, scroll to move, Ctrl or ⌘ with the wheel to zoom. Fit brings " +
+      "the whole chain back. Fullscreen gives the tree the window and puts the interviewer in a " +
+      "window you can drag wherever you like.",
+    scoring: "None of this is scored — it's just space to think in.",
   },
   {
     target: "calculator-btn",
