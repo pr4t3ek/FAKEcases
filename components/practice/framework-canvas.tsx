@@ -496,15 +496,15 @@ export function FrameworkCanvas(props: FrameworkCanvasProps) {
                     <span
                       className={cn(
                         "font-mono",
-                        shareOff ? "text-amber-600" : "text-emerald-600",
+                        shareOff ? "text-amber-600" : "text-muted-foreground",
                       )}
                       title={
                         shareOff
-                          ? "These branches are percentage shares of this step, so they should total about 100% — a gap suggests a missing segment, an overshoot suggests double-counting."
-                          : "Shares total ~100% — a clean partition of this step."
+                          ? "These branches claim more than the whole step — something is being counted twice."
+                          : "How much of the step these branches cover. Under 100% is fine: you only have to model the slices your estimate needs."
                       }
                     >
-                      {shareOff ? "⚠ " : "✓ "}
+                      {shareOff ? "⚠ " : "· "}
                       {Math.round(shareTotal * 10) / 10}%
                     </span>
                   )}

@@ -35,11 +35,14 @@ import { NODE_STATUS_META, type AnswerMode, type NodeStatus, type TreeMode } fro
 import {
   isLegacyChildRate,
   isLegacyChildValue,
+  parseNodeValue,
   percentBackspace,
   percentField,
   percentStore,
   sanitizePercentInput,
   sanitizeRateInput,
+  shareTotalFor,
+  sharesOvershoot,
 } from "@/lib/framework-value";
 import { Button } from "@/components/ui/button";
 import {
@@ -60,63 +63,6 @@ import {
 import { FrameworkCanvas } from "./framework-canvas";
 import { useMediaQuery } from "./use-media-query";
 import type { UiFrameworkNode } from "./types";
-
-/**
- * A node's value is a chain factor, not just a label — "40%" and "1.5cr" both
- * parse. A trailing "%" is treated specially since evaluateExpression (shared
- * with the calculator tool) doesn't support it. A blank/unparseable value is
- * treated as a neutral ×1 pass-through, so grouping nodes (e.g. "Segment by
- * Income" — which has no value of its own, only its children do) don't break
- * the chain.
- */
-function parseNode(
-  raw: string | null | undefined,
-): { factor: number; isPercent: boolean } | null {
-  if (!raw) return null;
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-
-  // The whole value is a percentage — "40%", or an expression of one ("100/3 %").
-  const wholePercent = trimmed.match(/^(.+?)\s*%$/);
-  if (wholePercent) {
-    const n = evaluateExpression(wholePercent[1]);
-    if (n !== null) {
-      // Only a bare percentage is a SHARE of its parent, and so a term in a
-      // partition. "3 * 50%" is a share times a rate (3 cups × half the
-      // segment) — a valid factor, but not something that should total 100%
-      // against its siblings.
-      return { factor: n / 100, isPercent: !wholePercent[1].includes("*") };
-    }
-  }
-
-  // A percentage embedded mid-expression — "50% * 3" for "half of them, 3 each".
-  // evaluateExpression has no "%" operator, so fold each one into a division.
-  const inlined = trimmed.replace(/(\d*\.?\d+)\s*%/g, "($1/100)");
-  const n = evaluateExpression(inlined);
-  return n === null ? null : { factor: n, isPercent: false };
-}
-
-function parseNodeValue(raw: string | null | undefined): number | null {
-  return parseNode(raw)?.factor ?? null;
-}
-
-/**
- * Percentage branches combined with Σ Sum are a partition of their parent, so
- * they should total ~100% — a gap means a missing segment, an overshoot means
- * double-counting. Rates and prices (×52 weeks, ×₹350) are not shares, so the
- * check only runs when EVERY branch is a percentage. Tolerance absorbs the
- * rounding guesstimates invite (33+33+33 = 99 is fine).
- */
-const SHARE_TOTAL_TOLERANCE = 2;
-
-function shareTotalFor(children: UiFrameworkNode[]): number | null {
-  if (children.length < 2) return null;
-  const parsed = children.map((c) => parseNode(c.value));
-  if (!parsed.every((p): p is { factor: number; isPercent: boolean } => !!p?.isPercent)) {
-    return null;
-  }
-  return parsed.reduce((sum, p) => sum + p.factor * 100, 0);
-}
 
 /** formatIndianNumber rounds to an integer, which turns fractions like 0.4
  * (from "40%") into a misleading "0" — show small magnitudes with decimals. */
@@ -742,8 +688,7 @@ export function FrameworkBuilder({
     const legacyValue = isChild && isLegacyChildValue(node.value);
     const legacyRate = isChild && isLegacyChildRate(node.multiplier);
     const shareTotal = node.combine === "sum" ? shareTotalFor(children) : null;
-    const shareOff =
-      shareTotal !== null && Math.abs(shareTotal - 100) > SHARE_TOTAL_TOLERANCE;
+    const shareOff = shareTotal !== null && sharesOvershoot(shareTotal);
 
     return (
       // Containment carries the hierarchy: this box holds the step's own row and
@@ -906,15 +851,15 @@ export function FrameworkBuilder({
             </button>
             {shareTotal !== null && (
               <span
-                className={cn("font-mono", shareOff ? "text-amber-600" : "text-emerald-600")}
+                className={cn("font-mono", shareOff ? "text-amber-600" : "text-muted-foreground")}
                 title={
                   shareOff
-                    ? "These branches are percentage shares of this step, so they should total about 100% — a gap suggests a missing segment, an overshoot suggests double-counting."
-                    : "Shares total ~100% — a clean partition of this step."
+                    ? "These branches claim more than the whole step — something is being counted twice."
+                    : "How much of the step these branches cover. Under 100% is fine: you only have to model the slices your estimate needs."
                 }
               >
-                {shareOff ? "⚠ " : "✓ "}
-                shares total {Math.round(shareTotal * 10) / 10}%
+                {shareOff ? "⚠ over the whole: " : "· covers "}
+                {Math.round(shareTotal * 10) / 10}% of the step
               </span>
             )}
           </div>
@@ -1354,7 +1299,7 @@ export function FrameworkBuilder({
                   showValueFor: (id) => liveMap.get(id) ?? false,
                   isUnrecognized,
                   shareTotalFor: (kids) => shareTotalFor(kids),
-                  shareIsOff: (total) => Math.abs(total - 100) > SHARE_TOTAL_TOLERANCE,
+                  shareIsOff: sharesOvershoot,
                   formatChainValue,
                   pinPercentCaret,
                   isLegacyChildValue,
