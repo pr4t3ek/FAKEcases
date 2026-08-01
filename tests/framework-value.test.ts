@@ -8,6 +8,8 @@ import {
   percentStore,
   sanitizePercentInput,
   sanitizeRateInput,
+  shareTotalFor,
+  sharesOvershoot,
 } from "@/lib/framework-value";
 
 describe("sanitizePercentInput", () => {
@@ -117,5 +119,58 @@ describe("legacy child data", () => {
     expect(isLegacyChildRate("52")).toBe(false);
     expect(isLegacyChildRate("")).toBe(false);
     expect(isLegacyChildRate(null)).toBe(false);
+  });
+});
+
+const share = (value: string) => ({ value });
+
+describe("shareTotalFor", () => {
+  it("totals sibling percentage shares", () => {
+    expect(shareTotalFor([share("70%"), share("30%")])).toBe(100);
+  });
+
+  it("returns null for a single child — one slice is not a partition", () => {
+    expect(shareTotalFor([share("25%")])).toBeNull();
+  });
+
+  it("returns null when the siblings aren't all shares", () => {
+    // "40%" of something plus "₹350" each isn't a partition to begin with.
+    expect(shareTotalFor([share("40%"), share("350")])).toBeNull();
+  });
+
+  it("returns null when a value is a share times a rate", () => {
+    // "3 * 50%" is half the segment, three each — a factor, not a slice of 100.
+    expect(shareTotalFor([share("50%"), share("3 * 50%")])).toBeNull();
+  });
+
+  // The claim that prompted the change: a rate says nothing about how much of
+  // the parent a branch covers, so it can never move this total.
+  it("ignores the rate box entirely", () => {
+    const withRates = [
+      { value: "70%", multiplier: "3" },
+      { value: "30%", multiplier: "52" },
+    ];
+    expect(shareTotalFor(withRates)).toBe(shareTotalFor([share("70%"), share("30%")]));
+  });
+});
+
+describe("sharesOvershoot", () => {
+  // Modelling only the slices the estimate needs — "the 25% who smoke", "the
+  // 40% in cities" — is a narrowing, not a gap to be filled.
+  it("does not fire when the shares fall short of the whole", () => {
+    expect(sharesOvershoot(65)).toBe(false);
+    expect(sharesOvershoot(25)).toBe(false);
+    expect(sharesOvershoot(0)).toBe(false);
+  });
+
+  it("fires when the shares claim more than the whole", () => {
+    expect(sharesOvershoot(115)).toBe(true);
+  });
+
+  it("tolerates the rounding a guesstimate invites", () => {
+    expect(sharesOvershoot(99)).toBe(false);
+    expect(sharesOvershoot(101)).toBe(false);
+    expect(sharesOvershoot(102)).toBe(false);
+    expect(sharesOvershoot(103)).toBe(true);
   });
 });

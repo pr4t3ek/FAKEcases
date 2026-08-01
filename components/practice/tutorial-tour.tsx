@@ -258,12 +258,13 @@ const STEPS: Step[] = [
     tool: "framework",
     title: "The framework builder — the biggest lever",
     body:
-      "Break the problem into steps. The first one you add is the starting step and every step " +
-      "after it continues the chain underneath — use a row's + when you want to split that step " +
-      "into segments instead. Each step's first box takes an absolute figure (1.3cr) or a share " +
-      "of its parent (65%); the × box holds a rate, like 3 cups a day. Percentage branches under " +
-      "Σ Sum are checked for adding to 100%, and the chain result can be pushed straight into " +
-      "your final estimate.",
+      "Break the problem into steps, drawn as a tree. The first one you add is the starting step " +
+      "and every step after it continues the chain underneath — use a card's + when you want to " +
+      "split that step into segments instead. Each card takes an absolute figure (1.3cr) on a " +
+      "starting step or a share of its parent (65%) below one; the × box holds a rate, like 3 " +
+      "cups a day, and the card shows what the two resolve to. Where a step splits, a chip on " +
+      "the junction says whether the branches add or multiply, and checks that percentage shares " +
+      "total 100%. The chain result can be pushed straight into your final estimate.",
     scoring:
       "This drives the two heaviest categories — Problem Structuring (weight 1.4) and " +
       "Segmentation (1.3). Every step you add lifts them, up to five steps. The figures in the " +
@@ -310,18 +311,18 @@ const STEPS: Step[] = [
   },
   {
     target: "estimate",
-    panel: "progress",
+    panel: "tools",
     title: "Your final estimate",
     body:
-      "The number you're committing to. The framework's chain result can be dropped in with one " +
-      "click, or type it yourself.",
+      "The number you're committing to, in the bar under the tree. The framework's chain result " +
+      "can be dropped in with one click, or type it yourself.",
     scoring:
       "This sets Calculation Accuracy: inside the ideal range scores highest, within 2× scores " +
       "partial credit, further out scores low. Leaving it blank costs you the most.",
   },
   {
     target: "submit",
-    panel: "progress",
+    panel: "tools",
     title: "Submit when you're ready",
     body:
       "This closes the attempt and produces your scorecard, XP and rank movement. The model " +

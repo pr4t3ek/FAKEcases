@@ -3,13 +3,16 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle, Check, Clock, Layers, Loader2, NotebookPen, Pause, Play } from "lucide-react";
 import { toast } from "sonner";
-import { saveTime, setFinalAnswer } from "@/app/actions/practice";
+import { setFinalAnswer, setFinalEstimate } from "@/app/actions/practice";
 import { submitAttempt, type SubmitResult } from "@/app/actions/submit";
 import { branchDiscussed, describeTrailLive, diagnosisTrail } from "@/lib/diagnosis";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { evaluateExpression } from "@/lib/calc";
+import { formatIndianNumber, toIndianWords } from "@/lib/utils";
 import { INTERVIEW_LEVEL_LABELS, type InterviewLevel, type TreeMode } from "@/lib/types";
 import { CalculatorPopup } from "./calculator-popup";
 import { FrameworkBuilder } from "./framework-builder";
@@ -67,6 +70,8 @@ export function ToolsPanel({
   onSubmitted,
   onFullscreen,
   demoNodes,
+  estimateText,
+  onEstimateTextChange,
 }: {
   attemptId: string;
   question: PracticeQuestion;
@@ -93,6 +98,9 @@ export function ToolsPanel({
   onFullscreen?: () => void;
   /** Tutorial illustration branches — drawn, never saved. */
   demoNodes?: UiFrameworkNode[];
+  /** Numeric only: the final estimate, shown in a bar under the tree. */
+  estimateText?: string;
+  onEstimateTextChange?: (t: string) => void;
 }) {
   const qualitative = question.answerMode === "qualitative";
   /**
@@ -206,18 +214,108 @@ export function ToolsPanel({
       </Tabs>
 
       {/* The answer moves under the tree, because the column it used to live in
-          is now the tree's. */}
-      {qualitative && onAnswerTextChange && onSubmitted && (
-        <AnswerBar
-          attemptId={attemptId}
-          framework={framework}
-          answerText={answerText ?? ""}
-          onAnswerTextChange={onAnswerTextChange}
+          is now the tree's — in both modes. */}
+      {onSubmitted &&
+        (qualitative
+          ? onAnswerTextChange && (
+              <AnswerBar
+                attemptId={attemptId}
+                framework={framework}
+                answerText={answerText ?? ""}
+                onAnswerTextChange={onAnswerTextChange}
+                disabled={disabled}
+                onSubmitted={onSubmitted}
+                unevidencedMarks={unevidencedMarks}
+              />
+            )
+          : onEstimateTextChange && (
+              <EstimateBar
+                attemptId={attemptId}
+                unit={question.unit}
+                estimateText={estimateText ?? ""}
+                onEstimateTextChange={onEstimateTextChange}
+                disabled={disabled}
+                onSubmitted={onSubmitted}
+              />
+            ))}
+    </div>
+  );
+}
+
+/**
+ * The final estimate and Submit, in a strip under the tree.
+ *
+ * The numeric twin of `AnswerBar`, for the same reason: the right-hand column
+ * these used to live in is now the tree's. Nothing is lost with it — the
+ * calculations list it also held is already in the draggable calculator popup,
+ * and the framework summary was a read-only mirror of the tree two panels away.
+ */
+export function EstimateBar({
+  attemptId,
+  unit,
+  estimateText,
+  onEstimateTextChange,
+  disabled,
+  onSubmitted,
+}: {
+  attemptId: string;
+  unit: string | null;
+  estimateText: string;
+  onEstimateTextChange: (t: string) => void;
+  disabled: boolean;
+  onSubmitted: (r: SubmitResult) => void;
+}) {
+  const [submitting, setSubmitting] = useState(false);
+  const parsed = evaluateExpression(estimateText);
+
+  async function submit() {
+    setSubmitting(true);
+    try {
+      // Persist before asking for a verdict — the scorer reads the row, not the
+      // component.
+      await setFinalEstimate(attemptId, evaluateExpression(estimateText)).catch(() => {});
+      const result = await submitAttempt(attemptId);
+      if (!result.ok) throw new Error(result.error);
+      onSubmitted(result);
+    } catch {
+      toast.error("Couldn't submit. Try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="shrink-0 border-t bg-card/50 p-3">
+      <p className="mb-2 truncate text-[11px] text-muted-foreground">
+        {parsed !== null ? (
+          <>
+            Final estimate = <span className="font-mono">{formatIndianNumber(parsed)}</span> ·{" "}
+            {toIndianWords(parsed)}
+          </>
+        ) : (
+          <>Land on a number and state it as a range. The tree&apos;s chain result can fill it in.</>
+        )}
+      </p>
+      <div className="flex items-end gap-2">
+        <Input
+          value={estimateText}
+          onChange={(e) => onEstimateTextChange(e.target.value)}
+          onBlur={() => setFinalEstimate(attemptId, evaluateExpression(estimateText)).catch(() => {})}
+          placeholder={`Final estimate${unit ? ` (${unit})` : ""} — e.g. 80L or 8000000`}
+          className="flex-1 font-mono text-sm"
           disabled={disabled}
-          onSubmitted={onSubmitted}
-          unevidencedMarks={unevidencedMarks}
+          data-tour="estimate"
         />
-      )}
+        <Button
+          onClick={submit}
+          disabled={disabled || submitting}
+          className="shrink-0"
+          data-tour="submit"
+        >
+          {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+          Submit
+        </Button>
+      </div>
     </div>
   );
 }

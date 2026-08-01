@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Panel, PanelGroup, PanelResizeHandle, type ImperativePanelHandle } from "react-resizable-panels";
 import { toast } from "sonner";
 import { ArrowLeft, Clock, Minimize2, Pause, Play } from "lucide-react";
-import { panelDefaults, qualitativePanelDefaults, type AiMode } from "@/lib/config";
+import { panelDefaults, treeFirstPanelDefaults, type AiMode } from "@/lib/config";
 import { setFinalEstimate as persistFinalEstimate } from "@/app/actions/practice";
 import { Brand } from "@/components/brand";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { SubmitResult } from "@/app/actions/submit";
 import { useMediaQuery } from "./use-media-query";
 import { formatElapsed, useAttemptTimer } from "./use-attempt-timer";
-import { AnswerBar, ToolsPanel, unevidencedBranches } from "./tools-panel";
+import { AnswerBar, EstimateBar, ToolsPanel, unevidencedBranches } from "./tools-panel";
 import { FrameworkBuilder } from "./framework-builder";
 import { FloatingChat } from "./floating-chat";
 import { ChatPanel } from "./chat-panel";
@@ -62,7 +62,7 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
    * Offered only where the canvas is: a case, on a wide screen.
    */
   const [fullscreen, setFullscreen] = useState(false);
-  const canFullscreen = qualitative && isWide && !disabled;
+  const canFullscreen = isWide && !disabled;
 
   /** Tutorial illustration branches. Render-only; never persisted or scored. */
   const [demoNodes, setDemoNodes] = useState<UiFrameworkNode[]>([]);
@@ -174,6 +174,8 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
       onSubmitted={handleSubmitted}
       onFullscreen={canFullscreen ? () => setFullscreen(true) : undefined}
       demoNodes={demoNodes}
+      estimateText={estimateText}
+      onEstimateTextChange={setEstimateText}
     />
   );
   const chat = (
@@ -204,9 +206,20 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
     />
   );
 
+  /**
+   * Rendered outside the fullscreen branch on purpose. That branch returns
+   * early, so anything inside it unmounts on the way in and REMOUNTS on the way
+   * out — and this dialog owns its open state, so leaving fullscreen would pop
+   * the welcome card back up every time.
+   */
+  const welcome = data.showOnboarding && !autoTour && (
+    <OnboardingOverlay answerMode={data.question.answerMode} />
+  );
+
   if (fullscreen) {
     return (
       <div className="fixed inset-0 z-40 flex flex-col bg-background">
+        {welcome}
         <header className="flex h-12 shrink-0 items-center gap-3 border-b px-4">
           <h1 className="min-w-0 flex-1 truncate text-sm font-medium">{data.question.prompt}</h1>
           <span className="inline-flex shrink-0 items-center gap-1.5 text-sm tabular-nums text-muted-foreground">
@@ -240,20 +253,32 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
             messageText={messageText}
             conversation={conversation}
             questionFramework={data.question.framework}
+            onChainResult={handleChainResult}
             canvasFill
             demoNodes={demoNodes}
           />
         </div>
 
-        <AnswerBar
-          attemptId={data.attemptId}
-          framework={framework}
-          answerText={answerText}
-          onAnswerTextChange={setAnswerText}
-          disabled={disabled}
-          onSubmitted={handleSubmitted}
-          unevidencedMarks={unevidencedMarks}
-        />
+        {qualitative ? (
+          <AnswerBar
+            attemptId={data.attemptId}
+            framework={framework}
+            answerText={answerText}
+            onAnswerTextChange={setAnswerText}
+            disabled={disabled}
+            onSubmitted={handleSubmitted}
+            unevidencedMarks={unevidencedMarks}
+          />
+        ) : (
+          <EstimateBar
+            attemptId={data.attemptId}
+            unit={data.question.unit}
+            estimateText={estimateText}
+            onEstimateTextChange={setEstimateText}
+            disabled={disabled}
+            onSubmitted={handleSubmitted}
+          />
+        )}
 
         {/* The interviewer, as a window you can put wherever the tree isn't. */}
         <FloatingChat title="Interviewer">{chat}</FloatingChat>
@@ -265,9 +290,7 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
     <div className="flex h-screen flex-col">
       {/* On a case the tour opens by itself and covers the same ground, so the
           welcome card would be a second modal stacked on the first. */}
-      {data.showOnboarding && !autoTour && (
-        <OnboardingOverlay answerMode={data.question.answerMode} />
-      )}
+      {welcome}
       {/* Top bar */}
       <header className="flex h-14 shrink-0 items-center justify-between border-b px-4">
         <div className="flex items-center gap-3">
@@ -299,9 +322,7 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
               left panel opens at the width that tool expects. */}
           <Panel
             ref={leftPanelRef}
-            defaultSize={
-              qualitative ? qualitativePanelDefaults.left : panelDefaults.frameworkExpandLeft
-            }
+            defaultSize={treeFirstPanelDefaults.left}
             minSize={22}
             order={1}
           >
@@ -309,20 +330,20 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
           </Panel>
           <PanelResizeHandle className="w-1.5 bg-border transition-colors hover:bg-primary/40" />
           <Panel
-            defaultSize={qualitative ? qualitativePanelDefaults.center : panelDefaults.center}
+            defaultSize={treeFirstPanelDefaults.center}
             minSize={28}
             order={2}
           >
             {chat}
           </Panel>
           <PanelResizeHandle className="w-1.5 bg-border transition-colors hover:bg-primary/40" />
-          {/* An issue tree needs the width more than a summary of itself does, so
-              this starts collapsed in qualitative mode — collapsed, not removed:
-              the handle pulls it back open. */}
+          {/* A tree needs the width more than a summary of itself does, so this
+              starts collapsed — collapsed, not removed: the handle pulls it back
+              open for anyone who wants the mirror. */}
           <Panel
-            defaultSize={qualitative ? qualitativePanelDefaults.right : panelDefaults.right}
-            minSize={qualitative ? 0 : 16}
-            collapsible={qualitative}
+            defaultSize={treeFirstPanelDefaults.right}
+            minSize={0}
+            collapsible
             collapsedSize={0}
             order={3}
           >
