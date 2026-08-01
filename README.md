@@ -15,6 +15,9 @@ changes.
 📊 **[Architecture & visual documentation](docs/ARCHITECTURE.md)** — system diagram, user flow,
 data model (ERD), LLM adapter sequence, evaluation rubric, and gamification/rank flow.
 
+📝 **[Changes](docs/CHANGES.md)** — recent fixes: priced help modes, case authoring, and other
+scoring/integrity corrections.
+
 ---
 
 ## Quick start

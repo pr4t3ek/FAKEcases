@@ -25,7 +25,10 @@
       "prisma",
       "esbuild",
       "sharp"
-    ]
+    ],
+    "overrides": {
+      "js-yaml": "4.3.0"
+    }
   },
   "dependencies": {
     "@google/genai": "^2.13.0",
