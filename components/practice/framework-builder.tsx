@@ -205,13 +205,13 @@ export function FrameworkBuilder({
 }) {
   const qualitative = answerMode === "qualitative";
   /**
-   * A case tree is drawn as a flow diagram, but only where there is room for
+   * Both trees are drawn as a flow diagram, but only where there is room for
    * one. Below this the panel is a phone-width tab, where a pannable canvas is
    * unusable and the indented outline is genuinely the better tool — so the
    * outline stays, rather than being replaced everywhere.
    */
   const isWide = useMediaQuery("(min-width: 1024px)");
-  const asCanvas = qualitative && isWide;
+  const asCanvas = isWide;
   const [dragId, setDragId] = useState<string | null>(null);
   const [customLabel, setCustomLabel] = useState("");
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1249,7 +1249,7 @@ export function FrameworkBuilder({
         attachName && (
           <p className="text-[11px] text-muted-foreground">
             Next step goes under <span className="font-medium text-foreground">{attachName}</span>.
-            To split a step into segments instead, use that row's{" "}
+            To split a step into segments instead, use that {asCanvas ? "card" : "row"}&apos;s{" "}
             <Plus className="inline h-3 w-3 align-text-bottom" />.
           </p>
         )
@@ -1341,6 +1341,31 @@ export function FrameworkBuilder({
           messageText={messageText}
           fill={canvasFill}
           onFullscreen={onFullscreen}
+          answerMode={answerMode}
+          // The chain's arithmetic stays here; the canvas only draws it.
+          numeric={
+            qualitative
+              ? undefined
+              : {
+                  setValue,
+                  setMultiplier,
+                  setCombine,
+                  resolvedFor: (id) => resolvedMap.get(id) ?? 0,
+                  showValueFor: (id) => liveMap.get(id) ?? false,
+                  isUnrecognized,
+                  shareTotalFor: (kids) => shareTotalFor(kids),
+                  shareIsOff: (total) => Math.abs(total - 100) > SHARE_TOTAL_TOLERANCE,
+                  formatChainValue,
+                  pinPercentCaret,
+                  isLegacyChildValue,
+                  isLegacyChildRate,
+                  percentField,
+                  percentStore,
+                  percentBackspace,
+                  sanitizePercentInput,
+                  sanitizeRateInput,
+                }
+          }
         />
       ) : (
         // An issue tree gets deeper than an estimate chain, so the tree scrolls

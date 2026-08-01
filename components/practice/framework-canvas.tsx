@@ -17,7 +17,7 @@ import {
 import { CARD_WIDTH, layoutTree } from "@/lib/framework-layout";
 import { rootIndexOf } from "@/lib/framework-tree";
 import { branchDiscussed } from "@/lib/diagnosis";
-import { NODE_STATUS_META, type NodeStatus } from "@/lib/types";
+import { NODE_STATUS_META, type AnswerMode, type NodeStatus } from "@/lib/types";
 import type { FrameworkNodeTemplate } from "@/lib/config/frameworks";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -26,6 +26,7 @@ import {
   CARD_STATUS_BORDER,
   EDGE_STROKE,
   STATUS_STYLE,
+  depthStyle,
   familyStyle,
 } from "./framework-depth";
 import type { UiFrameworkNode } from "./types";
@@ -45,8 +46,16 @@ import type { UiFrameworkNode } from "./types";
  * it (the border).
  */
 
-/** Card geometry. Base height must match `CARD_HEIGHT` in the layout module. */
+/**
+ * Card geometry. Base height must match `CARD_HEIGHT` in the layout module.
+ *
+ * A numeric card is wider and slightly taller because it carries two inputs and
+ * a computed result where a case card carries a label: at 210px on one row the
+ * value and rate boxes get crushed to a few pixels each.
+ */
 const CARD_BASE_HEIGHT = 72;
+const NUMERIC_CARD_WIDTH = 270;
+const NUMERIC_CARD_HEIGHT = 78;
 const LINE_HEIGHT = 17;
 const CHIP_ROW_HEIGHT = 24;
 const STAGE_PAD = 32;
@@ -74,6 +83,39 @@ function wheelPixels(e: WheelEvent): { dx: number; dy: number } {
 }
 
 const clampZoom = (k: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, k));
+
+/**
+ * The numeric chain's behaviour, passed in rather than reimplemented.
+ *
+ * Every rule here already exists in the builder — how a root's absolute value
+ * differs from a child's 0–100% share, what a step resolves to, whether a
+ * partition adds up. Recomputing any of it on the canvas would be a second
+ * source of truth for the same arithmetic.
+ */
+export interface NumericCanvasApi {
+  setValue: (id: string, value: string) => void;
+  setMultiplier: (id: string, value: string) => void;
+  setCombine: (id: string, combine: "sum" | "multiply") => void;
+  /** This step's own value: inherited × its share × its rate. */
+  resolvedFor: (id: string) => number;
+  /** False until a real figure feeds the branch — the card shows "–" instead. */
+  showValueFor: (id: string) => boolean;
+  /** Text that doesn't parse. Treated as ×1, and flagged rather than silent. */
+  isUnrecognized: (raw: string | null | undefined) => boolean;
+  /** A parent's children's shares, when they're a partition. Null otherwise. */
+  shareTotalFor: (children: UiFrameworkNode[]) => number | null;
+  shareIsOff: (total: number) => boolean;
+  formatChainValue: (n: number) => string;
+  /** A percent field's caret belongs before the "%", never after it. */
+  pinPercentCaret: (el: HTMLInputElement, legacy: boolean) => void;
+  isLegacyChildValue: (raw: string | null | undefined) => boolean;
+  isLegacyChildRate: (raw: string | null | undefined) => boolean;
+  percentField: (raw: string | null | undefined) => string;
+  percentStore: (shown: string) => string;
+  percentBackspace: (raw: string | null | undefined) => string;
+  sanitizePercentInput: (raw: string) => string | null;
+  sanitizeRateInput: (raw: string) => string | null;
+}
 
 export interface FrameworkCanvasProps {
   nodes: UiFrameworkNode[];
@@ -118,6 +160,15 @@ export interface FrameworkCanvasProps {
   conversation: string[];
   messageText?: Map<string, string>;
 
+  /**
+   * An estimate and a case are drawn from the same layout but carry different
+   * things: a numeric step has a value, a rate and a computed result and no
+   * verdict; a case branch has a verdict and a rationale and no arithmetic.
+   */
+  answerMode?: AnswerMode;
+  /** Required for `answerMode: "numeric"`. The builder owns all of this maths. */
+  numeric?: NumericCanvasApi;
+
   /** Fill the parent instead of taking a fixed height — used by fullscreen. */
   fill?: boolean;
   /** Omitted when there is nowhere to expand to (i.e. already fullscreen). */
@@ -125,7 +176,19 @@ export interface FrameworkCanvasProps {
 }
 
 export function FrameworkCanvas(props: FrameworkCanvasProps) {
-  const { nodes, isFolded, messageText, conversation, hasDataPack, fill, onFullscreen } = props;
+  const {
+    nodes,
+    isFolded,
+    messageText,
+    conversation,
+    hasDataPack,
+    fill,
+    onFullscreen,
+    answerMode = "qualitative",
+    numeric,
+  } = props;
+  const isNumeric = answerMode === "numeric";
+  const cardWidth = isNumeric ? NUMERIC_CARD_WIDTH : CARD_WIDTH;
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState({ x: STAGE_PAD, y: STAGE_PAD, k: 1 });
@@ -196,6 +259,9 @@ export function FrameworkCanvas(props: FrameworkCanvasProps) {
    * overlap the row beneath it.
    */
   function cardHeight(node: UiFrameworkNode): number {
+    // A numeric card is fixed: two rows, and none of the case extras below.
+    if (isNumeric) return NUMERIC_CARD_HEIGHT;
+
     let height = CARD_BASE_HEIGHT;
     if (rationaleFor(node)) height += LINE_HEIGHT;
     if (isUnevidenced(node)) height += LINE_HEIGHT;
@@ -209,10 +275,14 @@ export function FrameworkCanvas(props: FrameworkCanvasProps) {
     return height;
   }
 
-  const layout = layoutTree(nodes, { collapsed, heightOf: (id) => {
-    const node = byId.get(id);
-    return node ? cardHeight(node) : CARD_BASE_HEIGHT;
-  } });
+  const layout = layoutTree(nodes, {
+    collapsed,
+    cardWidth,
+    heightOf: (id) => {
+      const node = byId.get(id);
+      return node ? cardHeight(node) : CARD_BASE_HEIGHT;
+    },
+  });
 
   const fit = useCallback(() => {
     const el = viewportRef.current;
@@ -374,6 +444,74 @@ export function FrameworkCanvas(props: FrameworkCanvasProps) {
             })}
           </svg>
 
+          {/* How a parent's branches combine, sitting on the junction where they
+              fan out — the rule is about the children, so it reads where that
+              actually happens, and parent cards stay the height of leaves. */}
+          {isNumeric &&
+            numeric &&
+            nodes.map((parent) => {
+              const kids = collapsed.has(parent.id) ? [] : childrenOf(parent.id);
+              const from = layout.nodes.get(parent.id);
+              const firstChild = kids[0] && layout.nodes.get(kids[0].id);
+              if (kids.length < 2 || !from || !firstChild) return null;
+
+              const startY = from.y + cardHeight(parent);
+              const midY = startY + (firstChild.y - startY) / 2;
+              const shareTotal =
+                parent.combine === "sum" ? numeric.shareTotalFor(kids) : null;
+              const shareOff = shareTotal !== null && numeric.shareIsOff(shareTotal);
+
+              return (
+                <div
+                  key={`combine:${parent.id}`}
+                  data-canvas-overlay
+                  style={{ left: from.x, top: midY }}
+                  className="absolute z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 whitespace-nowrap rounded-full border bg-card px-1.5 py-0.5 text-[10px] shadow-sm"
+                >
+                  <button
+                    onClick={() => numeric.setCombine(parent.id, "sum")}
+                    title={`Add the ${kids.length} branches together`}
+                    className={cn(
+                      "rounded px-1.5 py-0.5",
+                      parent.combine === "sum"
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-muted",
+                    )}
+                  >
+                    Σ Sum
+                  </button>
+                  <button
+                    onClick={() => numeric.setCombine(parent.id, "multiply")}
+                    title={`Multiply the ${kids.length} branches together`}
+                    className={cn(
+                      "rounded px-1.5 py-0.5",
+                      parent.combine === "multiply"
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-muted",
+                    )}
+                  >
+                    × Multiply
+                  </button>
+                  {shareTotal !== null && (
+                    <span
+                      className={cn(
+                        "font-mono",
+                        shareOff ? "text-amber-600" : "text-emerald-600",
+                      )}
+                      title={
+                        shareOff
+                          ? "These branches are percentage shares of this step, so they should total about 100% — a gap suggests a missing segment, an overshoot suggests double-counting."
+                          : "Shares total ~100% — a clean partition of this step."
+                      }
+                    >
+                      {shareOff ? "⚠ " : "✓ "}
+                      {Math.round(shareTotal * 10) / 10}%
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+
           {nodes.map((node) => {
             const position = layout.nodes.get(node.id);
             if (!position) return null;
@@ -381,7 +519,8 @@ export function FrameworkCanvas(props: FrameworkCanvasProps) {
               <NodeCard
                 key={node.id}
                 node={node}
-                left={position.x - CARD_WIDTH / 2}
+                left={position.x - cardWidth / 2}
+                width={cardWidth}
                 top={position.y}
                 depth={position.depth}
                 rootIndex={rootIndexOf(nodes, node.id)}
@@ -443,11 +582,14 @@ export function FrameworkCanvas(props: FrameworkCanvasProps) {
       </div>
 
       <p className="mt-1.5 text-[11px] text-muted-foreground">
-        Drag the background to pan. A branch&apos;s{" "}
-        <Plus className="inline h-3 w-3 align-text-bottom" /> adds a child under it;{" "}
+        Drag the background to pan, <span className="font-mono">Ctrl</span>+scroll to zoom. A
+        card&apos;s <Plus className="inline h-3 w-3 align-text-bottom" />{" "}
+        {isNumeric ? "splits it into segments" : "adds a branch under it"};{" "}
         <span className="font-mono">Enter</span> adds a sibling and{" "}
-        <span className="font-mono">Tab</span> nests it. Mark each branch as you rule it out or
-        drill into it.
+        <span className="font-mono">Tab</span> nests it.{" "}
+        {isNumeric
+          ? "A starting step takes an absolute figure; a segment under it takes a share."
+          : "Mark each branch as you rule it out or drill into it."}
       </p>
     </div>
   );
@@ -457,6 +599,7 @@ interface NodeCardProps extends FrameworkCanvasProps {
   node: UiFrameworkNode;
   left: number;
   top: number;
+  width: number;
   depth: number;
   rootIndex: number;
   childCount: number;
@@ -465,10 +608,196 @@ interface NodeCardProps extends FrameworkCanvasProps {
   unevidenced: boolean;
 }
 
-function NodeCard({
+function NodeCard(props: NodeCardProps) {
+  return props.answerMode === "numeric" ? <NumericCard {...props} /> : <CaseCard {...props} />;
+}
+
+/**
+ * A step in an estimation chain: a figure, a rate, and what the two resolve to.
+ *
+ * No verdict, no rationale, no suggestions — an estimate has no branch to
+ * diagnose and no framework corpus behind it. Colour comes from depth rather
+ * than root family, because an estimate is one narrowing chain with one root.
+ */
+function NumericCard({
   node,
   left,
   top,
+  width,
+  depth,
+  folded,
+  childCount,
+  ...api
+}: NodeCardProps) {
+  const n = api.numeric!;
+  const tint = depthStyle(depth);
+  // A child step is a slice of its parent, so its boxes are constrained: a
+  // 0–100% share, and a plain positive rate. Only a root can name an absolute
+  // quantity to start the chain from.
+  const isChild = node.parentId !== null;
+  const legacyValue = isChild && n.isLegacyChildValue(node.value);
+  const legacyRate = isChild && n.isLegacyChildRate(node.multiplier);
+  const ownUnrecognized = n.isUnrecognized(node.value) || n.isUnrecognized(node.multiplier);
+  const showValue = n.showValueFor(node.id);
+
+  return (
+    <div
+      data-node-card
+      ref={(el) => api.registerRowRef(node.id, el)}
+      style={{ left, top, width }}
+      className={cn(
+        "group/card absolute rounded-xl border-2 bg-card p-2 shadow-sm transition-colors",
+        tint.box,
+        api.dragId === node.id && "opacity-50",
+      )}
+    >
+      <div className="flex items-center gap-1">
+        <span
+          onPointerDown={(e) => api.onGripDown(e, node.id)}
+          onPointerMove={api.onGripMove}
+          onPointerUp={api.onGripUp}
+          onPointerCancel={api.onGripUp}
+          style={{ touchAction: "none" }}
+          className="shrink-0 cursor-grab touch-none active:cursor-grabbing"
+          aria-label="Reorder among siblings"
+        >
+          <GripVertical className={cn("h-3.5 w-3.5", tint.grip)} />
+        </span>
+        <Input
+          ref={(el) => api.registerLabelRef(node.id, el)}
+          value={node.label}
+          onChange={(e) => api.setLabel(node.id, e.target.value)}
+          onKeyDown={(e) => api.onLabelKeyDown(e, node)}
+          onFocus={() => api.onFocusNode(node.id)}
+          onBlur={() => api.onFocusNode(null)}
+          placeholder="Step name"
+          className="h-6 min-w-0 flex-1 border-0 bg-transparent px-1 text-sm font-medium shadow-none focus-visible:ring-0"
+        />
+        {childCount > 0 && (
+          <button
+            onClick={() => api.toggleFold(node.id)}
+            className="flex shrink-0 items-center gap-0.5 text-[10px] text-muted-foreground hover:text-foreground"
+            aria-label={folded ? "Expand branch" : "Collapse branch"}
+            aria-expanded={!folded}
+          >
+            {folded ? (
+              <ChevronRight className="h-3.5 w-3.5" />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5" />
+            )}
+            {folded && <span>{childCount}</span>}
+          </button>
+        )}
+        <button
+          onClick={() => api.addChild(node.id)}
+          className="shrink-0 text-muted-foreground hover:text-primary"
+          aria-label="Add branch under this step"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+        <button
+          onClick={() => api.requestRemove(node.id)}
+          className="shrink-0 text-muted-foreground hover:text-destructive"
+          aria-label="Remove step"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      <div className="mt-1 flex items-center gap-1">
+        {isChild ? (
+          <Input
+            value={legacyValue ? (node.value ?? "") : n.percentField(node.value)}
+            onChange={(e) => {
+              const next = n.sanitizePercentInput(e.target.value);
+              if (next !== null) n.setValue(node.id, n.percentStore(next));
+            }}
+            onKeyDown={(e) => {
+              if (legacyValue || e.key !== "Backspace") return;
+              const el = e.currentTarget;
+              const end = el.value.length;
+              if (el.selectionStart !== end || el.selectionEnd !== end) return;
+              e.preventDefault();
+              n.setValue(node.id, n.percentBackspace(node.value));
+            }}
+            onKeyUp={(e) => n.pinPercentCaret(e.currentTarget, legacyValue)}
+            onFocus={(e) => n.pinPercentCaret(e.currentTarget, legacyValue)}
+            onClick={(e) => n.pinPercentCaret(e.currentTarget, legacyValue)}
+            onSelect={(e) => n.pinPercentCaret(e.currentTarget, legacyValue)}
+            inputMode="decimal"
+            placeholder="0–100%"
+            aria-label="Share of parent, 0–100%"
+            title={
+              legacyValue
+                ? "Not a share — a branch takes 0–100% of its step above. Editing this box replaces it."
+                : "This branch's share of the step above, 0–100%. An absolute figure belongs on a starting step; a rate goes in the × box."
+            }
+            className={cn(
+              "h-7 w-[4.5rem] shrink-0 rounded-md border border-input bg-background px-1.5 text-xs shadow-none focus-visible:ring-1 focus-visible:ring-offset-0",
+              legacyValue && "border-amber-500 text-amber-600",
+            )}
+          />
+        ) : (
+          <Input
+            value={node.value ?? ""}
+            onChange={(e) => n.setValue(node.id, e.target.value)}
+            placeholder="value / %"
+            aria-label="Starting value for this step"
+            title="This starting step's value — an absolute figure (1.3cr). Branches under it take a share of it."
+            className="h-7 w-[4.5rem] shrink-0 rounded-md border border-input bg-background px-1.5 text-xs shadow-none focus-visible:ring-1 focus-visible:ring-offset-0"
+          />
+        )}
+        <span
+          aria-hidden
+          className={cn(
+            "font-mono text-[11px]",
+            node.multiplier?.trim() ? "text-muted-foreground" : "text-muted-foreground/40",
+          )}
+        >
+          ×
+        </span>
+        <Input
+          value={node.multiplier ?? ""}
+          onChange={(e) => {
+            if (!isChild) return n.setMultiplier(node.id, e.target.value);
+            const next = n.sanitizeRateInput(e.target.value);
+            if (next !== null) n.setMultiplier(node.id, next);
+          }}
+          placeholder="1"
+          inputMode={isChild ? "decimal" : undefined}
+          aria-label="Rate multiplier for this step"
+          title="A rate on top of the share — 3 for “3 cups a day each”. Blank counts as ×1."
+          className={cn(
+            "h-7 w-11 shrink-0 rounded-md border border-input bg-background px-1.5 text-xs shadow-none focus-visible:ring-1 focus-visible:ring-offset-0",
+            legacyRate && "border-amber-500 text-amber-600",
+          )}
+        />
+        <span
+          className={cn(
+            "ml-auto truncate font-mono text-[11px]",
+            ownUnrecognized ? "text-amber-600" : "text-muted-foreground",
+          )}
+          title={
+            ownUnrecognized
+              ? "Not a recognized number/% — treated as ×1"
+              : showValue
+                ? "This step's own value — its share of its parent, times its rate"
+                : "No value entered in this branch yet"
+          }
+        >
+          = {showValue ? n.formatChainValue(n.resolvedFor(node.id)) : "–"}
+          {ownUnrecognized && "!"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function CaseCard({
+  node,
+  left,
+  top,
+  width,
   depth,
   rootIndex,
   childCount,
@@ -492,7 +821,7 @@ function NodeCard({
     <div
       data-node-card
       ref={(el) => api.registerRowRef(node.id, el)}
-      style={{ left, top, width: CARD_WIDTH }}
+      style={{ left, top, width }}
       className={cn(
         // Fill carries the family, border carries the verdict — except on a
         // cleared branch, which drops the family tint entirely and recedes.

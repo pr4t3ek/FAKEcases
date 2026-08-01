@@ -43,15 +43,19 @@ export const panelDefaults = {
 };
 
 /**
- * Qualitative attempts give the tree the right-hand column's space.
+ * Both modes give the tree the right-hand column's space.
  *
- * That column carries three things, and in this mode two of them are dead: the
- * calculations list (there is no calculator) and a read-only mirror of the tree
- * being edited two panels away. Only the answer box earns its width, and it
- * moves under the tree. The panel is collapsed rather than removed, so the
- * resize handle brings the summary back for anyone who wants it.
+ * That column carries three things, and none of them earns the width once the
+ * tree is a diagram. The framework summary is a read-only mirror of the tree
+ * being edited two panels away. The answer box moves under the tree. And the
+ * calculations list is either dead (a case has no calculator) or already
+ * somewhere better — on a guesstimate it is in the draggable calculator popup,
+ * which travels with you instead of sitting in a fixed column.
+ *
+ * Collapsed rather than removed: the resize handle brings the summary back for
+ * anyone who wants it.
  */
-export const qualitativePanelDefaults = {
+export const treeFirstPanelDefaults = {
   left: 64,
   center: 36,
   right: 0,

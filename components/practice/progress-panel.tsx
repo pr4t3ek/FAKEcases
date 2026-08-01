@@ -159,10 +159,10 @@ export function ProgressPanel({
 
       {/* Final estimate + submit */}
       <div className="border-t p-4">
-        <label
-          data-tour="estimate"
-          className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-        >
+        {/* No `data-tour` here any more: the tour points at the bar under the
+            tree in both modes, and a second element with the same anchor would
+            be a coin-toss on DOM order for what gets spotlighted. */}
+        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {qualitative ? "Final recommendation" : `Final estimate ${unit ? `(${unit})` : ""}`}
         </label>
         {qualitative ? (
@@ -197,7 +197,6 @@ export function ProgressPanel({
           </>
         )}
         <Button
-          data-tour="submit"
           className="w-full"
           onClick={submit}
           disabled={disabled || submitting}
