@@ -8,6 +8,15 @@ export const hintConfig = {
 export const guestConfig = {
   /** Attempts a guest may complete before the sign-up soft wall. */
   attemptCap: 3,
+  /**
+   * Simulations a guest may complete, counted separately.
+   *
+   * A run is a far larger unit of work than an attempt — a dashboard, a
+   * budgeted investigation and a scored decision — so sharing `attemptCap`
+   * would either make three runs free or make one attempt cost a third of the
+   * war room. One full run is enough to show what the format is.
+   */
+  simRunCap: 1,
 };
 
 /**

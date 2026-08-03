@@ -6,11 +6,12 @@ import { Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { createQuestion, updateQuestion, deleteQuestion } from "@/app/actions/admin";
 import {
+  AUTHORABLE_TYPES,
   DIFFICULTIES,
   INTERVIEW_LEVELS,
   INTERVIEW_LEVEL_LABELS,
-  PRACTISABLE_TYPES,
   answerModeFor,
+  isSimulation,
 } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,7 +49,7 @@ export interface AdminQuestion {
   category: { name: string };
 }
 
-/** Only the types the library will actually show — see PRACTISABLE_TYPES. */
+/** Only the types this form can write — see AUTHORABLE_TYPES. */
 const QUESTION_TYPE_LABELS: Record<string, string> = {
   guesstimate: "Guesstimate (ends in a number)",
   qualitative: "Case (ends in a recommendation)",
@@ -178,7 +179,7 @@ function QuestionForm({
         </select>
       </div>
       <select className={selectClass} value={form.type} onChange={(e) => set("type", e.target.value)}>
-        {PRACTISABLE_TYPES.map((t) => (
+        {AUTHORABLE_TYPES.map((t) => (
           <option key={t} value={t}>{QUESTION_TYPE_LABELS[t] ?? t}</option>
         ))}
       </select>
@@ -281,21 +282,38 @@ export function QuestionManager({
                 <Badge variant="secondary">{q.category.name}</Badge>
                 <Badge variant="outline">{q.difficulty}</Badge>
                 <Badge variant="muted">{q.source}</Badge>
+                {isSimulation(q.type) && <Badge variant="outline">Simulation</Badge>}
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-1">
-              <Dialog
-                open={editing?.id === q.id}
-                onOpenChange={(o) => setEditing(o ? q : null)}
-              >
-                <DialogTrigger asChild>
-                  <Button size="icon" variant="ghost"><Pencil className="h-4 w-4" /></Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader><DialogTitle>Edit question</DialogTitle></DialogHeader>
-                  <QuestionForm categories={categories} initial={q} questionId={q.id} onDone={refresh} />
-                </DialogContent>
-              </Dialog>
+              {/* A simulation is a catalogue row whose exercise lives in code, so
+                  this form has nothing to edit. Opening it used to show a blank
+                  type dropdown and saving quietly rewrote the row as a
+                  guesstimate — orphaning the scenario and leaving a question
+                  nobody could answer. Read-only is the honest state. */}
+              {isSimulation(q.type) ? (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  disabled
+                  title="Simulation content is authored in lib/sim/scenarios, not here"
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              ) : (
+                <Dialog
+                  open={editing?.id === q.id}
+                  onOpenChange={(o) => setEditing(o ? q : null)}
+                >
+                  <DialogTrigger asChild>
+                    <Button size="icon" variant="ghost"><Pencil className="h-4 w-4" /></Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader><DialogTitle>Edit question</DialogTitle></DialogHeader>
+                    <QuestionForm categories={categories} initial={q} questionId={q.id} onDone={refresh} />
+                  </DialogContent>
+                </Dialog>
+              )}
               <Button size="icon" variant="ghost" onClick={() => remove(q.id)}>
                 <Trash2 className="h-4 w-4 text-destructive" />
               </Button>

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DIFFICULTIES, INTERVIEW_LEVELS, QUESTION_TYPES, answerModeFor } from "@/lib/types";
+import { AUTHORABLE_TYPES, DIFFICULTIES, INTERVIEW_LEVELS, answerModeFor } from "@/lib/types";
 
 /**
  * The authoring contract for a question, shared by the admin panel and the
@@ -110,7 +110,11 @@ export const questionCoreSchema = z.object({
   prompt: z.string().trim().min(5),
   difficulty: z.enum(DIFFICULTIES),
   interviewLevel: z.enum(INTERVIEW_LEVELS),
-  type: z.enum(QUESTION_TYPES).default("guesstimate"),
+  // AUTHORABLE_TYPES, not QUESTION_TYPES: a `simulation` row is a catalogue
+  // entry whose exercise is authored in code, so one created through this
+  // contract would have no scenario behind it and would be inert. Refusing it
+  // here is what lets `refineQuestion` below assume an interview type.
+  type: z.enum(AUTHORABLE_TYPES).default("guesstimate"),
 
   // Guesstimate-only. Enforced by the refinement below, not by the field.
   idealLow: optionalNumber,

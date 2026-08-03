@@ -16,6 +16,23 @@ export const xpRules = {
   dailyFirstAttempt: 25,
 };
 
+/**
+ * XP for a completed decision simulation.
+ *
+ * Kept apart from `xpRules` because the two exercises earn differently: a
+ * simulation has no hints to forgo, and finishing under the analyst-day budget
+ * is the behaviour worth paying for. Both feed the same XP pool and the same
+ * streak, so a day spent in the war room still counts as practising.
+ */
+export const simXpRules = {
+  /** Base XP for committing a decision and reaching the debrief. */
+  runComplete: 30,
+  /** Additional XP scaled by the simulation's overall score. */
+  scoreFactor: 0.8,
+  /** Bonus for finding the cause at or under the scenario's par investigation. */
+  underBudgetBonus: 20,
+};
+
 /** Level thresholds: level N requires levelBase * N^levelExp cumulative XP. */
 export const levelCurve = {
   base: 120,
