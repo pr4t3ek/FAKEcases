@@ -71,3 +71,57 @@ export function classifyGeminiError(err: unknown): LlmError {
 
   return new LlmError("provider_error", `Gemini error: ${message}`, { cause: err });
 }
+
+/**
+ * Classify a failure from a local Ollama server.
+ *
+ * Worth more care than the message length suggests. `runTurn()` falls back to the
+ * mock on *any* provider failure, so a local model that was never started still
+ * produces a perfectly good-looking reply — from the offline mock. The only signal
+ * that anything is wrong is the badge in the chat and this line in the server log,
+ * so it needs to name the fix rather than just the symptom.
+ *
+ * There is no quota to exhaust locally, so `quota_exhausted` is never returned.
+ */
+export function classifyOllamaError(
+  err: unknown,
+  context: { baseUrl: string; model: string },
+): LlmError {
+  if (err instanceof LlmError) return err;
+
+  const message = err instanceof Error ? err.message : String(err);
+  const status = statusOf(err);
+
+  // `fetch` reports a refused connection as an opaque "fetch failed" with the real
+  // reason on `cause`, so check both.
+  const cause = err instanceof Error && err.cause instanceof Error ? err.cause.message : "";
+  const haystack = `${message} ${cause}`.toLowerCase();
+  if (
+    haystack.includes("econnrefused") ||
+    haystack.includes("fetch failed") ||
+    haystack.includes("other side closed")
+  ) {
+    return new LlmError(
+      "provider_error",
+      `Ollama not reachable at ${context.baseUrl} — is \`ollama serve\` running? (${message})`,
+      { cause: err },
+    );
+  }
+
+  if (status === 404) {
+    return new LlmError(
+      "provider_error",
+      `Ollama has no model '${context.model}' — run \`ollama pull ${context.model}\`.`,
+      { cause: err },
+    );
+  }
+
+  // A local server is more likely overloaded than broken: one retry is cheap.
+  if (status !== undefined && status >= 500) {
+    return new LlmError("rate_limited", `Ollama unavailable (${status}): ${message}`, {
+      cause: err,
+    });
+  }
+
+  return new LlmError("provider_error", `Ollama error: ${message}`, { cause: err });
+}

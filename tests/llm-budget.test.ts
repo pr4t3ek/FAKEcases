@@ -4,6 +4,9 @@ import { llmBudget } from "@/lib/config";
 /**
  * The spend guards protect a quota that is shared by every user of the deployment.
  * Only the database is mocked — the limits and the day-key arithmetic are real.
+ *
+ * The provider has to be stubbed before the import: the guards apply only to a
+ * metered provider, and `env` is read once at module load.
  */
 const messageCount = vi.fn();
 const usageFindUnique = vi.fn();
@@ -15,6 +18,11 @@ vi.mock("@/lib/db", () => ({
     usageCounter: { findUnique: usageFindUnique, upsert: usageUpsert },
   },
 }));
+
+vi.stubEnv("LLM_PROVIDER", "gemini");
+vi.stubEnv("GEMINI_API_KEY", "test-key");
+// The static `@/lib/config` import above already read the un-stubbed environment.
+vi.resetModules();
 
 const { checkBudget, dayKey, recordLlmCall } = await import("@/lib/llm/budget");
 
@@ -76,6 +84,37 @@ describe("checkBudget", () => {
     await checkBudget("user-1", new Date("2026-07-28T12:00:00.000Z"));
 
     expect(usageFindUnique).toHaveBeenCalledWith({ where: { day: "2026-07-28" } });
+  });
+});
+
+describe("checkBudget on an unmetered provider", () => {
+  beforeEach(() => {
+    messageCount.mockReset().mockResolvedValue(0);
+    usageFindUnique.mockReset().mockResolvedValue(null);
+  });
+
+  afterEach(() => {
+    vi.resetModules();
+    vi.stubEnv("LLM_PROVIDER", "gemini");
+  });
+
+  /**
+   * A local model bills nothing, so blocking a turn would only substitute the mock
+   * for the model under test — the session would look like it worked and quietly
+   * stop exercising the thing being developed.
+   */
+  it("exempts a local provider from both limits", async () => {
+    vi.resetModules();
+    vi.stubEnv("LLM_PROVIDER", "ollama");
+    const local = await import("@/lib/llm/budget");
+
+    messageCount.mockResolvedValue(llmBudget.userMessagesPerHour * 100);
+    usageFindUnique.mockResolvedValue({ count: llmBudget.globalRequestsPerDay * 100 });
+
+    expect(await local.checkBudget("user-1")).toEqual({ ok: true });
+    // Exempt means not asked, not asked-and-ignored.
+    expect(messageCount).not.toHaveBeenCalled();
+    expect(usageFindUnique).not.toHaveBeenCalled();
   });
 });
 

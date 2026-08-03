@@ -43,6 +43,7 @@ flowchart TB
     subgraph Providers["LLM providers"]
         Mock["mock.ts\ndeterministic offline interviewer"]
         Gemini["gemini.ts\nstreaming, free tier"]
+        Ollama["ollama.ts\nstreaming, local, unmetered"]
         Anthropic["anthropic.ts"]
         OpenAI["openai.ts"]
     end
@@ -63,9 +64,11 @@ flowchart TB
     Budget -. "over quota → serve mock" .-> LLM
     LLM --> Mock
     LLM --> Gemini
+    LLM --> Ollama
     LLM --> Anthropic
     LLM --> OpenAI
     Gemini -. "on error, pre-first-token" .-> Mock
+    Ollama -. "on error, pre-first-token" .-> Mock
     Anthropic -. "on error" .-> Mock
     OpenAI -. "on error" .-> Mock
     Domain --> Prisma
@@ -74,6 +77,7 @@ flowchart TB
 
     style Mock fill:#2b6cb0,color:#fff
     style Gemini fill:#2f855a,color:#fff
+    style Ollama fill:#2b6cb0,color:#fff
     style Anthropic fill:#6b46c1,color:#fff
     style OpenAI fill:#6b46c1,color:#fff
 ```
@@ -196,7 +200,7 @@ sequenceDiagram
     participant Route as /api/chat or /api/hint
     participant Budget as llm/budget.ts
     participant Idx as lib/llm/index.ts
-    participant Adapter as gemini.ts (or anthropic/openai)
+    participant Adapter as gemini.ts (or ollama/anthropic/openai)
     participant Mock as mock.ts
 
     UI->>Route: user message / hint request
@@ -235,6 +239,9 @@ Two design points worth keeping:
   truncated reply. `tests/llm-stream.test.ts` pins both halves.
 - **Degradation is always visible.** Any mock-produced turn is persisted with its `provider` and
   badged "offline interviewer" in the chat, so a downgraded answer is never mistaken for the model's.
+- **The spend guards apply only to metered providers** (`isMeteredLlm` in `lib/config/env.ts`).
+  `ollama.ts` runs a local model that bills nothing, so blocking its turns would substitute the
+  mock for the very thing under development while looking like a normal session.
 
 The mock adapter is deliberately **deterministic and rule-based** (never reveals the
 answer early), so `pnpm test` can assert interviewer behavior without any network calls.
@@ -355,7 +362,7 @@ components/
 
 lib/
 ├── config/            Central typed config: env, flags, evaluation weights, gamification curve, practice defaults
-├── llm/                Streaming interviewer adapters (mock / gemini / anthropic / openai),
+├── llm/                Streaming interviewer adapters (mock / gemini / ollama / anthropic / openai),
 │                       prompt builder, NDJSON protocol (stream.ts), spend guards (budget.ts)
 ├── auth.ts             Signed cookie sessions, guest mode, claim-on-signup
 ├── evaluation.ts       Rubric scorer (pure, unit-tested)
@@ -379,7 +386,7 @@ flowchart LR
     subgraph Local["Local dev (default, zero-key)"]
         L1["pnpm dev"]
         L2[("SQLite file")]
-        L3["mock interviewer"]
+        L3["mock interviewer\n(or local Ollama, opt-in)"]
         L4["cookie auth (dev secret)"]
     end
 
