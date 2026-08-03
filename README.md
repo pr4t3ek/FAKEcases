@@ -95,11 +95,16 @@ is not always reliable. **Ollama** runs a model on your own machine instead — 
 offline, and again a config change rather than a code change:
 
 ```bash
-ollama serve                       # in its own terminal
+curl http://localhost:11434        # expect "Ollama is running"
 ollama pull qwen2.5:7b
 echo 'LLM_PROVIDER=ollama' >> .env.local
 pnpm dev
 ```
+
+On **Windows and macOS the server is already running** — the installer starts it at login and
+it sits in the tray, so `ollama serve` fails with "only one usage of each socket address is
+normally permitted" (or "address already in use"). That error means it's up, not broken. Run
+`ollama serve` yourself only on Linux or a headless box, where nothing started it for you.
 
 `OLLAMA_MODEL` picks the model (kept separate from `LLM_MODEL`, which is shared by every
 provider, so a leftover `gemini-2.5-flash` isn't sent to Ollama). `OLLAMA_BASE_URL` points at
