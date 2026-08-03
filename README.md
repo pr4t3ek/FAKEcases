@@ -155,6 +155,7 @@ Framer Motion · Prisma (SQLite dev → Postgres/Supabase prod) · Recharts · V
 | Swap the LLM provider | env vars (`LLM_PROVIDER`, `*_API_KEY`) |
 | Develop against a free local model | `LLM_PROVIDER=ollama` + `OLLAMA_MODEL` (see above) |
 | Tune LLM rate/spend limits | `lib/config/practice.ts` (`llmBudget`) |
+| Change the voice-input language | `lib/config/practice.ts` (`speechConfig.lang`) |
 | Add an achievement | `prisma/seed-data.ts` + award rule in `lib/gamification.ts` |
 
 **Architecture principles:** central typed config (no magic numbers), pluggable adapters behind
@@ -168,6 +169,28 @@ pure & unit-tested rule functions (`lib/evaluation`, `lib/gamification`).
 All seeded questions use Indian context — cities, markets, demographics, companies and ₹. Ideal
 ranges and sample solutions use Indian reference figures. Admin-added and imported questions should
 follow the same convention (the import panel shows a reminder).
+
+---
+
+## Voice input
+
+The chat composer has a mic button: click to start dictating, click again to stop. Text lands in
+the box as you speak and **nothing sends by itself** — recognition mishears names and numbers
+often enough that auto-sending would post a mangled answer and have it scored. Edit, then Enter.
+
+It uses the browser's built-in Web Speech API, so there is no key, no cost and no dependency —
+the same zero-key stance as the rest of the app. Two limitations are worth stating plainly:
+
+- **Chrome or Edge only.** Firefox doesn't implement the API; the button renders disabled there
+  and says why rather than quietly going missing.
+- **The audio leaves your machine.** Chrome transcribes on Google's servers, so this one feature
+  isn't offline the way everything else is. That's exactly why it sits behind a
+  `SpeechRecogniser` interface (`lib/speech/types.ts`): a self-hosted transcriber behind
+  `/api/transcribe` closes the gap without any call site changing, the same way Ollama closed it
+  for the interviewer. `lib/speech/index.ts` documents what such a provider needs.
+
+The language is `en-IN` (`lib/config/practice.ts`, `speechConfig`), and that isn't cosmetic —
+every question here is India-focused, and `en-US` transcribes "two lakh" as "two lack".
 
 ---
 
@@ -273,10 +296,14 @@ deliberately unfinished, and it's better to say so than to let you find out:
 `pnpm test` runs Vitest unit tests covering the evaluation scorer (both modes), the diagnosis
 matcher, the priced-help rules, the mock interviewer's **no-early-reveal** behaviour,
 gamification/rank math and the rank population filter, the calculator engine, the question
-authoring contract, the framework save payload, and the LLM layer — Gemini message mapping, the
+authoring contract, the framework save payload, the LLM layer — Gemini message mapping, the
 NDJSON stream protocol, the before/after-first-token fallback split, the spend guards, and the
-Ollama adapter's SSE parsing and error classification. Only the network boundary and the
-database are mocked, so the adapter wiring and error classification are exercised for real.
+Ollama adapter's SSE parsing and error classification — and the voice layer's transcript
+assembly and error triage. Only the network boundary and the database are mocked, so the adapter
+wiring and error classification are exercised for real.
+
+Vitest runs in a `node` environment with no jsdom, so React components and hooks aren't covered.
+The logic worth testing in `lib/speech` is kept pure and exported for exactly that reason.
 
 The simulation engine adds its own suites: the driver DAG, the outcome model (including that an
 allocation's *order* cannot change the result), drilldown pricing and locking, each scoring
@@ -290,7 +317,7 @@ Also useful: `pnpm typecheck` (strict, clean), `pnpm lint`, `pnpm build`.
 
 ## Deferred / future
 
-Stripe payments, PostHog analytics, voice/STT, whiteboard, peer leaderboard, adaptive difficulty,
+Stripe payments, PostHog analytics, whiteboard, peer leaderboard, adaptive difficulty,
 weekly report emails — each structured as an additive plug-in. The `case` value in
 `QUESTION_TYPES` is reserved for the full-length interview format and has no runtime yet, so the
 library filters it out and the admin panel doesn't offer it (see `PRACTISABLE_TYPES`).
