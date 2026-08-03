@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { llmBudget } from "@/lib/config";
+import { isMeteredLlm, llmBudget } from "@/lib/config";
 
 /**
  * Spend guards for a shared free-tier quota.
@@ -35,6 +35,11 @@ export async function checkBudget(
   userId: string,
   now: Date = new Date(),
 ): Promise<BudgetVerdict> {
+  // A local model draws on no shared quota, so these guards would protect nothing
+  // and cost something: silently swapping the mock in partway through a dev session
+  // makes it look like the local model answered when it didn't.
+  if (!isMeteredLlm) return OK;
+
   const since = new Date(now.getTime() - 60 * 60 * 1000);
 
   // Message has no userId of its own; reach it through the owning attempt.

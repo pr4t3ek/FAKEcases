@@ -3,6 +3,7 @@ import { mockAdapter } from "./mock";
 import { geminiAdapter } from "./gemini";
 import { anthropicAdapter } from "./anthropic";
 import { openaiAdapter } from "./openai";
+import { ollamaAdapter } from "./ollama";
 import { asLlmError, type LlmErrorCode } from "./errors";
 import type { FallbackReason } from "./stream";
 import type { InterviewerContext, LlmAdapter } from "./types";
@@ -24,6 +25,8 @@ export function getAdapter(): LlmAdapter {
       return anthropicAdapter;
     case "openai":
       return openaiAdapter;
+    case "ollama":
+      return ollamaAdapter;
     default:
       return mockAdapter;
   }

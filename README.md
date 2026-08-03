@@ -88,6 +88,41 @@ The app is built to hit that ceiling gracefully rather than break:
 Also note free-tier prompts and responses may be used to improve Google's models — worth
 disclosing if you run this publicly.
 
+### Developing against a local model (Ollama)
+
+250 requests/day disappears quickly when you're debugging the practice flow, and the free tier
+is not always reliable. **Ollama** runs a model on your own machine instead — free, unmetered,
+offline, and again a config change rather than a code change:
+
+```bash
+ollama serve                       # in its own terminal
+ollama pull qwen2.5:7b
+echo 'LLM_PROVIDER=ollama' >> .env.local
+pnpm dev
+```
+
+`OLLAMA_MODEL` picks the model (kept separate from `LLM_MODEL`, which is shared by every
+provider, so a leftover `gemini-2.5-flash` isn't sent to Ollama). `OLLAMA_BASE_URL` points at
+any OpenAI-compatible local server — LM Studio, vLLM — not just Ollama's default
+`http://localhost:11434/v1`. Unlike the hosted providers, Ollama is **never auto-detected**:
+there is no key to sniff for, so it has to be asked for by name, and no stray env var can
+point a deployment at a localhost model that isn't there.
+
+Three things worth knowing:
+
+- **A local model is not a stand-in for Gemini's judgement.** The Socratic prompts in
+  `lib/llm/prompts.ts` lean hard on never revealing the answer early, and a 7B model breaks
+  that rule more often than Gemini does. Use it to exercise the wiring, streaming, persistence
+  and fallback paths — not to judge how good the interviewer is.
+- **It is slow without a GPU.** Replies stream token-by-token so you see progress, but a full
+  turn takes tens of seconds. `OLLAMA_MODEL=llama3.2` is roughly 2.5x smaller and much faster.
+- **The spend guards are skipped**, since a local model draws on no shared quota. Otherwise
+  they'd substitute the mock partway through a session and you'd be testing the wrong thing.
+
+If Ollama isn't running or the model was never pulled, the turn falls back to the mock like any
+other provider failure — so watch for the "offline interviewer" badge, and check the server log,
+which names the fix (`is ollama serve running?` / `run ollama pull <model>`).
+
 ---
 
 ## Tech stack
@@ -109,6 +144,7 @@ Framer Motion · Prisma (SQLite dev → Postgres/Supabase prod) · Recharts · V
 | Change hint count / guest cap / panel defaults | `lib/config/practice.ts` |
 | Change what a question may contain | `lib/question-schema.ts` (one contract for admin + import) |
 | Swap the LLM provider | env vars (`LLM_PROVIDER`, `*_API_KEY`) |
+| Develop against a free local model | `LLM_PROVIDER=ollama` + `OLLAMA_MODEL` (see above) |
 | Tune LLM rate/spend limits | `lib/config/practice.ts` (`llmBudget`) |
 | Add an achievement | `prisma/seed-data.ts` + award rule in `lib/gamification.ts` |
 
@@ -187,9 +223,9 @@ deliberately unfinished, and it's better to say so than to let you find out:
 matcher, the priced-help rules, the mock interviewer's **no-early-reveal** behaviour,
 gamification/rank math and the rank population filter, the calculator engine, the question
 authoring contract, the framework save payload, and the LLM layer — Gemini message mapping, the
-NDJSON stream protocol, the before/after-first-token fallback split, and the spend guards. Only
-the network boundary and the database are mocked, so the adapter wiring and error classification
-are exercised for real.
+NDJSON stream protocol, the before/after-first-token fallback split, the spend guards, and the
+Ollama adapter's SSE parsing and error classification. Only the network boundary and the
+database are mocked, so the adapter wiring and error classification are exercised for real.
 
 Also useful: `pnpm typecheck` (strict, clean), `pnpm lint`, `pnpm build`.
 
