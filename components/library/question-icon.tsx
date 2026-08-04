@@ -16,6 +16,7 @@ import {
   IndianRupee,
   Landmark,
   Lightbulb,
+  LineChart,
   MonitorPlay,
   Package,
   PieChart,
@@ -43,7 +44,7 @@ import { DEFAULT_QUESTION_ICON } from "@/lib/question-icon";
 import { cn } from "@/lib/utils";
 
 /**
- * Every icon name `iconNameForQuestion` can return, plus the 14 names used by
+ * Every icon name `iconNameForQuestion` can return, plus the names used by
  * `Category.icon` as its fallback.
  *
  * Imported statically and by name so the bundler keeps only these — a dynamic
@@ -84,6 +85,7 @@ const ICONS: Record<string, LucideIcon> = {
   GraduationCap,
   HeartPulse,
   IndianRupee,
+  LineChart,
   Package,
   PieChart,
   Rocket,

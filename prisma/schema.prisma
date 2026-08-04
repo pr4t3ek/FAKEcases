@@ -45,6 +45,7 @@ model User {
   achievements   UserAchievement[]
   feedback       QuestionFeedback[]
   progress       Progress?
+  simRuns        SimRun[]
 }
 
 model Category {
@@ -100,6 +101,7 @@ model Question {
   attempts       Attempt[]
   bookmarks      Bookmark[]
   feedback       QuestionFeedback[]
+  simRuns        SimRun[]
 
   @@index([categoryId])
   @@index([difficulty])
@@ -306,6 +308,125 @@ model Bookmark {
   createdAt  DateTime @default(now())
 
   @@unique([userId, questionId])
+}
+
+/// A decision-simulation run.
+///
+/// Deliberately NOT an Attempt. `updateProgress` and `recomputeRank`
+/// (lib/progress.ts) read Attempt + Evaluation directly, as does lib/admin-stats,
+/// so a simulation that wrote an Evaluation would need an exclusion filter at
+/// four-plus query sites, forever, for interview readiness to stay honest. A
+/// separate table means there is no filter to forget: lib/progress.ts changes by
+/// zero lines. The nine Evaluation columns are named for interview behaviours
+/// anyway ("segmentation", "calculation") and would poison Progress.bySkill.
+///
+/// The scenario CONTENT lives in lib/sim/scenarios, keyed by `scenarioSlug`.
+model SimRun {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// The catalogue row, so a simulation is findable, filterable and bookmarkable
+  /// alongside every other question.
+  questionId     String
+  question       Question  @relation(fields: [questionId], references: [id])
+  /// Denormalised from Question.externalId so a run stays readable if the
+  /// catalogue row is ever re-pointed at a different scenario.
+  scenarioSlug   String
+
+  phase          String    @default("observe") // "observe" | "investigate" | "commit" | "debrief"
+  /// Analyst-days spent. Derived from purchases; cached so the budget meter is
+  /// a single read rather than a join on every render.
+  daysSpent      Int       @default(0)
+
+  /// JSON string[] of cause ids named as suspects, locked once Investigate
+  /// begins. A hypothesis revised after seeing the data is not a hypothesis —
+  /// the same argument that fixes Attempt.treeMode at creation.
+  hypothesis     String?
+  hypothesisNote String?
+  /// JSON string[] — cause ids named at Commit.
+  diagnosis      String?
+  /// JSON SimAllocationLine[] — the committed capacity split.
+  allocation     String?
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  committedAt    DateTime?
+
+  purchases      SimPurchase[]
+  messages       SimMessage[]
+  result         SimResult?
+
+  @@index([userId])
+  @@index([questionId])
+  @@index([phase])
+}
+
+model SimPurchase {
+  id          String   @id @default(cuid())
+  runId       String
+  run         SimRun   @relation(fields: [runId], references: [id], onDelete: Cascade)
+  drilldownId String
+  /// Price at purchase time. Authored costs get retuned; a past run's
+  /// efficiency score must not move underneath it.
+  cost        Int
+  /// 1-based purchase order, so "cheaply AND early" is answerable.
+  seq         Int
+  createdAt   DateTime @default(now())
+
+  /// The one integrity rule worth a constraint: a double-click must not be
+  /// charged twice for the same cut.
+  @@unique([runId, drilldownId])
+  @@index([runId])
+}
+
+model SimResult {
+  id            String   @id @default(cuid())
+  runId         String   @unique
+  run           SimRun   @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  overall       Int
+  band          String   // see simBands in lib/config/simulation.ts
+
+  /// Column names mirror the simRubric keys exactly, so the report can iterate
+  /// the rubric and index by key. Unlike Evaluation these are non-null: every
+  /// run passes through every phase, so no dimension is ever "not applicable".
+  hypothesis    Int
+  investigation Int
+  diagnosis     Int
+  decision      Int
+  outcome       Int
+
+  causeFound    Boolean  @default(false)
+  daysSpent     Int
+  daysPar       Int
+
+  /// JSON SimOutcomeResult — this run's quarterly paths, the do-nothing
+  /// counterfactual and the authored best. PINNED rather than recomputed on
+  /// read: the causal model is code, so re-deriving would let a later content
+  /// edit silently rewrite a student's history.
+  outcomeJson   String   @default("{}")
+  /// JSON FeedbackItem[] — the same shape as Evaluation.feedback.
+  feedback      String   @default("[]")
+
+  createdAt     DateTime @default(now())
+}
+
+/// Debrief chat. Kept apart from Message so the interview transcript queries —
+/// solutionWasRevealed, the evaluator, updateProgress — can never see a
+/// simulation turn.
+model SimMessage {
+  id        String   @id @default(cuid())
+  runId     String
+  run       SimRun   @relation(fields: [runId], references: [id], onDelete: Cascade)
+  role      String   // "user" | "assistant"
+  content   String
+  /// Which engine produced an assistant turn, so the degraded-answer badge
+  /// survives a reload. Same contract as Message.provider.
+  provider  String?
+  model     String?
+  createdAt DateTime @default(now())
+
+  @@index([runId])
 }
 
 model QuestionFeedback {

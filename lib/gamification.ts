@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { xpRules, levelForXp } from "@/lib/config";
+import { xpRules, simXpRules, levelForXp } from "@/lib/config";
 
 /** Start-of-day for streak comparisons. */
 function startOfDay(d: Date): number {
@@ -19,6 +19,25 @@ export function computeAttemptXp(args: {
   let xp = xpRules.attemptComplete;
   xp += Math.floor(args.overall * xpRules.scoreFactor);
   if (args.hintsUsed === 0) xp += xpRules.fewHintsBonus;
+  if (args.isFirstToday) xp += xpRules.dailyFirstAttempt;
+  return xp;
+}
+
+/**
+ * Pure XP calculation for a completed simulation.
+ *
+ * Its own rule set rather than a reuse of `computeAttemptXp`: a simulation has
+ * no hints to forgo, and the behaviour worth paying for is finding the cause
+ * inside the analyst-day budget.
+ */
+export function computeSimulationXp(args: {
+  overall: number;
+  underPar: boolean;
+  isFirstToday: boolean;
+}): number {
+  let xp = simXpRules.runComplete;
+  xp += Math.floor(args.overall * simXpRules.scoreFactor);
+  if (args.underPar) xp += simXpRules.underBudgetBonus;
   if (args.isFirstToday) xp += xpRules.dailyFirstAttempt;
   return xp;
 }
@@ -45,29 +64,30 @@ export interface AttemptRewardResult {
   newAchievements: string[];
 }
 
+type RewardCore = Omit<AttemptRewardResult, "newAchievements"> & { streakDays: number };
+
 /**
- * Apply XP, streak, level and achievements after an attempt is submitted.
- * Mutates the user row. Returns a summary for the UI to celebrate.
+ * Streak, XP, level and coins — the half that is identical however the XP was
+ * earned.
+ *
+ * Shared by attempts and simulations so a day spent in the war room counts as
+ * practising, and so the two paths can never disagree about what a streak is.
+ * The exercise-specific half — how much XP, and which achievements — stays with
+ * the caller, because those are the parts that genuinely differ.
+ *
+ * `xpFor` is a callback because the amount depends on whether this is the first
+ * activity today, which is only known once the streak has been read.
  */
-export async function applyAttemptRewards(
+async function applyRewardCore(
   userId: string,
-  ctx: {
-    overall: number;
-    accuracyHit: boolean;
-    hintsUsed: number;
-    /** Null when the attempt wasn't scored on structure — a guided tree builds
-     *  itself, so the MECE achievement can't be earned from it. */
-    segmentationScore: number | null;
-    totalSolved: number;
-  },
-): Promise<AttemptRewardResult> {
+  xpFor: (isFirstToday: boolean) => number,
+): Promise<RewardCore> {
   const user = await db.user.findUnique({ where: { id: userId } });
   if (!user) throw new Error("User not found");
 
   const now = new Date();
   const today = startOfDay(now);
 
-  // Streak
   let streak = user.streak;
   let isFirstToday = true;
   if (user.lastActiveDate) {
@@ -84,12 +104,7 @@ export async function applyAttemptRewards(
   }
   const longestStreak = Math.max(user.longestStreak, streak);
 
-  // XP + level
-  const xpGained = computeAttemptXp({
-    overall: ctx.overall,
-    hintsUsed: ctx.hintsUsed,
-    isFirstToday,
-  }) + (isFirstToday ? xpRules.streakDayBonus : 0);
+  const xpGained = xpFor(isFirstToday) + (isFirstToday ? xpRules.streakDayBonus : 0);
   const totalXp = user.xp + xpGained;
   const newLevel = levelForXp(totalXp);
   const leveledUp = newLevel > user.level;
@@ -107,21 +122,86 @@ export async function applyAttemptRewards(
     },
   });
 
-  // Achievements
-  const newAchievements: string[] = [];
-  const maybeAward = async (slug: string) => {
+  return { xpGained, totalXp, level: newLevel, leveledUp, streak, streakDays: streak };
+}
+
+/** Award several achievements, returning the titles that were newly unlocked. */
+async function awardAll(userId: string, slugs: string[]): Promise<string[]> {
+  const unlocked: string[] = [];
+  for (const slug of slugs) {
     const title = await awardAchievement(userId, slug);
-    if (title) newAchievements.push(title);
-  };
+    if (title) unlocked.push(title);
+  }
+  return unlocked;
+}
 
-  await maybeAward("first-attempt");
-  if ((ctx.segmentationScore ?? 0) >= 85) await maybeAward("mece-master");
-  if (ctx.accuracyHit) await maybeAward("sharp-shooter");
-  if (ctx.hintsUsed === 0) await maybeAward("no-hints");
-  if (ctx.overall >= 85) await maybeAward("interview-ready");
-  if (ctx.totalSolved >= 10) await maybeAward("ten-solved");
-  if (streak >= 3) await maybeAward("streak-3");
-  if (streak >= 7) await maybeAward("streak-7");
+/**
+ * Apply XP, streak, level and achievements after an attempt is submitted.
+ * Mutates the user row. Returns a summary for the UI to celebrate.
+ */
+export async function applyAttemptRewards(
+  userId: string,
+  ctx: {
+    overall: number;
+    accuracyHit: boolean;
+    hintsUsed: number;
+    /** Null when the attempt wasn't scored on structure — a guided tree builds
+     *  itself, so the MECE achievement can't be earned from it. */
+    segmentationScore: number | null;
+    totalSolved: number;
+  },
+): Promise<AttemptRewardResult> {
+  const core = await applyRewardCore(userId, (isFirstToday) =>
+    computeAttemptXp({ overall: ctx.overall, hintsUsed: ctx.hintsUsed, isFirstToday }),
+  );
 
-  return { xpGained, totalXp, level: newLevel, leveledUp, streak, newAchievements };
+  const earned = [
+    "first-attempt",
+    ...((ctx.segmentationScore ?? 0) >= 85 ? ["mece-master"] : []),
+    ...(ctx.accuracyHit ? ["sharp-shooter"] : []),
+    ...(ctx.hintsUsed === 0 ? ["no-hints"] : []),
+    ...(ctx.overall >= 85 ? ["interview-ready"] : []),
+    ...(ctx.totalSolved >= 10 ? ["ten-solved"] : []),
+    ...(core.streakDays >= 3 ? ["streak-3"] : []),
+    ...(core.streakDays >= 7 ? ["streak-7"] : []),
+  ];
+
+  return { ...core, newAchievements: await awardAll(userId, earned) };
+}
+
+/**
+ * Apply rewards after a simulation is committed.
+ *
+ * Shares the streak and level ladder with attempts, and nothing else. The
+ * interview achievements stay on the attempt path — a simulation has no MECE
+ * tree to score and no ideal range to hit — so the war room has its own four.
+ *
+ * Note what is NOT called here: `updateProgress` and `recomputeRank`. A
+ * simulation earns XP and keeps a streak alive, and it moves no percentile.
+ */
+export async function applySimulationRewards(
+  userId: string,
+  ctx: {
+    overall: number;
+    diagnosisScore: number;
+    decisionScore: number;
+    causeFound: boolean;
+    underPar: boolean;
+  },
+): Promise<AttemptRewardResult> {
+  const core = await applyRewardCore(userId, (isFirstToday) =>
+    computeSimulationXp({ overall: ctx.overall, underPar: ctx.underPar, isFirstToday }),
+  );
+
+  const earned = [
+    "war-room",
+    ...(ctx.diagnosisScore >= 85 ? ["sharp-diagnosis"] : []),
+    ...(ctx.decisionScore >= 85 ? ["capital-allocator"] : []),
+    // Cheap only counts if it also found the thing.
+    ...(ctx.underPar && ctx.causeFound ? ["frugal-analyst"] : []),
+    ...(core.streakDays >= 3 ? ["streak-3"] : []),
+    ...(core.streakDays >= 7 ? ["streak-7"] : []),
+  ];
+
+  return { ...core, newAchievements: await awardAll(userId, earned) };
 }

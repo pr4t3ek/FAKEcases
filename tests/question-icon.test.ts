@@ -113,6 +113,7 @@ const EXPECTED: Record<string, string> = {
   "Annual GMV of a mid-size D2C brand in India": "ShoppingBag",
   "Falling delivery margins at a food-delivery platform": "Bike",
   "Should a two-wheeler maker enter electric scooters?": "BatteryCharging",
+  "NukkadEats: orders are down 9% and nobody knows why": "Bike",
 };
 
 describe("every seeded question resolves to a subject icon", () => {

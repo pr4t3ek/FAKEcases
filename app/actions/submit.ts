@@ -10,17 +10,8 @@ import {
 } from "@/lib/evaluation";
 import { updateProgress, recomputeRank } from "@/lib/progress";
 import { applyAttemptRewards } from "@/lib/gamification";
+import { parseJson } from "@/lib/json";
 import { answerModeFor, type TreeMode } from "@/lib/types";
-
-/** Question JSON columns are stored as strings; bad data must not break a submit. */
-function parseJson<T>(raw: string | null): T | null {
-  if (!raw?.trim()) return null;
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return null;
-  }
-}
 
 export interface SubmitResult {
   ok: boolean;

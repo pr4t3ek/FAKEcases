@@ -15,6 +15,7 @@ export const categories = [
   { slug: "finance", name: "Finance", icon: "Landmark", order: 12 },
   { slug: "energy", name: "Energy", icon: "Zap", order: 13 },
   { slug: "startups", name: "Startups", icon: "Rocket", order: 14 },
+  { slug: "product-management", name: "Product Management", icon: "LineChart", order: 15 },
 ];
 
 export interface SeedQuestion {
@@ -31,7 +32,7 @@ export interface SeedQuestion {
   betterApproach: string;
   sampleSolution: string;
   tags: string;
-  /** "guesstimate" (default) | "qualitative". */
+  /** "guesstimate" (default) | "qualitative" | "simulation". */
   type?: string;
   /** Framework slug this case is written against, for qualitative questions. */
   framework?: string;
@@ -508,6 +509,34 @@ export const questions: SeedQuestion[] = [
       "The decision usually turns on whether existing assets transfer. Dealer network, brand trust and service reach carry over; battery chemistry, power electronics and charging partnerships do not. A 'no' is defensible if the capability gap needs a partner the client can't get on good terms, or if the segment's margins stay negative until volumes the client can't reach.",
     tags: "market entry,ev,strategy",
   },
+  /**
+   * The catalogue row for a decision simulation.
+   *
+   * Everything that makes it an exercise — dashboard, priced drilldowns, causal
+   * model, debrief — lives in `lib/sim/scenarios`, keyed by this `externalId`.
+   * What sits here is only what the library needs to show a card and filter it,
+   * which is why there is no ideal range, no framework and no root cause: a
+   * simulation is played, not answered, so `answerModeFor` never sees it.
+   *
+   * `betterApproach` and `sampleSolution` are required columns and are used by
+   * nothing on this path — the debrief comes from the scenario — so they carry
+   * the short version rather than being left blank.
+   */
+  {
+    externalId: "metric-drop-food-delivery",
+    title: "NukkadEats: orders are down 9% and nobody knows why",
+    prompt:
+      "Weekly orders at an Indian food-delivery app have fallen 9% over six weeks and the drop hasn't flattened. You have 8 analyst-days to find out why, then a quarter of engineering capacity and ₹12 crore to fix it. You will not be told whether you were right — you will see what happens to the business.",
+    category: "product-management",
+    difficulty: "Medium",
+    interviewLevel: "PM",
+    type: "simulation",
+    betterApproach:
+      "Split the north-star metric into its terms before hypothesising. Orders are sessions times conversion: if sessions are flat, every demand-side and national explanation is already weak, because a national cause cannot produce a regional pattern. Localise, then work down to what changed about the offer at the point customers drop out.",
+    sampleSolution:
+      "Sessions never moved, so this is a conversion problem, and the funnel puts it at checkout in tier-2 cities. What changed at checkout was the delivery ETA, which is set by rider supply — and a competitor had raised tier-2 rider payouts. The trap is that discounting genuinely lifts orders while handing back the contribution margin, so a candidate measured on orders alone can hit the number and lose the business case.",
+    tags: "product management,metrics,root cause,food delivery,simulation",
+  },
 ];
 
 export const achievements = [
@@ -519,4 +548,10 @@ export const achievements = [
   { slug: "ten-solved", title: "Getting Serious", description: "Solve 10 guesstimates.", emoji: "📈" },
   { slug: "no-hints", title: "Independent Thinker", description: "Finish an attempt without using any hints.", emoji: "🧠" },
   { slug: "interview-ready", title: "Interview Ready", description: "Reach an overall score of 85+.", emoji: "🏆" },
+  // Simulation track. Kept apart from the interview achievements above because
+  // they are earned on a different exercise with a different rubric.
+  { slug: "war-room", title: "War Room", description: "Complete your first decision simulation.", emoji: "🚨" },
+  { slug: "sharp-diagnosis", title: "Sharp Diagnosis", description: "Score 85+ on Diagnosis in a simulation.", emoji: "🔎" },
+  { slug: "frugal-analyst", title: "Frugal Analyst", description: "Find the cause at or under the par investigation.", emoji: "🎟️" },
+  { slug: "capital-allocator", title: "Capital Allocator", description: "Score 85+ on Decision in a simulation.", emoji: "♟️" },
 ];
