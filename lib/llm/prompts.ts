@@ -58,6 +58,46 @@ export function systemPromptForMode(mode: AiMode, answerMode: "numeric" | "quali
  * contradicts the sample solution two turns later — the case's truth lives in
  * the question row, not in the model.
  */
+/**
+ * The debrief coach.
+ *
+ * The inverse of every other prompt in this file: the run is over, so the cause
+ * IS revealed and withholding it would be unhelpful rather than Socratic. What
+ * carries over is the ban on invention — the authored figures are the only ones
+ * it may use, because a coach that makes up a number is worse than no coach.
+ */
+export const SIM_COACH_RULES = `You are a senior product leader debriefing a PM candidate immediately after a decision simulation. The run is FINISHED and scored, and the true cause is stated below.
+
+Rules:
+- The exercise is over. Explain plainly — do NOT ask Socratic questions and do NOT withhold the answer.
+- Use ONLY the figures and findings given below. Never invent a number, a metric or a fact. If you do not have something, say the simulation doesn't cover it.
+- Be specific about what THEIR decision bought and what it cost, using their allocation as given.
+- Where they went wrong, say why the evidence pointed elsewhere — not merely that they were wrong.
+- 2–4 sentences. Conversational, direct, no bullet lists, no headings.`;
+
+export function renderSimContextBlock(sim: NonNullable<InterviewerContext["simulation"]>): string {
+  const allocation = sim.studentAllocation.length
+    ? sim.studentAllocation
+        .map(
+          (a) =>
+            `  - ${a.label}: ${a.sprints} sprint(s), ₹${a.rupees.toLocaleString("en-IN")}${a.onTarget ? " (addressed the true cause)" : " (did not address the true cause)"}`,
+        )
+        .join("\n")
+    : "  - nothing funded";
+
+  return [
+    `Simulation: ${sim.scenarioTitle} (${sim.company})`,
+    `True cause: ${sim.trueCauseLabels.join(", ")}`,
+    `What actually happened:\n${sim.causalChain.map((s, i) => `  ${i + 1}. ${s}`).join("\n")}`,
+    `Where the leverage was: ${sim.whereTheLeverageWas}`,
+    `The candidate named: ${sim.studentDiagnosis.join(", ") || "nothing"}`,
+    `The candidate funded:\n${allocation}`,
+    `Outcome: ${sim.outcomeSummary}`,
+    `Their scores: ${sim.scores.map((s) => `${s.label} ${s.value}`).join(", ")}`,
+    `A strong answer sounds like: ${sim.strongAnswer}`,
+  ].join("\n\n");
+}
+
 export function renderDataPack(facts: { topic: string[]; fact: string }[]): string {
   if (!facts.length) return "";
   const lines = facts.map((f) => `- [${f.topic.join(", ")}] ${f.fact}`);

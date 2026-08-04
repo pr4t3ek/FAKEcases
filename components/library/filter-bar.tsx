@@ -67,6 +67,7 @@ export function FilterBar({ categories }: { categories: Category[] }) {
           <option value="">Guesstimates &amp; cases</option>
           <option value="guesstimate">Guesstimates</option>
           <option value="qualitative">Cases (issue tree)</option>
+          <option value="simulation">Decision simulations</option>
         </select>
         <select
           className={selectClass}

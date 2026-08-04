@@ -287,8 +287,41 @@ function replyEvaluator(ctx: InterviewerContext): string {
   return parts.join(" ");
 }
 
+/**
+ * The offline debrief coach.
+ *
+ * Reuses `factFor`'s longest-topic-wins matcher against the scenario's authored
+ * coach answers, then falls back to the causal chain. This is what keeps the
+ * zero-key promise honest for simulations: with no API key the debrief is still
+ * fully authored and still answers the questions candidates actually ask. The
+ * LLM only makes it conversational.
+ */
+function replySimCoach(ctx: InterviewerContext): string {
+  const sim = ctx.simulation;
+  if (!sim) return "";
+
+  const asked = lastUserMessage(ctx);
+  const matched = factFor(ctx, asked);
+  if (matched) return matched;
+
+  if (mentions(asked, ["wrong", "miss", "should", "what happened", "why"])) {
+    const named = sim.studentDiagnosis.join(", ") || "nothing";
+    const truth = sim.trueCauseLabels.join(", ");
+    const verdict = sim.trueCauseLabels.some((t) => sim.studentDiagnosis.includes(t))
+      ? `You named ${named}, which was right.`
+      : `You named ${named}; it was ${truth}.`;
+    return `${verdict} ${sim.whereTheLeverageWas} ${sim.causalChain[0] ?? ""}`.trim();
+  }
+
+  // Nothing matched: walk the authored chain rather than improvising.
+  return `${sim.causalChain.join(" ")} ${sim.whereTheLeverageWas}`.trim();
+}
+
 /** The mock's full reply for a context. Synchronous and deterministic. */
 export function mockReplyText(ctx: InterviewerContext): string {
+  // A finished simulation is a different exercise, not a different mode.
+  if (ctx.simulation) return replySimCoach(ctx);
+
   switch (ctx.mode) {
     case "teacher":
       return replyTeacher(ctx);

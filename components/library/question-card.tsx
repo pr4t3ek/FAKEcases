@@ -2,8 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Siren } from "lucide-react";
 import { startAttempt } from "@/app/actions/attempts";
+import { startSimulation } from "@/app/actions/simulations";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -17,6 +18,7 @@ import {
 import {
   INTERVIEW_LEVEL_LABELS,
   answerModeFor,
+  isSimulation,
   type InterviewLevel,
   type TreeMode,
 } from "@/lib/types";
@@ -41,7 +43,10 @@ const diffVariant: Record<string, "success" | "warning" | "destructive"> = {
 };
 
 export function QuestionCard({ question }: { question: QuestionCardData }) {
-  const qualitative = answerModeFor(question.type) === "qualitative";
+  // Checked BEFORE answerModeFor, which is meaningful only for the interview
+  // types and would report a simulation as qualitative (see lib/types.ts).
+  const simulation = isSimulation(question.type);
+  const qualitative = !simulation && answerModeFor(question.type) === "qualitative";
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   /**
@@ -78,6 +83,11 @@ export function QuestionCard({ question }: { question: QuestionCardData }) {
           {INTERVIEW_LEVEL_LABELS[question.interviewLevel as InterviewLevel] ?? question.interviewLevel}
         </Badge>
         {qualitative && <Badge variant="outline">Issue tree</Badge>}
+        {simulation && (
+          <Badge variant="outline" className="gap-1">
+            <Siren className="h-3 w-3" /> Simulation
+          </Badge>
+        )}
       </div>
       {/* The icon carries the subject so a grid of cards can be scanned without
           reading every title — see lib/question-icon.ts. */}
@@ -93,7 +103,17 @@ export function QuestionCard({ question }: { question: QuestionCardData }) {
         </div>
       </div>
 
-      {qualitative ? (
+      {simulation ? (
+        // No mode to choose: a simulation's phases are fixed and its budget is
+        // the constraint, so there is one way in.
+        <Button
+          onClick={() => startTransition(async () => void (await startSimulation(question.id)))}
+          disabled={pending}
+          className="mt-4 w-full"
+        >
+          Enter the war room <ArrowRight />
+        </Button>
+      ) : qualitative ? (
         // Chosen here and fixed for the attempt. Offering it mid-attempt would
         // make "solo" meaningless — switch to guided, take the structure, switch
         // back — so the choice is made before the timer starts.

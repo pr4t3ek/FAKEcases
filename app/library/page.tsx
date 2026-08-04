@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Sparkles } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { listCategories, listQuestions } from "@/lib/questions";
-import { answerModeFor } from "@/lib/types";
+import { answerModeFor, isSimulation } from "@/lib/types";
 import { AppHeader } from "@/components/app/app-header";
 import { FilterBar } from "@/components/library/filter-bar";
 import { QuestionCard } from "@/components/library/question-card";
@@ -29,15 +29,22 @@ export default async function LibraryPage({
 
   // Say what's actually in the list. The old copy called every question a
   // guesstimate, which told anyone hunting for a case that the library held
-  // none — while the cases sat at the bottom of the page.
-  const caseCount = questions.filter((q) => answerModeFor(q.type) === "qualitative").length;
-  const guesstimateCount = questions.length - caseCount;
+  // none — while the cases sat at the bottom of the page. A simulation has to
+  // be counted separately for the same reason, and `isSimulation` is checked
+  // first because `answerModeFor` would report one as qualitative.
+  const simCount = questions.filter((q) => isSimulation(q.type)).length;
+  const caseCount = questions.filter(
+    (q) => !isSimulation(q.type) && answerModeFor(q.type) === "qualitative",
+  ).length;
+  const guesstimateCount = questions.length - caseCount - simCount;
   const summary = [
     guesstimateCount > 0 && `${guesstimateCount} guesstimate${guesstimateCount === 1 ? "" : "s"}`,
     caseCount > 0 && `${caseCount} case${caseCount === 1 ? "" : "s"}`,
+    simCount > 0 && `${simCount} decision simulation${simCount === 1 ? "" : "s"}`,
   ]
     .filter(Boolean)
-    .join(" and ");
+    .join(", ")
+    .replace(/, ([^,]*)$/, " and $1");
 
   return (
     <div className="min-h-screen">

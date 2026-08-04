@@ -2,8 +2,10 @@ import { hintConfig } from "@/lib/config";
 import {
   renderContextBlock,
   renderDataPack,
+  renderSimContextBlock,
   systemPromptForMode,
   hintSystemPrompt,
+  SIM_COACH_RULES,
 } from "./prompts";
 import type { InterviewerContext, ConvMessage } from "./types";
 
@@ -13,11 +15,28 @@ function dataBlock(ctx: InterviewerContext): string {
   return pack ? `\n\n${pack}` : "";
 }
 
-/** Build (system, messages) for a normal interviewer turn. */
+/**
+ * Build (system, messages) for a normal interviewer turn — or, when the context
+ * carries a finished simulation, for the debrief coach.
+ *
+ * The branch lives here rather than as a third `LlmAdapter` method because all
+ * five adapters build their prompt through this one function, so the coach costs
+ * zero adapter changes and inherits streaming, retry, the spend guards and the
+ * mock fallback exactly as they are.
+ */
 export function buildReplyMessages(ctx: InterviewerContext): {
   system: string;
   messages: ConvMessage[];
 } {
+  if (ctx.simulation) {
+    const system = `${SIM_COACH_RULES}\n\n${renderSimContextBlock(ctx.simulation)}${dataBlock(ctx)}`;
+    const messages = ctx.messages.filter((m) => m.role !== "system");
+    if (messages.length === 0) {
+      messages.push({ role: "user", content: "Walk me through what I got wrong." });
+    }
+    return { system, messages };
+  }
+
   const system = `${systemPromptForMode(ctx.mode, ctx.answerMode)}\n\nCurrent state:\n${renderContextBlock(ctx)}${dataBlock(ctx)}`;
   const messages = ctx.messages.filter((m) => m.role !== "system");
   // Ensure there is at least one user message to respond to.

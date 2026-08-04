@@ -25,6 +25,28 @@ export interface AssumptionCtx {
   rating?: string | null;
 }
 
+/**
+ * A finished simulation, for the debrief coach.
+ *
+ * Present only after a run commits, and the difference from an interview
+ * context is total: the run is over, so the cause IS revealed and the model is
+ * expected to explain it rather than withhold it.
+ */
+export interface SimCoachContext {
+  scenarioTitle: string;
+  company: string;
+  trueCauseLabels: string[];
+  causalChain: string[];
+  whereTheLeverageWas: string;
+  strongAnswer: string;
+  studentDiagnosis: string[];
+  studentAllocation: { label: string; sprints: number; rupees: number; onTarget: boolean }[];
+  scores: { label: string; value: number }[];
+  outcomeSummary: string;
+  /** Same shape and same contract as `Question.dataPack` — matched by topic. */
+  facts: { topic: string[]; fact: string }[];
+}
+
 /** Everything an adapter needs to produce the next interviewer turn. */
 export interface InterviewerContext {
   question: QuestionContext;
@@ -43,6 +65,13 @@ export interface InterviewerContext {
    */
   dataPack?: { topic: string[]; fact: string }[];
   hintsUsed: number;
+  /**
+   * Set only for a simulation debrief. When present the whole prompt changes —
+   * see `buildReplyMessages` — which is why it rides the existing context
+   * rather than needing a third adapter method: all five adapters build their
+   * prompt through that one function, so none of them change.
+   */
+  simulation?: SimCoachContext;
 }
 
 /**

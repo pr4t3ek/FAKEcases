@@ -8,7 +8,13 @@ import { asLlmError, type LlmErrorCode } from "./errors";
 import type { FallbackReason } from "./stream";
 import type { InterviewerContext, LlmAdapter } from "./types";
 
-export type { InterviewerContext, LlmAdapter, ConvMessage, QuestionContext } from "./types";
+export type {
+  InterviewerContext,
+  LlmAdapter,
+  ConvMessage,
+  QuestionContext,
+  SimCoachContext,
+} from "./types";
 export { mockAdapter } from "./mock";
 
 /** Provider label recorded when the mock stood in for a real provider. */
