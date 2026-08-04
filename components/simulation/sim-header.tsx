@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { Beaker, Clock } from "lucide-react";
 import { Brand } from "@/components/brand";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -41,9 +40,10 @@ export function SimHeader({
   return (
     <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur">
       <div className="container flex h-14 items-center gap-4">
-        <Link href="/library" className="shrink-0">
-          <Brand />
-        </Link>
+        {/* Brand renders its own link and takes an href for it — wrapping it in
+            another one nests an <a> inside an <a>, which React reports as a
+            hydration error. */}
+        <Brand href="/library" className="shrink-0" />
 
         <div className="hidden min-w-0 flex-1 items-center gap-2 md:flex">
           <Beaker className="h-4 w-4 shrink-0 text-primary" />
