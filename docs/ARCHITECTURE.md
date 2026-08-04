@@ -115,7 +115,26 @@ flowchart LR
     H --> I
     C -.->|"sign up to save"| J["Signup claims guest\n(same user row)"]
     J --> I
+
+    C -->|"pick a simulation"| S0["Start/resume SimRun\n(app/actions/simulations.ts)"]
+    S0 --> Sim
+
+    subgraph Sim["Decision simulation (/simulate/[runId])"]
+        S1["Observe — dashboard,\nlock a hypothesis"]
+        S2["Investigate — buy pulls\nout of an analyst-day budget"]
+        S3["Commit — name a cause,\nsplit sprints + ₹"]
+        S1 --> S2 --> S3
+    end
+
+    Sim -->|"Commit"| SK["runOutcome() + scoreSimulation()\ndeterministic causal model"]
+    SK --> SR["Debrief — moved metrics,\ncausal chain, allocation vs best"]
+    SK --> H
+    SR --> I
 ```
+
+The two loops share a user, XP and a streak, and nothing else. A simulation writes no `Attempt`
+and no `Evaluation`, so `updateProgress` and `recomputeRank` cannot see it — that is what keeps
+interview readiness and percentile rank measuring only interview work.
 
 ---
 
@@ -128,6 +147,11 @@ erDiagram
     User ||--o{ Bookmark : saves
     User ||--o{ UserAchievement : unlocks
     User ||--o{ QuestionFeedback : reports
+    User ||--o{ SimRun : plays
+    Question ||--o{ SimRun : catalogues
+    SimRun ||--o{ SimPurchase : buys
+    SimRun ||--o| SimResult : scores
+    SimRun ||--o{ SimMessage : debriefs
 
     Category ||--o{ Question : contains
 
@@ -189,6 +213,60 @@ question to `numeric` or `qualitative`, and everything downstream — the builde
 scorer, the prompts — branches on that rather than on `type` itself. A nullable score
 means "this category never applied to this attempt", which is a different claim from
 zero and is preserved as one all the way into the database.
+
+### The simulation tables
+
+```mermaid
+erDiagram
+    SimRun {
+        string id PK
+        string userId FK
+        string questionId FK "the catalogue Question"
+        string scenarioSlug "key into lib/sim/registry"
+        string phase "observe|investigate|commit|debrief"
+        int daysSpent "analyst-days, cached from purchases"
+        string hypothesis "JSON causeId[] — locked once Investigate opens"
+        string diagnosis "JSON causeId[]"
+        string allocation "JSON SimAllocationLine[]"
+    }
+    SimPurchase {
+        string id PK
+        string runId FK
+        string drilldownId
+        int cost "pinned at purchase — retuning content can't move a past score"
+        int seq "1-based, so 'cheaply AND early' is answerable"
+    }
+    SimResult {
+        string id PK
+        string runId FK "unique"
+        int overall
+        string band "own vocabulary, never readinessBands"
+        int hypothesis "the five simRubric keys, all non-null"
+        int investigation
+        int diagnosis
+        int decision
+        int outcome
+        string outcomeJson "pinned quarterly paths — never recomputed on read"
+    }
+    SimMessage {
+        string id PK
+        string runId FK
+        string role
+        string content
+        string provider "badges a degraded answer across a reload"
+    }
+```
+
+**Why these are not `Attempt` and `Evaluation`.** `updateProgress` and `recomputeRank`
+(`lib/progress.ts`) query `Attempt` + `Evaluation` directly, as does `lib/admin-stats.ts`. Had a
+simulation written an `Evaluation`, keeping interview readiness honest would depend on remembering
+an exclusion filter at four-plus query sites, forever. Separate tables mean there is no filter to
+forget — `lib/progress.ts` did not change when simulations were added. The nine `Evaluation`
+columns are also named for interview behaviours (`segmentation`, `calculation`) and would have
+poisoned `Progress.bySkill` and the dashboard radar.
+
+`SimPurchase` carries a unique constraint on `(runId, drilldownId)`: a double-click must not be
+charged twice for the same cut.
 
 ---
 
@@ -351,11 +429,13 @@ app/
 ├── dashboard/         Stats, charts, rank card, achievements
 ├── library/           Browse/filter questions
 ├── practice/[id]/     Core interviewer + calculator + framework + evaluation UI
+├── simulate/[runId]/  Decision simulation: dashboard, drilldown market, commit, debrief
 └── (login|signup|forgot-password)/   Auth pages
 
 components/
 ├── ui/                shadcn-style primitives (button, card, dialog, tabs, ...)
 ├── practice/           Chat panel, calculator, framework builder, tools panel, evaluation report
+├── simulation/         Sim dashboard panels, drilldown market, commit panel, debrief report, coach
 ├── dashboard/          Charts (Recharts), stat cards, rank card, achievements
 ├── admin/              Question/category managers, CSV/JSON import, feedback queue
 └── marketing/          Landing page sections
@@ -364,17 +444,23 @@ lib/
 ├── config/            Central typed config: env, flags, evaluation weights, gamification curve, practice defaults
 ├── llm/                Streaming interviewer adapters (mock / gemini / ollama / anthropic / openai),
 │                       prompt builder, NDJSON protocol (stream.ts), spend guards (budget.ts)
+├── sim/                Simulation engine — all pure, no DB: types, scenarios/, registry,
+│                       drivers (metric DAG), outcome (causal model), investigate (pricing),
+│                       score, debrief, redact (client projection), payload, validate
 ├── auth.ts             Signed cookie sessions, guest mode, claim-on-signup
 ├── evaluation.ts       Rubric scorer (pure, unit-tested)
 ├── gamification.ts     XP/level/streak/rank rules (pure, unit-tested)
 ├── calc.ts             Calculator expression engine (pure, unit-tested)
 ├── progress.ts         Per-user rollups (totals, accuracy, by-category/by-skill)
+├── simulations.ts      Simulation data access (runs, purchases, results) — the only file
+│                       that touches Prisma for a sim, so lib/sim stays pure
 └── questions.ts / db.ts  Content access, Prisma client singleton
 
 prisma/
 ├── schema.prisma       Data model (see ERD above)
-└── seed-data.ts / seed.ts   14 categories, 26 India-only questions (24 guesstimates
-                             + 2 cases), 8 achievements, demo users, benchmark cohort
+└── seed-data.ts / seed.ts   15 categories, 27 India-only questions (24 guesstimates
+                             + 2 cases + 1 simulation catalogue row), 12 achievements,
+                             demo users, benchmark cohort
 ```
 
 ---
