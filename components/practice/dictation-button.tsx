@@ -20,19 +20,23 @@ import { useSpeechInput } from "./use-speech-input";
  * answer to the interviewer and score it.
  */
 export function DictationButton({
-  value,
   onValueChange,
   disabled,
   className,
 }: {
-  value: string;
-  onValueChange: (next: string) => void;
+  /**
+   * An updater rather than a plain setter, and not incidentally: the browser
+   * finalises speech in bursts, so two segments can arrive before React
+   * re-renders. Computing the next value from a captured `value` would have the
+   * second overwrite the first and silently lose a sentence.
+   */
+  onValueChange: (update: (previous: string) => string) => void;
   disabled?: boolean;
   className?: string;
 }) {
   const handleFinal = useCallback(
-    (text: string) => onValueChange(appendSegment(value, text)),
-    [value, onValueChange],
+    (text: string) => onValueChange((previous) => appendSegment(previous, text)),
+    [onValueChange],
   );
 
   const { supported, listening, interim, toggle } = useSpeechInput({ onFinal: handleFinal });

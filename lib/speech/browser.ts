@@ -150,9 +150,15 @@ export const browserRecogniser: SpeechRecogniser = {
     const Ctor = getConstructor();
     if (!Ctor) {
       handlers.onError("unavailable");
+      handlers.onEnd();
       return;
     }
-    if (active) return;
+    // Nothing was started, so say so rather than leaving the caller to assume it
+    // was — a silent return here is what makes a button claim to be listening.
+    if (active) {
+      handlers.onEnd();
+      return;
+    }
 
     const recognition = new Ctor();
     active = recognition;
@@ -206,6 +212,7 @@ export const browserRecogniser: SpeechRecogniser = {
       }
       if (active === recognition) active = null;
       handlers.onInterim("");
+      handlers.onEnd();
     };
 
     try {
@@ -213,6 +220,7 @@ export const browserRecogniser: SpeechRecogniser = {
     } catch {
       active = null;
       handlers.onError("unavailable");
+      handlers.onEnd();
     }
   },
 

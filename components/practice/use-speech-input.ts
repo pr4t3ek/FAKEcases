@@ -42,19 +42,27 @@ export function useSpeechInput({ onFinal }: { onFinal: (text: string) => void })
   }, []);
 
   const start = useCallback(() => {
+    // Set before starting, not after. `onError` and `onEnd` can fire
+    // synchronously inside `start()`, and setting the optimistic value
+    // afterwards would overwrite their correction — leaving the UI insisting it
+    // is listening to a recogniser that already gave up.
+    setListening(true);
+    setInterim("");
+
     getRecogniser().start(
       {
         onFinal: (text) => onFinalRef.current(text),
         onInterim: setInterim,
-        onError: (code) => {
+        onError: (code) => toast.error(ERROR_MESSAGE[code]),
+        // The provider is the authority on whether a session is alive; this is
+        // the only thing that clears the listening state on its own.
+        onEnd: () => {
           setListening(false);
           setInterim("");
-          toast.error(ERROR_MESSAGE[code]);
         },
       },
       speechConfig.lang,
     );
-    setListening(true);
   }, []);
 
   const toggle = useCallback(() => {

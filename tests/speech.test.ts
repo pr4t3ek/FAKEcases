@@ -1,6 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   appendSegment,
+  browserRecogniser,
   classifySpeechError,
   collectTranscript,
   type SpeechResultList,
@@ -127,5 +128,198 @@ describe("getRecogniser", () => {
     // Node has no `window`, which is exactly the server-render case the hook
     // guards against by starting `supported` false.
     expect(getRecogniser().isSupported()).toBe(false);
+  });
+});
+
+/**
+ * The session state machine, driven through a fake `SpeechRecognition`.
+ *
+ * No jsdom needed: `getConstructor()` only reads `window.SpeechRecognition`, so
+ * stubbing a `window` is enough to exercise the real recogniser. This is the
+ * half where the interesting bugs live — a session that ends without saying so
+ * leaves the UI asserting it is listening to a recogniser that stopped.
+ */
+
+/** Minimal stand-in for the browser's SpeechRecognition. */
+class FakeRecognition {
+  static instances: FakeRecognition[] = [];
+  /** Static: an instance field would be unreachable, since the recogniser
+   *  constructs its own instance before the test can touch it. */
+  static throwOnStart = false;
+
+  lang = "";
+  continuous = false;
+  interimResults = false;
+  maxAlternatives = 0;
+  startCalls = 0;
+  aborted = false;
+
+  onresult: ((event: { results: SpeechResultList }) => void) | null = null;
+  onerror: ((event: { error: string }) => void) | null = null;
+  onend: (() => void) | null = null;
+
+  constructor() {
+    FakeRecognition.instances.push(this);
+  }
+
+  start() {
+    if (FakeRecognition.throwOnStart) throw new Error("already started");
+    this.startCalls++;
+  }
+
+  stop() {
+    this.onend?.();
+  }
+
+  abort() {
+    this.aborted = true;
+    this.onend?.();
+  }
+
+  /** What the browser does when it gives up on a silence. */
+  endFromBrowser() {
+    this.onend?.();
+  }
+}
+
+function handlers() {
+  return {
+    onFinal: vi.fn(),
+    onInterim: vi.fn(),
+    onError: vi.fn(),
+    onEnd: vi.fn(),
+  };
+}
+
+function withSpeechApi(): FakeRecognition {
+  FakeRecognition.instances = [];
+  vi.stubGlobal("window", { SpeechRecognition: FakeRecognition });
+  return FakeRecognition.instances[0];
+}
+
+/** The instance created by the most recent `start()`. */
+function latest(): FakeRecognition {
+  return FakeRecognition.instances[FakeRecognition.instances.length - 1];
+}
+
+describe("browser recogniser session", () => {
+  afterEach(() => {
+    browserRecogniser.stop();
+    vi.unstubAllGlobals();
+    FakeRecognition.instances = [];
+  });
+
+  it("configures the recogniser for continuous dictation in the given language", () => {
+    withSpeechApi();
+    browserRecogniser.start(handlers(), "en-IN");
+
+    const recognition = latest();
+    expect(recognition.lang).toBe("en-IN");
+    expect(recognition.continuous).toBe(true);
+    expect(recognition.interimResults).toBe(true);
+    expect(recognition.startCalls).toBe(1);
+  });
+
+  it("emits only newly finalised text, never a repeat", () => {
+    withSpeechApi();
+    const h = handlers();
+    browserRecogniser.start(h, "en-IN");
+
+    // The API hands back every result of the session on each event, so a naive
+    // handler re-sends the whole transcript and repeats every sentence.
+    latest().onresult?.({ results: results(["Urban first.", true]) });
+    latest().onresult?.({
+      results: results(["Urban first.", true], ["Then rural.", true]),
+    });
+
+    expect(h.onFinal.mock.calls.map((c) => c[0])).toEqual(["Urban first.", "Then rural."]);
+  });
+
+  it("reports the session ending when the browser stops for good", () => {
+    withSpeechApi();
+    const h = handlers();
+    browserRecogniser.start(h, "en-IN");
+
+    browserRecogniser.stop();
+
+    expect(h.onEnd).toHaveBeenCalledTimes(1);
+    expect(latest().aborted).toBe(true);
+  });
+
+  it("resumes after a silence without reporting the session as over", () => {
+    withSpeechApi();
+    const h = handlers();
+    browserRecogniser.start(h, "en-IN");
+
+    // Chrome ends the stream on a long pause even with `continuous` set. Calling
+    // onEnd here would flicker the button off every time someone stops to think.
+    latest().endFromBrowser();
+
+    expect(h.onEnd).not.toHaveBeenCalled();
+    expect(latest().startCalls).toBe(2);
+  });
+
+  it("stops for good after an error rather than restarting into it", () => {
+    withSpeechApi();
+    const h = handlers();
+    browserRecogniser.start(h, "en-IN");
+
+    latest().onerror?.({ error: "not-allowed" });
+    latest().endFromBrowser();
+
+    expect(h.onError).toHaveBeenCalledWith("permission_denied");
+    expect(h.onEnd).toHaveBeenCalledTimes(1);
+    // A denied microphone would otherwise loop through onend forever.
+    expect(latest().startCalls).toBe(1);
+  });
+
+  it("stays quiet and keeps listening through a benign error", () => {
+    withSpeechApi();
+    const h = handlers();
+    browserRecogniser.start(h, "en-IN");
+
+    // Someone pausing to think is the normal case in this app.
+    latest().onerror?.({ error: "no-speech" });
+    latest().endFromBrowser();
+
+    expect(h.onError).not.toHaveBeenCalled();
+    expect(h.onEnd).not.toHaveBeenCalled();
+    expect(latest().startCalls).toBe(2);
+  });
+
+  it("reports the end when a second start finds one already running", () => {
+    withSpeechApi();
+    browserRecogniser.start(handlers(), "en-IN");
+
+    const second = handlers();
+    browserRecogniser.start(second, "en-IN");
+
+    // Silently returning is what lets a button claim to be listening.
+    expect(second.onEnd).toHaveBeenCalledTimes(1);
+    expect(FakeRecognition.instances).toHaveLength(1);
+  });
+
+  it("reports an unavailable provider when there is no Speech API", () => {
+    vi.stubGlobal("window", {});
+    const h = handlers();
+
+    browserRecogniser.start(h, "en-IN");
+
+    expect(h.onError).toHaveBeenCalledWith("unavailable");
+    expect(h.onEnd).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports the end when start() throws", () => {
+    withSpeechApi();
+    const h = handlers();
+    FakeRecognition.throwOnStart = true;
+
+    try {
+      browserRecogniser.start(h, "en-IN");
+      expect(h.onError).toHaveBeenCalledWith("unavailable");
+      expect(h.onEnd).toHaveBeenCalledTimes(1);
+    } finally {
+      FakeRecognition.throwOnStart = false;
+    }
   });
 });

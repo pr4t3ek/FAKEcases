@@ -300,7 +300,7 @@ export function ChatPanel({
             className="max-h-32 min-h-[44px] resize-none"
             disabled={busy || disabled}
           />
-          <DictationButton value={input} onValueChange={setInput} disabled={busy || disabled} />
+          <DictationButton onValueChange={setInput} disabled={busy || disabled} />
           <Button size="icon" onClick={onSubmit} disabled={busy || disabled || !input.trim()}>
             <SendHorizontal className="h-4 w-4" />
           </Button>

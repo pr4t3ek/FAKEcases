@@ -31,6 +31,16 @@ export interface SpeechHandlers {
    */
   onInterim(text: string): void;
   onError(code: SpeechErrorCode): void;
+  /**
+   * The session is over and will not resume itself. Always the last call, and
+   * always made — including when `start()` never got as far as recording.
+   *
+   * Without this the caller has no way to tell a live session from a dead one,
+   * and a UI that reports "listening" is left asserting it over a recogniser
+   * that stopped. A batch provider uses the same call to report that its upload
+   * finished.
+   */
+  onEnd(): void;
 }
 
 export interface SpeechRecogniser {
