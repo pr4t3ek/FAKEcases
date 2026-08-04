@@ -87,16 +87,16 @@ function Hero({ isAuthed }: { isAuthed: boolean }) {
           className="flex flex-col justify-center"
         >
           <Badge variant="secondary" className="mb-5 w-fit gap-1.5">
-            <Sparkles className="h-3.5 w-3.5" /> Duolingo for consulting guesstimates
+            <Sparkles className="h-3.5 w-3.5" /> Duolingo for consulting and PM interviews
           </Badge>
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
-            Crack guesstimates with an{" "}
+            Crack case interviews with an{" "}
             <span className="text-primary">AI interviewer</span>, not an answer key.
           </h1>
           <p className="mt-5 max-w-xl text-lg text-muted-foreground">
-            Practise India-focused market-sizing and demand cases interactively. Think aloud, build
-            frameworks, defend your assumptions — and get McKinsey/BCG/Bain-style questioning and a
-            detailed evaluation. No answers handed to you.
+            Practise India-focused guesstimates, business cases and product decision simulations.
+            Think aloud, build frameworks, defend your assumptions — and get McKinsey/BCG/Bain-style
+            questioning and a detailed evaluation. No answers handed to you.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <Button asChild size="lg">
@@ -179,8 +179,8 @@ function MiniStat({ label, value }: { label: string; value: string }) {
 const STEPS = [
   {
     icon: Compass,
-    title: "Pick a guesstimate",
-    body: "Choose from India-only market-sizing and demand cases across 14 categories, difficulties and interview levels.",
+    title: "Pick your exercise",
+    body: "India-only guesstimates, business cases and PM decision simulations across 15 categories, difficulties and interview levels.",
   },
   {
     icon: MessageSquareText,
@@ -312,7 +312,7 @@ const PLANS = [
     name: "Free",
     price: "₹0",
     period: "forever",
-    features: ["Unlimited practice", "Guesstimates and cases", "AI interviewer + hints", "Scored evaluation & feedback", "Progress tracking & streaks"],
+    features: ["Unlimited practice", "Guesstimates, cases and simulations", "AI interviewer + hints", "Scored evaluation & feedback", "Progress tracking & streaks"],
     cta: "Start free",
     href: "/library",
     highlight: false,
@@ -394,7 +394,7 @@ function FinalCta({ isAuthed }: { isAuthed: boolean }) {
         <div className="relative overflow-hidden rounded-3xl border bg-primary px-8 py-16 text-center text-primary-foreground">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(50%_50%_at_50%_0%,rgba(255,255,255,0.15),transparent)]" />
           <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            Your first guesstimate is one click away.
+            Your first case is one click away.
           </h2>
           <p className="mx-auto mt-3 max-w-xl text-primary-foreground/80">
             No account needed to start. Think aloud, get guided, and become interview-ready.

@@ -1,0 +1,299 @@
+"use client";
+
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { AlertTriangle, Target } from "lucide-react";
+import { toast } from "sonner";
+import { commitDecision } from "@/app/actions/simulations";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
+import { simConfig } from "@/lib/config/simulation";
+import { cn, toIndianWords } from "@/lib/utils";
+import type { ClientCause, ClientIntervention, ClientScenario } from "@/lib/sim/types";
+
+const CRORE = 10_000_000;
+
+interface Draft {
+  sprints: number;
+  crore: number;
+}
+
+/**
+ * Name the cause, then commit the quarter.
+ *
+ * Both halves are irreversible and the dialog says so before confirming. That
+ * matters more than usual here: the point of the exercise is committing under
+ * uncertainty, and an undo button would turn it into a search.
+ */
+export function CommitPanel({
+  runId,
+  scenario,
+}: {
+  runId: string;
+  scenario: ClientScenario;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [named, setNamed] = useState<string[]>([]);
+  const [draft, setDraft] = useState<Record<string, Draft>>({});
+  const [confirming, setConfirming] = useState(false);
+
+  const roots = scenario.causes.filter((c) => c.parentId === null);
+  const childrenOf = (id: string) => scenario.causes.filter((c) => c.parentId === id);
+
+  const budgetCrore = scenario.budget.rupees / CRORE;
+
+  const used = useMemo(() => {
+    let sprints = 0;
+    let crore = 0;
+    for (const line of Object.values(draft)) {
+      sprints += line.sprints;
+      crore += line.crore;
+    }
+    return { sprints, crore };
+  }, [draft]);
+
+  const overSprints = used.sprints > scenario.budget.sprints;
+  const overBudget = used.crore > budgetCrore + 1e-9;
+  const fundedCount = Object.values(draft).filter((d) => d.sprints > 0 || d.crore > 0).length;
+  const canCommit = named.length > 0 && fundedCount > 0 && !overSprints && !overBudget;
+
+  function toggleCause(id: string) {
+    setNamed((prev) => {
+      if (prev.includes(id)) return prev.filter((c) => c !== id);
+      if (prev.length >= simConfig.maxCausesNamed) {
+        toast.error(`Name at most ${simConfig.maxCausesNamed} — a list of everything predicts nothing`);
+        return prev;
+      }
+      return [...prev, id];
+    });
+  }
+
+  function setLine(id: string, patch: Partial<Draft>) {
+    setDraft((prev) => ({
+      ...prev,
+      [id]: { ...{ sprints: 0, crore: 0 }, ...prev[id], ...patch },
+    }));
+  }
+
+  function commit() {
+    const allocation = Object.entries(draft)
+      .filter(([, d]) => d.sprints > 0 || d.crore > 0)
+      .map(([interventionId, d]) => ({
+        interventionId,
+        sprints: d.sprints,
+        // Back to absolute rupees at the boundary; the UI works in crore
+        // because that is how the money is actually discussed.
+        rupees: Math.round(d.crore * CRORE),
+      }));
+
+    startTransition(async () => {
+      const result = await commitDecision(runId, named, allocation);
+      setConfirming(false);
+      if (!result.ok) {
+        toast.error(result.error ?? "Could not commit");
+        return;
+      }
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="space-y-6">
+      <section>
+        <h2 className="flex items-center gap-2 text-sm font-semibold">
+          <Target className="h-4 w-4 text-primary" /> What was actually driving the drop?
+        </h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Pick up to {simConfig.maxCausesNamed}. Naming the specific branch scores higher than
+          naming the area it sits in.
+        </p>
+
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {roots.map((root) => (
+            <Card key={root.id} className="p-3">
+              <div className="text-xs font-medium text-muted-foreground">{root.label}</div>
+              <div className="mt-2 space-y-1.5">
+                {[root, ...childrenOf(root.id)].map((cause: ClientCause) => {
+                  const isRoot = cause.id === root.id;
+                  const selected = named.includes(cause.id);
+                  return (
+                    <button
+                      key={cause.id}
+                      type="button"
+                      onClick={() => toggleCause(cause.id)}
+                      className={cn(
+                        "w-full rounded-md border px-2.5 py-1.5 text-left text-sm transition-colors",
+                        isRoot && "text-muted-foreground",
+                        selected
+                          ? "border-primary bg-primary/10 font-medium text-foreground"
+                          : "hover:bg-accent",
+                      )}
+                    >
+                      {isRoot ? `Somewhere in ${cause.label.toLowerCase()}` : cause.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-sm font-semibold">Commit the quarter</h2>
+          <div className="flex gap-4 text-xs tabular-nums">
+            <span className={cn(overSprints && "font-medium text-destructive")}>
+              {used.sprints}/{scenario.budget.sprints} sprints
+            </span>
+            <span className={cn(overBudget && "font-medium text-destructive")}>
+              ₹{used.crore.toFixed(1)}/{budgetCrore.toFixed(0)} cr
+            </span>
+          </div>
+        </div>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          <Progress
+            value={(used.sprints / Math.max(1, scenario.budget.sprints)) * 100}
+            indicatorClassName={overSprints ? "bg-destructive" : undefined}
+          />
+          <Progress
+            value={(used.crore / Math.max(1, budgetCrore)) * 100}
+            indicatorClassName={overBudget ? "bg-destructive" : undefined}
+          />
+        </div>
+
+        <div className="mt-4 space-y-3">
+          {scenario.interventions.map((iv: ClientIntervention) => {
+            const line = draft[iv.id] ?? { sprints: 0, crore: 0 };
+            const funded = line.sprints > 0 || line.crore > 0;
+            const askCrore = iv.cost.rupees / CRORE;
+            const shortOfMin = iv.minSprints !== undefined && funded && line.sprints < iv.minSprints;
+
+            return (
+              <Card key={iv.id} className={cn("p-4", funded && "border-primary/40")}>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-sm font-medium">{iv.label}</h3>
+                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{iv.pitch}</p>
+                  </div>
+                  <Badge variant="muted" className="shrink-0">
+                    asks {iv.cost.sprints} sprint{iv.cost.sprints === 1 ? "" : "s"} · ₹
+                    {toIndianWords(iv.cost.rupees)}
+                  </Badge>
+                </div>
+
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <label className="text-xs">
+                    <span className="text-muted-foreground">Sprints</span>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={scenario.budget.sprints}
+                      step={1}
+                      value={line.sprints}
+                      onChange={(e) =>
+                        setLine(iv.id, { sprints: Math.max(0, Math.floor(+e.target.value || 0)) })
+                      }
+                      className="mt-1 h-9"
+                    />
+                  </label>
+                  <label className="text-xs">
+                    <span className="text-muted-foreground">₹ crore</span>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={budgetCrore}
+                      step={0.5}
+                      value={line.crore}
+                      onChange={(e) => setLine(iv.id, { crore: Math.max(0, +e.target.value || 0) })}
+                      className="mt-1 h-9"
+                    />
+                  </label>
+                </div>
+
+                {/* Named up front rather than discovered in the debrief: the
+                    lesson is about choosing to fund fewer things properly, and
+                    hiding the threshold would make it a gotcha instead. */}
+                {iv.minSprints !== undefined && (
+                  <p
+                    className={cn(
+                      "mt-2 text-[11px]",
+                      shortOfMin ? "font-medium text-destructive" : "text-muted-foreground",
+                    )}
+                  >
+                    {shortOfMin ? (
+                      <>
+                        <AlertTriangle className="mr-1 inline h-3 w-3" />
+                        Below {iv.minSprints} sprints this ships nothing — the money is still spent.
+                      </>
+                    ) : (
+                      `Ships only at ${iv.minSprints}+ sprints.`
+                    )}
+                  </p>
+                )}
+                {funded && line.crore < askCrore && (
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Part-funded at {Math.round((line.crore / askCrore) * 100)}% of what it asked for.
+                  </p>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      </section>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <Button disabled={!canCommit || pending} onClick={() => setConfirming(true)}>
+          Commit the quarter
+        </Button>
+        {!canCommit && (
+          <span className="text-xs text-muted-foreground">
+            {named.length === 0
+              ? "Name a cause first."
+              : fundedCount === 0
+                ? "Fund at least one intervention."
+                : "You are over budget."}
+          </span>
+        )}
+      </div>
+
+      <Dialog open={confirming} onOpenChange={setConfirming}>
+        <DialogContent className="sm:max-w-md">
+          <DialogTitle>Commit and run the quarter?</DialogTitle>
+          <DialogDescription>
+            This is final — the quarters play out and you see what happened, not whether you were
+            right. You are naming{" "}
+            <strong>
+              {named
+                .map((id) => scenario.causes.find((c) => c.id === id)?.label)
+                .filter(Boolean)
+                .join(" and ")}
+            </strong>{" "}
+            and committing {used.sprints} sprint{used.sprints === 1 ? "" : "s"} and ₹
+            {used.crore.toFixed(1)} crore across {fundedCount} intervention
+            {fundedCount === 1 ? "" : "s"}.
+          </DialogDescription>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setConfirming(false)} disabled={pending}>
+              Keep working
+            </Button>
+            <Button onClick={commit} disabled={pending}>
+              {pending ? "Running the quarter…" : "Commit"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

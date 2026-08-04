@@ -39,6 +39,17 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
+/**
+ * Exhaustiveness check for a discriminated union.
+ *
+ * Put it in the default arm of a `switch` and TypeScript fails the build if a
+ * variant is ever added without being handled — which beats the alternative of
+ * a silently skipped case, especially where the arms assign rather than return.
+ */
+export function assertNever(value: never, context = "value"): never {
+  throw new Error(`Unhandled ${context}: ${JSON.stringify(value)}`);
+}
+
 /** Deterministic pseudo-random in [0,1) from a string seed (for mock/offline determinism). */
 export function seededRandom(seed: string): number {
   let h = 2166136261;

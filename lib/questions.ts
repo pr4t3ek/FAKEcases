@@ -63,7 +63,16 @@ export async function recommendQuestions(userId: string, limit = 3) {
     where: { userId },
     select: { questionId: true },
   });
-  const attemptedIds = new Set(attempted.map((a) => a.questionId));
+  // A simulation never creates an Attempt, so counting only those would keep
+  // recommending a war room the candidate has already played through.
+  const simmed = await db.simRun.findMany({
+    where: { userId },
+    select: { questionId: true },
+  });
+  const attemptedIds = new Set([
+    ...attempted.map((a) => a.questionId),
+    ...simmed.map((s) => s.questionId),
+  ]);
 
   let weakCategoryId: string | undefined;
   if (progress) {

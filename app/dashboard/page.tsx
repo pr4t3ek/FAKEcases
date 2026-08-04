@@ -4,6 +4,7 @@ import { ArrowRight, PlayCircle } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { recommendQuestions } from "@/lib/questions";
+import { simSummary } from "@/lib/simulations";
 import { evaluationCategories } from "@/lib/config";
 import { AppHeader } from "@/components/app/app-header";
 import { StatCards } from "@/components/dashboard/stat-cards";
@@ -34,8 +35,15 @@ export default async function DashboardPage() {
   if (!user) redirect("/login");
   if (user.isGuest) redirect("/signup");
 
-  const [progress, submitted, inProgress, recommended, allAchievements, userAchievements] =
-    await Promise.all([
+  const [
+    progress,
+    submitted,
+    inProgress,
+    recommended,
+    allAchievements,
+    userAchievements,
+    simStats,
+  ] = await Promise.all([
       db.progress.findUnique({ where: { userId: user.id } }),
       db.attempt.findMany({
         where: { userId: user.id, status: "submitted" },
@@ -51,6 +59,7 @@ export default async function DashboardPage() {
       recommendQuestions(user.id, 3),
       db.achievement.findMany(),
       db.userAchievement.findMany({ where: { userId: user.id } }),
+      simSummary(user.id),
     ]);
 
   const stats = {
@@ -170,6 +179,76 @@ export default async function DashboardPage() {
             </div>
           </section>
         )}
+
+        {/* Product simulations.
+            A separate card rather than more numbers in StatCards: a simulation
+            is scored on a different rubric, so averaging the two would produce
+            a figure that means nothing. */}
+        <section>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="font-semibold">Product simulations</h2>
+            <Link href="/library?type=simulation" className="text-sm text-primary hover:underline">
+              Browse simulations <ArrowRight className="inline h-3 w-3" />
+            </Link>
+          </div>
+          <Card className="p-5">
+            {simStats.completed === 0 && simStats.inProgress === 0 ? (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">You haven&apos;t run a simulation yet</p>
+                  <p className="mt-0.5 text-sm text-muted-foreground">
+                    Read a dashboard, spend a budget finding the cause, then commit a quarter and
+                    watch what happens to the business.
+                  </p>
+                </div>
+                <Button asChild variant="outline">
+                  <Link href="/library?type=simulation">
+                    Try one <ArrowRight />
+                  </Link>
+                </Button>
+              </div>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-4">
+                <div>
+                  <div className="text-xs text-muted-foreground">Completed</div>
+                  <div className="mt-0.5 text-2xl font-semibold tabular-nums">
+                    {simStats.completed}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Causes found</div>
+                  <div className="mt-0.5 text-2xl font-semibold tabular-nums">
+                    {simStats.causesFound}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Best score</div>
+                  <div className="mt-0.5 text-2xl font-semibold tabular-nums">
+                    {simStats.bestOverall ?? "—"}
+                  </div>
+                </div>
+                <div className="flex items-end">
+                  {simStats.inProgress > 0 ? (
+                    <Badge variant="warning">{simStats.inProgress} in progress</Badge>
+                  ) : (
+                    simStats.latest && (
+                      <Link
+                        href={`/simulate/${simStats.latest.runId}`}
+                        className="text-sm text-primary hover:underline"
+                      >
+                        Last debrief <ArrowRight className="inline h-3 w-3" />
+                      </Link>
+                    )
+                  )}
+                </div>
+              </div>
+            )}
+            <p className="mt-4 text-xs text-muted-foreground">
+              Scored on their own rubric — simulations don&apos;t affect your interview readiness or
+              rank.
+            </p>
+          </Card>
+        </section>
 
         {/* Recommended */}
         <section>

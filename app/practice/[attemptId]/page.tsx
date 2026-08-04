@@ -8,16 +8,7 @@ import type { AiMode } from "@/lib/config";
 import { answerModeFor, type NodeOrigin, type NodeStatus, type TreeMode } from "@/lib/types";
 import { diagnosisTrail } from "@/lib/diagnosis";
 import { labelMatches, solutionWasRevealed } from "@/lib/evaluation";
-
-/** Question JSON columns are strings; malformed data must not break the report. */
-function parseJson<T>(raw: string | null): T | null {
-  if (!raw?.trim()) return null;
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return null;
-  }
-}
+import { parseJson } from "@/lib/json";
 
 export const dynamic = "force-dynamic";
 

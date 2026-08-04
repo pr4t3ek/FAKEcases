@@ -1,9 +1,10 @@
 # EstimateIQ
 
-**Duolingo for consulting guesstimates.** An interactive web app where MBA / consulting / PM
-candidates practise **India-focused** market-sizing guesstimates and business cases while an AI
-interviewer guides them with Socratic questions, escalating hints (never the answer early) and a
-detailed evaluation.
+**Duolingo for consulting and PM interviews.** An interactive web app where MBA / consulting / PM
+candidates practise **India-focused** market-sizing guesstimates, business cases and product
+**decision simulations**. An AI interviewer guides the first two with Socratic questions, escalating
+hints (never the answer early) and a detailed evaluation; the third is played against a
+deterministic causal model that answers with consequences rather than a mark.
 
 It is built **local-first / zero-key**: it runs and is fully usable with **no external services** —
 a local SQLite database, dev auth, and a deterministic offline "mock" interviewer. Real
@@ -26,7 +27,7 @@ scoring/integrity corrections.
 cp .env.example .env   # Prisma needs DATABASE_URL; .env is gitignored, so a clone has none
 pnpm install
 pnpm db:push           # create the SQLite database from prisma/schema.prisma
-pnpm db:seed           # 14 categories, 26 questions (24 guesstimates + 2 cases), achievements, demo users
+pnpm db:seed           # 15 categories, 27 questions (24 guesstimates + 2 cases + 1 simulation), achievements, demo users
 pnpm dev               # http://localhost:3000
 ```
 
@@ -38,9 +39,10 @@ The `.env` step is easy to skip and confusing when you do: the app itself defaul
 artifact should be. All the content lives in `prisma/seed-data.ts`, so an empty question
 library means the seed hasn't been run, not that the questions are missing.
 
-**Pulling a branch that changed the schema?** Run `pnpm db:reset` rather than `db:seed`.
-Seeding alone won't add new columns, and Prisma will error on the missing fields. Reset drops
-and rebuilds, so local attempts and sign-ups are discarded.
+**Pulling a branch that changed the schema?** Run `pnpm db:push && pnpm db:seed` — the push adds
+the new columns in place and keeps your local data. `pnpm db:reset` also works and is what you want
+if the schema drifted badly, but it drops and rebuilds, so local attempts and sign-ups are
+discarded.
 
 Then walk the flow: **landing → Start practising (guest, no login) → practice → submit →
 evaluation → sign up to save**. Or sign in with the seeded accounts:
@@ -142,6 +144,8 @@ Framer Motion · Prisma (SQLite dev → Postgres/Supabase prod) · Recharts · V
 | I want to… | Edit |
 |---|---|
 | Add / edit questions and cases | Admin panel (`/admin`), CSV/JSON import, or `prisma/seed-data.ts` |
+| Add / edit a decision simulation | `lib/sim/scenarios/` + a row in `lib/sim/registry.ts` and `prisma/seed-data.ts` |
+| Tune simulation scoring / bands | `lib/config/simulation.ts` |
 | Change the interviewer's behaviour / wording | `lib/llm/prompts.ts` |
 | Tune XP, levels, streak rules | `lib/config/gamification.ts` |
 | Change rank percentile bands (Silver→Diamond) | `lib/config/gamification.ts` (`rankBands`) |
@@ -167,18 +171,60 @@ follow the same convention (the import panel shows a reminder).
 
 ---
 
-## Two question types
+## Three exercise types
 
 A **guesstimate** ends in a number and is scored against an ideal range. A **case** ends in a
 recommendation and is scored on whether the candidate's issue tree localised the declared root
-cause. `answerModeFor(type)` in `lib/types.ts` is the fork; everything downstream branches on
-that rather than on `type`, so adding a type that behaves like an issue tree costs one line.
+cause. `answerModeFor(type)` in `lib/types.ts` is the fork between those two; everything downstream
+branches on that rather than on `type`.
 
 Both are authored through the same contract (`lib/question-schema.ts`), used by the admin panel
 and the CSV/JSON importer alike — download the CSV template from the import panel for a worked
 example of each. A case can't be saved with an ideal range, and a guesstimate can't be saved with
 a root cause; a malformed `rootCause` is a save error rather than a case that silently can't
 score Diagnosis.
+
+A **simulation** is not answered at all — it is played. See below.
+
+---
+
+## Decision simulations (the PM track)
+
+A metric war room. The candidate reads an analytics dashboard, commits to a hypothesis *before*
+spending anything, buys data pulls out of a budget of analyst-days, names a root cause, and splits
+a quarter of engineering capacity and a rupee budget across candidate fixes. The next quarters are
+then projected forward and reported as **moved metrics — orders, retention, margin — rather than as
+a mark**. A debrief reveals the true causal chain and compares the candidate's allocation to the
+best available one.
+
+Four things are worth knowing before you touch it:
+
+- **Content is code, not rows.** A scenario lives in `lib/sim/scenarios/`, registered in
+  `lib/sim/registry.ts`. Nothing queries into it, the causal model needs compile-time id checking a
+  JSON column can't give, and it survives `db:reset`. The trade-off is real: **adding a scenario
+  needs a deploy.** The catalogue row in `prisma/seed-data.ts` is a normal `Question` whose
+  `externalId` matches the scenario `slug`, which is what gets it library filters, search and
+  bookmarks for free.
+- **It never writes an `Attempt` or an `Evaluation`.** `updateProgress` and `recomputeRank` read
+  those tables directly, so separate tables mean simulation results *structurally* cannot move
+  interview readiness or percentile rank — there is no exclusion filter to forget. Simulations do
+  earn XP and keep a streak alive.
+- **Outcomes are deterministic and authored.** Metrics are a small DAG (`lib/sim/drivers.ts`); only
+  `input` drivers can be moved by an intervention and the rest are derived, so a scenario cannot
+  claim a cost fell and a margin that didn't move. Effects compose multiplicatively, so allocation
+  order can't matter, and `SimResult.outcomeJson` is pinned at commit — retuning content later
+  cannot rewrite a past report.
+- **The answer is server-side until it is earned.** `lib/sim/redact.ts` builds the client object
+  field by field, so a field added to a scenario is absent from the RSC payload until someone
+  deliberately adds it there. `tests/sim-redact.test.ts` asserts against the serialised payload.
+
+Balance is tested, not asserted: `tests/sim-scenario.test.ts` brute-forces every affordable
+combination of interventions and fails if anything beats the scenario's declared `bestAllocation`.
+Retune an effect and that test is what tells you the scenario now teaches the wrong lesson.
+
+The debrief coach is optional. The authored debrief is the product; with no API key the same
+follow-up questions are answered from the scenario's `coachFallback` by the mock, using the same
+matcher that serves a case's `dataPack`.
 
 **Help is priced.** Hints cost Confidence as they escalate. Teacher mode — the one AI mode whose
 prompt actually works the problem — costs the equivalent of the whole hint ladder and is disclosed
@@ -232,6 +278,12 @@ NDJSON stream protocol, the before/after-first-token fallback split, the spend g
 Ollama adapter's SSE parsing and error classification. Only the network boundary and the
 database are mocked, so the adapter wiring and error classification are exercised for real.
 
+The simulation engine adds its own suites: the driver DAG, the outcome model (including that an
+allocation's *order* cannot change the result), drilldown pricing and locking, each scoring
+dimension on its own, the payload guards, the redaction projection, the authoring invariants, and
+the scenario's balance — which brute-forces every affordable combination of interventions to prove
+the declared best allocation really is best.
+
 Also useful: `pnpm typecheck` (strict, clean), `pnpm lint`, `pnpm build`.
 
 ---
@@ -242,3 +294,8 @@ Stripe payments, PostHog analytics, voice/STT, whiteboard, peer leaderboard, ada
 weekly report emails — each structured as an additive plug-in. The `case` value in
 `QUESTION_TYPES` is reserved for the full-length interview format and has no runtime yet, so the
 library filters it out and the admin panel doesn't offer it (see `PRACTISABLE_TYPES`).
+
+More decision simulations are the cheapest next thing: the engine takes the scenario as a parameter
+throughout and no scenario id appears in engine code, so a second one is a file in
+`lib/sim/scenarios/`, a line in the registry and a seed row. Prioritisation and experiment-readout
+scenarios both fit the existing phases without engine changes.

@@ -24,17 +24,50 @@ export const INTERVIEW_LEVEL_LABELS: Record<InterviewLevel, string> = {
   GeneralMBA: "General MBA",
 };
 
-export const QUESTION_TYPES = ["guesstimate", "qualitative", "case"] as const;
+export const QUESTION_TYPES = ["guesstimate", "qualitative", "case", "simulation"] as const;
 export type QuestionType = (typeof QUESTION_TYPES)[number];
 
 /**
- * The types a candidate can actually practise today, and therefore the only ones
- * worth authoring. `case` is reserved in `QUESTION_TYPES` for the full-length
- * interview format and has no runtime yet, so the library filters it out — which
- * makes it a trap in an authoring dropdown, not an option.
+ * The types a candidate can actually practise today. `case` is reserved in
+ * `QUESTION_TYPES` for the full-length interview format and has no runtime yet,
+ * so the library filters it out.
  */
-export const PRACTISABLE_TYPES = ["guesstimate", "qualitative"] as const;
+export const PRACTISABLE_TYPES = ["guesstimate", "qualitative", "simulation"] as const;
 export type PractisableType = (typeof PRACTISABLE_TYPES)[number];
+
+/**
+ * The types that can be authored through the admin panel or the CSV importer,
+ * which is a narrower set than what can be practised.
+ *
+ * A `simulation` row is a catalogue entry — title, category, difficulty — while
+ * the exercise itself (dashboard, drilldowns, causal model) is authored in code
+ * under `lib/sim/scenarios`. There is nothing useful a form could write, and a
+ * row created without a matching scenario is inert. Keeping the type out of the
+ * authoring contract means that row can never be created by accident.
+ */
+export const AUTHORABLE_TYPES = ["guesstimate", "qualitative"] as const;
+export type AuthorableType = (typeof AUTHORABLE_TYPES)[number];
+
+export const SIMULATION_TYPE = "simulation";
+
+export function isSimulation(type: string): boolean {
+  return type === SIMULATION_TYPE;
+}
+
+/**
+ * A simulation run's phase. Strictly forward: `canAdvanceSimPhase` allows only
+ * the next one, and the server enforces it.
+ *
+ * Going back to `observe` after seeing drilldown data would make the hypothesis
+ * score theatre — name a suspect, buy the data, then quietly revise. It is the
+ * same reason `TREE_MODES` is fixed when an attempt is created.
+ */
+export const SIM_PHASES = ["observe", "investigate", "commit", "debrief"] as const;
+export type SimPhase = (typeof SIM_PHASES)[number];
+
+export function canAdvanceSimPhase(from: SimPhase, to: SimPhase): boolean {
+  return SIM_PHASES.indexOf(to) === SIM_PHASES.indexOf(from) + 1;
+}
 
 /**
  * How a question is answered, and therefore how it is built and scored.
@@ -46,6 +79,17 @@ export type PractisableType = (typeof PRACTISABLE_TYPES)[number];
 export const ANSWER_MODES = ["numeric", "qualitative"] as const;
 export type AnswerMode = (typeof ANSWER_MODES)[number];
 
+/**
+ * Meaningful only for the interview types. A `simulation` is not answered, it is
+ * played: it never creates an `Attempt`, so it never reaches the scorer, the
+ * framework builder or the prompts that read this.
+ *
+ * It still returns `"qualitative"` for one rather than throwing, because the
+ * honest fix is to not call it — `isSimulation` is checked first at the two
+ * places that could (`question-card.tsx`, `app/library/page.tsx`), and
+ * `AUTHORABLE_TYPES` keeps the type out of the authoring contract entirely.
+ * A test pins this return value so it stays documented rather than latent.
+ */
 export function answerModeFor(type: string): AnswerMode {
   return type === "guesstimate" ? "numeric" : "qualitative";
 }

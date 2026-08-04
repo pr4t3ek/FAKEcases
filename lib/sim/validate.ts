@@ -1,0 +1,219 @@
+/**
+ * Authoring invariants for a scenario.
+ *
+ * A scenario is a 500-line hand-written object full of cross-references, and
+ * TypeScript checks none of them: `DriverId` and `CauseId` are string aliases,
+ * so a typo in `addresses` compiles perfectly and then silently makes an
+ * intervention useless. This is what turns those into failures a test can catch.
+ *
+ * Deliberately not Zod. Zod earns its keep at trust boundaries — the admin form,
+ * the CSV importer, client payloads — where the input is hostile or unknown.
+ * Scenario content is neither: it is code, checked once in CI, and a plain
+ * function returning readable strings tests better than a schema error tree.
+ *
+ * Returns an empty array for a valid scenario.
+ */
+
+import { driverOrder } from "./drivers";
+import { drilldownById, parCost } from "./investigate";
+import type { CauseId, SimEffect, SimScenario } from "./types";
+
+function duplicates(ids: string[]): string[] {
+  const seen = new Set<string>();
+  const dupes = new Set<string>();
+  for (const id of ids) {
+    if (seen.has(id)) dupes.add(id);
+    seen.add(id);
+  }
+  return [...dupes];
+}
+
+export function validateScenario(scenario: SimScenario): string[] {
+  const errors: string[] = [];
+
+  const driverIds = new Set(scenario.drivers.map((d) => d.id));
+  const causeIds = new Set(scenario.causes.map((c) => c.id));
+  const drilldownIds = new Set(scenario.drilldowns.map((d) => d.id));
+  const interventionIds = new Set(scenario.interventions.map((i) => i.id));
+
+  // ── Unique ids ──────────────────────────────────────────────────────────
+  for (const [label, ids] of [
+    ["driver", scenario.drivers.map((d) => d.id)],
+    ["cause", scenario.causes.map((c) => c.id)],
+    ["drilldown", scenario.drilldowns.map((d) => d.id)],
+    ["intervention", scenario.interventions.map((i) => i.id)],
+  ] as const) {
+    for (const dupe of duplicates([...ids])) {
+      errors.push(`Duplicate ${label} id "${dupe}"`);
+    }
+  }
+
+  // ── Driver graph ────────────────────────────────────────────────────────
+  try {
+    driverOrder(scenario.drivers);
+  } catch (e) {
+    errors.push(e instanceof Error ? e.message : String(e));
+  }
+
+  if (!driverIds.has(scenario.northStar)) {
+    errors.push(`northStar "${scenario.northStar}" is not a driver`);
+  }
+  for (const id of scenario.reported) {
+    if (!driverIds.has(id)) errors.push(`reported driver "${id}" does not exist`);
+  }
+
+  /**
+   * An effect on a derived driver is the quietest possible authoring bug: it
+   * type-checks, it runs, and `resolveDrivers` overwrites the value from the
+   * driver's parents a moment later, so the intervention simply does nothing.
+   */
+  const inputDrivers = new Set(
+    scenario.drivers.filter((d) => d.kind === "input").map((d) => d.id),
+  );
+  const checkEffects = (effects: SimEffect[], where: string) => {
+    for (const e of effects) {
+      if (!driverIds.has(e.driver)) {
+        errors.push(`${where}: effect targets unknown driver "${e.driver}"`);
+      } else if (!inputDrivers.has(e.driver)) {
+        errors.push(
+          `${where}: effect targets derived driver "${e.driver}" and would do nothing — target its inputs instead`,
+        );
+      }
+      if (e.deltaPct <= -1) {
+        errors.push(`${where}: deltaPct ${e.deltaPct} on "${e.driver}" must be greater than -1`);
+      }
+      if (e.rampQuarters !== undefined && e.rampQuarters < 1) {
+        errors.push(`${where}: rampQuarters must be at least 1`);
+      }
+    }
+  };
+
+  checkEffects(scenario.drift, "drift");
+
+  // ── Cause tree ──────────────────────────────────────────────────────────
+  for (const cause of scenario.causes) {
+    if (cause.parentId && !causeIds.has(cause.parentId)) {
+      errors.push(`Cause "${cause.id}" has unknown parent "${cause.parentId}"`);
+    }
+  }
+
+  const hasCycle = (start: CauseId): boolean => {
+    const byId = new Map(scenario.causes.map((c) => [c.id, c]));
+    const seen = new Set<CauseId>();
+    let current: CauseId | null = start;
+    while (current) {
+      if (seen.has(current)) return true;
+      seen.add(current);
+      current = byId.get(current)?.parentId ?? null;
+    }
+    return false;
+  };
+  for (const cause of scenario.causes) {
+    if (hasCycle(cause.id)) errors.push(`Cause cycle through "${cause.id}"`);
+  }
+
+  const parents = new Set(scenario.causes.map((c) => c.parentId).filter(Boolean));
+  if (!scenario.trueCauseIds.length) errors.push("trueCauseIds is empty");
+  for (const id of scenario.trueCauseIds) {
+    if (!causeIds.has(id)) {
+      errors.push(`trueCauseIds names unknown cause "${id}"`);
+      continue;
+    }
+    // A true cause with children is ambiguous: a candidate naming the child
+    // would be more precise than the answer, and the scorer has no way to
+    // reward that.
+    if (parents.has(id)) {
+      errors.push(`True cause "${id}" has children — name the leaf that actually holds it`);
+    }
+  }
+
+  // ── Drilldowns ──────────────────────────────────────────────────────────
+  for (const d of scenario.drilldowns) {
+    if (d.cost <= 0) errors.push(`Drilldown "${d.id}" must cost at least one analyst-day`);
+    for (const dep of d.dependsOn ?? []) {
+      if (!drilldownIds.has(dep)) {
+        errors.push(`Drilldown "${d.id}" depends on unknown "${dep}"`);
+      }
+      if (dep === d.id) errors.push(`Drilldown "${d.id}" depends on itself`);
+    }
+    for (const c of d.evidenceFor) {
+      if (!causeIds.has(c)) errors.push(`Drilldown "${d.id}" is evidence for unknown cause "${c}"`);
+    }
+    if (!d.reveals.length) errors.push(`Drilldown "${d.id}" reveals nothing`);
+  }
+
+  // ── Interventions ───────────────────────────────────────────────────────
+  for (const iv of scenario.interventions) {
+    if (!causeIds.has(iv.addresses)) {
+      errors.push(`Intervention "${iv.id}" addresses unknown cause "${iv.addresses}"`);
+    }
+    if (iv.cost.sprints <= 0 && iv.cost.rupees <= 0) {
+      errors.push(`Intervention "${iv.id}" is free — it would always be fully funded`);
+    }
+    if (iv.minSprints !== undefined && iv.minSprints > iv.cost.sprints) {
+      errors.push(
+        `Intervention "${iv.id}" has minSprints above its own cost, so it can never ship`,
+      );
+    }
+    checkEffects(iv.effects.whenRootCause, `Intervention "${iv.id}" (whenRootCause)`);
+    checkEffects(iv.effects.otherwise, `Intervention "${iv.id}" (otherwise)`);
+  }
+
+  if (!scenario.interventions.some((i) => scenario.trueCauseIds.includes(i.addresses))) {
+    errors.push("No intervention addresses a true cause — the scenario is unwinnable");
+  }
+
+  // ── Budget and par ──────────────────────────────────────────────────────
+  const totalDrilldownCost = scenario.drilldowns.reduce((s, d) => s + d.cost, 0);
+  if (totalDrilldownCost <= scenario.budget.analystDays) {
+    errors.push(
+      "The analyst-day budget covers every drilldown, so there is nothing to choose between — raise the costs or cut the budget",
+    );
+  }
+
+  for (const id of scenario.parInvestigation) {
+    if (!drilldownIds.has(id)) errors.push(`parInvestigation names unknown drilldown "${id}"`);
+  }
+  const par = parCost(scenario);
+  if (par > scenario.budget.analystDays) {
+    errors.push(`parInvestigation costs ${par} days, above the ${scenario.budget.analystDays}-day budget`);
+  }
+  const parReachesCause = scenario.parInvestigation.some((id) =>
+    drilldownById(scenario, id)?.evidenceFor.some((c) => scenario.trueCauseIds.includes(c)),
+  );
+  if (!parReachesCause) {
+    errors.push("parInvestigation contains no drilldown that is evidence for a true cause");
+  }
+
+  // ── Best allocation ─────────────────────────────────────────────────────
+  let bestSprints = 0;
+  let bestRupees = 0;
+  for (const line of scenario.bestAllocation) {
+    if (!interventionIds.has(line.interventionId)) {
+      errors.push(`bestAllocation names unknown intervention "${line.interventionId}"`);
+    }
+    bestSprints += line.sprints;
+    bestRupees += line.rupees;
+  }
+  if (bestSprints > scenario.budget.sprints) {
+    errors.push(`bestAllocation needs ${bestSprints} sprints, above the ${scenario.budget.sprints} available`);
+  }
+  if (bestRupees > scenario.budget.rupees) {
+    errors.push(`bestAllocation needs ₹${bestRupees}, above the ₹${scenario.budget.rupees} available`);
+  }
+
+  // ── Misc ────────────────────────────────────────────────────────────────
+  if (scenario.horizonQuarters < 1) errors.push("horizonQuarters must be at least 1");
+  if (!scenario.dashboard.length) errors.push("The scenario opens with an empty dashboard");
+  if (!scenario.debrief.causalChain.length) errors.push("debrief.causalChain is empty");
+
+  const panelIds = [
+    ...scenario.dashboard.map((p) => p.id),
+    ...scenario.drilldowns.flatMap((d) => d.reveals.map((p) => p.id)),
+  ];
+  for (const dupe of duplicates(panelIds)) {
+    errors.push(`Duplicate panel id "${dupe}" — React keys would collide`);
+  }
+
+  return errors;
+}
