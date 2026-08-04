@@ -40,6 +40,23 @@ export const llmBudget = {
   globalRequestsPerDay: 200,
 };
 
+/**
+ * Voice input for the chat composer.
+ *
+ * `NEXT_PUBLIC_` because the recogniser is chosen in the browser — a server-only
+ * variable reads as `undefined` there and would silently fall back to the default
+ * rather than failing visibly.
+ */
+export const speechConfig = {
+  /** Which `SpeechRecogniser` to use. Only "browser" exists today. */
+  provider: process.env.NEXT_PUBLIC_SPEECH_PROVIDER ?? "browser",
+  /**
+   * Indian English, and not cosmetic: every seeded question is India-focused, and
+   * en-US transcribes "two lakh" as "two lack" and mangles Indian place names.
+   */
+  lang: "en-IN",
+};
+
 /** Default practice-screen panel widths (percent). User-resizable + persisted. */
 export const panelDefaults = {
   left: 40,
