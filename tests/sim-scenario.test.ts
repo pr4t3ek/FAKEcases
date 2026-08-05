@@ -330,6 +330,237 @@ describe("subscription-ltv-cac: the numbers the primer promises", () => {
   });
 });
 
+describe("ab-test-readout: the numbers the primer promises", () => {
+  const scenario = getScenario("ab-test-readout");
+  if (!scenario) throw new Error("scenario missing");
+  const v = resolveDrivers(scenario.drivers);
+
+  it("turns 18.5 lakh users into 76,220 orders and ₹4.88 crore of bookings", () => {
+    expect(v.orders).toBeCloseTo(76_220, 0);
+    expect(v.revenue).toBeCloseTo(4.87808 * 10_000_000, -2);
+  });
+
+  /**
+   * The link the whole scenario turns on: a returned order loses its margin as
+   * well as costing money to handle. Drop `keepRate` and returns become a small
+   * handling fee, and shipping the variant becomes correct.
+   */
+  it("books margin only on the orders customers kept", () => {
+    expect(v.keepRate).toBeCloseTo(0.939, 4);
+    expect(v.netRevenue).toBeCloseTo(4.58052 * 10_000_000, -2);
+    expect(v.grossProfit).toBeCloseTo(87.03 * 100_000, -3);
+  });
+
+  it("charges ₹9.8 lakh to handle 4,649 returns", () => {
+    expect(v.returnedOrders).toBeCloseTo(4_649, 0);
+    expect(v.returnCost).toBeCloseTo(9.764 * 100_000, -2);
+  });
+
+  it("leaves ₹77.3 lakh of net contribution", () => {
+    expect(v.netContribution).toBeCloseTo(77.266 * 100_000, -2);
+  });
+
+  /**
+   * The one sentence the scenario exists to land: everything the test measured
+   * goes up 6%, and the number the business runs on goes down.
+   */
+  it("delivers the +6% and loses 6.7% of contribution", () => {
+    const shipped = resolveDrivers(scenario.drivers, {
+      conversionRate: 1.06,
+      returnRate: 1.6,
+    });
+    expect(shipped.conversionRate / v.conversionRate).toBeCloseTo(1.06, 4);
+    expect(shipped.orders / v.orders).toBeCloseTo(1.06, 4);
+    expect(shipped.revenue / v.revenue).toBeCloseTo(1.06, 4);
+    expect(shipped.returnRate).toBeCloseTo(0.0976, 4);
+
+    const change = (shipped.netContribution - v.netContribution) / v.netContribution;
+    expect(change).toBeCloseTo(-0.067, 3);
+  });
+
+  /** The debrief's arithmetic: the returns cost about twice the added margin. */
+  it("costs about twice in returns what the extra orders earn in margin", () => {
+    const moreOrders = resolveDrivers(scenario.drivers, { conversionRate: 1.06 });
+    const earned = moreOrders.netContribution - v.netContribution;
+    const shipped = resolveDrivers(scenario.drivers, {
+      conversionRate: 1.06,
+      returnRate: 1.6,
+    });
+    const lost = moreOrders.netContribution - shipped.netContribution;
+
+    expect(earned).toBeGreaterThan(0);
+    expect(lost / earned).toBeGreaterThan(1.8);
+    expect(lost / earned).toBeLessThan(2.5);
+  });
+
+  /** Shipping it is the only option in the set that beats doing nothing downward. */
+  it("makes shipping the variant worse than shipping nothing", () => {
+    const outcome = runOutcome(scenario, [
+      { interventionId: "iv-ship-all", sprints: 1, rupees: 5 * 100_000 },
+    ]);
+    expect(finalValue(outcome.paths, "orders")).toBeGreaterThan(
+      finalValue(outcome.doNothing, "orders"),
+    );
+    expect(finalValue(outcome.paths, "revenue")).toBeGreaterThan(
+      finalValue(outcome.doNothing, "revenue"),
+    );
+    expect(finalValue(outcome.paths, "netContribution")).toBeLessThan(
+      finalValue(outcome.doNothing, "netContribution"),
+    );
+  });
+
+  /**
+   * A decoy that loses money teaches nothing — the student just avoids it. The
+   * festive push has to genuinely work and still be the wrong call.
+   */
+  it("lets the festive push genuinely help, and lose anyway", () => {
+    const festive = runOutcome(scenario, [
+      { interventionId: "iv-festive", sprints: 1, rupees: 14 * 100_000 },
+    ]);
+    const ns = "netContribution";
+    expect(finalValue(festive.paths, ns)).toBeGreaterThan(finalValue(festive.doNothing, ns));
+    expect(finalValue(festive.paths, ns)).toBeLessThan(finalValue(festive.best, ns));
+  });
+
+  it("defines the test vocabulary and the money vocabulary before using either", () => {
+    const primer = scenario.teaching?.primer;
+    expect(primer).toBeDefined();
+    const terms = primer!.terms.map((t) => t.term);
+    for (const expected of [
+      "A/B test",
+      "Control and variant",
+      "Lift",
+      "Sample size",
+      "Statistical significance",
+      "Novelty effect",
+      "Return rate",
+      "Net contribution",
+    ]) {
+      expect(terms).toContain(expected);
+    }
+    for (const t of primer!.terms) expect(t.matters.length).toBeGreaterThan(20);
+
+    const driverIds = new Set(scenario.drivers.map((d) => d.id));
+    for (const t of primer!.terms) {
+      if (t.driver) expect(driverIds).toContain(t.driver);
+    }
+  });
+});
+
+describe("channel-trade-spend: the numbers the primer promises", () => {
+  const scenario = getScenario("channel-trade-spend");
+  if (!scenario) throw new Error("scenario missing");
+  const v = resolveDrivers(scenario.drivers);
+
+  it("realises ₹47.40 of a ₹60 pack in general trade and ₹34.80 on quick commerce", () => {
+    expect(v.gtRealisedPrice).toBeCloseTo(47.4, 2);
+    expect(v.qcRealisedPrice).toBeCloseTo(34.8, 2);
+    expect(v.qcDeductionRate).toBeCloseTo(0.42, 4);
+    expect(v.gtDeductionRate).toBeCloseTo(0.21, 4);
+  });
+
+  /** The sentence the whole scenario is built to make undeniable. */
+  it("earns ₹21.40 a pack in one channel and ₹8.80 in the other", () => {
+    expect(v.gtContributionPerPack).toBeCloseTo(21.4, 2);
+    expect(v.qcContributionPerPack).toBeCloseTo(8.8, 2);
+    expect(v.gtContributionPerPack / v.qcContributionPerPack).toBeCloseTo(2.43, 2);
+  });
+
+  it("gives quick commerce 27% of the volume and 13% of the contribution", () => {
+    expect(v.qcPacks / (v.qcPacks + v.gtPacks)).toBeCloseTo(0.271, 3);
+    expect(v.qcContribution / v.totalContribution).toBeCloseTo(0.132, 3);
+  });
+
+  it("nets ₹70.8 lakh against ₹2.35 crore of fixed costs, at 11.5% share", () => {
+    expect(v.totalContribution).toBeCloseTo(3.0584 * 10_000_000, -2);
+    expect(v.netContribution).toBeCloseTo(70.84 * 100_000, -2);
+    expect(v.qcMarketShare).toBeCloseTo(0.115, 4);
+  });
+
+  /**
+   * The uncomfortable result: the right answer costs you the number the room is
+   * proud of. If a retune ever makes the answer share-accretive, the scenario
+   * stops teaching what it exists to teach.
+   */
+  it("makes the correct move lose market share and gain money", () => {
+    const fixed = resolveDrivers(scenario.drivers, {
+      qcTradeSpendRate: 0.45,
+      qcPacks: 0.75,
+      gtPacks: 1.08,
+    });
+    expect(fixed.qcMarketShare).toBeLessThan(v.qcMarketShare);
+    expect(fixed.qcMarketShare).toBeCloseTo(0.086, 3);
+    expect(fixed.qcContributionPerPack).toBeCloseTo(14.08, 2);
+    expect(fixed.netContribution).toBeGreaterThan(v.netContribution * 1.35);
+  });
+
+  /** And the trap does the reverse — bought share, at a price on the P&L. */
+  it("makes doubling down buy share and lose the business", () => {
+    const bought = resolveDrivers(scenario.drivers, {
+      qcPacks: 1.35,
+      qcTradeSpendRate: 1.4,
+      gtPacks: 0.88,
+    });
+    expect(bought.qcMarketShare).toBeCloseTo(0.155, 3);
+    expect(bought.qcDeductionRate).toBeCloseTo(0.484, 3);
+    expect(bought.qcContributionPerPack).toBeCloseTo(4.96, 2);
+    expect(bought.netContribution).toBeLessThan(v.netContribution * 0.5);
+
+    // Followed to the horizon, with platform rates drifting, it goes negative.
+    const outcome = runOutcome(scenario, [
+      { interventionId: "iv-double-down", sprints: 1, rupees: 18 * 100_000 },
+    ]);
+    expect(finalValue(outcome.paths, "qcMarketShare")).toBeGreaterThan(
+      finalValue(outcome.doNothing, "qcMarketShare"),
+    );
+    expect(finalValue(outcome.paths, "netContribution")).toBeLessThan(0);
+  });
+
+  /** Both value-branch decoys have to pay, or nobody is tempted by them. */
+  it("makes the price rise and the cost saving genuinely profitable and small", () => {
+    const raise = resolveDrivers(scenario.drivers, {
+      mrp: 1.0833,
+      qcPacks: 0.85,
+      gtPacks: 0.84,
+    });
+    const save = resolveDrivers(scenario.drivers, {
+      cogsPerPack: 0.97,
+      qcPacks: 0.98,
+      gtPacks: 0.98,
+    });
+    for (const alt of [raise, save]) {
+      expect(alt.netContribution).toBeGreaterThan(v.netContribution);
+      expect(alt.netContribution).toBeLessThan(v.netContribution * 1.15);
+    }
+    expect(raise.netContribution - v.netContribution).toBeCloseTo(3.9 * 100_000, -4);
+    expect(save.netContribution - v.netContribution).toBeCloseTo(6.9 * 100_000, -4);
+  });
+
+  it("defines the channel vocabulary before charging for it", () => {
+    const primer = scenario.teaching?.primer;
+    expect(primer).toBeDefined();
+    const terms = primer!.terms.map((t) => t.term);
+    for (const expected of [
+      "Channel",
+      "MRP",
+      "Trade promotion",
+      "Net realisation",
+      "Contribution per pack",
+      "Incrementality",
+      "Cannibalisation",
+      "Market share",
+    ]) {
+      expect(terms).toContain(expected);
+    }
+    for (const t of primer!.terms) expect(t.matters.length).toBeGreaterThan(20);
+
+    const driverIds = new Set(scenario.drivers.map((d) => d.id));
+    for (const t of primer!.terms) {
+      if (t.driver) expect(driverIds).toContain(t.driver);
+    }
+  });
+});
+
 describe("metric-drop-food-delivery specifics", () => {
   const scenario = getScenario("metric-drop-food-delivery");
 

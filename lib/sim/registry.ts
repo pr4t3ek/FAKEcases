@@ -14,7 +14,9 @@
 import type { SimScenario } from "./types";
 import { metricDropFoodDelivery } from "./scenarios/metric-drop-food-delivery";
 import { adFunnelRoas } from "./scenarios/ad-funnel-roas";
+import { abTestReadout } from "./scenarios/ab-test-readout";
 import { subscriptionLtvCac } from "./scenarios/subscription-ltv-cac";
+import { channelTradeSpend } from "./scenarios/channel-trade-spend";
 import { pricingElasticity } from "./scenarios/pricing-elasticity";
 import { marketSizingGtm } from "./scenarios/market-sizing-gtm";
 
@@ -22,7 +24,9 @@ import { marketSizingGtm } from "./scenarios/market-sizing-gtm";
 // meeting the track for the first time should not land on the hardest one.
 const ALL: SimScenario[] = [
   adFunnelRoas,
+  abTestReadout,
   subscriptionLtvCac,
+  channelTradeSpend,
   pricingElasticity,
   marketSizingGtm,
   metricDropFoodDelivery,
