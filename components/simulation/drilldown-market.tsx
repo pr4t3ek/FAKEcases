@@ -7,6 +7,13 @@ import { buyDrilldown } from "@/app/actions/simulations";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import type { ClientDrilldown, SimPanel } from "@/lib/sim/types";
 
@@ -31,12 +38,20 @@ export function DrilldownMarket({
 }) {
   const [pending, startTransition] = useTransition();
   const [buying, setBuying] = useState<string | null>(null);
+  /**
+   * Buying is the one action here that cannot be taken back, and it used to
+   * fire on a single click. A pull costs up to half the budget, so the
+   * confirmation is worth the friction — and restating the question it answers
+   * makes it a genuine last check rather than a speed bump.
+   */
+  const [confirming, setConfirming] = useState<ClientDrilldown | null>(null);
 
   function buy(d: ClientDrilldown) {
     setBuying(d.id);
     startTransition(async () => {
       const result = await buyDrilldown(runId, d.id);
       setBuying(null);
+      setConfirming(null);
       if (!result.ok) {
         toast.error(result.error ?? "That request was refused");
         return;
@@ -106,7 +121,7 @@ export function DrilldownMarket({
                     ? `${d.label} — ${reason}`
                     : `Run ${d.label} for ${d.cost} analyst-day${d.cost === 1 ? "" : "s"}`
                 }
-                onClick={() => buy(d)}
+                onClick={() => setConfirming(d)}
               >
                 {!d.unlocked ? (
                   <>
@@ -125,6 +140,32 @@ export function DrilldownMarket({
           );
         })}
       </div>
+
+      <Dialog open={!!confirming} onOpenChange={(open) => !open && setConfirming(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogTitle>Run &ldquo;{confirming?.label}&rdquo;?</DialogTitle>
+          <DialogDescription>
+            It answers: <em>{confirming?.question}</em>
+            <br />
+            <br />
+            This costs{" "}
+            <strong>
+              {confirming?.cost} of your {remaining} remaining analyst-day
+              {remaining === 1 ? "" : "s"}
+            </strong>
+            , leaving {Math.max(0, remaining - (confirming?.cost ?? 0))}. Analyst-days can&apos;t be
+            recovered once spent.
+          </DialogDescription>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setConfirming(null)} disabled={pending}>
+              Not this one
+            </Button>
+            <Button onClick={() => confirming && buy(confirming)} disabled={pending}>
+              {pending ? "Running…" : `Run it (${confirming?.cost}d)`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {drilldowns.some((d) => d.owned) && (
         <div className="pt-2">

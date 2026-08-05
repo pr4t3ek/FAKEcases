@@ -2,12 +2,19 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Lightbulb } from "lucide-react";
+import { ArrowRight, Lightbulb, Lock, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { commitHypothesis, openDecision } from "@/app/actions/simulations";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { simConfig } from "@/lib/config/simulation";
 import { cn } from "@/lib/utils";
@@ -16,6 +23,7 @@ import { CommitPanel } from "./commit-panel";
 import { ConceptPrimer } from "./concept-primer";
 import { DrilldownMarket } from "./drilldown-market";
 import { MetricMap } from "./metric-map";
+import { SelectionRow } from "./selection-row";
 import { SimDashboard } from "./sim-dashboard";
 import { SimHeader } from "./sim-header";
 import type { SimulationData } from "./types";
@@ -44,11 +52,27 @@ export function SimulationScreen({ data }: { data: SimulationData }) {
   // behind the header button.
   const [primerOpen, setPrimerOpen] = useState(!!teaching && data.phase === "observe");
 
+  // "Freely changeable until it has cost you something." The window closes on
+  // the first purchase, not at the phase boundary — see `hypothesisEditFor`.
+  //
+  // Counted locally as well as from the server, because buying a pull updates
+  // this screen without a refetch: without the local half the UI kept offering
+  // "Change" after a purchase and the server answered with an error toast.
+  const [boughtCount, setBoughtCount] = useState(data.purchaseCount);
+  const canAmend = data.phase === "investigate" && boughtCount === 0;
+  const [editing, setEditing] = useState(false);
+  const picking = data.phase === "observe" || (editing && canAmend);
+
+  const [confirmLock, setConfirmLock] = useState(false);
+  const [confirmDecide, setConfirmDecide] = useState(false);
+
   const remaining = Math.max(0, data.scenario.budget.analystDays - daysSpent);
 
   function onRevealed(drilldownId: string, revealed: SimPanel[], spent: number) {
     setPanels((prev) => [...prev, ...revealed]);
     setDaysSpent(spent);
+    // The hypothesis locks the moment anything has been bought.
+    setBoughtCount((n) => n + 1);
     setDrilldowns((prev) =>
       prev.map((d) => ({
         ...d,
@@ -74,13 +98,15 @@ export function SimulationScreen({ data }: { data: SimulationData }) {
     });
   }
 
-  function lockHypothesis() {
+  function saveHypothesis() {
     startTransition(async () => {
       const result = await commitHypothesis(data.runId, suspects, note);
+      setConfirmLock(false);
       if (!result.ok) {
         toast.error(result.error ?? "Could not save that");
         return;
       }
+      setEditing(false);
       router.refresh();
     });
   }
@@ -141,18 +167,33 @@ export function SimulationScreen({ data }: { data: SimulationData }) {
           </div>
 
           <aside className="min-w-0 space-y-4">
-            {data.phase === "observe" && (
+            {picking && (
               <Card className="p-5">
                 <h2 className="flex items-center gap-2 text-sm font-semibold">
-                  <Lightbulb className="h-4 w-4 text-primary" /> Where do you think it is?
+                  <Lightbulb className="h-4 w-4 text-primary" />{" "}
+                  {editing ? "Change your hypothesis" : "Where do you think it is?"}
                 </h2>
                 {/* Before any data is bought, deliberately. A hypothesis formed
                     after the evidence is not a hypothesis, and this is the
                     habit interviewers are actually listening for. */}
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
                   Commit to at most {simConfig.maxSuspects} before you spend a single analyst-day.
-                  You can&apos;t change this once you start pulling data — that&apos;s the point.
+                  You can keep changing this until you run your first analysis — after that it&apos;s
+                  locked, and that&apos;s the point.
                 </p>
+
+                {/* States what is registered instead of leaving it to be
+                    inferred from a highlight, and makes it removable in one
+                    click. A student who selects by mistake should not have to
+                    work out how to undo it. */}
+                <SelectionRow
+                  selected={suspects.map((id) => ({
+                    id,
+                    label: data.scenario.causes.find((c) => c.id === id)?.label ?? id,
+                  }))}
+                  onRemove={toggleSuspect}
+                  emptyHint="Nothing selected yet — pick one or two below."
+                />
 
                 <div className="mt-3 space-y-3">
                   {roots.map((root) => (
@@ -167,6 +208,7 @@ export function SimulationScreen({ data }: { data: SimulationData }) {
                             <button
                               key={cause.id}
                               type="button"
+                              aria-pressed={suspects.includes(cause.id)}
                               onClick={() => toggleSuspect(cause.id)}
                               className={cn(
                                 "rounded-full border px-3 py-1 text-xs transition-colors",
@@ -190,20 +232,52 @@ export function SimulationScreen({ data }: { data: SimulationData }) {
                   className="mt-3 min-h-[72px] text-sm"
                 />
 
-                <Button
-                  className="mt-3 w-full"
-                  disabled={suspects.length === 0 || pending}
-                  onClick={lockHypothesis}
-                >
-                  Lock it in and start investigating <ArrowRight />
-                </Button>
+                <div className="mt-3 flex gap-2">
+                  {editing && (
+                    <Button
+                      variant="secondary"
+                      className="flex-1"
+                      disabled={pending}
+                      onClick={() => {
+                        setSuspects(data.hypothesis);
+                        setNote(data.hypothesisNote ?? "");
+                        setEditing(false);
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  )}
+                  <Button
+                    className="flex-1"
+                    disabled={suspects.length === 0 || pending}
+                    onClick={() => (editing ? saveHypothesis() : setConfirmLock(true))}
+                  >
+                    {editing ? "Save" : "Lock it in and start investigating"}
+                    {!editing && <ArrowRight />}
+                  </Button>
+                </div>
               </Card>
             )}
 
-            {data.phase === "investigate" && (
+            {data.phase === "investigate" && !editing && (
               <>
                 <Card className="p-4">
-                  <div className="text-xs font-medium text-muted-foreground">Your hypothesis</div>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="text-xs font-medium text-muted-foreground">Your hypothesis</div>
+                    {canAmend ? (
+                      <button
+                        type="button"
+                        onClick={() => setEditing(true)}
+                        className="flex items-center gap-1 text-xs text-primary hover:underline"
+                      >
+                        <Pencil className="h-3 w-3" /> Change
+                      </button>
+                    ) : (
+                      <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                        <Lock className="h-3 w-3" /> locked
+                      </span>
+                    )}
+                  </div>
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
                     {data.hypothesis.map((id) => (
                       <Badge key={id} variant="secondary">
@@ -216,6 +290,11 @@ export function SimulationScreen({ data }: { data: SimulationData }) {
                       &ldquo;{data.hypothesisNote}&rdquo;
                     </p>
                   )}
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    {canAmend
+                      ? "You can still change this — nothing has been spent yet."
+                      : "Locked when you ran your first analysis."}
+                  </p>
                 </Card>
 
                 <DrilldownMarket
@@ -229,7 +308,9 @@ export function SimulationScreen({ data }: { data: SimulationData }) {
                   variant="outline"
                   className="w-full"
                   disabled={pending}
-                  onClick={stopInvestigating}
+                  // Only worth confirming when it costs something. With the
+                  // budget spent, moving on forfeits nothing.
+                  onClick={() => (remaining > 0 ? setConfirmDecide(true) : stopInvestigating())}
                 >
                   I know enough — decide <ArrowRight />
                 </Button>
@@ -239,6 +320,67 @@ export function SimulationScreen({ data }: { data: SimulationData }) {
             {data.phase === "commit" && <CommitPanel runId={data.runId} scenario={data.scenario} />}
           </aside>
         </div>
+
+        {/* Confirmations, each naming what it actually costs rather than asking
+            a generic "are you sure?" — a dialog that doesn't say the price is
+            just a click to get past. */}
+        <Dialog open={confirmLock} onOpenChange={setConfirmLock}>
+          <DialogContent className="sm:max-w-md">
+            <DialogTitle>Start investigating?</DialogTitle>
+            <DialogDescription>
+              You&apos;re going with{" "}
+              <strong>
+                {suspects
+                  .map((id) => data.scenario.causes.find((c) => c.id === id)?.label)
+                  .filter(Boolean)
+                  .join(" and ")}
+              </strong>
+              . You can still change this until you run your first analysis — after that it&apos;s
+              locked, because a hypothesis revised in the light of the evidence isn&apos;t a
+              hypothesis.
+            </DialogDescription>
+            <DialogFooter>
+              <Button variant="secondary" onClick={() => setConfirmLock(false)} disabled={pending}>
+                Keep thinking
+              </Button>
+              <Button onClick={saveHypothesis} disabled={pending}>
+                Start investigating
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={confirmDecide} onOpenChange={setConfirmDecide}>
+          <DialogContent className="sm:max-w-md">
+            <DialogTitle>Move to the decision?</DialogTitle>
+            <DialogDescription>
+              You still have{" "}
+              <strong>
+                {remaining} analyst-day{remaining === 1 ? "" : "s"}
+              </strong>{" "}
+              left. You can&apos;t buy any more data once you move on — the rest of the budget goes
+              unspent.
+            </DialogDescription>
+            <DialogFooter>
+              <Button
+                variant="secondary"
+                onClick={() => setConfirmDecide(false)}
+                disabled={pending}
+              >
+                Keep investigating
+              </Button>
+              <Button
+                onClick={() => {
+                  setConfirmDecide(false);
+                  stopInvestigating();
+                }}
+                disabled={pending}
+              >
+                Move to the decision
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );

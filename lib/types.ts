@@ -70,6 +70,28 @@ export function canAdvanceSimPhase(from: SimPhase, to: SimPhase): boolean {
 }
 
 /**
+ * What may still be done to the hypothesis.
+ *
+ * The Observe screen promises "you can't change this once you start pulling
+ * data", and this makes that literally true rather than approximately true.
+ * Locking on the button press instead — which is what it used to do — meant a
+ * misclick set a score the candidate could never influence again, before they
+ * had spent a single analyst-day.
+ *
+ * The integrity rule is unchanged and is the reason the amend window closes at
+ * the *first purchase* rather than at the phase boundary: a hypothesis revised
+ * in the light of evidence is not a hypothesis. Until evidence has been bought,
+ * changing your mind costs nothing and hides nothing.
+ */
+export type HypothesisEdit = "advance" | "amend" | "locked";
+
+export function hypothesisEditFor(phase: SimPhase, purchaseCount: number): HypothesisEdit {
+  if (phase === "observe") return "advance";
+  if (phase === "investigate" && purchaseCount === 0) return "amend";
+  return "locked";
+}
+
+/**
  * How a question is answered, and therefore how it is built and scored.
  *
  * Everything downstream branches on this rather than on `type`, so a question
