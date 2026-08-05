@@ -116,9 +116,13 @@ const EXPECTED: Record<string, string> = {
   "NukkadEats: orders are down 9% and nobody knows why": "Bike",
   "Kadak Coffee: the ads are working and the money is going": "Coffee",
   "Padhai Plus: 18,000 new subscribers a month, and a bigger hole": "GraduationCap",
-  // No subject rule matches, so this one exercises the Category.icon fallback.
-  "Suraksha Home: the competitor cut price — do we match?": "LineChart",
+  "Rangoli: the test says +6%, and the room wants it live on Monday": "ShoppingBag",
+  "Chaska: share is up five points and the profit is down a third": "Store",
   "Ujala Solar: we planned for 10.8 lakh units and sold 4.3 lakh": "Zap",
+  "Lekha: our most profitable customer wants 18% off": "Factory",
+  // No subject rule matches these two, so they exercise the Category.icon fallback.
+  "Suraksha Home: the competitor cut price — do we match?": "LineChart",
+  "Ghar Sewa: customers waiting, professionals idle, both sides growing": "LineChart",
 };
 
 describe("every seeded question resolves to a subject icon", () => {
