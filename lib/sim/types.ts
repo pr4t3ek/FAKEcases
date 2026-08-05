@@ -63,7 +63,26 @@ export type SimDriver =
   | (SimDriverBase & { kind: "input"; baseline: number })
   | (SimDriverBase & { kind: "product"; of: DriverId[] })
   | (SimDriverBase & { kind: "sum"; of: DriverId[] })
-  | (SimDriverBase & { kind: "difference"; minuend: DriverId; subtrahend: DriverId });
+  | (SimDriverBase & { kind: "difference"; minuend: DriverId; subtrahend: DriverId })
+  /**
+   * Division. Most of the marketing vocabulary is a ratio — CAC is spend ÷
+   * orders, ROAS is revenue ÷ spend, a subscriber's lifetime is 1 ÷ churn — so
+   * without this the concepts cannot be modelled, only asserted.
+   *
+   * A zero denominator yields zero rather than throwing: ROAS on no ad spend
+   * reading as zero is the honest answer, and an exception here would take out
+   * a whole report mid-projection.
+   */
+  | (SimDriverBase & { kind: "quotient"; numerator: DriverId; denominator: DriverId })
+  /**
+   * A fixed number that is deliberately NOT a lever — the 1000 in a CPM, the 1
+   * in `lifetime = 1 ÷ churn`.
+   *
+   * Distinct from an `input` with the same value precisely so that
+   * `validateScenario` can reject an intervention authored against it. "Improve
+   * the number of months in a year by 8%" should be a build failure.
+   */
+  | (SimDriverBase & { kind: "constant"; value: number });
 
 // ─── Dashboard panels ──────────────────────────────────────────────────────
 

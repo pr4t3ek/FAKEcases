@@ -48,6 +48,22 @@ describe("validateScenario", () => {
     expect(errors).toMatch(/derived driver "margin"/);
   });
 
+  it("catches an effect aimed at a constant", () => {
+    const scenario = fixtureScenario();
+    const errors = errorsFor({
+      drivers: [
+        ...scenario.drivers,
+        { id: "k", kind: "constant", label: "1000", unit: "count", goodDirection: "up", value: 1000 },
+      ],
+      interventions: scenario.interventions.map((iv) =>
+        iv.id === "iv-payout"
+          ? { ...iv, effects: { ...iv.effects, whenRootCause: [{ driver: "k", deltaPct: 0.08 }] } }
+          : iv,
+      ),
+    });
+    expect(errors).toMatch(/constant "k" — a constant is not a lever/);
+  });
+
   it("catches an effect that would drive a metric to nothing or below", () => {
     const scenario = fixtureScenario();
     expect(

@@ -70,10 +70,19 @@ export function validateScenario(scenario: SimScenario): string[] {
   const inputDrivers = new Set(
     scenario.drivers.filter((d) => d.kind === "input").map((d) => d.id),
   );
+  const constantDrivers = new Set(
+    scenario.drivers.filter((d) => d.kind === "constant").map((d) => d.id),
+  );
   const checkEffects = (effects: SimEffect[], where: string) => {
     for (const e of effects) {
       if (!driverIds.has(e.driver)) {
         errors.push(`${where}: effect targets unknown driver "${e.driver}"`);
+      } else if (constantDrivers.has(e.driver)) {
+        // "Improve the 1000 in a CPM by 8%" is nonsense, and the type exists
+        // to let us say so rather than let it silently do nothing.
+        errors.push(
+          `${where}: effect targets constant "${e.driver}" — a constant is not a lever`,
+        );
       } else if (!inputDrivers.has(e.driver)) {
         errors.push(
           `${where}: effect targets derived driver "${e.driver}" and would do nothing — target its inputs instead`,
