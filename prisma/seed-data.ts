@@ -575,6 +575,36 @@ export const questions: SeedQuestion[] = [
       "At 18,000 joiners and 11% monthly churn the base caps out near 1.64 lakh, which at ₹177 of contribution each cannot cover ₹2.6 crore of fixed costs however efficient acquisition is. The cohort data localises the churn: 62% of leavers never completed a practice test in week one and retained at 19% against 79% for those who did. The trap is that more acquisition genuinely helps — it is the numerator — but costs about four times as much per unit of base as fixing the divisor.",
     tags: "product management,subscription,ltv,cac,churn,coaching,simulation",
   },
+  {
+    externalId: "pricing-elasticity",
+    title: "Suraksha Home: the competitor cut price — do we match?",
+    prompt:
+      "A competitor cut price 12% and your volume is down 9%. Sales wants to cut 15% to match. Work out how much extra volume that has to buy before you decide — and find out what actually moved the number.",
+    category: "product-management",
+    difficulty: "Medium",
+    interviewLevel: "PM",
+    type: "simulation",
+    betterApproach:
+      "Compute break-even volume before any price decision. A price cut comes straight out of contribution, so a 15% cut on a 37.5% margin destroys 40% of the margin and needs roughly 67% more volume to stand still. Compare that with measured elasticity, then check whether the volume loss is even about price by splitting it by channel.",
+    sampleSolution:
+      "Contribution is ₹499 − ₹312 = ₹187, falling to ₹112 at a 15% cut, so break-even needs about 67% more volume against an elasticity of 1.2 that offers 18%. The cut loses by arithmetic. The volume loss was channel-specific: modern trade fell 31% and general trade 2%, because trade promotion in modern trade had been cut 64% two quarters earlier. Because demand is inelastic, a 5% price rise would actually improve profit.",
+    tags: "product management,pricing,elasticity,trade promotion,simulation",
+  },
+  {
+    externalId: "market-sizing-gtm",
+    title: "Ujala Solar: we planned for 10.8 lakh units and sold 4.3 lakh",
+    prompt:
+      "A rooftop solar kit missed its year-one plan by 60%. The CEO calls it an execution problem; the sales head says the number was never real. Decide who is right, then spend a quarter acting on it.",
+    category: "product-management",
+    difficulty: "Medium",
+    interviewLevel: "PM",
+    type: "simulation",
+    betterApproach:
+      "Ask what has to be true for one customer to buy, and check the SAM tested all of it. A uniform shortfall across every region points at the plan rather than at execution, because execution varies by region and arithmetic does not. Then judge any channel decision on net revenue, not gross.",
+    sampleSolution:
+      "The SAM counted households with power cuts who could afford ₹1,899 and never asked whether they had a roof — only 34% did. The real serviceable market was 1.84 crore, not 5.4 crore, so a 2% share is about 3.7 lakh units and the team actually beat a correctly sized plan. The answer is to resize the cost base and remove the constraint with a clamp-on variant, not to sell harder. Going direct to capture the 35% channel margin spends most of it back on fulfilment and fixed cost.",
+    tags: "product management,market sizing,tam sam som,channel economics,solar,simulation",
+  },
 ];
 
 export const achievements = [
