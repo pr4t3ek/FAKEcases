@@ -20,6 +20,8 @@
  */
 
 import type { SimPhase } from "@/lib/types";
+import { resolveDrivers } from "./drivers";
+import { metricMap } from "./metric-map";
 import { isUnlocked, visibleDashboard } from "./investigate";
 import type {
   ClientCause,
@@ -101,6 +103,16 @@ export function toClientScenario(
     difficulty: scenario.difficulty,
     budget: scenario.budget,
     horizonQuarters: scenario.horizonQuarters,
+    periodNoun: scenario.periodNoun ?? "quarter",
+    // Definitions are the opposite of the answer, so they ship as authored.
+    teaching: scenario.teaching ?? null,
+    // The map, and therefore the shape of the model, only when the scenario
+    // says so. Note this ships baseline values only — `drift` and every
+    // intervention effect stay server-side, so it shows how the metrics relate
+    // and never which lever fixes them.
+    metricMap: scenario.teaching?.showMetricMap
+      ? metricMap(scenario, resolveDrivers(scenario.drivers))
+      : null,
     panels: visibleDashboard(scenario, ctx.owned),
     drilldowns,
     causes: toClientCause(scenario),

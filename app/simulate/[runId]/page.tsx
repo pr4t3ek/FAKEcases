@@ -5,6 +5,7 @@ import { getAdapter } from "@/lib/llm";
 import { simRubric } from "@/lib/config/simulation";
 import { getScenario } from "@/lib/sim/registry";
 import { toClientScenario } from "@/lib/sim/redact";
+import { metricMap } from "@/lib/sim/metric-map";
 import {
   allocationComparison,
   investigationTrail,
@@ -69,7 +70,7 @@ export default async function SimulatePage({
         scenario.drivers.find((d) => d.id === scenario.northStar)?.label ?? "North star",
       outcome: rows,
       northStarPaths: nsPath.map((value, q) => ({
-        quarter: q === 0 ? "Now" : `Q+${q}`,
+        quarter: q === 0 ? "Now" : `${scenario.periodNoun === "month" ? "M" : "Q"}+${q}`,
         actual: value,
         doNothing: outcome.doNothing[scenario.northStar]?.[q] ?? value,
         best: outcome.best[scenario.northStar]?.[q] ?? value,
@@ -82,6 +83,20 @@ export default async function SimulatePage({
         return cause ? [cause.label] : [];
       }),
       trueCauses: trueCauseLabels(scenario),
+      periodNoun: scenario.periodNoun ?? "quarter",
+      budgetRupees: scenario.budget.rupees,
+      // Built at end-of-horizon values rather than baseline, so the chain shows
+      // where the student's decision actually landed. Safe to reveal here —
+      // the run is over.
+      metricMap: scenario.teaching?.showMetricMap
+        ? metricMap(
+            scenario,
+            Object.fromEntries(
+              Object.entries(outcome.paths).map(([id, path]) => [id, path[path.length - 1] ?? 0]),
+            ),
+          )
+        : null,
+      teaching: scenario.teaching ?? null,
       causalChain: scenario.debrief.causalChain,
       whereTheLeverageWas: scenario.debrief.whereTheLeverageWas,
       strongAnswer: scenario.debrief.strongAnswer,

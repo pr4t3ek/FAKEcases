@@ -29,6 +29,31 @@ describe("dependenciesOf", () => {
     };
     expect(dependenciesOf(d)).toEqual(["rev", "cost"]);
   });
+
+  it("reports both sides of a quotient", () => {
+    const d: SimDriver = {
+      id: "cac",
+      kind: "quotient",
+      label: "CAC",
+      unit: "inr",
+      goodDirection: "down",
+      numerator: "spend",
+      denominator: "orders",
+    };
+    expect(dependenciesOf(d)).toEqual(["spend", "orders"]);
+  });
+
+  it("reports nothing for a constant", () => {
+    const d: SimDriver = {
+      id: "k",
+      kind: "constant",
+      label: "1000",
+      unit: "count",
+      goodDirection: "up",
+      value: 1000,
+    };
+    expect(dependenciesOf(d)).toEqual([]);
+  });
 });
 
 describe("driverOrder", () => {
@@ -77,6 +102,81 @@ describe("resolveDrivers", () => {
     const plain = resolveDrivers(scenario.drivers);
     const meddled = resolveDrivers(scenario.drivers, { margin: 5 });
     expect(meddled.margin).toBe(plain.margin);
+  });
+
+  it("divides for a quotient", () => {
+    const drivers: SimDriver[] = [
+      input("spend", 1_000_000),
+      input("orders", 2_500),
+      {
+        id: "cac",
+        kind: "quotient",
+        label: "CAC",
+        unit: "inr",
+        goodDirection: "down",
+        numerator: "spend",
+        denominator: "orders",
+      },
+    ];
+    expect(resolveDrivers(drivers).cac).toBe(400);
+  });
+
+  /**
+   * Infinity or NaN would propagate silently through the rest of the graph and
+   * surface as a blank metric on a student's report, which is a worse failure
+   * than a zero that reads as "no return, because no spend".
+   */
+  it("yields zero rather than Infinity when the denominator is zero", () => {
+    const drivers: SimDriver[] = [
+      input("revenue", 500_000),
+      input("spend", 0),
+      {
+        id: "roas",
+        kind: "quotient",
+        label: "ROAS",
+        unit: "ratio",
+        goodDirection: "up",
+        numerator: "revenue",
+        denominator: "spend",
+      },
+    ];
+    const values = resolveDrivers(drivers);
+    expect(values.roas).toBe(0);
+    expect(Number.isFinite(values.roas)).toBe(true);
+  });
+
+  it("holds a constant against a multiplier aimed at it", () => {
+    const drivers: SimDriver[] = [
+      { id: "k", kind: "constant", label: "1000", unit: "count", goodDirection: "up", value: 1000 },
+      input("cpm", 180),
+      {
+        id: "cpi",
+        kind: "quotient",
+        label: "Cost per impression",
+        unit: "inr",
+        goodDirection: "down",
+        numerator: "cpm",
+        denominator: "k",
+      },
+    ];
+    expect(resolveDrivers(drivers, { k: 5 }).k).toBe(1000);
+    expect(resolveDrivers(drivers).cpi).toBeCloseTo(0.18);
+  });
+
+  it("composes a whole ad funnel", () => {
+    // The chain scenario A is built on, in miniature.
+    const drivers: SimDriver[] = [
+      input("budget", 1_000_000),
+      input("cpm", 180),
+      { id: "k", kind: "constant", label: "1000", unit: "count", goodDirection: "up", value: 1000 },
+      { id: "cpi", kind: "quotient", label: "CPI", unit: "inr", goodDirection: "down", numerator: "cpm", denominator: "k" },
+      { id: "impressions", kind: "quotient", label: "Impressions", unit: "count", goodDirection: "up", numerator: "budget", denominator: "cpi" },
+      input("ctr", 0.011),
+      { id: "clicks", kind: "product", label: "Clicks", unit: "count", goodDirection: "up", of: ["impressions", "ctr"] },
+    ];
+    const values = resolveDrivers(drivers);
+    expect(values.impressions).toBeCloseTo(5_555_555.6, 0);
+    expect(values.clicks).toBeCloseTo(61_111.1, 0);
   });
 
   it("multiplies and sums over the listed drivers", () => {

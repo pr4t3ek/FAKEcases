@@ -13,7 +13,9 @@ import { simConfig } from "@/lib/config/simulation";
 import { cn } from "@/lib/utils";
 import type { SimPanel } from "@/lib/sim/types";
 import { CommitPanel } from "./commit-panel";
+import { ConceptPrimer } from "./concept-primer";
 import { DrilldownMarket } from "./drilldown-market";
+import { MetricMap } from "./metric-map";
 import { SimDashboard } from "./sim-dashboard";
 import { SimHeader } from "./sim-header";
 import type { SimulationData } from "./types";
@@ -35,6 +37,12 @@ export function SimulationScreen({ data }: { data: SimulationData }) {
 
   const [suspects, setSuspects] = useState<string[]>(data.hypothesis);
   const [note, setNote] = useState(data.hypothesisNote ?? "");
+
+  const teaching = data.scenario.teaching;
+  // Opens on arrival at Observe, when nothing has been committed yet. Later
+  // phases mean the student has already seen it, so it stays out of the way
+  // behind the header button.
+  const [primerOpen, setPrimerOpen] = useState(!!teaching && data.phase === "observe");
 
   const remaining = Math.max(0, data.scenario.budget.analystDays - daysSpent);
 
@@ -97,7 +105,17 @@ export function SimulationScreen({ data }: { data: SimulationData }) {
         phase={data.phase}
         daysSpent={daysSpent}
         daysTotal={data.scenario.budget.analystDays}
+        onOpenConcepts={teaching ? () => setPrimerOpen(true) : undefined}
       />
+
+      {teaching && (
+        <ConceptPrimer
+          teaching={teaching}
+          open={primerOpen}
+          onOpenChange={setPrimerOpen}
+          onStart={data.phase === "observe" ? () => setPrimerOpen(false) : undefined}
+        />
+      )}
 
       <main className="container py-6">
         {data.phase === "observe" && (
@@ -110,9 +128,16 @@ export function SimulationScreen({ data }: { data: SimulationData }) {
         )}
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="min-w-0">
-            <h2 className="mb-3 text-sm font-semibold">Analytics</h2>
-            <SimDashboard panels={panels} />
+          <div className="min-w-0 space-y-4">
+            {/* Above the dashboard, not beside it: the point is to be read
+                before the metrics, not discovered after them. */}
+            {data.scenario.metricMap && (
+              <MetricMap nodes={data.scenario.metricMap} highlight={data.scenario.metricMap.at(-1)?.id} />
+            )}
+            <div>
+              <h2 className="mb-3 text-sm font-semibold">Analytics</h2>
+              <SimDashboard panels={panels} />
+            </div>
           </div>
 
           <aside className="min-w-0 space-y-4">

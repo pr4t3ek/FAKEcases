@@ -114,6 +114,11 @@ const EXPECTED: Record<string, string> = {
   "Falling delivery margins at a food-delivery platform": "Bike",
   "Should a two-wheeler maker enter electric scooters?": "BatteryCharging",
   "NukkadEats: orders are down 9% and nobody knows why": "Bike",
+  "Kadak Coffee: the ads are working and the money is going": "Coffee",
+  "Padhai Plus: 18,000 new subscribers a month, and a bigger hole": "GraduationCap",
+  // No subject rule matches, so this one exercises the Category.icon fallback.
+  "Suraksha Home: the competitor cut price — do we match?": "LineChart",
+  "Ujala Solar: we planned for 10.8 lakh units and sold 4.3 lakh": "Zap",
 };
 
 describe("every seeded question resolves to a subject icon", () => {

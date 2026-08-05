@@ -32,8 +32,14 @@ export function formatValue(value: number, unit: SimUnit): string {
     case "ratio":
       // Ratios in this app are conversion-like, so they read better as percent.
       return `${(value * 100).toFixed(1)}%`;
+    case "multiple":
+      return `${value.toFixed(1)}×`;
     case "inr":
-      return value >= 1e5 ? `₹${toIndianWords(value)}` : `₹${formatIndianNumber(value)}`;
+      if (Math.abs(value) >= 1e5) return `₹${toIndianWords(value)}`;
+      // Sub-₹100 amounts are real money here — a ₹0.18 cost per impression
+      // rounded to "₹0", which made the first link of the chain look broken.
+      if (Math.abs(value) < 100 && !Number.isInteger(value)) return `₹${value.toFixed(2)}`;
+      return `₹${formatIndianNumber(value)}`;
     case "inr_lakh":
       return `₹${value.toFixed(2)} L`;
     case "inr_crore":

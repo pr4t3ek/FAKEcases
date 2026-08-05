@@ -20,12 +20,12 @@ import { Progress } from "@/components/ui/progress";
 import { simConfig } from "@/lib/config/simulation";
 import { cn, toIndianWords } from "@/lib/utils";
 import type { ClientCause, ClientIntervention, ClientScenario } from "@/lib/sim/types";
-
-const CRORE = 10_000_000;
+import { moneyScaleFor } from "./money";
 
 interface Draft {
   sprints: number;
-  crore: number;
+  /** In the scenario's money unit (lakh or crore) — see `moneyScaleFor`. */
+  money: number;
 }
 
 /**
@@ -51,21 +51,24 @@ export function CommitPanel({
   const roots = scenario.causes.filter((c) => c.parentId === null);
   const childrenOf = (id: string) => scenario.causes.filter((c) => c.parentId === id);
 
-  const budgetCrore = scenario.budget.rupees / CRORE;
+  // Follows the scenario: a ₹6 lakh budget is worked in lakh, a ₹12 crore one
+  // in crore. Hardcoding either makes the other unusable.
+  const scale = moneyScaleFor(scenario.budget.rupees);
+  const budgetMoney = scenario.budget.rupees / scale.divisor;
 
   const used = useMemo(() => {
     let sprints = 0;
-    let crore = 0;
+    let money = 0;
     for (const line of Object.values(draft)) {
       sprints += line.sprints;
-      crore += line.crore;
+      money += line.money;
     }
-    return { sprints, crore };
+    return { sprints, money };
   }, [draft]);
 
   const overSprints = used.sprints > scenario.budget.sprints;
-  const overBudget = used.crore > budgetCrore + 1e-9;
-  const fundedCount = Object.values(draft).filter((d) => d.sprints > 0 || d.crore > 0).length;
+  const overBudget = used.money > budgetMoney + 1e-9;
+  const fundedCount = Object.values(draft).filter((d) => d.sprints > 0 || d.money > 0).length;
   const canCommit = named.length > 0 && fundedCount > 0 && !overSprints && !overBudget;
 
   function toggleCause(id: string) {
@@ -82,19 +85,19 @@ export function CommitPanel({
   function setLine(id: string, patch: Partial<Draft>) {
     setDraft((prev) => ({
       ...prev,
-      [id]: { ...{ sprints: 0, crore: 0 }, ...prev[id], ...patch },
+      [id]: { ...{ sprints: 0, money: 0 }, ...prev[id], ...patch },
     }));
   }
 
   function commit() {
     const allocation = Object.entries(draft)
-      .filter(([, d]) => d.sprints > 0 || d.crore > 0)
+      .filter(([, d]) => d.sprints > 0 || d.money > 0)
       .map(([interventionId, d]) => ({
         interventionId,
         sprints: d.sprints,
-        // Back to absolute rupees at the boundary; the UI works in crore
-        // because that is how the money is actually discussed.
-        rupees: Math.round(d.crore * CRORE),
+        // Back to absolute rupees at the boundary; the UI works in whatever
+        // unit this scenario's budget is actually discussed in.
+        rupees: Math.round(d.money * scale.divisor),
       }));
 
     startTransition(async () => {
@@ -158,7 +161,8 @@ export function CommitPanel({
               {used.sprints}/{scenario.budget.sprints} sprints
             </span>
             <span className={cn(overBudget && "font-medium text-destructive")}>
-              ₹{used.crore.toFixed(1)}/{budgetCrore.toFixed(0)} cr
+              ₹{used.money.toFixed(1)}/{budgetMoney.toFixed(budgetMoney % 1 === 0 ? 0 : 1)}{" "}
+              {scale.short}
             </span>
           </div>
         </div>
@@ -168,16 +172,16 @@ export function CommitPanel({
             indicatorClassName={overSprints ? "bg-destructive" : undefined}
           />
           <Progress
-            value={(used.crore / Math.max(1, budgetCrore)) * 100}
+            value={(used.money / Math.max(1, budgetMoney)) * 100}
             indicatorClassName={overBudget ? "bg-destructive" : undefined}
           />
         </div>
 
         <div className="mt-4 space-y-3">
           {scenario.interventions.map((iv: ClientIntervention) => {
-            const line = draft[iv.id] ?? { sprints: 0, crore: 0 };
-            const funded = line.sprints > 0 || line.crore > 0;
-            const askCrore = iv.cost.rupees / CRORE;
+            const line = draft[iv.id] ?? { sprints: 0, money: 0 };
+            const funded = line.sprints > 0 || line.money > 0;
+            const ask = iv.cost.rupees / scale.divisor;
             const shortOfMin = iv.minSprints !== undefined && funded && line.sprints < iv.minSprints;
 
             return (
@@ -209,14 +213,14 @@ export function CommitPanel({
                     />
                   </label>
                   <label className="text-xs">
-                    <span className="text-muted-foreground">₹ crore</span>
+                    <span className="text-muted-foreground">{scale.label}</span>
                     <Input
                       type="number"
                       min={0}
-                      max={budgetCrore}
-                      step={0.5}
-                      value={line.crore}
-                      onChange={(e) => setLine(iv.id, { crore: Math.max(0, +e.target.value || 0) })}
+                      max={budgetMoney}
+                      step={scale.step}
+                      value={line.money}
+                      onChange={(e) => setLine(iv.id, { money: Math.max(0, +e.target.value || 0) })}
                       className="mt-1 h-9"
                     />
                   </label>
@@ -242,9 +246,9 @@ export function CommitPanel({
                     )}
                   </p>
                 )}
-                {funded && line.crore < askCrore && (
+                {funded && line.money < ask && (
                   <p className="mt-1 text-[11px] text-muted-foreground">
-                    Part-funded at {Math.round((line.crore / askCrore) * 100)}% of what it asked for.
+                    Part-funded at {Math.round((line.money / ask) * 100)}% of what it asked for.
                   </p>
                 )}
               </Card>
@@ -281,7 +285,7 @@ export function CommitPanel({
                 .join(" and ")}
             </strong>{" "}
             and committing {used.sprints} sprint{used.sprints === 1 ? "" : "s"} and ₹
-            {used.crore.toFixed(1)} crore across {fundedCount} intervention
+            {used.money.toFixed(1)} {scale.short} across {fundedCount} intervention
             {fundedCount === 1 ? "" : "s"}.
           </DialogDescription>
           <DialogFooter>

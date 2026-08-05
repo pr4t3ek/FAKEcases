@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { SIM_PHASES, type SimPhase } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { ConceptsButton } from "./concept-primer";
 
 const PHASE_LABELS: Record<SimPhase, string> = {
   observe: "Observe",
@@ -28,11 +29,14 @@ export function SimHeader({
   phase,
   daysSpent,
   daysTotal,
+  onOpenConcepts,
 }: {
   title: string;
   phase: SimPhase;
   daysSpent: number;
   daysTotal: number;
+  /** Present only when the scenario carries a primer. */
+  onOpenConcepts?: () => void;
 }) {
   const remaining = Math.max(0, daysTotal - daysSpent);
   const currentIndex = SIM_PHASES.indexOf(phase);
@@ -68,6 +72,9 @@ export function SimHeader({
         </nav>
 
         <div className="flex shrink-0 items-center gap-3">
+          {/* Always reachable, not just on arrival: a definition you cannot
+              find again is a definition you did not read. */}
+          {onOpenConcepts && <ConceptsButton onClick={onOpenConcepts} />}
           {phase !== "debrief" && (
             <div className="hidden w-40 sm:block">
               <div className="mb-1 flex items-center justify-between text-[11px] text-muted-foreground">

@@ -13,8 +13,20 @@
 
 import type { SimScenario } from "./types";
 import { metricDropFoodDelivery } from "./scenarios/metric-drop-food-delivery";
+import { adFunnelRoas } from "./scenarios/ad-funnel-roas";
+import { subscriptionLtvCac } from "./scenarios/subscription-ltv-cac";
+import { pricingElasticity } from "./scenarios/pricing-elasticity";
+import { marketSizingGtm } from "./scenarios/market-sizing-gtm";
 
-const ALL: SimScenario[] = [metricDropFoodDelivery];
+// Easiest first: this is the order the library shows them in, and a beginner
+// meeting the track for the first time should not land on the hardest one.
+const ALL: SimScenario[] = [
+  adFunnelRoas,
+  subscriptionLtvCac,
+  pricingElasticity,
+  marketSizingGtm,
+  metricDropFoodDelivery,
+];
 
 const BY_SLUG: Record<string, SimScenario> = Object.fromEntries(
   ALL.map((scenario) => [scenario.slug, scenario]),

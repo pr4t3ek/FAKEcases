@@ -5,7 +5,7 @@ import {
   refineQuestion,
   toQuestionColumns,
 } from "@/lib/question-schema";
-import { PRACTISABLE_TYPES } from "@/lib/types";
+import { DIFFICULTIES, PRACTISABLE_TYPES, isSimulation } from "@/lib/types";
 
 /** Single source of truth for question reads/writes + bulk import. */
 
@@ -45,11 +45,30 @@ export async function listQuestions(filters: QuestionFilters = {}) {
       { tags: { contains: filters.search } },
     ];
   }
-  return db.question.findMany({
+  const questions = await db.question.findMany({
     where,
     include: { category: true },
     orderBy: { createdAt: "asc" },
   });
+
+  // Simulations were seeded last, so creation order buried the newest format at
+  // the bottom of a thirty-card page — the least discoverable thing in the app
+  // was the thing we most wanted people to try.
+  //
+  // Within them, easiest first. Creation order put NukkadEats at the front,
+  // which meant a beginner opening the track landed on the hardest scenario in
+  // it. Sorted here rather than by a column, because "show the new format
+  // first, gently" is a presentation decision and does not belong in the data.
+  const sims = questions
+    .filter((q) => isSimulation(q.type))
+    .sort((a, b) => difficultyRank(a.difficulty) - difficultyRank(b.difficulty));
+
+  return [...sims, ...questions.filter((q) => !isSimulation(q.type))];
+}
+
+function difficultyRank(difficulty: string): number {
+  const order = DIFFICULTIES.indexOf(difficulty as (typeof DIFFICULTIES)[number]);
+  return order === -1 ? DIFFICULTIES.length : order;
 }
 
 export async function getQuestion(id: string) {

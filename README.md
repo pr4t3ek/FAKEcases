@@ -27,7 +27,7 @@ scoring/integrity corrections.
 cp .env.example .env   # Prisma needs DATABASE_URL; .env is gitignored, so a clone has none
 pnpm install
 pnpm db:push           # create the SQLite database from prisma/schema.prisma
-pnpm db:seed           # 15 categories, 27 questions (24 guesstimates + 2 cases + 1 simulation), achievements, demo users
+pnpm db:seed           # 15 categories, 31 questions (24 guesstimates + 2 cases + 5 simulations), achievements, demo users
 pnpm dev               # http://localhost:3000
 ```
 
@@ -213,17 +213,37 @@ A **simulation** is not answered at all — it is played. See below.
 
 ## Decision simulations (the PM track)
 
-A metric war room. The candidate reads an analytics dashboard, commits to a hypothesis *before*
-spending anything, buys data pulls out of a budget of analyst-days, names a root cause, and splits
-a quarter of engineering capacity and a rupee budget across candidate fixes. The next quarters are
+A war room. The candidate reads an analytics dashboard, commits to a hypothesis *before* spending
+anything, buys data pulls out of a budget of analyst-days, names a root cause, and splits a
+quarter of engineering capacity and a rupee budget across candidate fixes. The next periods are
 then projected forward and reported as **moved metrics — orders, retention, margin — rather than as
 a mark**. A debrief reveals the true causal chain and compares the candidate's allocation to the
 best available one.
 
+Five scenarios ship today:
+
+| Scenario | Level | Teaches |
+|---|---|---|
+| **Kadak Coffee** — ROAS 4.0 and losing money | Easy | CPM, impressions, CTR, conversion, AOV, CAC, ROAS, ROI — and that a campaign only breaks even once ROAS clears 1 ÷ gross margin |
+| **Padhai Plus** — growing subscribers, growing burn | Easy | Churn, lifetime, LTV, CAC, payback, and that a subscriber base settles at joiners ÷ churn |
+| **Suraksha Home** — match the competitor's price cut? | Medium | Contribution per unit, break-even volume on a price change, price elasticity, trade promotion |
+| **Ujala Solar** — planned 10.8 lakh, sold 4.3 lakh | Medium | TAM / SAM / SOM, and channel economics on net rather than gross revenue |
+| **NukkadEats** — orders down 9%, nobody knows why | Medium | Metric-drop diagnosis with the model hidden — the original, and the hardest |
+
+**The beginner scenarios teach the vocabulary first.** Each carries a `teaching` block: a concept
+primer that opens before the run and reopens from the header, and a **metric map** derived from the
+driver graph showing how every number is built from the ones under it, with live values. Showing
+the map is opt-in per scenario, and that gate matters in both directions — on NukkadEats the
+*shape* of the model is part of what the candidate has to work out, so it stays hidden.
+
+`difficulty` is enforced rather than promised: `validateScenario` rejects an `Easy` scenario with
+more than six drilldowns, more than six causes, a cause tree deeper than one level, a punishing
+budget, or no primer.
+
 Four things are worth knowing before you touch it:
 
 - **Content is code, not rows.** A scenario lives in `lib/sim/scenarios/`, registered in
-  `lib/sim/registry.ts`. Nothing queries into it, the causal model needs compile-time id checking a
+  `lib/sim/registry.ts`, which is also the order the library shows them in (easiest first). Nothing queries into it, the causal model needs compile-time id checking a
   JSON column can't give, and it survives `db:reset`. The trade-off is real: **adding a scenario
   needs a deploy.** The catalogue row in `prisma/seed-data.ts` is a normal `Question` whose
   `externalId` matches the scenario `slug`, which is what gets it library filters, search and

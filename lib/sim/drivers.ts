@@ -18,12 +18,15 @@ import type { DriverId, SimDriver } from "./types";
 export function dependenciesOf(driver: SimDriver): DriverId[] {
   switch (driver.kind) {
     case "input":
+    case "constant":
       return [];
     case "product":
     case "sum":
       return driver.of;
     case "difference":
       return [driver.minuend, driver.subtrahend];
+    case "quotient":
+      return [driver.numerator, driver.denominator];
   }
 }
 
@@ -105,6 +108,18 @@ export function resolveDrivers(
         break;
       case "difference":
         values[id] = valueOf(driver.minuend) - valueOf(driver.subtrahend);
+        break;
+      case "quotient": {
+        const denominator = valueOf(driver.denominator);
+        // Zero yields zero rather than Infinity or NaN. Both of those would
+        // propagate silently through the rest of the graph and surface as a
+        // blank metric on a student's report.
+        values[id] = denominator === 0 ? 0 : valueOf(driver.numerator) / denominator;
+        break;
+      }
+      case "constant":
+        // Not scaled by `multipliers`, by definition — see the type.
+        values[id] = driver.value;
         break;
       default:
         assertNever(driver, "driver kind");

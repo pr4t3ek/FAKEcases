@@ -1,5 +1,6 @@
 import type { SimPhase } from "@/lib/types";
-import type { ClientScenario, SimPanel } from "@/lib/sim/types";
+import type { ClientScenario, SimPanel, SimTeaching } from "@/lib/sim/types";
+import type { MetricMapNode } from "@/lib/sim/metric-map";
 import type { OutcomeRow, AllocationComparisonRow, TrailStep } from "@/lib/sim/debrief";
 import type { FeedbackItem } from "@/lib/types";
 import type { SimRubricKey } from "@/lib/config/simulation";
@@ -49,6 +50,21 @@ export interface SimulationReportData {
   missed: TrailStep[];
   yourDiagnosis: string[];
   trueCauses: string[];
+  /** "month" or "quarter" — a monthly campaign reported in Q+1 reads as wrong. */
+  periodNoun: "month" | "quarter";
+  /**
+   * The scenario's money budget, so the debrief picks the same unit the
+   * allocation screen used. Re-denominating between the two would silently
+   * change the numbers the student just typed.
+   */
+  budgetRupees: number;
+  /**
+   * The chain at end-of-horizon values, so the student can see which link their
+   * decision actually moved. Null on scenarios that keep the model hidden.
+   */
+  metricMap: MetricMapNode[] | null;
+  /** For the recap of terms in the debrief. */
+  teaching: SimTeaching | null;
   causalChain: string[];
   whereTheLeverageWas: string;
   strongAnswer: string;
