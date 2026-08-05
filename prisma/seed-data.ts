@@ -537,6 +537,29 @@ export const questions: SeedQuestion[] = [
       "Sessions never moved, so this is a conversion problem, and the funnel puts it at checkout in tier-2 cities. What changed at checkout was the delivery ETA, which is set by rider supply — and a competitor had raised tier-2 rider payouts. The trap is that discounting genuinely lifts orders while handing back the contribution margin, so a candidate measured on orders alone can hit the number and lose the business case.",
     tags: "product management,metrics,root cause,food delivery,simulation",
   },
+  /**
+   * The beginner entry point to the simulation track.
+   *
+   * Easy in the sense the validator enforces — five data pulls, six causes one
+   * level deep, four interventions — and it carries a concept primer, so a
+   * student who has never met ROAS or CAC is taught them before being asked to
+   * act on them.
+   */
+  {
+    externalId: "ad-funnel-roas",
+    title: "Kadak Coffee: the ads are working and the money is going",
+    prompt:
+      "A D2C coffee brand spends ₹10 lakh a month on ads. The CMO's dashboard reports a ROAS of 4.0 and wants to double the budget. Finance says every order loses money and wants it switched off. Both are reading correct numbers. Work out why, then spend a quarter fixing it — and watch what your decision does to the business.",
+    category: "product-management",
+    difficulty: "Easy",
+    interviewLevel: "PM",
+    type: "simulation",
+    betterApproach:
+      "Ask what a rupee of sales is actually worth before judging any advertising metric. ROAS is measured on revenue, so it cannot see gross margin; a campaign only breaks even once ROAS clears 1 ÷ gross margin. Compare customer acquisition cost with contribution per order — if CAC is larger, every extra rupee of spend buys more loss.",
+    sampleSolution:
+      "At 22% gross margin, break-even ROAS is 4.55, so the celebrated 4.0 was under water the whole time. 91% of ad-driven orders were the lowest-margin product, while organic customers chose the 41%-margin bundle a third of the time — a product-mix problem wearing a marketing problem's clothes. The traps are that the efficiency fixes are real but too small to close a margin gap, and that scaling spend, which the ROAS chart argues for, multiplies the loss.",
+    tags: "product management,digital marketing,roas,cac,unit economics,coffee,simulation",
+  },
 ];
 
 export const achievements = [

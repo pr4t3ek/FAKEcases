@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 import { getScenario, listScenarios, scenarioSlugs } from "@/lib/sim/registry";
 import { validateScenario } from "@/lib/sim/validate";
 import { drilldownById, parCost } from "@/lib/sim/investigate";
+import { resolveDrivers } from "@/lib/sim/drivers";
 import { allocationFits, finalValue, runOutcome } from "@/lib/sim/outcome";
 import { scoreSimulation } from "@/lib/sim/score";
 import type { SimAllocationLine, SimScenario } from "@/lib/sim/types";
@@ -155,6 +156,102 @@ function fullyFundableCombos(scenario: SimScenario): SimAllocationLine[][] {
   }
   return combos;
 }
+
+/**
+ * The primer quotes concrete numbers at the student. If a retune moves the
+ * model without moving the prose, the app starts teaching arithmetic that is
+ * quietly wrong — which is worse than teaching nothing. These pin the figures
+ * the worked example actually claims.
+ */
+describe("ad-funnel-roas: the numbers the primer promises", () => {
+  const scenario = getScenario("ad-funnel-roas");
+  if (!scenario) throw new Error("scenario missing");
+  const v = resolveDrivers(scenario.drivers);
+
+  it("buys 55.6 lakh impressions with ₹10 lakh at a ₹180 CPM", () => {
+    expect(v.costPerImpression).toBeCloseTo(0.18, 4);
+    expect(v.impressions).toBeCloseTo(5_555_556, -1);
+  });
+
+  it("turns those into 61,111 clicks and 2,750 orders", () => {
+    expect(v.clicks).toBeCloseTo(61_111, -1);
+    expect(v.orders).toBeCloseTo(2_750, 0);
+  });
+
+  it("reports a ROAS of 4.0 on ₹39.9 lakh of sales", () => {
+    expect(v.adRevenue).toBeCloseTo(39.875 * 100_000, -2);
+    expect(v.roas).toBeCloseTo(3.99, 2);
+  });
+
+  it("still loses ₹1.2 lakh a month", () => {
+    expect(v.grossProfit).toBeCloseTo(8.7725 * 100_000, -2);
+    expect(v.netAdProfit).toBeLessThan(0);
+    expect(v.netAdProfit).toBeCloseTo(-1.2275 * 100_000, -2);
+    expect(v.roi).toBeLessThan(0);
+  });
+
+  it("pays ₹364 for an order that contributes ₹319", () => {
+    expect(v.cac).toBeCloseTo(363.6, 0);
+    expect(v.marginPerOrder).toBeCloseTo(319, 0);
+    expect(v.cac).toBeGreaterThan(v.marginPerOrder);
+  });
+
+  /** The one sentence the whole scenario exists to land. */
+  it("sits below the break-even ROAS of 1 ÷ gross margin", () => {
+    const breakEven = 1 / v.grossMarginRate;
+    expect(breakEven).toBeCloseTo(4.55, 2);
+    expect(v.roas).toBeLessThan(breakEven);
+  });
+
+  it("turns a profit once the ads point at the bundle", () => {
+    const outcome = runOutcome(scenario, scenario.bestAllocation);
+    expect(finalValue(outcome.paths, "netAdProfit")).toBeGreaterThan(0);
+    // And the loss deepens if you do nothing, because CPMs keep drifting up.
+    expect(finalValue(outcome.doNothing, "netAdProfit")).toBeLessThan(v.netAdProfit);
+  });
+
+  /**
+   * The most expensive mistake in the scenario, and the one with a chart behind
+   * it. Scaling spend at a CAC above contribution multiplies the loss.
+   */
+  it("makes the loss bigger when you scale the budget", () => {
+    const outcome = runOutcome(scenario, [
+      { interventionId: "iv-spend-more", sprints: 1, rupees: 5 * 100_000 },
+    ]);
+    expect(finalValue(outcome.paths, "orders")).toBeGreaterThan(
+      finalValue(outcome.doNothing, "orders"),
+    );
+    expect(finalValue(outcome.paths, "netAdProfit")).toBeLessThan(
+      finalValue(outcome.doNothing, "netAdProfit"),
+    );
+  });
+
+  /** Efficiency narrows the loss and never closes it — the second lesson. */
+  it("lets efficiency work narrow the loss without closing it", () => {
+    const outcome = runOutcome(scenario, [
+      { interventionId: "iv-creative", sprints: 1, rupees: 1.5 * 100_000 },
+    ]);
+    const withCreative = finalValue(outcome.paths, "netAdProfit");
+    expect(withCreative).toBeGreaterThan(finalValue(outcome.doNothing, "netAdProfit"));
+    expect(withCreative).toBeLessThan(0);
+  });
+
+  it("defines every term it uses, and links most of them to the map", () => {
+    const primer = scenario.teaching?.primer;
+    expect(primer).toBeDefined();
+    const terms = primer!.terms.map((t) => t.term);
+    for (const expected of ["CPM", "CTR", "AOV", "CAC", "ROAS", "ROI", "Conversion rate"]) {
+      expect(terms).toContain(expected);
+    }
+    // A definition nobody can act on is trivia, so every term says why it matters.
+    for (const t of primer!.terms) expect(t.matters.length).toBeGreaterThan(20);
+
+    const driverIds = new Set(scenario.drivers.map((d) => d.id));
+    for (const t of primer!.terms) {
+      if (t.driver) expect(driverIds).toContain(t.driver);
+    }
+  });
+});
 
 describe("metric-drop-food-delivery specifics", () => {
   const scenario = getScenario("metric-drop-food-delivery");
