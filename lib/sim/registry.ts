@@ -19,6 +19,8 @@ import { subscriptionLtvCac } from "./scenarios/subscription-ltv-cac";
 import { channelTradeSpend } from "./scenarios/channel-trade-spend";
 import { pricingElasticity } from "./scenarios/pricing-elasticity";
 import { marketSizingGtm } from "./scenarios/market-sizing-gtm";
+import { marketplaceLiquidity } from "./scenarios/marketplace-liquidity";
+import { b2bDealTco } from "./scenarios/b2b-deal-tco";
 
 // Easiest first: this is the order the library shows them in, and a beginner
 // meeting the track for the first time should not land on the hardest one.
@@ -29,6 +31,8 @@ const ALL: SimScenario[] = [
   channelTradeSpend,
   pricingElasticity,
   marketSizingGtm,
+  marketplaceLiquidity,
+  b2bDealTco,
   metricDropFoodDelivery,
 ];
 

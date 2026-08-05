@@ -561,6 +561,194 @@ describe("channel-trade-spend: the numbers the primer promises", () => {
   });
 });
 
+describe("marketplace-liquidity: the numbers the primer promises", () => {
+  const scenario = getScenario("marketplace-liquidity");
+  if (!scenario) throw new Error("scenario missing");
+  const v = resolveDrivers(scenario.drivers);
+
+  it("fills 4.9 lakh of 6.2 lakh bookings for ₹41.1 crore of GMV", () => {
+    expect(v.jobs).toBeCloseTo(489_800, 0);
+    expect(v.failedRequests).toBeCloseTo(130_200, 0);
+    expect(v.gmv).toBeCloseTo(41.1432 * 10_000_000, -3);
+    expect(v.netRevenue).toBeCloseTo(9.8744 * 10_000_000, -3);
+  });
+
+  it("runs professionals at 43.5% utilisation while failing one booking in five", () => {
+    expect(v.utilisation).toBeCloseTo(0.435, 3);
+    expect(v.failRate).toBeCloseTo(0.21, 4);
+  });
+
+  /**
+   * The line that makes the scenario work. Without a cost on a failed booking,
+   * pouring demand into a supply-constrained marketplace is profitable and the
+   * trap teaches the opposite of the lesson.
+   */
+  it("charges ₹2.41 crore for the bookings it failed, and loses ₹33.6 lakh", () => {
+    expect(v.failureCost).toBeCloseTo(2.4087 * 10_000_000, -3);
+    expect(v.contribution).toBeCloseTo(-33.64 * 100_000, -3);
+    // The same month is ₹2.07 crore in the black if the failures are removed.
+    expect(v.contribution + v.failureCost).toBeCloseTo(2.072 * 10_000_000, -4);
+  });
+
+  it("makes the demand push raise GMV and roughly triple the loss", () => {
+    const pushed = resolveDrivers(scenario.drivers, { requests: 1.2, matchRate: 0.93 });
+    expect(pushed.gmv / v.gmv).toBeCloseTo(1.116, 3);
+    expect(pushed.contribution).toBeLessThan(v.contribution);
+    expect(pushed.contribution / v.contribution).toBeGreaterThan(2.5);
+  });
+
+  /** The three deficit zone-hours, and nothing else, get the platform back. */
+  it("turns the loss into ₹2.16 crore by moving match rate alone", () => {
+    const fixed = resolveDrivers(scenario.drivers, {
+      matchRate: 1.12 * 1.03 * 1.05,
+      proIncentives: 1.18,
+      avgTicket: 0.98,
+    });
+    expect(fixed.matchRate).toBeLessThan(1);
+    expect(fixed.matchRate).toBeCloseTo(0.957, 3);
+    expect(fixed.contribution).toBeGreaterThan(2 * 10_000_000);
+  });
+
+  /**
+   * `matchRate` is an input, so nothing stops an over-generous retune pushing it
+   * past 1 and making `failRate` negative — which would silently pay the
+   * platform for failures it did not have.
+   */
+  it("never projects a match rate above 100%, on any affordable allocation", () => {
+    for (const iv of scenario.interventions) {
+      const outcome = runOutcome(scenario, [
+        { interventionId: iv.id, sprints: iv.cost.sprints, rupees: iv.cost.rupees },
+      ]);
+      for (const value of outcome.paths.matchRate) expect(value).toBeLessThan(1);
+      for (const value of outcome.paths.failRate) expect(value).toBeGreaterThan(0);
+    }
+    const best = runOutcome(scenario, scenario.bestAllocation);
+    for (const value of best.paths.matchRate) expect(value).toBeLessThan(1);
+  });
+
+  it("lets recruiting nationally help, and lose to recruiting locally", () => {
+    const local = runOutcome(scenario, [
+      { interventionId: "iv-zone-supply", sprints: 2, rupees: 5 * 10_000_000 },
+    ]);
+    const national = runOutcome(scenario, [
+      { interventionId: "iv-recruit", sprints: 1, rupees: 3.5 * 10_000_000 },
+    ]);
+    const ns = "contribution";
+    expect(finalValue(national.paths, ns)).toBeGreaterThan(finalValue(national.doNothing, ns));
+    expect(finalValue(local.paths, ns)).toBeGreaterThan(finalValue(national.paths, ns));
+  });
+
+  it("defines match rate, liquidity, utilisation and take rate before using them", () => {
+    const terms = scenario.teaching!.primer.terms.map((t) => t.term);
+    for (const expected of ["Match rate", "Liquidity", "Utilisation", "GMV", "Take rate"]) {
+      expect(terms).toContain(expected);
+    }
+  });
+});
+
+describe("b2b-deal-tco: the numbers the primer promises", () => {
+  const scenario = getScenario("b2b-deal-tco");
+  if (!scenario) throw new Error("scenario missing");
+  const v = resolveDrivers(scenario.drivers);
+  const LAKH = 100_000;
+
+  it("bills ₹67.5 lakh a quarter across seats and document volume", () => {
+    expect(v.seatRevenue).toBeCloseTo(65.25 * LAKH, -2);
+    expect(v.usageRevenue).toBeCloseTo(2.255 * LAKH, -2);
+    expect(v.revenue).toBeCloseTo(67.505 * LAKH, -2);
+  });
+
+  /** The gap the whole scenario exists inside: 78% reported, 19.5% real. */
+  it("costs ₹54.3 lakh to serve, for a real margin of 19.5% rather than 78%", () => {
+    expect(v.costToServe).toBeCloseTo(54.3075 * LAKH, -2);
+    expect(v.grossProfit).toBeCloseTo(13.1975 * LAKH, -2);
+    expect(v.grossMarginRate).toBeCloseTo(0.1955, 3);
+    // What the deck reports: revenue minus hosting alone.
+    expect((v.revenue - v.infraCost) / v.revenue).toBeCloseTo(0.897, 3);
+    // And a third of the real cost is one customer-specific line.
+    expect(v.connectorCost / v.costToServe).toBeGreaterThan(0.3);
+  });
+
+  it("leaves ₹72 lakh of contribution across twelve quarters", () => {
+    expect(v.contractQuarters).toBe(12);
+    expect(v.contractContribution).toBeCloseTo(72.37 * LAKH, -3);
+  });
+
+  /** The buyer's side, which is what makes the discount the wrong instrument. */
+  it("costs the customer ₹1.15 crore a quarter, of which the licence is 59%", () => {
+    expect(v.customerTco).toBeCloseTo(115.005 * LAKH, -3);
+    expect(v.revenue / v.customerTco).toBeCloseTo(0.587, 3);
+
+    // A pure 18% licence cut relieves 10.6% of their problem…
+    const discountOnly = resolveDrivers(scenario.drivers, {
+      pricePerSeat: 0.82,
+      usageRatePerMnDocs: 0.82,
+    });
+    expect(1 - discountOnly.customerTco / v.customerTco).toBeCloseTo(0.106, 3);
+    // …while retiring the connector relieves more than twice as much.
+    const replatform = resolveDrivers(scenario.drivers, {
+      connectorCost: 0.28,
+      tickets: 0.55,
+      customerInternalCost: 0.45,
+    });
+    expect(1 - replatform.customerTco / v.customerTco).toBeGreaterThan(0.22);
+    expect(replatform.customerTco).toBeCloseTo(88.88 * LAKH, -4);
+  });
+
+  it("puts the discount under water and the re-platform far above it", () => {
+    const discount = resolveDrivers(scenario.drivers, {
+      pricePerSeat: 0.82,
+      usageRatePerMnDocs: 0.82,
+      seats: 1.08,
+      documentsMn: 1.05,
+      tickets: 1.05,
+    });
+    expect(discount.contractContribution).toBeLessThan(0);
+    expect(discount.contractContribution).toBeCloseTo(-37.05 * LAKH, -4);
+
+    const replatform = resolveDrivers(scenario.drivers, {
+      connectorCost: 0.28,
+      tickets: 0.55,
+      customerInternalCost: 0.45,
+    });
+    expect(replatform.costToServe).toBeCloseTo(33.14 * LAKH, -4);
+    expect(replatform.contractContribution).toBeGreaterThan(3 * v.contractContribution);
+  });
+
+  /**
+   * The expansion trap. Revenue up 44%, net revenue retention 144%, contract
+   * contribution down 83% — and if any of the costs a second division brings
+   * with it are under-modelled, expanding quietly becomes the right answer.
+   */
+  it("makes expansion grow revenue 44% and cut contribution 83%", () => {
+    const expanded = resolveDrivers(scenario.drivers, {
+      seats: 1.44,
+      documentsMn: 1.3,
+      tickets: 1.55,
+      csmCost: 1.45,
+      connectorCost: 1.75,
+      dealCost: 1.55,
+    });
+    expect(expanded.revenue / v.revenue).toBeCloseTo(1.44, 2);
+    expect(1 - expanded.contractContribution / v.contractContribution).toBeCloseTo(0.83, 2);
+  });
+
+  it("withholds the metric map, and still defines the vocabulary", () => {
+    expect(scenario.teaching?.showMetricMap).toBe(false);
+    const terms = scenario.teaching!.primer.terms.map((t) => t.term);
+    for (const expected of [
+      "ARR",
+      "Seats vs usage pricing",
+      "Cost to serve",
+      "TCO",
+      "NRR",
+      "Contract contribution",
+    ]) {
+      expect(terms).toContain(expected);
+    }
+  });
+});
+
 describe("metric-drop-food-delivery specifics", () => {
   const scenario = getScenario("metric-drop-food-delivery");
 
