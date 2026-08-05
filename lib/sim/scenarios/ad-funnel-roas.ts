@@ -209,7 +209,7 @@ export const adFunnelRoas: SimScenario = {
       id: "roas",
       kind: "quotient",
       label: "ROAS",
-      unit: "ratio",
+      unit: "multiple",
       goodDirection: "up",
       numerator: "adRevenue",
       denominator: "adBudget",
@@ -245,7 +245,7 @@ export const adFunnelRoas: SimScenario = {
       tiles: [
         { label: "Ad spend", value: 10 * LAKH, unit: "inr", goodDirection: "down" },
         { label: "Revenue from ads", value: 39.875 * LAKH, unit: "inr", goodDirection: "up" },
-        { label: "ROAS", value: 3.99, unit: "ratio", goodDirection: "up" },
+        { label: "ROAS", value: 3.99, unit: "multiple", goodDirection: "up" },
         { label: "Orders", value: 2750, unit: "count", goodDirection: "up" },
         { label: "Gross profit from ads", value: 8.7725 * LAKH, unit: "inr", goodDirection: "up" },
         { label: "Net profit from ads", value: -1.2275 * LAKH, unit: "inr", goodDirection: "up" },

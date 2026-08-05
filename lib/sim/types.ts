@@ -32,7 +32,17 @@ export const SIM_UNITS = [
   "inr_lakh",
   "inr_crore",
   "percent",
+  /** A share, rendered as a percentage — conversion, churn, margin. */
   "ratio",
+  /**
+   * A multiple, rendered as "4.0×" — ROAS, LTV:CAC.
+   *
+   * Distinct from `ratio` because rendering a ROAS of 4 as "399%" is not a
+   * formatting quibble: nobody in marketing says it that way, and a student
+   * comparing it against the "break even above 4.55" rule has to do a
+   * conversion in their head to see they are below it.
+   */
+  "multiple",
   "minutes",
   "days",
 ] as const;

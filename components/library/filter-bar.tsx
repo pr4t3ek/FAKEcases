@@ -57,14 +57,16 @@ export function FilterBar({ categories }: { categories: Category[] }) {
         />
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        {/* The library holds two kinds of question now. Without this, a case is
-            only reachable by scrolling past every guesstimate. */}
+        {/* The library holds three kinds of exercise now. Without this, a case
+            is only reachable by scrolling past every guesstimate. The default
+            label has to name all of them — "Guesstimates & cases" told people
+            the unfiltered view excluded something it doesn't. */}
         <select
           className={selectClass}
           value={activeType}
           onChange={(e) => setParam("type", e.target.value)}
         >
-          <option value="">Guesstimates &amp; cases</option>
+          <option value="">All exercises</option>
           <option value="guesstimate">Guesstimates</option>
           <option value="qualitative">Cases (issue tree)</option>
           <option value="simulation">Decision simulations</option>

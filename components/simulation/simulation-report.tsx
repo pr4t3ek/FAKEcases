@@ -21,11 +21,12 @@ import { Card } from "@/components/ui/card";
 import { CHART_TICK, CHART_TOOLTIP_STYLE } from "@/components/dashboard/charts";
 import { cn, toIndianWords } from "@/lib/utils";
 import { formatValue, DeltaLabel } from "./sim-dashboard";
+import { inScale, moneyScaleFor } from "./money";
+import { MetricMap } from "./metric-map";
+import { PrimerRecap } from "./concept-primer";
 import { SimCoachPanel } from "./sim-coach-panel";
 import type { SimulationReportData } from "./types";
 import type { SimUnit } from "@/lib/sim/types";
-
-const CRORE = 10_000_000;
 
 function scoreTone(value: number): string {
   if (value >= 80) return "bg-success";
@@ -40,6 +41,10 @@ export function SimulationReport({
   data: SimulationReportData;
   user: User | null;
 }) {
+  // Derived from the same budget the allocation screen used, so the debrief
+  // cannot silently re-denominate the numbers the student just typed.
+  const scale = moneyScaleFor(data.budgetRupees);
+
   return (
     <div className="min-h-screen">
       <AppHeader user={user} />
@@ -53,8 +58,8 @@ export function SimulationReport({
               </div>
               <h1 className="mt-1 text-xl font-bold">What happened next</h1>
               <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-                Two quarters on from your decision, against doing nothing and against the best use
-                of the same budget.
+                Two {data.periodNoun}s on from your decision, against doing nothing and against the
+                best use of the same budget.
               </p>
             </div>
             <div className="text-right">
@@ -130,6 +135,14 @@ export function SimulationReport({
             ))}
           </div>
         </Card>
+
+        {/* ── Where the decision landed in the chain ──────────────────────── */}
+        {data.metricMap && (
+          <MetricMap
+            nodes={data.metricMap}
+            title="The same chain, after your decision"
+          />
+        )}
 
         {/* ── Scorecard ───────────────────────────────────────────────────── */}
         <Card className="p-6">
@@ -244,14 +257,12 @@ export function SimulationReport({
                     <span>
                       you:{" "}
                       {row.yours
-                        ? `${row.yours.sprints} sp · ₹${(row.yours.rupees / CRORE).toFixed(1)} cr`
+                        ? `${row.yours.sprints} sp · ${inScale(row.yours.rupees, scale)}`
                         : "—"}
                     </span>
                     <span>
                       best:{" "}
-                      {row.best
-                        ? `${row.best.sprints} sp · ₹${(row.best.rupees / CRORE).toFixed(1)} cr`
-                        : "—"}
+                      {row.best ? `${row.best.sprints} sp · ${inScale(row.best.rupees, scale)}` : "—"}
                     </span>
                   </div>
                 </div>
@@ -323,6 +334,14 @@ export function SimulationReport({
           <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
             {data.strongAnswer}
           </p>
+          {data.teaching && (
+            <div className="mt-4 border-t pt-3">
+              <div className="mb-2 text-xs text-muted-foreground">
+                Terms this simulation used — hover any of them for the definition.
+              </div>
+              <PrimerRecap teaching={data.teaching} />
+            </div>
+          )}
         </Card>
 
         <SimCoachPanel runId={data.runId} available={data.coachAvailable} />

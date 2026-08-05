@@ -191,7 +191,7 @@ export const subscriptionLtvCac: SimScenario = {
       denominator: "newSubs",
     },
     { id: "ltv", kind: "product", label: "Lifetime value", unit: "inr", goodDirection: "up", of: ["marginPerSub", "lifetimeMonths"] },
-    { id: "ltvCacRatio", kind: "quotient", label: "LTV : CAC", unit: "ratio", goodDirection: "up", numerator: "ltv", denominator: "cac" },
+    { id: "ltvCacRatio", kind: "quotient", label: "LTV : CAC", unit: "multiple", goodDirection: "up", numerator: "ltv", denominator: "cac" },
     {
       id: "paybackMonths",
       kind: "quotient",
@@ -223,7 +223,7 @@ export const subscriptionLtvCac: SimScenario = {
       tiles: [
         { label: "Subscribers", value: 163_636, unit: "count", deltaPct: 0.06, goodDirection: "up" },
         { label: "New this month", value: 18_000, unit: "count", deltaPct: 0.04, goodDirection: "up" },
-        { label: "LTV : CAC", value: 4.59, unit: "ratio", goodDirection: "up" },
+        { label: "LTV : CAC", value: 4.59, unit: "multiple", goodDirection: "up" },
         { label: "Payback (months)", value: 1.98, unit: "count", goodDirection: "down" },
         { label: "Monthly contribution", value: 2.893 * CRORE, unit: "inr", goodDirection: "up" },
         { label: "Monthly net cash", value: -0.337 * CRORE, unit: "inr", deltaPct: -0.22, goodDirection: "up" },
