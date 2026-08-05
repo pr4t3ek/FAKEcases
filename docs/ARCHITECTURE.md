@@ -268,6 +268,19 @@ poisoned `Progress.bySkill` and the dashboard radar.
 `SimPurchase` carries a unique constraint on `(runId, drilldownId)`: a double-click must not be
 charged twice for the same cut.
 
+### The teaching layer
+
+Beginner scenarios carry a `teaching` block — an authored **concept primer** and an opt-in
+**metric map**. The map is derived from the driver graph by `lib/sim/metric-map.ts` rather than
+drawn, so it cannot disagree with the arithmetic it explains, and `toClientScenario` ships it only
+when the scenario opts in: on a hard scenario the *shape* of the model is part of what the
+candidate has to work out. Drift and intervention effects stay server-side either way, so the map
+shows how metrics relate and never which lever fixes them.
+
+`validateScenario` enforces what `difficulty: "Easy"` promises — at most six drilldowns, six
+causes one level deep, five interventions, a budget covering about half the board, and a primer.
+Otherwise "simpler" decays one scenario at a time.
+
 ---
 
 ## 4. LLM interviewer: streaming adapter with safe fallback
@@ -435,7 +448,8 @@ app/
 components/
 ├── ui/                shadcn-style primitives (button, card, dialog, tabs, ...)
 ├── practice/           Chat panel, calculator, framework builder, tools panel, evaluation report
-├── simulation/         Sim dashboard panels, drilldown market, commit panel, debrief report, coach
+├── simulation/         Sim dashboard panels, metric map, concept primer, drilldown market,
+│                       commit panel, debrief report, coach
 ├── dashboard/          Charts (Recharts), stat cards, rank card, achievements
 ├── admin/              Question/category managers, CSV/JSON import, feedback queue
 └── marketing/          Landing page sections
@@ -445,8 +459,9 @@ lib/
 ├── llm/                Streaming interviewer adapters (mock / gemini / ollama / anthropic / openai),
 │                       prompt builder, NDJSON protocol (stream.ts), spend guards (budget.ts)
 ├── sim/                Simulation engine — all pure, no DB: types, scenarios/, registry,
-│                       drivers (metric DAG), outcome (causal model), investigate (pricing),
-│                       score, debrief, redact (client projection), payload, validate
+│                       drivers (metric DAG incl. quotient/constant), outcome (causal model),
+│                       investigate (pricing), score, debrief, metric-map (derived teaching
+│                       view), redact (client projection), payload, validate
 ├── auth.ts             Signed cookie sessions, guest mode, claim-on-signup
 ├── evaluation.ts       Rubric scorer (pure, unit-tested)
 ├── gamification.ts     XP/level/streak/rank rules (pure, unit-tested)
@@ -458,8 +473,8 @@ lib/
 
 prisma/
 ├── schema.prisma       Data model (see ERD above)
-└── seed-data.ts / seed.ts   15 categories, 27 India-only questions (24 guesstimates
-                             + 2 cases + 1 simulation catalogue row), 12 achievements,
+└── seed-data.ts / seed.ts   15 categories, 31 India-only questions (24 guesstimates
+                             + 2 cases + 5 simulation catalogue rows), 12 achievements,
                              demo users, benchmark cohort
 ```
 
