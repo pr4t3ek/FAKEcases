@@ -115,6 +115,7 @@ const EXPECTED: Record<string, string> = {
   "Should a two-wheeler maker enter electric scooters?": "BatteryCharging",
   "NukkadEats: orders are down 9% and nobody knows why": "Bike",
   "Kadak Coffee: the ads are working and the money is going": "Coffee",
+  "Padhai Plus: 18,000 new subscribers a month, and a bigger hole": "GraduationCap",
 };
 
 describe("every seeded question resolves to a subject icon", () => {

@@ -560,6 +560,21 @@ export const questions: SeedQuestion[] = [
       "At 22% gross margin, break-even ROAS is 4.55, so the celebrated 4.0 was under water the whole time. 91% of ad-driven orders were the lowest-margin product, while organic customers chose the 41%-margin bundle a third of the time — a product-mix problem wearing a marketing problem's clothes. The traps are that the efficiency fixes are real but too small to close a margin gap, and that scaling spend, which the ROAS chart argues for, multiplies the loss.",
     tags: "product management,digital marketing,roas,cac,unit economics,coffee,simulation",
   },
+  {
+    externalId: "subscription-ltv-cac",
+    title: "Padhai Plus: 18,000 new subscribers a month, and a bigger hole",
+    prompt:
+      "A test-prep subscription adds 18,000 members a month, reports an LTV:CAC of 4.6 and burns ₹34 lakh a month anyway. Find out why the ratios look healthy while the business doesn't, then spend a quarter fixing it.",
+    category: "product-management",
+    difficulty: "Easy",
+    interviewLevel: "PM",
+    type: "simulation",
+    betterApproach:
+      "Stop reading per-subscriber ratios and ask how big the base actually gets. A subscription base settles at new subscribers per month divided by churn rate, so churn sets the ceiling — and LTV:CAC can be excellent while that ceiling sits below your fixed costs.",
+    sampleSolution:
+      "At 18,000 joiners and 11% monthly churn the base caps out near 1.64 lakh, which at ₹177 of contribution each cannot cover ₹2.6 crore of fixed costs however efficient acquisition is. The cohort data localises the churn: 62% of leavers never completed a practice test in week one and retained at 19% against 79% for those who did. The trap is that more acquisition genuinely helps — it is the numerator — but costs about four times as much per unit of base as fixing the divisor.",
+    tags: "product management,subscription,ltv,cac,churn,coaching,simulation",
+  },
 ];
 
 export const achievements = [

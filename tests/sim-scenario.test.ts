@@ -253,6 +253,83 @@ describe("ad-funnel-roas: the numbers the primer promises", () => {
   });
 });
 
+describe("subscription-ltv-cac: the numbers the primer promises", () => {
+  const scenario = getScenario("subscription-ltv-cac");
+  if (!scenario) throw new Error("scenario missing");
+  const v = resolveDrivers(scenario.drivers);
+
+  /** The formula the whole scenario is built on. */
+  it("settles the base at joiners ÷ churn", () => {
+    expect(v.subscribers).toBeCloseTo(18_000 / 0.11, 0);
+    expect(v.subscribers).toBeCloseTo(163_636, -1);
+  });
+
+  it("gives a subscriber a 9-month life and ₹1,607 of lifetime value", () => {
+    expect(v.lifetimeMonths).toBeCloseTo(9.09, 2);
+    expect(v.marginPerSub).toBeCloseTo(176.79, 1);
+    expect(v.ltv).toBeCloseTo(1607, 0);
+  });
+
+  it("reports the flattering LTV:CAC of 4.6 and sub-two-month payback", () => {
+    expect(v.cac).toBeCloseTo(350, 0);
+    expect(v.ltvCacRatio).toBeCloseTo(4.59, 2);
+    expect(v.paybackMonths).toBeLessThan(2);
+  });
+
+  // Healthy per subscriber, and burning as a company. That gap is the lesson.
+  it("burns cash anyway", () => {
+    expect(v.ltvCacRatio).toBeGreaterThan(3);
+    expect(v.netCash).toBeLessThan(0);
+    expect(v.netCash).toBeCloseTo(-0.337 * 10_000_000, -4);
+  });
+
+  it("grows the business by cutting the divisor, not raising the numerator", () => {
+    const fixChurn = runOutcome(scenario, [
+      { interventionId: "iv-onboarding", sprints: 2, rupees: 40 * 100_000 },
+    ]);
+    const buyGrowth = runOutcome(scenario, [
+      { interventionId: "iv-more-ads", sprints: 1, rupees: 35 * 100_000 },
+    ]);
+
+    // Both genuinely help — the acquisition play is a good trap, not a wrong one.
+    expect(finalValue(buyGrowth.paths, "netCash")).toBeGreaterThan(
+      finalValue(buyGrowth.doNothing, "netCash"),
+    );
+    // And retention is worth substantially more.
+    expect(finalValue(fixChurn.paths, "netCash")).toBeGreaterThan(
+      finalValue(buyGrowth.paths, "netCash"),
+    );
+    expect(finalValue(fixChurn.paths, "subscribers")).toBeGreaterThan(
+      finalValue(buyGrowth.paths, "subscribers"),
+    );
+  });
+
+  it("makes the price rise cost more than it earns", () => {
+    const priceUp = runOutcome(scenario, [
+      { interventionId: "iv-price-up", sprints: 1, rupees: 8 * 100_000 },
+    ]);
+    expect(finalValue(priceUp.paths, "arpu")).toBeGreaterThan(
+      finalValue(priceUp.doNothing, "arpu"),
+    );
+    expect(finalValue(priceUp.paths, "netCash")).toBeLessThan(
+      finalValue(priceUp.doNothing, "netCash"),
+    );
+  });
+
+  it("turns the burn into cash once churn is fixed", () => {
+    const outcome = runOutcome(scenario, scenario.bestAllocation);
+    expect(finalValue(outcome.paths, "netCash")).toBeGreaterThan(0);
+    expect(finalValue(outcome.doNothing, "netCash")).toBeLessThan(v.netCash);
+  });
+
+  it("defines churn, LTV, CAC and payback before using them", () => {
+    const terms = scenario.teaching!.primer.terms.map((t) => t.term);
+    for (const expected of ["Churn rate", "LTV", "CAC", "Payback period", "ARPU"]) {
+      expect(terms).toContain(expected);
+    }
+  });
+});
+
 describe("metric-drop-food-delivery specifics", () => {
   const scenario = getScenario("metric-drop-food-delivery");
 
