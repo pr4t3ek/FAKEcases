@@ -17,6 +17,7 @@
  */
 
 import type { Difficulty, SimPhase } from "@/lib/types";
+import type { MetricMapNode } from "./metric-map";
 
 export type DriverId = string;
 export type CauseId = string;
@@ -243,6 +244,48 @@ export interface SimCoachFact {
   answer: string;
 }
 
+// ─── Teaching ──────────────────────────────────────────────────────────────
+
+/**
+ * One term the scenario is about to use.
+ *
+ * `plain` before `formula` is deliberate. A student who does not yet know what
+ * ROAS is gets nothing from "revenue ÷ ad spend" — they need to be told it
+ * measures how many rupees came back for each rupee spent, and only then does
+ * the formula mean anything.
+ */
+export interface SimPrimerTerm {
+  term: string;
+  /** Expanded, when the term is an acronym. */
+  full?: string;
+  /** One sentence, no jargon. */
+  plain: string;
+  formula?: string;
+  /** The decision this term changes. A definition nobody acts on is trivia. */
+  matters: string;
+  /** Links the term to its node on the metric map. */
+  driver?: DriverId;
+}
+
+export interface SimTeaching {
+  primer: {
+    /** What business you are running and what you are deciding. */
+    intro: string;
+    terms: SimPrimerTerm[];
+    /** A worked line or two: "₹10L at a ₹180 CPM buys 55.6 lakh impressions." */
+    worked?: string[];
+  };
+  /**
+   * Whether the metric map is shown.
+   *
+   * Opt-in, because on a hard scenario the *shape* of the model is part of the
+   * answer: showing that orders = sessions × conversion hands a NukkadEats
+   * candidate the insight the whole exercise is built to make them find. On a
+   * beginner scenario the opposite is true — seeing the chain is the lesson.
+   */
+  showMetricMap: boolean;
+}
+
 export interface SimScenario {
   /** Matches the catalogue `Question.externalId`. */
   slug: string;
@@ -270,9 +313,18 @@ export interface SimScenario {
   trueCauseIds: CauseId[];
   interventions: SimIntervention[];
 
-  /** Untreated bleed, compounding per quarter, so doing nothing is not free. */
+  /** Untreated bleed, compounding per period, so doing nothing is not free. */
   drift: SimEffect[];
   horizonQuarters: number;
+  /**
+   * What a period is called in the report. Display only — the model is
+   * period-agnostic. An ad campaign or a subscription base moves monthly, and
+   * a report reading "Q+1" for a monthly campaign is simply wrong.
+   */
+  periodNoun?: "month" | "quarter";
+
+  /** Concept primer and metric map. Absent on scenarios that assume fluency. */
+  teaching?: SimTeaching;
 
   /** The cheapest sufficient investigation; efficiency is measured against it. */
   parInvestigation: DrilldownId[];
@@ -367,6 +419,19 @@ export interface ClientScenario {
   difficulty: Difficulty;
   budget: SimScenario["budget"];
   horizonQuarters: number;
+  periodNoun: "month" | "quarter";
+  /**
+   * Definitions are safe to ship — they are the opposite of the answer. The
+   * `showMetricMap` flag rides along so the client knows whether a map was
+   * withheld deliberately.
+   */
+  teaching: SimTeaching | null;
+  /**
+   * Present only when `teaching.showMetricMap`. On a hard scenario the shape of
+   * the model is part of what the candidate has to work out, so it is withheld
+   * along with everything else — see `./redact.ts`.
+   */
+  metricMap: MetricMapNode[] | null;
   /** The base dashboard plus the panels of every owned pull, in purchase order. */
   panels: SimPanel[];
   drilldowns: ClientDrilldown[];

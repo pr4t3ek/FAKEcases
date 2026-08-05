@@ -141,3 +141,72 @@ describe("toClientScenario", () => {
     expect(riders?.unlocked).toBe(false);
   });
 });
+
+/**
+ * The metric map exposes the *shape* of the model, which on a hard scenario is
+ * part of what the candidate has to work out. These pin both arms, because
+ * getting the gate backwards would silently hand away the insight NukkadEats is
+ * built around.
+ */
+describe("toClientScenario: the metric map gate", () => {
+  const teaching = {
+    primer: {
+      intro: "You are running a campaign.",
+      terms: [
+        {
+          term: "ROAS",
+          full: "Return on ad spend",
+          plain: "How many rupees of sales came back for each rupee spent on ads.",
+          formula: "revenue from ads ÷ ad spend",
+          matters: "It tells you nothing about profit on its own.",
+        },
+      ],
+    },
+    showMetricMap: true,
+  };
+
+  it("withholds the map when a scenario does not opt in", () => {
+    const client = toClientScenario(scenario, { phase: "investigate", owned: [] });
+    expect(client.metricMap).toBeNull();
+    expect(client.teaching).toBeNull();
+    // And no driver graph leaks in by another name.
+    expect(JSON.stringify(client)).not.toContain("goodDirection");
+  });
+
+  it("ships the map when the scenario opts in", () => {
+    const teaching_ = fixtureScenario({ teaching });
+    const client = toClientScenario(teaching_, { phase: "investigate", owned: [] });
+    expect(client.metricMap).toHaveLength(teaching_.drivers.length);
+    expect(client.metricMap?.find((n) => n.id === "revenue")?.formula).toBe("Orders × AOV");
+  });
+
+  it("ships the primer, which is the opposite of the answer", () => {
+    const client = toClientScenario(fixtureScenario({ teaching }), {
+      phase: "observe",
+      owned: [],
+    });
+    expect(client.teaching?.primer.terms[0].term).toBe("ROAS");
+  });
+
+  // The map explains how metrics relate. It must not reveal which lever moves
+  // them, or it becomes a free drilldown.
+  it("still withholds drift and every intervention effect with the map on", () => {
+    const withMap = fixtureScenario({ teaching });
+    const payload = JSON.stringify(
+      toClientScenario(withMap, { phase: "investigate", owned: [] }),
+    );
+
+    expect(payload).not.toContain("whenRootCause");
+    expect(payload).not.toContain("otherwise");
+    // Not `CAUSE_TRUE` — cause ids ship as picker options, and the invariant is
+    // that the true one is indistinguishable from the decoys. See above.
+    expect(payload).not.toContain("trueCauseIds");
+    expect(payload).not.toContain("bestAllocation");
+    for (const iv of withMap.interventions) {
+      expect(payload).not.toContain(iv.debrief);
+    }
+    for (const line of withMap.debrief.causalChain) {
+      expect(payload).not.toContain(line);
+    }
+  });
+});

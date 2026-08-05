@@ -40,8 +40,11 @@ describe.each(scenarios.map((s) => [s.slug, s] as const))("scenario: %s", (_slug
 
   it("prices the investigation so the budget cannot buy everything", () => {
     const total = scenario.drilldowns.reduce((s, d) => s + d.cost, 0);
-    // Comfortably scarce, not marginally: the choice has to bite.
-    expect(total).toBeGreaterThan(scenario.budget.analystDays * 2);
+    // Scarce enough that choosing bites — but an Easy scenario deliberately
+    // hands over about half the board rather than a third, so the bar moves
+    // with the difficulty instead of punishing the beginner track.
+    const factor = scenario.difficulty === "Easy" ? 1.5 : 2;
+    expect(total).toBeGreaterThan(scenario.budget.analystDays * factor);
   });
 
   it("has a par investigation that is affordable and actually sufficient", () => {

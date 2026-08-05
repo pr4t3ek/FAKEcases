@@ -18,6 +18,19 @@ import { driverOrder } from "./drivers";
 import { drilldownById, parCost } from "./investigate";
 import type { CauseId, SimEffect, SimScenario } from "./types";
 
+/**
+ * What "Easy" is allowed to mean, in numbers.
+ *
+ * Derived from what makes NukkadEats hard: not one big thing, but ten pulls,
+ * twelve causes across four branches and seven interventions, all held at once.
+ * Roughly half of each is the target.
+ */
+export const EASY_CAPS = {
+  drilldowns: 6,
+  causes: 6,
+  interventions: 5,
+} as const;
+
 function duplicates(ids: string[]): string[] {
   const seen = new Set<string>();
   const dupes = new Set<string>();
@@ -215,6 +228,48 @@ export function validateScenario(scenario: SimScenario): string[] {
   if (scenario.horizonQuarters < 1) errors.push("horizonQuarters must be at least 1");
   if (!scenario.dashboard.length) errors.push("The scenario opens with an empty dashboard");
   if (!scenario.debrief.causalChain.length) errors.push("debrief.causalChain is empty");
+
+  // ── Difficulty is a promise, so it gets checked ─────────────────────────
+  //
+  // Without this, "Easy" is a label an author can attach to anything, and the
+  // beginner track quietly drifts back toward NukkadEats one scenario at a
+  // time. Same posture as brute-forcing the balance rather than asserting it.
+  if (scenario.difficulty === "Easy") {
+    const caps: [string, number, number][] = [
+      ["drilldowns", scenario.drilldowns.length, EASY_CAPS.drilldowns],
+      ["causes", scenario.causes.length, EASY_CAPS.causes],
+      ["interventions", scenario.interventions.length, EASY_CAPS.interventions],
+    ];
+    for (const [what, actual, cap] of caps) {
+      if (actual > cap) {
+        errors.push(
+          `An Easy scenario may have at most ${cap} ${what}, and this has ${actual}`,
+        );
+      }
+    }
+
+    // A beginner should be able to hold the whole hypothesis space at once.
+    const nested = scenario.causes.filter((c) => {
+      const parent = scenario.causes.find((p) => p.id === c.parentId);
+      return parent?.parentId != null;
+    });
+    if (nested.length) {
+      errors.push("An Easy scenario's cause tree may be one level deep at most");
+    }
+
+    if (!scenario.teaching) {
+      errors.push("An Easy scenario must carry a `teaching` primer — the jargon is the barrier");
+    }
+
+    // Scarce enough to force a choice, generous enough not to punish. Half the
+    // board, against roughly a third on the harder scenarios.
+    const totalCost = scenario.drilldowns.reduce((s, d) => s + d.cost, 0);
+    if (scenario.budget.analystDays < totalCost * 0.35) {
+      errors.push(
+        `An Easy budget should cover about half the pulls; ${scenario.budget.analystDays} of ${totalCost} days is punishing`,
+      );
+    }
+  }
 
   const panelIds = [
     ...scenario.dashboard.map((p) => p.id),

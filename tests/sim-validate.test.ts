@@ -172,6 +172,80 @@ describe("validateScenario", () => {
     expect(errorsFor({ trueCauseIds: [] })).toMatch(/trueCauseIds is empty/);
   });
 
+  /**
+   * "Easy" is a promise to a struggling student, so it is enforced rather than
+   * trusted — otherwise the beginner track drifts back toward NukkadEats one
+   * scenario at a time.
+   */
+  describe("Easy difficulty caps", () => {
+    const easy = (over: Parameters<typeof fixtureScenario>[0] = {}) =>
+      validateScenario(
+        fixtureScenario({
+          difficulty: "Easy",
+          teaching: {
+            primer: { intro: "x", terms: [{ term: "T", plain: "p", matters: "m" }] },
+            showMetricMap: true,
+          },
+          budget: { analystDays: 6, sprints: 3, rupees: 700 },
+          ...over,
+        }),
+      ).join(" | ");
+
+    it("passes a scenario that is genuinely small", () => {
+      expect(easy()).toBe("");
+    });
+
+    it("rejects too many drilldowns", () => {
+      const scenario = fixtureScenario();
+      const many = Array.from({ length: 7 }, (_, i) => ({
+        ...scenario.drilldowns[0],
+        id: `dd-${i}`,
+        reveals: [{ id: `p-${i}`, kind: "note" as const, title: "t", body: "b" }],
+      }));
+      expect(easy({ drilldowns: many, parInvestigation: ["dd-0"] })).toMatch(
+        /at most 6 drilldowns/,
+      );
+    });
+
+    it("rejects too many interventions", () => {
+      const scenario = fixtureScenario();
+      const many = Array.from({ length: 6 }, (_, i) => ({
+        ...scenario.interventions[0],
+        id: `iv-${i}`,
+      }));
+      expect(
+        easy({ interventions: many, bestAllocation: [{ interventionId: "iv-0", sprints: 2, rupees: 400 }] }),
+      ).toMatch(/at most 5 interventions/);
+    });
+
+    it("rejects a cause tree more than one level deep", () => {
+      const scenario = fixtureScenario();
+      expect(
+        easy({
+          causes: [
+            ...scenario.causes,
+            { id: "supply.riders.tier2", parentId: CAUSE_TRUE, label: "Tier 2", verdict: "v" },
+          ],
+        }),
+      ).toMatch(/one level deep/);
+    });
+
+    it("insists on a primer, because the jargon is the barrier", () => {
+      expect(easy({ teaching: undefined })).toMatch(/must carry a `teaching` primer/);
+    });
+
+    it("rejects a budget that is punishing rather than merely scarce", () => {
+      expect(easy({ budget: { analystDays: 2, sprints: 3, rupees: 700 } })).toMatch(
+        /is punishing/,
+      );
+    });
+
+    it("leaves harder scenarios alone", () => {
+      // The fixture is Medium and breaks several Easy caps by design.
+      expect(validateScenario(fixtureScenario())).toEqual([]);
+    });
+  });
+
   it("reports every problem at once rather than only the first", () => {
     const errors = validateScenario(
       fixtureScenario({ northStar: "invented", trueCauseIds: [], horizonQuarters: 0 }),
