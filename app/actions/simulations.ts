@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { getOrCreateGuest, getSessionUser } from "@/lib/auth";
 import { guestConfig } from "@/lib/config";
 import { canAdvanceSimPhase, hypothesisEditFor, type SimPhase } from "@/lib/types";
-import { getScenario } from "@/lib/sim/registry";
+import { loadScenario, scenarioExists } from "@/lib/scenario-store";
 import { priceDrilldown } from "@/lib/sim/investigate";
 import { runOutcome } from "@/lib/sim/outcome";
 import { scoreSimulation } from "@/lib/sim/score";
@@ -43,7 +43,7 @@ async function ownedRun(runId: string) {
   const run = await loadRun(runId);
   if (!run || run.userId !== user.id) return null;
 
-  const scenario = getScenario(run.scenarioSlug);
+  const scenario = await loadScenario(run.scenarioSlug);
   if (!scenario) return null;
 
   return { user, run, scenario };
@@ -65,8 +65,10 @@ export async function startSimulation(questionId: string): Promise<void> {
   });
   if (!question || question.type !== "simulation") redirect("/library");
 
+  // Existence only — an override can retune a scenario but never introduce one,
+  // so there is nothing here the authored registry cannot answer.
   const slug = question.externalId;
-  if (!slug || !getScenario(slug)) redirect("/library");
+  if (!slug || !scenarioExists(slug)) redirect("/library");
 
   if (user.isGuest) {
     const done = await countCompletedRuns(user.id);

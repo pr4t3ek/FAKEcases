@@ -3,7 +3,7 @@ import { getSessionUser } from "@/lib/auth";
 import { isRealProvider } from "@/lib/llm";
 import { getAdapter } from "@/lib/llm";
 import { simRubric } from "@/lib/config/simulation";
-import { getScenario } from "@/lib/sim/registry";
+import { loadScenario } from "@/lib/scenario-store";
 import { toClientScenario } from "@/lib/sim/redact";
 import { metricMap } from "@/lib/sim/metric-map";
 import {
@@ -34,7 +34,7 @@ export default async function SimulatePage({
   const run = await loadRun(runId);
   if (!run || run.userId !== user.id) redirect("/library");
 
-  const scenario = getScenario(run.scenarioSlug);
+  const scenario = await loadScenario(run.scenarioSlug);
   // A run can outlive the scenario it was played against — a removed scenario
   // should send you back to the library, not throw.
   if (!scenario) redirect("/library");
