@@ -9,6 +9,9 @@ This document is the visual companion to the root [`README.md`](../README.md): i
 system architecture, the request/data flow, the data model, and the scoring & gamification
 rules, each with a diagram.
 
+For what the gamification in section 6 does *not* yet do — and the retention loop planned
+around it — see [`RETENTION.md`](./RETENTION.md).
+
 ---
 
 ## 1. System architecture

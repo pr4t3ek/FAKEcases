@@ -19,6 +19,9 @@ data model (ERD), LLM adapter sequence, evaluation rubric, and gamification/rank
 📝 **[Changes](docs/CHANGES.md)** — recent fixes: priced help modes, case authoring, and other
 scoring/integrity corrections.
 
+🔁 **[Retention](docs/RETENTION.md)** — why a finite library is not the reason people leave,
+and the four levers (mastery, a daily loop, leagues, cheap content) that would keep them.
+
 ---
 
 ## Quick start
