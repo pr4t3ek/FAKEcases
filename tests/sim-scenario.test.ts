@@ -13,6 +13,11 @@ import { validateScenario } from "@/lib/sim/validate";
 import { drilldownById, parCost } from "@/lib/sim/investigate";
 import { resolveDrivers } from "@/lib/sim/drivers";
 import { allocationFits, finalValue, runOutcome } from "@/lib/sim/outcome";
+import {
+  MAX_BRUTE_FORCE_INTERVENTIONS,
+  checkBalance,
+  fullyFundableCombos,
+} from "@/lib/sim/balance";
 import { scoreSimulation } from "@/lib/sim/score";
 import type { SimAllocationLine, SimScenario } from "@/lib/sim/types";
 
@@ -132,30 +137,23 @@ describe.each(scenarios.map((s) => [s.slug, s] as const))("scenario: %s", (_slug
     const cheapest = Math.min(...scenario.interventions.map((i) => i.cost.sprints));
     expect(scenario.budget.sprints - used.sprints).toBeLessThan(cheapest);
   });
+
+  it("stays inside the brute-forcing ceiling", () => {
+    expect(scenario.interventions.length).toBeLessThanOrEqual(MAX_BRUTE_FORCE_INTERVENTIONS);
+  });
+
+  /**
+   * The same three invariants as the tests above, through the shared entry point
+   * the admin save path calls.
+   *
+   * Deliberately a duplicate: the individual tests name which invariant broke,
+   * and this one proves `checkBalance` — the thing standing between an admin's
+   * driver edit and a scorer that lies — agrees with them.
+   */
+  it("reports no balance errors through checkBalance", () => {
+    expect(checkBalance(scenario)).toEqual([]);
+  });
 });
-
-/** Every subset of interventions that the budget can fund in full. */
-function fullyFundableCombos(scenario: SimScenario): SimAllocationLine[][] {
-  const items = scenario.interventions;
-  // 2^n over a handful of interventions; the validator keeps the list small.
-  expect(items.length).toBeLessThanOrEqual(12);
-
-  const combos: SimAllocationLine[][] = [];
-  for (let mask = 0; mask < 1 << items.length; mask++) {
-    const lines: SimAllocationLine[] = [];
-    for (let i = 0; i < items.length; i++) {
-      if (mask & (1 << i)) {
-        lines.push({
-          interventionId: items[i].id,
-          sprints: items[i].cost.sprints,
-          rupees: items[i].cost.rupees,
-        });
-      }
-    }
-    if (allocationFits(scenario, lines)) combos.push(lines);
-  }
-  return combos;
-}
 
 /**
  * The primer quotes concrete numbers at the student. If a retune moves the

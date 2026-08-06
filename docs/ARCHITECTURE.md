@@ -268,6 +268,39 @@ poisoned `Progress.bySkill` and the dashboard radar.
 `SimPurchase` carries a unique constraint on `(runId, drilldownId)`: a double-click must not be
 charged twice for the same cut.
 
+### Admin driver overrides
+
+`SimScenarioOverride` is the one simulation table that holds *content* rather than a run. It stores
+a JSON `SimDriver[]` keyed by scenario slug — an override of the graph authored in code, never a
+replacement for the scenario.
+
+```
+lib/sim/registry.ts     authored scenarios, pure, sync    ← the default
+        │
+lib/sim/overlay.ts      parse → merge → re-validate       ← pure, falls back on failure
+        │
+lib/scenario-store.ts   + SimScenarioOverride             ← server-only, what pages call
+```
+
+The ordering is the design. Code is the default, so an empty table is a working app, `db:reset` is
+harmless, and the test suite still exercises the real authored numbers. Only `drivers` is
+overridable: causes, drilldowns and interventions reference driver ids, and letting both sides move
+at once turns one bad save into a scenario that no longer agrees with itself.
+
+**Where each guarantee is enforced.** Authored scenarios were checked once by CI before they could
+ship. Runtime editing has no such gate, so `saveScenarioDrivers` runs the same three checks against
+the merged scenario before writing: a Zod parse (shape), `validateScenario` (cross-references), and
+`checkBalance` (that `bestAllocation` is still the best affordable play). The third is the one worth
+naming — it is the ceiling `scoreOutcome` normalises against, so an edit that dethrones it leaves a
+scenario that renders and scores normally while grading against a ceiling that is not the top.
+`checkBalance` moved out of `tests/sim-scenario.test.ts` into `lib/sim/balance.ts` for exactly this
+reason: one implementation, called by both the suite and the save path.
+
+Loading re-runs the shape and structure checks and falls back to the authored scenario if either
+fails, because a *code* change can invalidate a stored override that was valid when saved. Balance
+is not re-run per load — 2^n outcome projections is a save-time cost, not a render-time one — so the
+admin editor surfaces a rejected override with its reason and offers an on-demand re-check.
+
 ### The teaching layer
 
 Almost every scenario carries a `teaching` block — an authored **concept primer** and an opt-in
@@ -439,7 +472,8 @@ flowchart LR
 app/
 ├── actions/          Server Actions — the app's real "API" (auth, practice, submit, admin, user)
 ├── api/               Route Handlers for streaming/chat-style endpoints (chat, hint, feedback, admin import)
-├── admin/             Admin panel (question/category CRUD, import, feedback queue)
+├── admin/             Admin panel (question/category CRUD, import, feedback queue,
+│                       simulation driver overrides)
 ├── dashboard/         Stats, charts, rank card, achievements
 ├── library/           Browse/filter questions
 ├── practice/[id]/     Core interviewer + calculator + framework + evaluation UI
@@ -452,7 +486,8 @@ components/
 ├── simulation/         Sim dashboard panels, metric map, concept primer, drilldown market,
 │                       commit panel, debrief report, coach
 ├── dashboard/          Charts (Recharts), stat cards, rank card, achievements
-├── admin/              Question/category managers, CSV/JSON import, feedback queue
+├── admin/              Question/category managers, CSV/JSON import, feedback queue,
+│                       scenario driver editor
 └── marketing/          Landing page sections
 
 lib/
@@ -462,7 +497,8 @@ lib/
 ├── sim/                Simulation engine — all pure, no DB: types, scenarios/, registry,
 │                       drivers (metric DAG incl. quotient/constant), outcome (causal model),
 │                       investigate (pricing), score, debrief, metric-map (derived teaching
-│                       view), redact (client projection), payload, validate
+│                       view), redact (client projection), payload, validate,
+│                       balance (best-allocation invariants), overlay (admin driver overrides)
 ├── auth.ts             Signed cookie sessions, guest mode, claim-on-signup
 ├── evaluation.ts       Rubric scorer (pure, unit-tested)
 ├── gamification.ts     XP/level/streak/rank rules (pure, unit-tested)
@@ -470,6 +506,8 @@ lib/
 ├── progress.ts         Per-user rollups (totals, accuracy, by-category/by-skill)
 ├── simulations.ts      Simulation data access (runs, purchases, results) — the only file
 │                       that touches Prisma for a sim, so lib/sim stays pure
+├── scenario-store.ts   Scenario loading with admin overrides applied, always falling back
+│                       to the authored scenario in lib/sim/registry
 └── questions.ts / db.ts  Content access, Prisma client singleton
 
 prisma/

@@ -12,7 +12,7 @@
 import { db } from "@/lib/db";
 import { parseJsonArray, parseJson } from "@/lib/json";
 import type { SimPhase } from "@/lib/types";
-import { getScenario } from "@/lib/sim/registry";
+import { loadScenario } from "@/lib/scenario-store";
 import type {
   CauseId,
   SimAllocationLine,
@@ -89,8 +89,10 @@ export function ownedInOrder(purchases: { drilldownId: string; seq: number }[]):
   return [...purchases].sort((a, b) => a.seq - b.seq).map((p) => p.drilldownId);
 }
 
-export function scenarioForRun(run: { scenarioSlug: string }): SimScenario | undefined {
-  return getScenario(run.scenarioSlug);
+export async function scenarioForRun(
+  run: { scenarioSlug: string },
+): Promise<SimScenario | undefined> {
+  return loadScenario(run.scenarioSlug);
 }
 
 /** Lock the hypothesis and open the investigation. */

@@ -145,6 +145,7 @@ Framer Motion · Prisma (SQLite dev → Postgres/Supabase prod) · Recharts · V
 |---|---|
 | Add / edit questions and cases | Admin panel (`/admin`), CSV/JSON import, or `prisma/seed-data.ts` |
 | Add / edit a decision simulation | `lib/sim/scenarios/` + a row in `lib/sim/registry.ts` and `prisma/seed-data.ts` |
+| Retune a simulation's numbers without a deploy | Admin panel → **Simulations** (see below) |
 | Tune simulation scoring / bands | `lib/config/simulation.ts` |
 | Change the interviewer's behaviour / wording | `lib/llm/prompts.ts` |
 | Tune XP, levels, streak rules | `lib/config/gamification.ts` |
@@ -247,12 +248,13 @@ budget, or no primer.
 
 Four things are worth knowing before you touch it:
 
-- **Content is code, not rows.** A scenario lives in `lib/sim/scenarios/`, registered in
-  `lib/sim/registry.ts`, which is also the order the library shows them in (easiest first). Nothing queries into it, the causal model needs compile-time id checking a
-  JSON column can't give, and it survives `db:reset`. The trade-off is real: **adding a scenario
-  needs a deploy.** The catalogue row in `prisma/seed-data.ts` is a normal `Question` whose
-  `externalId` matches the scenario `slug`, which is what gets it library filters, search and
-  bookmarks for free.
+- **Content is code, with the driver graph overridable.** A scenario lives in `lib/sim/scenarios/`,
+  registered in `lib/sim/registry.ts`, which is also the order the library shows them in (easiest
+  first). Nothing queries into it, the causal model needs compile-time id checking a JSON column
+  can't give, and it survives `db:reset`. **Adding a scenario still needs a deploy**; since the
+  Simulations tab landed, *retuning one's numbers* does not — see below. The catalogue row in
+  `prisma/seed-data.ts` is a normal `Question` whose `externalId` matches the scenario `slug`, which
+  is what gets it library filters, search and bookmarks for free.
 - **It never writes an `Attempt` or an `Evaluation`.** `updateProgress` and `recomputeRank` read
   those tables directly, so separate tables mean simulation results *structurally* cannot move
   interview readiness or percentile rank — there is no exclusion filter to forget. Simulations do
@@ -266,9 +268,40 @@ Four things are worth knowing before you touch it:
   field by field, so a field added to a scenario is absent from the RSC payload until someone
   deliberately adds it there. `tests/sim-redact.test.ts` asserts against the serialised payload.
 
-Balance is tested, not asserted: `tests/sim-scenario.test.ts` brute-forces every affordable
-combination of interventions and fails if anything beats the scenario's declared `bestAllocation`.
-Retune an effect and that test is what tells you the scenario now teaches the wrong lesson.
+Balance is tested, not asserted: `checkBalance` in `lib/sim/balance.ts` brute-forces every
+affordable combination of interventions and reports anything that beats the scenario's declared
+`bestAllocation`. Retune an effect and that is what tells you the scenario now teaches the wrong
+lesson. `tests/sim-scenario.test.ts` runs it over every authored scenario; the admin save path runs
+it over the proposed one.
+
+### Retuning a scenario from the admin panel
+
+**Admin → Simulations** edits a scenario's *driver graph* — baselines, constants, labels, and the
+wiring between them — without a deploy. Two views of the same thing: a table for changing numbers,
+and the whole graph as JSON for adding, removing or re-wiring drivers.
+
+**Code stays the default.** The scenarios in `lib/sim/scenarios/` are what ships. Saving writes a
+`SimScenarioOverride` row keyed by slug; resetting deletes it, and the scenario tracks the code
+again. The app runs correctly against an empty table, the test suite goes on exercising the real
+authored numbers, and a bad edit is undone by deleting a row rather than by restoring a backup.
+Only `drivers` is overridable — causes, drilldowns, interventions and copy stay in code.
+
+Every save is checked against the *merged* scenario, and refused if any of three fail:
+
+1. **Shape** — a Zod parse of `SimDriver[]`, so an `input` with no baseline or a `1e999` that would
+   turn every derived driver into `NaN` never reaches the column.
+2. **Structure** — `validateScenario`, so an edit that renames a driver an intervention effect
+   targets, orphans a `reported` metric, or introduces a cycle is caught.
+3. **Balance** — `checkBalance`, because `bestAllocation` is the ceiling outcome scores normalise
+   against. An edit that lets some other affordable allocation beat it would leave the scenario
+   rendering and scoring perfectly while grading against a ceiling that is not the top. This is the
+   check that used to belong to CI, and it is the reason runtime editing is safe.
+
+Loading re-checks 1 and 2 and **falls back to the authored scenario** if either fails, so a code
+change that moves something a stored override still points at degrades one scenario to its shipped
+version instead of taking out the page. The editor flags any override in that state, with the
+reason. (Balance is not re-run per load — it costs 2^n outcome projections; the editor's **Check**
+button re-runs all three on demand.)
 
 The debrief coach is optional. The authored debrief is the product; with no API key the same
 follow-up questions are answered from the scenario's `coachFallback` by the mock, using the same
@@ -335,6 +368,13 @@ allocation's *order* cannot change the result), drilldown pricing and locking, e
 dimension on its own, the payload guards, the redaction projection, the authoring invariants, and
 the scenario's balance — which brute-forces every affordable combination of interventions to prove
 the declared best allocation really is best.
+
+`tests/sim-overlay.test.ts` covers admin driver overrides, and its through-line is that a stored
+override can never make the app worse than not having one: malformed JSON, an edit that orphans a
+driver an intervention moves, one that introduces a cycle, and one that turns a lever into a derived
+driver all end at the authored scenario. It also proves the case structure alone cannot see — a
+re-wiring that unhooks the best allocation's levers passes `validateScenario` and is caught only by
+`checkBalance`.
 
 Also useful: `pnpm typecheck` (strict, clean), `pnpm lint`, `pnpm build`.
 

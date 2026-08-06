@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { loadUserAdminStats } from "@/lib/admin-stats";
+import { loadAdminScenarios } from "@/lib/scenario-store";
+import { leverDriverIds } from "@/lib/sim/overlay";
 import { MODE_PROMPTS } from "@/lib/llm/prompts";
 import { aiModes } from "@/lib/config";
 import { AppHeader } from "@/components/app/app-header";
@@ -13,6 +15,7 @@ import { CategoryManager } from "@/components/admin/category-manager";
 import { ImportPanel } from "@/components/admin/import-panel";
 import { FeedbackQueue } from "@/components/admin/feedback-queue";
 import { UserDashboard } from "@/components/admin/user-dashboard";
+import { ScenarioManager } from "@/components/admin/scenario-manager";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +23,7 @@ export default async function AdminPage() {
   const user = await getSessionUser();
   if (!user || user.role !== "admin") redirect("/login");
 
-  const [questions, categories, feedback, openCount, userStats] = await Promise.all([
+  const [questions, categories, feedback, openCount, userStats, simScenarios] = await Promise.all([
     db.question.findMany({ include: { category: true }, orderBy: { createdAt: "desc" } }),
     db.category.findMany({
       orderBy: { order: "asc" },
@@ -33,6 +36,7 @@ export default async function AdminPage() {
     }),
     db.questionFeedback.count({ where: { status: "Open" } }),
     loadUserAdminStats(),
+    loadAdminScenarios(),
   ]);
 
   return (
@@ -51,6 +55,12 @@ export default async function AdminPage() {
             <TabsTrigger value="questions">Questions</TabsTrigger>
             <TabsTrigger value="categories">Categories</TabsTrigger>
             <TabsTrigger value="import">Import</TabsTrigger>
+            <TabsTrigger value="simulations">
+              Simulations
+              {simScenarios.some((s) => s.rejected) && (
+                <Badge variant="destructive" className="ml-1">!</Badge>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="feedback">
               Feedback
               {openCount > 0 && <Badge variant="warning" className="ml-1">{openCount}</Badge>}
@@ -102,6 +112,29 @@ export default async function AdminPage() {
 
           <TabsContent value="import" className="mt-4">
             <ImportPanel />
+          </TabsContent>
+
+          <TabsContent value="simulations" className="mt-4">
+            <ScenarioManager
+              scenarios={simScenarios.map((s) => ({
+                slug: s.base.slug,
+                title: s.base.title,
+                company: s.base.company,
+                difficulty: s.base.difficulty,
+                northStar: s.base.northStar,
+                // The graph actually in effect, which is the authored one when a
+                // stored override was refused — so the editor opens on what
+                // students are seeing rather than on a version nobody is served.
+                currentJson: JSON.stringify(s.scenario.drivers, null, 2),
+                baseJson: JSON.stringify(s.base.drivers, null, 2),
+                overridden: s.overridden,
+                rejected: s.rejected,
+                note: s.note,
+                updatedAt: s.updatedAt?.toISOString() ?? null,
+                updatedByName: s.updatedByName,
+                leverIds: leverDriverIds(s.scenario),
+              }))}
+            />
           </TabsContent>
 
           <TabsContent value="feedback" className="mt-4">

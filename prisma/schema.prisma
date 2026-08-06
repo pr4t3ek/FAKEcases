@@ -46,6 +46,7 @@ model User {
   feedback       QuestionFeedback[]
   progress       Progress?
   simRuns        SimRun[]
+  simOverrides   SimScenarioOverride[]
 }
 
 model Category {
@@ -444,4 +445,32 @@ model QuestionFeedback {
 
   @@index([status])
   @@index([questionId])
+}
+
+/// An admin's edits to an authored scenario's driver graph.
+///
+/// The scenarios in `lib/sim/scenarios` stay the shipped default; a row here is
+/// an OVERRIDE of one, keyed by slug. That ordering is deliberate: the app runs
+/// correctly against an empty table, the test suite goes on exercising the real
+/// authored numbers, and a bad edit is undone by deleting the row rather than by
+/// restoring content from a backup.
+///
+/// Only `drivers` is overridable. Causes, drilldowns and interventions reference
+/// driver ids, so letting both sides move at once turns one bad save into a
+/// scenario that no longer type-checks against itself — `lib/sim/overlay.ts`
+/// re-validates the merged scenario and falls back to code if it doesn't hold.
+model SimScenarioOverride {
+  id          String   @id @default(cuid())
+  /// Matches SimScenario.slug. Not a foreign key: scenarios live in code, so
+  /// there is no row to point at.
+  slug        String   @unique
+  /// JSON SimDriver[] — the complete replacement driver graph, not a patch.
+  /// Stored whole so a save is atomic and a diff against code is readable.
+  drivers     String
+  /// Why the admin changed it. Shown in the editor beside the reset control.
+  note        String?
+  updatedById String?
+  updatedBy   User?    @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

@@ -11,7 +11,7 @@
 
 import { db } from "@/lib/db";
 import { simRubric } from "@/lib/config/simulation";
-import { getScenario } from "@/lib/sim/registry";
+import { loadScenario } from "@/lib/scenario-store";
 import { totalsByIntervention } from "@/lib/sim/outcome";
 import { outcomeRows, trueCauseLabels } from "@/lib/sim/debrief";
 import type { InterviewerContext, ConvMessage, SimCoachContext } from "@/lib/llm";
@@ -24,7 +24,7 @@ export async function loadSimCoachContext(
   const run = await loadRun(runId);
   if (!run) return null;
 
-  const scenario = getScenario(run.scenarioSlug);
+  const scenario = await loadScenario(run.scenarioSlug);
   if (!scenario || !run.result) return null;
 
   const outcome = outcomeFromResult(run.result);
