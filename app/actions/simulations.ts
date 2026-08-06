@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getOrCreateGuest, getSessionUser } from "@/lib/auth";
 import { guestConfig } from "@/lib/config";
-import { canAdvanceSimPhase, type SimPhase } from "@/lib/types";
+import { canAdvanceSimPhase, hypothesisEditFor, type SimPhase } from "@/lib/types";
 import { getScenario } from "@/lib/sim/registry";
 import { priceDrilldown } from "@/lib/sim/investigate";
 import { runOutcome } from "@/lib/sim/outcome";
@@ -77,7 +77,15 @@ export async function startSimulation(questionId: string): Promise<void> {
   redirect(`/simulate/${runId}`);
 }
 
-/** Lock the opening hypothesis and open the investigation. */
+/**
+ * Set the opening hypothesis — first time, or a change of mind before any data
+ * has been bought.
+ *
+ * `hypothesisEditFor` is the rule: freely changeable until it has cost you
+ * something, final afterwards. Re-opening it after seeing evidence would make
+ * the hypothesis score theatre, which is why the window closes at the first
+ * purchase rather than at the phase boundary.
+ */
 export async function commitHypothesis(
   runId: string,
   suspects: string[],
@@ -86,14 +94,16 @@ export async function commitHypothesis(
   const owned = await ownedRun(runId);
   if (!owned) return { ok: false, error: "Not found" };
 
-  if (!canAdvanceSimPhase(owned.run.phase as SimPhase, "investigate")) {
-    // Re-opening after seeing the data would make the hypothesis score theatre.
-    return { ok: false, error: "The hypothesis is already locked" };
+  const edit = hypothesisEditFor(owned.run.phase as SimPhase, owned.run.purchases.length);
+  if (edit === "locked") {
+    return { ok: false, error: "You've started pulling data, so the hypothesis is locked" };
   }
 
   const parsed = parseHypothesis(owned.scenario, suspects);
   if (!parsed.ok) return { ok: false, error: parsed.error };
 
+  // Writing `phase: "investigate"` is a no-op when amending, since that is
+  // already the phase — so one path serves both.
   await commitHypothesisToRun(runId, parsed.value, note);
   return { ok: true };
 }

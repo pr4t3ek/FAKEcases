@@ -21,6 +21,7 @@ import { simConfig } from "@/lib/config/simulation";
 import { cn, toIndianWords } from "@/lib/utils";
 import type { ClientCause, ClientIntervention, ClientScenario } from "@/lib/sim/types";
 import { moneyScaleFor } from "./money";
+import { SelectionRow } from "./selection-row";
 
 interface Draft {
   sprints: number;
@@ -119,8 +120,17 @@ export function CommitPanel({
         </h2>
         <p className="mt-1 text-xs text-muted-foreground">
           Pick up to {simConfig.maxCausesNamed}. Naming the specific branch scores higher than
-          naming the area it sits in.
+          naming the area it sits in. Nothing here is final until you commit the quarter.
         </p>
+
+        <SelectionRow
+          selected={named.map((id) => ({
+            id,
+            label: scenario.causes.find((c) => c.id === id)?.label ?? id,
+          }))}
+          onRemove={toggleCause}
+          emptyHint="Nothing named yet — pick the branch you think was driving it."
+        />
 
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           {roots.map((root) => (
@@ -191,10 +201,23 @@ export function CommitPanel({
                     <h3 className="text-sm font-medium">{iv.label}</h3>
                     <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{iv.pitch}</p>
                   </div>
-                  <Badge variant="muted" className="shrink-0">
-                    asks {iv.cost.sprints} sprint{iv.cost.sprints === 1 ? "" : "s"} · ₹
-                    {toIndianWords(iv.cost.rupees)}
-                  </Badge>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <Badge variant="muted">
+                      asks {iv.cost.sprints} sprint{iv.cost.sprints === 1 ? "" : "s"} · ₹
+                      {toIndianWords(iv.cost.rupees)}
+                    </Badge>
+                    {/* Zeroing two number fields by hand is a fiddly way to undo
+                        a mistyped line, and mistyping is the whole complaint. */}
+                    {funded && (
+                      <button
+                        type="button"
+                        onClick={() => setLine(iv.id, { sprints: 0, money: 0 })}
+                        className="text-[11px] text-muted-foreground underline underline-offset-2 hover:text-destructive"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">

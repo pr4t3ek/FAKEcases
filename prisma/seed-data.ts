@@ -561,6 +561,21 @@ export const questions: SeedQuestion[] = [
     tags: "product management,digital marketing,roas,cac,unit economics,coffee,simulation",
   },
   {
+    externalId: "ab-test-readout",
+    title: "Rangoli: the test says +6%, and the room wants it live on Monday",
+    prompt:
+      "An A/B test on the product page came back at +6% conversion, properly powered and signed off by data science. Design wants it live on Monday. Work out what the test actually measured before you ship it, then spend a month acting on what you find.",
+    category: "product-management",
+    difficulty: "Easy",
+    interviewLevel: "PM",
+    type: "simulation",
+    betterApproach:
+      "Separate three questions a test result runs together: is the number real, what caused it, and is it the number the decision needs. Significance answers only the first. Check whether the variant changed one thing or several, and whether the measurement window was long enough to see the costs as well as the benefits.",
+    sampleSolution:
+      "The variant bundled a redesigned page with a pre-ticked 'send me two sizes' box. The page alone was worth +1.4%; the pre-tick carried the rest of the +6% and drove returns from 6.1% to 9.8%. A return takes 12 to 16 days to come back and the test ran six, so the readout measured everything the change earned and none of what it cost. Shipped whole, conversion, orders and revenue all rise 6% and net contribution falls 6.7%.",
+    tags: "product management,experimentation,ab testing,statistical significance,returns,fashion,e-commerce,simulation",
+  },
+  {
     externalId: "subscription-ltv-cac",
     title: "Padhai Plus: 18,000 new subscribers a month, and a bigger hole",
     prompt:
@@ -574,6 +589,21 @@ export const questions: SeedQuestion[] = [
     sampleSolution:
       "At 18,000 joiners and 11% monthly churn the base caps out near 1.64 lakh, which at ₹177 of contribution each cannot cover ₹2.6 crore of fixed costs however efficient acquisition is. The cohort data localises the churn: 62% of leavers never completed a practice test in week one and retained at 19% against 79% for those who did. The trap is that more acquisition genuinely helps — it is the numerator — but costs about four times as much per unit of base as fixing the divisor.",
     tags: "product management,subscription,ltv,cac,churn,coaching,simulation",
+  },
+  {
+    externalId: "channel-trade-spend",
+    title: "Chaska: share is up five points and the profit is down a third",
+    prompt:
+      "A snack brand's quick-commerce share went from 4% to 11.5% in three quarters while monthly profit fell a third. The board wants to double the trade spend. Work out what the share actually cost before they do.",
+    category: "product-management",
+    difficulty: "Easy",
+    interviewLevel: "PM",
+    type: "simulation",
+    betterApproach:
+      "Follow one pack to the bank in each channel before judging any channel decision. What reaches you is MRP minus channel margin minus trade promotion, and the difference between two channels can be larger than your whole gross margin. Then ask what share of the new volume is genuinely new, because growth that moves a sale from a better channel to a worse one shows up as growth everywhere except the P&L.",
+    sampleSolution:
+      "A ₹60 pack realises ₹47.40 through a kirana and ₹34.80 through quick commerce, so against the same ₹26 of cost it contributes ₹21.40 against ₹8.80. 68% of quick-commerce buyers already bought the pack from a kirana and general-trade offtake fell 21% in exactly the pincodes quick commerce reached — so 3.4 lakh packs a month changed channel rather than being won, at ₹12.60 of contribution each. The right answer costs about three points of share.",
+    tags: "product management,channel economics,trade promotion,market share,quick commerce,kirana,fmcg,simulation",
   },
   {
     externalId: "pricing-elasticity",
@@ -604,6 +634,36 @@ export const questions: SeedQuestion[] = [
     sampleSolution:
       "The SAM counted households with power cuts who could afford ₹1,899 and never asked whether they had a roof — only 34% did. The real serviceable market was 1.84 crore, not 5.4 crore, so a 2% share is about 3.7 lakh units and the team actually beat a correctly sized plan. The answer is to resize the cost base and remove the constraint with a clamp-on variant, not to sell harder. Going direct to capture the 35% channel margin spends most of it back on fulfilment and fixed cost.",
     tags: "product management,market sizing,tam sam som,channel economics,solar,simulation",
+  },
+  {
+    externalId: "marketplace-liquidity",
+    title: "Ghar Sewa: customers waiting, professionals idle, both sides growing",
+    prompt:
+      "A home-services marketplace added 22% more bookings and 19% more professionals, and match rate fell from 88% to 79%. Growth wants ₹4 crore to push demand harder. Work out why adding to both sides made it worse.",
+    category: "product-management",
+    difficulty: "Medium",
+    interviewLevel: "PM",
+    type: "simulation",
+    betterApproach:
+      "Never read a marketplace metric at the level of the marketplace. A match happens in one zone, in one hour, for one service, so a platform-level match rate averages markets that have nothing to do with each other. Cut it by where and when before doing anything else, and put a number on what a failed request costs before comparing any two options.",
+    sampleSolution:
+      "79% is an average of 92% and 44%: three suburbs in the commute windows are 31% of requests and 78% of failures, because 71% of the new professionals signed up in central zones already matching at 92%. Utilisation is 31% there and 84% at peak in the deficit suburbs — idle and short at once. A failed booking costs ₹185 and a customer who repeats at 21% instead of 68%, so pushing demand 20% raises GMV about 12% and roughly triples the loss.",
+    tags: "product management,marketplace,liquidity,match rate,utilisation,take rate,home services,simulation",
+  },
+  {
+    externalId: "b2b-deal-tco",
+    title: "Lekha: our most profitable customer wants 18% off",
+    prompt:
+      "Your largest account — 900 seats, ₹2.7 crore of ARR, 78% gross margin on the deck — wants 18% off to sign three years. Finance has just run a fully loaded cost to serve for the first time. Work out what the contract is actually worth before you answer.",
+    category: "product-management",
+    difficulty: "Medium",
+    interviewLevel: "PM",
+    type: "simulation",
+    betterApproach:
+      "Load every cost the account actually causes into its margin, including engineering that exists for one customer, before discussing price. Then cross the table and cost their total cost of ownership too: if most of what the product costs them is work it creates rather than what it charges, a discount is the least effective relief available and the most expensive one to give.",
+    sampleSolution:
+      "The 78% counts hosting only; fully loaded the account runs at 19.5%, and a third of the cost is a bespoke ERP connector booked as R&D. 40 of 900 seats drive 71% of documents and 64% of tickets while the contract charges by seat. Their own cost of ownership is ₹1.15 crore a quarter, our licence 59% of it — so 18% off relieves a tenth of their problem and takes contract contribution from ₹72 lakh to minus ₹37. Retiring the connector and repricing to metered volume relieves more than the discount would, at no cost to price.",
+    tags: "product management,b2b saas,cost to serve,total cost of ownership,pricing,net revenue retention,manufacturing,simulation",
   },
 ];
 

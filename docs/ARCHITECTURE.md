@@ -270,12 +270,13 @@ charged twice for the same cut.
 
 ### The teaching layer
 
-Beginner scenarios carry a `teaching` block — an authored **concept primer** and an opt-in
-**metric map**. The map is derived from the driver graph by `lib/sim/metric-map.ts` rather than
-drawn, so it cannot disagree with the arithmetic it explains, and `toClientScenario` ships it only
-when the scenario opts in: on a hard scenario the *shape* of the model is part of what the
-candidate has to work out. Drift and intervention effects stay server-side either way, so the map
-shows how metrics relate and never which lever fixes them.
+Almost every scenario carries a `teaching` block — an authored **concept primer** and an opt-in
+**metric map**. The two are gated separately and deliberately: the primer is vocabulary, which is a
+barrier rather than a clue, so it ships on all but the oldest scenario. The map is structure, which
+on a hard scenario is most of the answer, so `toClientScenario` ships it only when the scenario
+opts in. The map is derived from the driver graph by `lib/sim/metric-map.ts` rather than drawn, so
+it cannot disagree with the arithmetic it explains, and drift and intervention effects stay
+server-side either way — it shows how metrics relate and never which lever fixes them.
 
 `validateScenario` enforces what `difficulty: "Easy"` promises — at most six drilldowns, six
 causes one level deep, five interventions, a budget covering about half the board, and a primer.
@@ -473,8 +474,8 @@ lib/
 
 prisma/
 ├── schema.prisma       Data model (see ERD above)
-└── seed-data.ts / seed.ts   15 categories, 31 India-only questions (24 guesstimates
-                             + 2 cases + 5 simulation catalogue rows), 12 achievements,
+└── seed-data.ts / seed.ts   15 categories, 35 India-only questions (24 guesstimates
+                             + 2 cases + 9 simulation catalogue rows), 12 achievements,
                              demo users, benchmark cohort
 ```
 

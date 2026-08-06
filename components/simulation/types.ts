@@ -20,6 +20,12 @@ export interface SimulationData {
   /** Suspects already named, once the hypothesis is locked. */
   hypothesis: string[];
   hypothesisNote: string | null;
+  /**
+   * How many pulls have been bought. Zero means the hypothesis is still
+   * changeable — the client mirrors `hypothesisEditFor`, and the server
+   * re-checks it on every write.
+   */
+  purchaseCount: number;
 }
 
 /** A panel added to the board by a purchase, after the fact. */

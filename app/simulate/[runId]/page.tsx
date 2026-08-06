@@ -125,6 +125,7 @@ export default async function SimulatePage({
     daysSpent: run.daysSpent,
     hypothesis: state.hypothesis,
     hypothesisNote: run.hypothesisNote,
+    purchaseCount: run.purchases.length,
   };
 
   return <SimulationScreen data={data} />;

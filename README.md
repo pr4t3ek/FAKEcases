@@ -27,7 +27,7 @@ scoring/integrity corrections.
 cp .env.example .env   # Prisma needs DATABASE_URL; .env is gitignored, so a clone has none
 pnpm install
 pnpm db:push           # create the SQLite database from prisma/schema.prisma
-pnpm db:seed           # 15 categories, 31 questions (24 guesstimates + 2 cases + 5 simulations), achievements, demo users
+pnpm db:seed           # 15 categories, 35 questions (24 guesstimates + 2 cases + 9 simulations), achievements, demo users
 pnpm dev               # http://localhost:3000
 ```
 
@@ -220,21 +220,26 @@ then projected forward and reported as **moved metrics — orders, retention, ma
 a mark**. A debrief reveals the true causal chain and compares the candidate's allocation to the
 best available one.
 
-Five scenarios ship today:
+Nine scenarios ship today, easiest first — which is the order the library shows them in:
 
 | Scenario | Level | Teaches |
 |---|---|---|
 | **Kadak Coffee** — ROAS 4.0 and losing money | Easy | CPM, impressions, CTR, conversion, AOV, CAC, ROAS, ROI — and that a campaign only breaks even once ROAS clears 1 ÷ gross margin |
+| **Rangoli** — the test says +6%, ship it Monday? | Easy | A/B tests, sample size, significance, novelty effect, confounded variants — and reading a test on the metric that pays the bills |
 | **Padhai Plus** — growing subscribers, growing burn | Easy | Churn, lifetime, LTV, CAC, payback, and that a subscriber base settles at joiners ÷ churn |
+| **Chaska** — share up five points, profit down a third | Easy | Net realisation, trade promotion, incrementality, cannibalisation — and why market share is a diagnostic rather than a target |
 | **Suraksha Home** — match the competitor's price cut? | Medium | Contribution per unit, break-even volume on a price change, price elasticity, trade promotion |
 | **Ujala Solar** — planned 10.8 lakh, sold 4.3 lakh | Medium | TAM / SAM / SOM, and channel economics on net rather than gross revenue |
+| **Ghar Sewa** — both sides grew, both sides are angry | Medium | Match rate, liquidity, utilisation, GMV, take rate — and that a platform-level average hides the only markets that matter |
+| **Lekha** — our best customer wants 18% off | Medium | ARR, cost to serve, seats vs usage pricing, NRR, and total cost of ownership from both sides of the table |
 | **NukkadEats** — orders down 9%, nobody knows why | Medium | Metric-drop diagnosis with the model hidden — the original, and the hardest |
 
-**The beginner scenarios teach the vocabulary first.** Each carries a `teaching` block: a concept
+**Every scenario but one teaches the vocabulary first.** Each carries a `teaching` block: a concept
 primer that opens before the run and reopens from the header, and a **metric map** derived from the
 driver graph showing how every number is built from the ones under it, with live values. Showing
-the map is opt-in per scenario, and that gate matters in both directions — on NukkadEats the
-*shape* of the model is part of what the candidate has to work out, so it stays hidden.
+the map is opt-in per scenario, and that gate matters in both directions — on NukkadEats and Lekha
+the *shape* of the model is part of what the candidate has to work out, so the map stays hidden
+while the primer still ships.
 
 `difficulty` is enforced rather than promised: `validateScenario` rejects an `Easy` scenario with
 more than six drilldowns, more than six causes, a cause tree deeper than one level, a punishing
@@ -343,6 +348,7 @@ weekly report emails — each structured as an additive plug-in. The `case` valu
 library filters it out and the admin panel doesn't offer it (see `PRACTISABLE_TYPES`).
 
 More decision simulations are the cheapest next thing: the engine takes the scenario as a parameter
-throughout and no scenario id appears in engine code, so a second one is a file in
-`lib/sim/scenarios/`, a line in the registry and a seed row. Prioritisation and experiment-readout
-scenarios both fit the existing phases without engine changes.
+throughout and no scenario id appears in engine code, so another one is a file in
+`lib/sim/scenarios/`, a line in the registry and a seed row. Prioritisation, supply-chain
+service-level and freemium-activation scenarios all fit the existing phases without engine
+changes.
