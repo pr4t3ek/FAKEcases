@@ -1,12 +1,13 @@
 import Link from "next/link";
-import { Flame, LogOut, Zap } from "lucide-react";
+import { Flame, Zap } from "lucide-react";
 import type { User } from "@prisma/client";
+import { initialsFor } from "@/lib/avatar";
 import { Brand } from "@/components/brand";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NavLinks } from "@/components/app/nav-links";
+import { AccountMenu } from "@/components/app/account-menu";
 import { RankBadge } from "@/components/rank-badge";
 import { Button } from "@/components/ui/button";
-import { logoutAction } from "@/app/actions/auth";
 
 export function AppHeader({ user }: { user: User | null }) {
   const isMember = !!user && !user.isGuest;
@@ -32,11 +33,13 @@ export function AppHeader({ user }: { user: User | null }) {
           )}
           <ThemeToggle />
           {isMember ? (
-            <form action={logoutAction}>
-              <Button variant="ghost" size="icon" type="submit" aria-label="Sign out">
-                <LogOut className="h-4 w-4" />
-              </Button>
-            </form>
+            <AccountMenu
+              name={user!.name}
+              email={user!.email}
+              image={user!.image}
+              initials={initialsFor(user!.name, user!.email)}
+              isAdmin={user!.role === "admin"}
+            />
           ) : (
             <>
               <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">

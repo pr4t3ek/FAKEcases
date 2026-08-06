@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { tierAccess, type AccessTier } from "@/lib/config";
+import { targetLevelsFor } from "@/lib/profile";
 import {
   questionCoreSchema,
   refineQuestion,
@@ -88,6 +89,7 @@ export async function getQuestion(id: string) {
  */
 export async function recommendQuestions(userId: string, tier: AccessTier, limit = 3) {
   const reachable = tierAccess[tier].content === "all" ? {} : { freeTier: true };
+  const targets = await targetLevelsFor(userId);
   const progress = await db.progress.findUnique({ where: { userId } });
   const attempted = await db.attempt.findMany({
     where: { userId },
@@ -118,29 +120,49 @@ export async function recommendQuestions(userId: string, tier: AccessTier, limit
     }
   }
 
-  const pool = await db.question.findMany({
-    where: {
-      type: { in: practisable },
-      id: { notIn: [...attemptedIds] },
-      ...reachable,
-      ...(weakCategoryId ? { categoryId: weakCategoryId } : {}),
-    },
-    include: { category: true },
-    take: limit,
-  });
-  if (pool.length >= limit) return pool;
+  // Preference passes, each topping up the last and stopping as soon as there
+  // are enough. The target-level passes are skipped entirely when no goals are
+  // set, which makes this a no-op for anyone who never filled in a profile —
+  // the property that makes personalising the list safe to turn on.
+  //
+  // The level is a separate pass rather than another clause on the weak-category
+  // query on purpose: the intersection is often empty, and ANDing them would
+  // then fall through to a query with no level signal left in it.
+  const picked: Awaited<ReturnType<typeof takeQuestions>> = [];
+  const seen = new Set<string>();
 
-  // Top up with any unattempted questions.
-  const extra = await db.question.findMany({
-    where: {
-      type: { in: practisable },
-      id: { notIn: [...attemptedIds, ...pool.map((p) => p.id)] },
-      ...reachable,
-    },
-    include: { category: true },
-    take: limit - pool.length,
-  });
-  return [...pool, ...extra];
+  async function takeQuestions(where: Record<string, unknown>, take: number) {
+    return db.question.findMany({
+      where: {
+        type: { in: practisable },
+        id: { notIn: [...attemptedIds, ...seen] },
+        ...reachable,
+        ...where,
+      },
+      include: { category: true },
+      take,
+    });
+  }
+
+  async function pass(where: Record<string, unknown>) {
+    if (picked.length >= limit) return;
+    const rows = await takeQuestions(where, limit - picked.length);
+    for (const row of rows) {
+      if (seen.has(row.id)) continue;
+      seen.add(row.id);
+      picked.push(row);
+    }
+  }
+
+  const atTarget = targets.length ? { interviewLevel: { in: targets } } : null;
+
+  // Sharpest first: what they're weakest at, at the level they're aiming for.
+  if (atTarget && weakCategoryId) await pass({ ...atTarget, categoryId: weakCategoryId });
+  if (atTarget) await pass(atTarget);
+  if (weakCategoryId) await pass({ categoryId: weakCategoryId });
+  await pass({});
+
+  return picked;
 }
 
 // ── Import ────────────────────────────────────────────────────────────────

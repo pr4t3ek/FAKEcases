@@ -144,6 +144,7 @@ interview readiness and percentile rank measuring only interview work.
 erDiagram
     User ||--o{ Attempt : makes
     User ||--o| Progress : has
+    User ||--o| Profile : describes
     User ||--o{ Bookmark : saves
     User ||--o{ UserAchievement : unlocks
     User ||--o{ QuestionFeedback : reports
@@ -169,12 +170,25 @@ erDiagram
 
     User {
         string role "user | admin"
+        string image "avatar URL — never bytes"
+        string collegeId "indexed; null for Other"
         int xp
         int level
         int streak
         string rank "Silver..Diamond"
         float percentile
         float skillRating
+    }
+    Profile {
+        string phone
+        string city
+        string bio
+        string profession
+        string collegeOther "written-in; grouped with nobody"
+        int gradYear
+        string targetLevels "JSON INTERVIEW_LEVELS[]"
+        string avatarData "base64 — db store only"
+        int avatarVersion "cache-busts the served URL"
     }
     Question {
         string difficulty "Easy | Medium | Hard"
@@ -371,6 +385,62 @@ to edit.
 
 ---
 
+## 3b. Profile, and the avatar seam
+
+`Profile` is a 1:1 side table for the same reason `Progress` is one, and the reason is a single
+fact: **`getSessionUser()` returns the whole `User` row on every page in the app.** A bio, a
+phone number and a base64 photo living there would be serialised into every payload the app
+sends, to render a header that needs none of them.
+
+So the split is by *access pattern*, not by how profile-shaped a field feels. Anything queried,
+grouped or ranked by stays on `User` — `collegeId`, indexed, sitting beside the `skillRating` a
+cohort ranking would read. Anything shown only when someone opens their own profile lives on
+`Profile`.
+
+```mermaid
+flowchart LR
+    Pick["Browser<br/>crop → 256px → JPEG q0.8"] -->|"~30 KB data URI"| Act["uploadAvatar()<br/>server action"]
+    Act --> Val["lib/avatar.ts<br/>validateAvatarDataUri"]
+    Val -->|"sniffs the BYTES,<br/>not the declared mime"| Store["AvatarStore.put()<br/>lib/storage"]
+    Store --> DB["db provider<br/>Profile.avatarData"]
+    Store -.->|"later, no call-site change"| S3["s3 provider<br/>CDN"]
+    DB --> URL["returns /api/avatar/id?v=n"]
+    S3 -.-> URL2["returns https://cdn/…"]
+    URL & URL2 --> Img["User.image"]
+    Img --> Header["&lt;img src&gt; in AppHeader"]
+
+    style Val fill:#9b2c2c,color:#fff
+    style Store fill:#2b6cb0,color:#fff
+```
+
+**`put()` returns a URL, and that is the whole seam.** The built-in provider hands back a route
+path and serves the row; an object store would hand back a CDN address. `User.image` stores
+whichever, every render is an `<img src>`, and nothing downstream can tell which answered.
+
+**The browser resize is a convenience; the server check is the control.** A Server Action
+accepts whatever it is sent, so `validateAvatarDataUri` reads the type out of the leading magic
+bytes and returns *that* as the mime to store — the declared `data:image/jpeg` is a claim by
+the caller. It matters specifically because the bytes are served back from our own origin with
+the stored `Content-Type`. SVG is refused outright: a document that can carry script is not an
+image. The size is capped against the base64 string *before* anything is decoded.
+
+`avatarVersion` rides in the served URL's query string, which is what makes
+`Cache-Control: immutable` truthful — a replaced photo is a new URL, so a cached copy is never
+the wrong one.
+
+**Goals are the only part of a profile that changes behaviour**, and they reuse
+`INTERVIEW_LEVELS` rather than a parallel vocabulary, so a stated goal is directly expressible
+as a library filter. `recommendQuestions` runs preference passes that are skipped entirely when
+no goals are set — a provable no-op for anyone without a profile, which is what makes turning
+personalisation on safe.
+
+One naming trap worth recording: `User.onboardedAt` means *"has seen the practice-screen
+tutorial"* and nothing else. The profile step is `profileCompletedAt`, deliberately named apart
+from it, because one column for both would silently suppress the tutorial for anyone who filled
+in their profile first.
+
+---
+
 ## 4. LLM interviewer: streaming adapter with safe fallback
 
 ```mermaid
@@ -545,8 +615,13 @@ components/
 └── marketing/          Landing page sections
 
 lib/
-├── config/            Central typed config: env, access tiers, evaluation weights, gamification curve, practice defaults
+├── config/            Central typed config: env, access tiers, evaluation weights, gamification curve,
+│                       practice defaults, profile vocabularies, the curated college list
+├── storage/            Avatar bytes behind an AvatarStore interface (db today; S3 is a file + a case)
 ├── entitlements.ts     What a tier may open — pure, shared by the server gates and the UI
+├── avatar.ts           Upload validation (magic-byte sniffing), URL building, initials — pure
+├── profile-schema.ts   The profile authoring contract, shared by /profile and /welcome
+├── profile.ts          Profile reads, and the rule for pre-applying goals to the library
 ├── llm/                Streaming interviewer adapters (mock / gemini / ollama / anthropic / openai),
 │                       prompt builder, NDJSON protocol (stream.ts), spend guards (budget.ts)
 ├── sim/                Simulation engine — all pure, no DB: types, scenarios/, registry,

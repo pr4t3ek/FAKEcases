@@ -84,8 +84,10 @@ async function main() {
   }
   console.log(`  ✓ ${achievements.length} achievements`);
 
-  // Demo user
-  await db.user.upsert({
+  // Demo user — the only seeded account with a filled-in profile, so a fresh
+  // install can see a populated one and the target-level personalisation
+  // without anybody typing anything.
+  const demo = await db.user.upsert({
     where: { email: "demo@estimateiq.app" },
     update: {},
     create: {
@@ -93,6 +95,8 @@ async function main() {
       name: "Demo User",
       passwordHash: hashPassword("demo1234"),
       onboardedAt: new Date(),
+      profileCompletedAt: new Date(),
+      collegeId: "iim-bangalore",
       xp: 340,
       level: 3,
       coins: 120,
@@ -101,7 +105,24 @@ async function main() {
     },
   });
 
-  // Admin user
+  await db.profile.upsert({
+    where: { userId: demo.id },
+    update: {},
+    create: {
+      userId: demo.id,
+      city: "Bengaluru",
+      bio: "Second-year PGP, targeting consulting. Weakest on market sizing.",
+      profession: "student-mba",
+      gradYear: new Date().getFullYear() + 1,
+      experience: "0-2",
+      targetLevels: JSON.stringify(["McKinsey", "BCG"]),
+      targetCompanies: "McKinsey, BCG, Bain",
+    },
+  });
+
+  // Admin user — deliberately left without a profile, so the empty state and
+  // the dashboard nudge are both reachable on a fresh install without having to
+  // delete the demo user's data first.
   await db.user.upsert({
     where: { email: "admin@estimateiq.app" },
     update: { role: "admin" },

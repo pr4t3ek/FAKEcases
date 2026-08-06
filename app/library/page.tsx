@@ -2,10 +2,12 @@ import Link from "next/link";
 import { Sparkles } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { isLocked, tierFor, upgradeFor, WALL_LOCKED, WALL_PARAM } from "@/lib/entitlements";
+import { prefillLevel, targetLevelsFor } from "@/lib/profile";
 import { listCategories, listQuestions } from "@/lib/questions";
-import { answerModeFor, isSimulation } from "@/lib/types";
+import { answerModeFor, isSimulation, type InterviewLevel } from "@/lib/types";
 import { AppHeader } from "@/components/app/app-header";
 import { FilterBar } from "@/components/library/filter-bar";
+import { TargetLevelsHint } from "@/components/library/target-levels-hint";
 import { QuestionCard } from "@/components/library/question-card";
 
 export const dynamic = "force-dynamic";
@@ -53,6 +55,15 @@ export default async function LibraryPage({
   // which is what they are about to become.
   const tier = tierFor(user);
   const upgrade = upgradeFor(tier);
+
+  // Goals shape the first view rather than only sitting on the profile. The
+  // decision of whether to apply one is `prefillLevel`, which refuses to
+  // override a URL the visitor actually chose.
+  const targets = await targetLevelsFor(user?.isGuest ? null : user?.id);
+  const appliedLevel =
+    sp.level && targets.includes(sp.level as InterviewLevel)
+      ? (sp.level as InterviewLevel)
+      : null;
   const openCount = questions.filter((q) => !isLocked(tier, q)).length;
   const lockedCount = questions.length - openCount;
 
@@ -90,6 +101,11 @@ export default async function LibraryPage({
         )}
 
         <FilterBar categories={categories} />
+        <TargetLevelsHint
+          targets={targets}
+          applied={appliedLevel}
+          prefill={prefillLevel(targets, sp)}
+        />
 
         {questions.length === 0 ? (
           <div className="mt-16 text-center text-muted-foreground">

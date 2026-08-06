@@ -18,6 +18,11 @@ model User {
   email          String?   @unique
   name           String?
   passwordHash   String?
+  /// Avatar URL — never image bytes. The bytes live behind `lib/storage`, whose
+  /// `put()` returns whatever URL its provider serves from: `/api/avatar/<id>`
+  /// for the built-in database store, a CDN URL for an external one. Holding a
+  /// URL rather than a data URI is what keeps a 30 KB avatar out of every RSC
+  /// payload, since `getSessionUser()` returns this whole row on every page.
   image          String?
   role           String    @default("user") // "user" | "admin"
   plan           String    @default("free") // "free" | "pro"
@@ -36,7 +41,24 @@ model User {
   percentile     Float?
   skillRating    Float?
 
+  /// Has seen the first-run tutorial on the PRACTICE screen. Not a signup
+  /// marker — see `profileCompletedAt`, which is the one that is.
   onboardedAt    DateTime?
+  /// Has been through the post-signup questions (or skipped them deliberately).
+  /// Named apart from `onboardedAt` because the two are genuinely different
+  /// events and sharing one column would silently suppress the practice
+  /// tutorial for anyone who filled in their profile.
+  profileCompletedAt DateTime?
+
+  /// Curated college id from `lib/config/colleges.ts`, or null for "Other" /
+  /// not answered — in which case the written-in name is on `Profile`.
+  ///
+  /// On User rather than Profile, and indexed, because grouping by it is a
+  /// query rather than a display: a college leaderboard reads this beside
+  /// `skillRating`, which lives here too, so it stays a single indexed scan
+  /// with no join.
+  collegeId      String?
+
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -45,8 +67,62 @@ model User {
   achievements   UserAchievement[]
   feedback       QuestionFeedback[]
   progress       Progress?
+  profile        Profile?
   simRuns        SimRun[]
   simOverrides   SimScenarioOverride[]
+
+  @@index([collegeId])
+}
+
+/// The parts of a person the app displays but never queries by.
+///
+/// A side table rather than more columns on `User`, for one reason:
+/// `getSessionUser()` returns the entire `User` row and is called on essentially
+/// every page in the app. A bio, a phone number and — decisively — a base64
+/// avatar sitting there would be serialised into every RSC payload the app ever
+/// sends, to render a header that needs none of them.
+///
+/// So the split is by access pattern, not by how "profile-ish" a field feels:
+/// anything queried, ranked or filtered by stays on `User` (`collegeId`,
+/// `skillRating`), and anything read only when someone opens their own profile
+/// lives here. `Progress` is the same shape for the same kind of reason.
+model Profile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  phone     String?
+  city      String?
+  bio       String?
+
+  /// One of PROFESSIONS in lib/config/profile.ts.
+  profession String?
+  /// Written-in college, set only when `User.collegeId` is null. It deliberately
+  /// gets no grouping key: an uncurated name cannot be grouped reliably, which
+  /// is the whole reason the curated list exists.
+  collegeOther String?
+  gradYear  Int?
+  /// One of EXPERIENCE_BANDS in lib/config/profile.ts.
+  experience String?
+
+  /// JSON string[] of INTERVIEW_LEVELS. Read by `recommendQuestions` and used
+  /// as the library's default filter, so answering it changes what the app
+  /// shows rather than only what the profile page prints.
+  targetLevels String @default("[]")
+  /// Free text — "McKinsey, Flipkart". Never parsed, only displayed.
+  targetCompanies String?
+
+  /// Base64 image bytes, written only by the `db` avatar store. Absent when an
+  /// external store is configured, since the bytes then live there and
+  /// `User.image` points at it instead.
+  avatarData String?
+  avatarMime String?
+  /// Bumped on every upload and put in the served URL's query string, so an
+  /// immutable cache header is safe.
+  avatarVersion Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Category {
