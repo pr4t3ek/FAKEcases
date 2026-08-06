@@ -202,13 +202,13 @@ export const b2bDealTco: SimScenario = {
       id: "p-b2b-tickets",
       kind: "segments",
       title: "Support load, this account against the book",
-      caption: "Nobody has ever put a number on this in a renewal conversation.",
-      dimension: "Measure",
+      caption:
+        "1.92 tickets per seat against a book average of 0.47 — so it is not that they are large. Nobody has ever put a number on this in a renewal conversation.",
+      dimension: "Account",
       rows: [
-        { label: "Tickets a quarter — this account", value: 1_725, unit: "count" },
-        { label: "Tickets a quarter — book average, 900 seats", value: 420, unit: "count" },
-        { label: "Tickets per seat — this account", value: 1.92, unit: "count" },
-        { label: "Tickets per seat — book average", value: 0.47, unit: "count" },
+        { label: "This account", value: 1_725, unit: "count" },
+        { label: "Book average, 900-seat account", value: 420, unit: "count" },
+        { label: "Next-largest account", value: 610, unit: "count" },
       ],
     },
     {
