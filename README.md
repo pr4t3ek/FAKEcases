@@ -154,6 +154,10 @@ Framer Motion · Prisma (SQLite dev → Postgres/Supabase prod) · Recharts · V
 | Change hint count / panel defaults | `lib/config/practice.ts` |
 | Change what a guest can reach (and go freemium) | `lib/config/access.ts` (`tierAccess`) |
 | Give a specific question away to guests | Admin panel → **Questions** → the lock button |
+| Add a college to the picker | `lib/config/colleges.ts` |
+| Change avatar size / quality / limits | `lib/config/profile.ts` (`avatarLimits`) |
+| Store avatars somewhere other than the DB | `AVATAR_STORE` + a file in `lib/storage/` |
+| Change what the post-signup step asks | `components/onboarding/welcome-steps.tsx` |
 | Change what a question may contain | `lib/question-schema.ts` (one contract for admin + import) |
 | Swap the LLM provider | env vars (`LLM_PROVIDER`, `*_API_KEY`) |
 | Develop against a free local model | `LLM_PROVIDER=ollama` + `OLLAMA_MODEL` (see above) |
@@ -194,6 +198,71 @@ the same zero-key stance as the rest of the app. Two limitations are worth stati
 
 The language is `en-IN` (`lib/config/practice.ts`, `speechConfig`), and that isn't cosmetic —
 every question here is India-focused, and `en-US` transcribes "two lakh" as "two lack".
+
+---
+
+## Profile, and what it's for
+
+An account has a profile at `/profile`, reachable from the avatar in the header: photo, name,
+phone, city, a short bio, background (profession, college, graduation year, experience),
+goals, and a password change. Signing up lands on `/welcome`, a two-step version of the same
+questions that is **skippable in one click** — nothing in the app is ever gated on having
+answered. A dashboard nudge asks once more, and "Not now" is a real dismissal rather than a
+banner that comes back tomorrow.
+
+**Only one section changes what the app does, and it says so.** Target roles reuse
+`INTERVIEW_LEVELS` — the same vocabulary the library already filters by — so they aren't a
+survey answer, they're a filter:
+
+- `recommendQuestions` runs preference passes, sharpest first: weakest category *at* a target
+  level, then the level alone, then the weak category, then anything. The level passes are
+  skipped entirely when no goals are set, so the personalisation is a **provable no-op** for
+  anyone who never filled in a profile.
+- A bare visit to `/library` pre-applies a target level, announces that it did, and clears in
+  one click — for the session, so the Clear button doesn't look broken. It only fires with
+  **exactly one** target: `?level=` holds a single value, so applying one of three would show
+  someone a third of what they asked for while claiming to have used their goals. Two or more
+  targets get one-click chips instead.
+
+Everything else on the page is display-only, and the copy says that too rather than implying
+the phone number does something.
+
+### College is a curated list, on purpose
+
+`lib/config/colleges.ts` holds ~60 Indian institutions grouped into IIMs, IITs, business
+schools and universities, and `User.collegeId` stores the id. Free text was the alternative
+and it quietly destroys the thing the field is for: "IIM-B", "IIM Bangalore" and "iim blr" are
+one school and three groups. Normalising on save only moves the problem — it collapses the
+spellings you thought of and fragments on the ones you didn't.
+
+So **"Other" is honest about its consequence**: it stores a null `collegeId` plus the
+written-in name, is shown on the profile, and is grouped with nobody. Adding a school to the
+list is a one-line change that promotes everyone who wrote it in. `collegeId` is indexed and
+sits on `User` beside `skillRating`, which is what a cohort ranking would need — that feature
+doesn't exist yet, and nothing in the UI claims it does.
+
+### Where an avatar actually goes
+
+Zero-key by default, like everything else. The browser centre-crops to a square, scales to
+256px and encodes JPEG before anything is uploaded — about 30 KB instead of the 4 MB that came
+out of a phone — so there is no `sharp`, no upload middleware and nothing to install.
+
+None of that is a control. `lib/avatar.ts` re-reads the type **out of the bytes**
+(`sniffImageMime`) rather than trusting the data URI's declared mime, and caps the size before
+decoding. That matters because the image is served back from our own origin with the type we
+stored, so "it says it's a JPEG" is not good enough. SVG is refused outright: it's a document
+that can carry script, not an image.
+
+The bytes sit behind `AvatarStore` (`lib/storage/`), the same shape as `lib/speech` and
+`lib/llm`. `put()` returns a **URL**, which is the entire seam — the built-in `db` provider
+returns `/api/avatar/<id>?v=<n>` and the route serves the row; an S3 provider would return a
+CDN address; `User.image` stores whichever and no call site can tell. The version in the query
+string is what makes an `immutable` cache header truthful: a replaced photo is a new URL.
+
+`User.image` holds a URL and never bytes, and that isn't tidiness — `getSessionUser()` returns
+the whole `User` row on every page in the app, so an avatar there would be serialised into
+every payload the app sends. Everything else profile-shaped lives on a separate `Profile`
+table for the same reason.
 
 ---
 
@@ -379,6 +448,18 @@ deliberately unfinished, and it's better to say so than to let you find out:
 
 - **Password reset doesn't send anything.** `/forgot-password` is UI only — no email provider is
   wired up, and there's no admin reset either, so a forgotten password means a new account.
+  Someone who still knows their password can change it at `/profile`.
+- **Changing a password doesn't sign out other devices.** `verify()` ignores the timestamp in
+  the session token and there's no revocation list, so existing sessions survive a change until
+  their cookie expires. The form says so under the button. Fixing it properly is a
+  `sessionEpoch` column on `User`, embedded in the token and compared against the row
+  `getSessionUser()` already loads — no extra query.
+- **Avatar URLs aren't authenticated.** Anyone with the URL can fetch the image. Checking the
+  session on `/api/avatar/[userId]` would mean a database read per image and no caching, which
+  is a poor trade for a photo its owner put on a profile — but it is obscurity, not access
+  control.
+- **Nothing prunes an orphaned avatar** if an external store is ever configured. The built-in
+  database store has no such problem: the bytes are on `Profile`, which cascades with the user.
 - **The Pro tier on the landing page is not purchasable.** No Stripe integration exists; the
   pricing card is illustrative. `plan = "pro"` is a real column and a real access tier, but
   nothing sets it — a registered free account already reaches everything.
@@ -404,6 +485,16 @@ NDJSON stream protocol, the before/after-first-token fallback split, the spend g
 Ollama adapter's SSE parsing and error classification — and the voice layer's transcript
 assembly and error triage. Only the network boundary and the database are mocked, so the adapter
 wiring and error classification are exercised for real.
+
+The profile layer adds three suites, all pure. `tests/avatar.test.ts` is the one worth reading:
+it pins that a payload declaring `image/jpeg` while carrying a shell script is refused, that an
+SVG is refused, that the **sniffed** type wins over the declared one when the two disagree, and
+that a re-upload mints a different URL — the property the immutable cache header depends on.
+`tests/profile-schema.test.ts` covers the authoring contract, including that a blank graduation
+year stays absent instead of becoming the year zero (the `z.coerce.number()` trap
+`lib/question-schema.ts` documents), and that "Other" is stored as a null id plus a written-in
+name. `tests/colleges.test.ts` pins the id contract and `prefillLevel`'s refusal to override a
+URL the visitor chose.
 
 `tests/entitlements.test.ts` covers the access tiers: that no session reads as a guest rather
 than as an error, that a guest row carrying a paid plan is still a guest, that a tier which

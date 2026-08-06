@@ -161,6 +161,56 @@ out locked cards the moment `free` became restricted.
 `content: "free-tier-only"`, point its `upgrade` at checkout, and the gates, cards, banner and
 recommendations all follow.
 
+### 11. A profile, an account menu, and questions after signing up
+
+The app had no profile, settings or account surface at all. Three things followed from that:
+`User.name` was written at signup and never again, so anyone who skipped the optional name
+field was permanently "Learner"; `User.image` had existed since the first schema with zero
+reads and zero writes; and there was no way to change a password, which combined with the
+disabled reset form meant a forgotten password was a new account.
+
+There is now `/profile` — photo, name, phone, city, bio, background, goals and a password
+change — reachable from an avatar menu in the header, which replaced a bare sign-out icon that
+sat one unguarded click from ending the session. Signing up lands on `/welcome`, two skippable
+steps of the same questions, and the dashboard asks once more.
+
+**The data model splits by access pattern, not by how profile-shaped a field feels.**
+`getSessionUser()` returns the whole `User` row on every page in the app, so a bio and a base64
+photo living there would be serialised into every payload the app sends. `collegeId` stays on
+`User` — indexed, beside the `skillRating` a cohort ranking would read — and everything
+display-only moved to a `Profile` side table, the same shape and the same argument as
+`Progress`.
+
+**The avatar upload is the interesting part.** No new dependency: the browser centre-crops,
+scales to 256px and JPEG-encodes before uploading, so ~30 KB crosses the wire instead of 4 MB
+and there is no `sharp` to install. None of that is a control — a Server Action takes whatever
+it is sent, so `validateAvatarDataUri` caps the size before decoding and reads the type out of
+the leading magic bytes rather than trusting the data URI's declared mime, returning the
+sniffed type as the one to store. That matters because the bytes are served back from our own
+origin with the stored `Content-Type`; a shell script labelled `image/jpeg` would otherwise be
+fetchable from a same-origin URL. SVG is refused outright as a document that can carry script.
+The bytes sit behind an `AvatarStore` whose `put()` returns a **URL**, mirroring `lib/speech`,
+so `User.image` holds a route path today and would hold a CDN address under an object store
+with no call site changing.
+
+**Goals are the only part that changes behaviour, and the copy says so.** Target roles reuse
+`INTERVIEW_LEVELS`, so `recommendQuestions` can run preference passes against them and the
+library can pre-apply one. Both are careful: the recommendation passes are skipped when no
+goals are set, making the change a provable no-op for anyone without a profile, and the library
+pre-applies only when there is **exactly one** target, because `?level=` holds a single value
+and applying one of three would show someone a third of what they asked for while claiming to
+have used their goals.
+
+Two naming traps handled rather than documented around: `onboardedAt` already meant "has seen
+the practice-screen tutorial", so the new flag is `profileCompletedAt`, named apart from it —
+one column for both would have silently suppressed the tutorial for anyone who filled in their
+profile. And "Other" for a college stores a null id plus the written-in name, so it is grouped
+with nobody, which is the honest consequence of picking a curated list over free text.
+
+Deliberately not built: leaderboards. The college field, its index and its stable grouping key
+ship here, and **no copy anywhere promises the feature they're for** — the nudge sells what is
+true the day it ships, which is that goals change what the library shows first.
+
 ---
 
 Items 1–9 were verified with `pnpm typecheck`, `pnpm lint`, `pnpm test` (257 tests) and
@@ -169,3 +219,12 @@ the library renders 3 playable cards and 32 locked ones for a visitor with no co
 banner renders, and a **forged Server Action** call to `startAttempt` carrying a locked
 question id is refused with `303 → /library?wall=locked` — no `Attempt` and no `SimRun` exists
 against locked content afterwards.
+
+Item 11 the same, at 785 tests, and driven end to end in a real browser: sign up → `/welcome` →
+answer → dashboard, `/welcome` refusing to replay once answered, the library pre-applying a
+single target level and clearing for the session, the account menu, a real PNG uploaded and
+served back as a 3.2 KB `image/jpeg` with an immutable cache header, a re-upload minting `?v=2`,
+removal 404ing the old URL, a password change followed by signing back in with the new one, and
+a guest bounced from both `/profile` and `/welcome` to `/signup`. The `/dashboard`, `/library`
+and `/profile` payloads were checked to contain no base64 image data, which is the property the
+URL indirection exists for.

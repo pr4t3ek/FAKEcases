@@ -11,6 +11,7 @@ import { AppHeader } from "@/components/app/app-header";
 import { StatCards } from "@/components/dashboard/stat-cards";
 import { RankCard } from "@/components/dashboard/rank-card";
 import { Achievements, type AchievementView } from "@/components/dashboard/achievements";
+import { ProfileNudge } from "@/components/dashboard/profile-nudge";
 import { ScoreTrendChart, SkillRadarChart } from "@/components/dashboard/charts";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -111,6 +112,8 @@ export default async function DashboardPage() {
           </h1>
           <p className="mt-1 text-muted-foreground">Here&apos;s your interview-prep progress.</p>
         </div>
+
+        {!user.profileCompletedAt && <ProfileNudge />}
 
         <StatCards stats={stats} />
 

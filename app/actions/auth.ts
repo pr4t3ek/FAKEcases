@@ -23,7 +23,10 @@ export async function signupAction(
   const name = String(formData.get("name") ?? "");
   const result = await signup(email, password, name);
   if (!result.ok) return { error: result.error };
-  redirect("/dashboard");
+  // Straight to the questions rather than the dashboard. They are skippable in
+  // one click, so this costs someone in a hurry nothing, and asking later —
+  // once the dashboard is already open — is asking never.
+  redirect("/welcome");
 }
 
 export async function logoutAction(): Promise<void> {
