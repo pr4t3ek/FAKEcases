@@ -80,6 +80,26 @@ export async function deleteQuestion(id: string) {
   revalidatePath("/library");
 }
 
+/**
+ * Give a question away to guests, or take it back.
+ *
+ * Its own action rather than a field on `questionSchema`, because this is a
+ * merchandising decision and that schema is an authoring contract. Folding the
+ * two together would put `freeTier` into `toQuestionColumns`, and every edit
+ * through the form and every CSV re-import would then reset the flag to
+ * whatever the payload happened to carry — quietly relocking the shop window.
+ *
+ * It is also the only control that works on a simulation, whose catalogue row
+ * the question form deliberately refuses to edit.
+ */
+export async function setQuestionFreeTier(id: string, freeTier: boolean): Promise<SaveResult> {
+  await assertAdmin();
+  await db.question.update({ where: { id }, data: { freeTier } });
+  revalidatePath("/admin");
+  revalidatePath("/library");
+  return { ok: true };
+}
+
 const categorySchema = z.object({
   slug: z.string().min(2).regex(/^[a-z0-9-]+$/, "lowercase-with-hyphens"),
   name: z.string().min(2),

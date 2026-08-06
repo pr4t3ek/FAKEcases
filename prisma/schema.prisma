@@ -92,6 +92,16 @@ model Question {
   sampleSolution String   @default("")
   tags           String?  // comma-separated
 
+  /// Reachable without an account. The library's shop window: a guest gets the
+  /// questions flagged here and nothing else (see lib/entitlements.ts).
+  ///
+  /// Deliberately outside the authoring contract in lib/question-schema.ts.
+  /// Whether a question is *good* and whether it is *given away* are different
+  /// decisions, and folding the flag into `toQuestionColumns` would mean every
+  /// admin edit and every CSV re-import silently reset the free tier to false.
+  /// It is written only by `setQuestionFreeTier` and the seed.
+  freeTier       Boolean  @default(false)
+
   source         String   @default("seed") // "seed" | "admin" | "import" | "llm"
   sourceUrl      String?
   externalId     String?  @unique

@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getOrCreateGuest, getSessionUser } from "@/lib/auth";
-import { guestConfig } from "@/lib/config";
+import { canOpen, tierFor, wallRedirect } from "@/lib/entitlements";
 import { canAdvanceSimPhase, hypothesisEditFor, type SimPhase } from "@/lib/types";
 import { loadScenario, scenarioExists } from "@/lib/scenario-store";
 import { priceDrilldown } from "@/lib/sim/investigate";
@@ -14,7 +14,7 @@ import type { SimScenario } from "@/lib/sim/types";
 import {
   commitHypothesisToRun,
   commitRun,
-  countCompletedRuns,
+  findResumableRun,
   loadRun,
   openCommitPhase,
   ownedInOrder,
@@ -52,16 +52,16 @@ async function ownedRun(runId: string) {
 /**
  * Open a simulation from its library card.
  *
- * Guests get their own cap. `startAttempt` counts submitted attempts, so
- * without a separate count here a simulation would have been unlimited for
- * guests — the most expensive surface in the app to leave open.
+ * The same tier gate as `startAttempt`, reading the same `freeTier` flag — a
+ * simulation is the most expensive surface in the app, so it must not be the one
+ * that quietly stays open.
  */
 export async function startSimulation(questionId: string): Promise<void> {
   const user = await getOrCreateGuest();
 
   const question = await db.question.findUnique({
     where: { id: questionId },
-    select: { id: true, externalId: true, type: true },
+    select: { id: true, externalId: true, type: true, freeTier: true },
   });
   if (!question || question.type !== "simulation") redirect("/library");
 
@@ -70,10 +70,12 @@ export async function startSimulation(questionId: string): Promise<void> {
   const slug = question.externalId;
   if (!slug || !scenarioExists(slug)) redirect("/library");
 
-  if (user.isGuest) {
-    const done = await countCompletedRuns(user.id);
-    if (done >= guestConfig.simRunCap) redirect("/signup?wall=sim");
-  }
+  // Resume before gating, matching `startAttempt`: a run already under way has
+  // spent analyst-days that a refusal would strand.
+  const resumable = await findResumableRun(user.id, question.id);
+  if (resumable) redirect(`/simulate/${resumable}`);
+
+  if (!canOpen(tierFor(user), question)) redirect(wallRedirect());
 
   const runId = await startRun(user.id, question.id, slug);
   redirect(`/simulate/${runId}`);

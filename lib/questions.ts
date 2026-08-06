@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { tierAccess, type AccessTier } from "@/lib/config";
 import {
   questionCoreSchema,
   refineQuestion,
@@ -75,8 +76,18 @@ export async function getQuestion(id: string) {
   return db.question.findUnique({ where: { id }, include: { category: true } });
 }
 
-/** Recommend questions, preferring the user's weak categories. */
-export async function recommendQuestions(userId: string, limit = 3) {
+/**
+ * Recommend questions, preferring the user's weak categories.
+ *
+ * `tier` is required rather than defaulted: recommending something the user
+ * cannot open is a worse failure than not recommending at all, and a default
+ * would make the safe case the one you have to remember to ask for. It is
+ * inert today — the dashboard turns guests away at the door — but it is the
+ * surface that would start handing out locked cards the moment `free` becomes
+ * a restricted tier.
+ */
+export async function recommendQuestions(userId: string, tier: AccessTier, limit = 3) {
+  const reachable = tierAccess[tier].content === "all" ? {} : { freeTier: true };
   const progress = await db.progress.findUnique({ where: { userId } });
   const attempted = await db.attempt.findMany({
     where: { userId },
@@ -111,6 +122,7 @@ export async function recommendQuestions(userId: string, limit = 3) {
     where: {
       type: { in: practisable },
       id: { notIn: [...attemptedIds] },
+      ...reachable,
       ...(weakCategoryId ? { categoryId: weakCategoryId } : {}),
     },
     include: { category: true },
@@ -123,6 +135,7 @@ export async function recommendQuestions(userId: string, limit = 3) {
     where: {
       type: { in: practisable },
       id: { notIn: [...attemptedIds, ...pool.map((p) => p.id)] },
+      ...reachable,
     },
     include: { category: true },
     take: limit - pool.length,

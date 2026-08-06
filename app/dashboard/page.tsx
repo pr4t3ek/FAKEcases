@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { ArrowRight, PlayCircle } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { isLocked, tierFor, upgradeFor } from "@/lib/entitlements";
 import { recommendQuestions } from "@/lib/questions";
 import { simSummary } from "@/lib/simulations";
 import { evaluationCategories } from "@/lib/config";
@@ -56,7 +57,7 @@ export default async function DashboardPage() {
         orderBy: { updatedAt: "desc" },
         take: 3,
       }),
-      recommendQuestions(user.id, 3),
+      recommendQuestions(user.id, tierFor(user), 3),
       db.achievement.findMany(),
       db.userAchievement.findMany({ where: { userId: user.id } }),
       simSummary(user.id),
@@ -260,7 +261,12 @@ export default async function DashboardPage() {
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {recommended.map((q) => (
-              <QuestionCard key={q.id} question={q} />
+              <QuestionCard
+                key={q.id}
+                question={q}
+                locked={isLocked(tierFor(user), q)}
+                upgrade={upgradeFor(tierFor(user))}
+              />
             ))}
           </div>
         </section>

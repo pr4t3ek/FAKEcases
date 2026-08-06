@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getOrCreateGuest } from "@/lib/auth";
-import { guestConfig } from "@/lib/config";
+import { canOpen, tierFor, wallRedirect } from "@/lib/entitlements";
 import { interviewerReply, isRealProvider } from "@/lib/llm";
 import { recordLlmCall } from "@/lib/llm/budget";
 import { toQuestionContext } from "@/lib/question-context";
@@ -22,7 +22,7 @@ export interface StartConflict {
 
 /**
  * Start (or resume) an attempt for a question. Creates a guest session if the
- * visitor isn't logged in. Enforces the guest attempt cap with a soft wall.
+ * visitor isn't logged in, and refuses questions the visitor's tier can't reach.
  */
 export async function startAttempt(
   questionId: string,
@@ -58,19 +58,18 @@ export async function startAttempt(
     });
   }
 
-  // Guest soft wall.
-  if (user.isGuest) {
-    const done = await db.attempt.count({
-      where: { userId: user.id, status: "submitted" },
-    });
-    if (done >= guestConfig.attemptCap) redirect("/signup?wall=1");
-  }
-
   const question = await db.question.findUnique({
     where: { id: questionId },
     include: { category: true },
   });
   if (!question) redirect("/library");
+
+  // The gate, and the only one that counts — the locked card in the library is
+  // a courtesy. Checked after the resume branch above on purpose: an attempt
+  // already in progress stays openable even if the question is un-flagged
+  // underneath it, because stranding someone's half-built tree to enforce a
+  // merchandising decision is not a trade worth making.
+  if (!canOpen(tierFor(user), question)) redirect(wallRedirect());
 
   // Fixed at creation and never changed afterwards: if the tree mode could be
   // switched mid-attempt, "solo" would mean nothing — you could flip to guided,

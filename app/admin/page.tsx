@@ -92,6 +92,7 @@ export default async function AdminPage() {
                 betterApproach: q.betterApproach,
                 sampleSolution: q.sampleSolution,
                 tags: q.tags,
+                freeTier: q.freeTier,
                 source: q.source,
                 category: { name: q.category.name },
               }))}

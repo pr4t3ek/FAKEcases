@@ -1,10 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Lock, LockOpen, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { createQuestion, updateQuestion, deleteQuestion } from "@/app/actions/admin";
+import {
+  createQuestion,
+  updateQuestion,
+  deleteQuestion,
+  setQuestionFreeTier,
+} from "@/app/actions/admin";
 import {
   AUTHORABLE_TYPES,
   DIFFICULTIES,
@@ -45,6 +50,8 @@ export interface AdminQuestion {
   betterApproach: string;
   sampleSolution: string;
   tags: string | null;
+  /** Open to guests. Toggled from the list, not from the form — see below. */
+  freeTier: boolean;
   source: string;
   category: { name: string };
 }
@@ -231,6 +238,46 @@ function QuestionForm({
   );
 }
 
+/**
+ * The guest-tier toggle.
+ *
+ * Deliberately in the list rather than in the form. It is a merchandising
+ * decision, not authoring — it is not part of the question contract, it must
+ * survive a CSV re-import, and it has to work on a simulation, whose row the
+ * form refuses to edit at all.
+ */
+function FreeTierToggle({ question }: { question: AdminQuestion }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const free = question.freeTier;
+
+  return (
+    <Button
+      size="icon"
+      variant="ghost"
+      disabled={pending}
+      title={
+        free
+          ? "Open to guests — click to lock behind sign-up"
+          : "Locked behind sign-up — click to open to guests"
+      }
+      onClick={() =>
+        startTransition(async () => {
+          const result = await setQuestionFreeTier(question.id, !free);
+          if (!result.ok) {
+            toast.error(result.error ?? "Could not change guest access");
+            return;
+          }
+          toast.success(free ? "Locked behind sign-up" : "Open to guests");
+          router.refresh();
+        })
+      }
+    >
+      {free ? <LockOpen className="h-4 w-4 text-primary" /> : <Lock className="h-4 w-4" />}
+    </Button>
+  );
+}
+
 export function QuestionManager({
   questions,
   categories,
@@ -241,6 +288,7 @@ export function QuestionManager({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<AdminQuestion | null>(null);
+  const freeCount = questions.filter((q) => q.freeTier).length;
 
   function refresh() {
     setOpen(false);
@@ -261,7 +309,9 @@ export function QuestionManager({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">{questions.length} questions</p>
+        <p className="text-sm text-muted-foreground">
+          {questions.length} questions · {freeCount} open to guests
+        </p>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button size="sm"><Plus className="h-4 w-4" /> New question</Button>
@@ -283,9 +333,11 @@ export function QuestionManager({
                 <Badge variant="outline">{q.difficulty}</Badge>
                 <Badge variant="muted">{q.source}</Badge>
                 {isSimulation(q.type) && <Badge variant="outline">Simulation</Badge>}
+                {q.freeTier && <Badge variant="success">Free for guests</Badge>}
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-1">
+              <FreeTierToggle question={q} />
               {/* A simulation is a catalogue row whose exercise lives in code, so
                   this form has nothing to edit. Opening it used to show a blank
                   type dropdown and saving quietly rewrote the row as a

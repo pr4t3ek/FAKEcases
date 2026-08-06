@@ -151,7 +151,9 @@ Framer Motion · Prisma (SQLite dev → Postgres/Supabase prod) · Recharts · V
 | Tune XP, levels, streak rules | `lib/config/gamification.ts` |
 | Change rank percentile bands (Silver→Diamond) | `lib/config/gamification.ts` (`rankBands`) |
 | Adjust evaluation rubric weights / readiness bands | `lib/config/evaluation.ts` |
-| Change hint count / guest cap / panel defaults | `lib/config/practice.ts` |
+| Change hint count / panel defaults | `lib/config/practice.ts` |
+| Change what a guest can reach (and go freemium) | `lib/config/access.ts` (`tierAccess`) |
+| Give a specific question away to guests | Admin panel → **Questions** → the lock button |
 | Change what a question may contain | `lib/question-schema.ts` (one contract for admin + import) |
 | Swap the LLM provider | env vars (`LLM_PROVIDER`, `*_API_KEY`) |
 | Develop against a free local model | `LLM_PROVIDER=ollama` + `OLLAMA_MODEL` (see above) |
@@ -209,6 +211,48 @@ a root cause; a malformed `rootCause` is a save error rather than a case that si
 score Diagnosis.
 
 A **simulation** is not answered at all — it is played. See below.
+
+---
+
+## What a guest can reach
+
+A visitor with no account gets **one of each format** — one guesstimate, one case and one
+simulation — and the rest of the library is locked behind sign-up. Today those three are chai
+in Bangalore, the food-delivery margin case, and the Kadak Coffee war room: the most inviting
+of each kind rather than the first of each kind.
+
+Access is a property of a **tier**, not of the user row:
+
+| Tier | Who | Reaches |
+|---|---|---|
+| `guest` | no account (or a guest session) | questions flagged `freeTier` |
+| `free` | a registered account | everything |
+| `pro` | `plan = "pro"` | everything |
+
+`lib/entitlements.ts` is the whole rule and is pure, so **the library card and the server gate
+call the same function** — a card can never offer something `startAttempt` then refuses. The
+card is a courtesy; `startAttempt` and `startSimulation` are the control, and a hand-rolled
+Server Action call with a locked question id gets bounced to `/library?wall=locked` like any
+other.
+
+**Making it freemium is a change to `tierAccess` in `lib/config/access.ts`, not to any gate.**
+Set `free` to `content: "free-tier-only"`, point its `upgrade` at checkout, and the gates,
+the locked cards, the library banner and the dashboard recommendations all follow. That is
+the reason the tier table exists rather than an `isGuest` check at each call site: the day a
+paid plan lands, the checks you forget to update are the ones that give the product away.
+
+Which questions are free is authored, not derived — `Question.freeTier`, seeded in
+`prisma/seed-data.ts` and toggled per question from **Admin → Questions**. It is deliberately
+*not* part of the authoring contract in `lib/question-schema.ts`: whether a question is good
+and whether it is given away are different decisions, and folding the flag into
+`toQuestionColumns` would mean every admin edit and every CSV re-import silently relocked the
+shop window. It is also the only control that works on a simulation, whose catalogue row the
+question form refuses to edit.
+
+Guests may **replay** their three as often as they like. The old caps — three submitted
+attempts, one simulation run — are gone: two walls with two different messages meant a guest
+could be turned away from a question they had never opened, and the reason to sign up is the
+other thirty items rather than a play counter.
 
 ---
 
@@ -336,7 +380,8 @@ deliberately unfinished, and it's better to say so than to let you find out:
 - **Password reset doesn't send anything.** `/forgot-password` is UI only — no email provider is
   wired up, and there's no admin reset either, so a forgotten password means a new account.
 - **The Pro tier on the landing page is not purchasable.** No Stripe integration exists; the
-  pricing card is illustrative.
+  pricing card is illustrative. `plan = "pro"` is a real column and a real access tier, but
+  nothing sets it — a registered free account already reaches everything.
 - **Sessions don't expire server-side.** The signed cookie carries a timestamp that `verify()`
   ignores, so only the cookie's own `maxAge` bounds a session.
 - **Guest rows accumulate.** Every visitor who starts practising gets a `User` row and nothing
@@ -359,6 +404,13 @@ NDJSON stream protocol, the before/after-first-token fallback split, the spend g
 Ollama adapter's SSE parsing and error classification — and the voice layer's transcript
 assembly and error triage. Only the network boundary and the database are mocked, so the adapter
 wiring and error classification are exercised for real.
+
+`tests/entitlements.test.ts` covers the access tiers: that no session reads as a guest rather
+than as an error, that a guest row carrying a paid plan is still a guest, that a tier which
+locks content always has somewhere to send the person it blocked, and — against
+`prisma/seed-data.ts` itself — that the shop window really is one guesstimate, one case and
+one simulation, that the case has a `rootCause` so it can score Diagnosis, and that the
+simulation is an Easy one.
 
 Vitest runs in a `node` environment with no jsdom, so React components and hooks aren't covered.
 The logic worth testing in `lib/speech` is kept pure and exported for exactly that reason.
