@@ -17,8 +17,35 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { QuestionCard } from "@/components/library/question-card";
+import {
+  GlobalLeaderboard,
+  type BoardSide,
+} from "@/components/dashboard/global-leaderboard";
+import { globalBoard } from "@/lib/leaderboard";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Shape the standings for the client component.
+ *
+ * `solved` becomes the row's small print, so a high total is visibly the sum of
+ * many first attempts rather than an unexplained number.
+ */
+function toBoardSide(board: Awaited<ReturnType<typeof globalBoard>>): BoardSide {
+  return {
+    rows: board.top.map((s) => ({
+      userId: s.userId,
+      rank: s.rank,
+      name: s.name,
+      college: s.college,
+      value: s.points,
+      detail: `${s.solved} solved`,
+    })),
+    you: board.you
+      ? { rank: board.you.rank, total: board.total, points: board.you.points }
+      : null,
+  };
+}
 
 const SKILL_SHORT: Record<string, string> = {
   structuring: "Structure",
@@ -45,6 +72,8 @@ export default async function DashboardPage() {
     allAchievements,
     userAchievements,
     simStats,
+    weekBoard,
+    allTimeBoard,
   ] = await Promise.all([
       db.progress.findUnique({ where: { userId: user.id } }),
       db.attempt.findMany({
@@ -62,6 +91,8 @@ export default async function DashboardPage() {
       db.achievement.findMany(),
       db.userAchievement.findMany({ where: { userId: user.id } }),
       simSummary(user.id),
+      globalBoard(user.id, "week"),
+      globalBoard(user.id, "all"),
     ]);
 
   const stats = {
@@ -159,6 +190,12 @@ export default async function DashboardPage() {
             <Achievements achievements={achievements} />
           </div>
         </div>
+
+        <GlobalLeaderboard
+          week={toBoardSide(weekBoard)}
+          all={toBoardSide(allTimeBoard)}
+          currentUserId={user.id}
+        />
 
         {/* Continue practice */}
         {inProgress.length > 0 && (

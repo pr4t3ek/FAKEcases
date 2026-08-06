@@ -23,6 +23,7 @@ import {
   toRunState,
 } from "@/lib/simulations";
 import { applySimulationRewards } from "@/lib/gamification";
+import { recordFirstResult } from "@/lib/leaderboard";
 
 export interface SimActionResult {
   ok: boolean;
@@ -236,6 +237,18 @@ export async function commitDecision(
     allocation: parsed.value.allocation,
     outcome,
     score,
+  });
+
+  // Ranked only if this is their first run of this scenario. Effort is
+  // analyst-days rather than wall-clock: a war room is judged on how cheaply it
+  // was investigated, not on how long the tab was open.
+  await recordFirstResult({
+    userId: owned.user.id,
+    questionId: owned.run.questionId,
+    kind: "simulation",
+    score: score.overall,
+    effort: score.daysSpent,
+    sourceId: runId,
   });
 
   const reward = await applySimulationRewards(owned.user.id, {

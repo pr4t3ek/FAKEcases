@@ -21,6 +21,8 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { QuestionBoard } from "@/components/leaderboard/question-board";
+import type { BoardRow } from "@/components/leaderboard/leaderboard-table";
 
 interface EvaluationRow {
   overall: number;
@@ -76,6 +78,9 @@ export function EvaluationReport({
   trail,
   solutionRevealed = false,
   evaluation,
+  userId,
+  leaderboard = [],
+  standing = null,
 }: {
   questionId: string;
   isGuest: boolean;
@@ -94,6 +99,21 @@ export function EvaluationReport({
     falseClears: string[];
   } | null;
   evaluation: EvaluationRow;
+  /** Highlights the viewer's own row on the board. */
+  userId?: string;
+  /** Top first-attempt scores on this question. Empty until someone ranks. */
+  leaderboard?: BoardRow[];
+  /**
+   * The viewer's ranked result, or null if they have none. `isThisAttempt` is
+   * false on a replay, which is what turns the panel into the unranked notice.
+   */
+  standing?: {
+    rank: number;
+    total: number;
+    score: number;
+    effort: number;
+    isThisAttempt: boolean;
+  } | null;
 }) {
   const feedback: FeedbackItem[] = (() => {
     try {
@@ -277,6 +297,15 @@ export function EvaluationReport({
             <p className="text-sm text-muted-foreground">{evaluation.betterApproach}</p>
           </Card>
         )}
+
+        {/* How this attempt stands against everyone else's first go. */}
+        <QuestionBoard
+          rows={leaderboard}
+          kind="attempt"
+          userId={userId}
+          standing={standing}
+          thisScore={evaluation.overall}
+        />
 
         {/* Sample solution — unlocked after submit */}
         {evaluation.sampleSolution && (
