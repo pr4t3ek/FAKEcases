@@ -42,6 +42,17 @@ export interface SeedQuestion {
   dataPack?: { topic: string[]; fact: string }[];
   /** The branch that actually holds the problem. Presence makes a case diagnostic. */
   rootCause?: { path: string[]; note?: string };
+  /**
+   * Open to guests, with no account. The shop window — see
+   * `lib/entitlements.ts` and `guestSampleSize` in `lib/config/access.ts`.
+   *
+   * Exactly one guesstimate, one case and one simulation carry it, and each was
+   * picked to be the most inviting of its kind rather than the first of its
+   * kind: chai in Bangalore is the guesstimate everyone has already half-done in
+   * their head, the delivery-margin case is the classic profitability tree, and
+   * Kadak Coffee is the scenario authored as the beginner war room.
+   */
+  freeTier?: boolean;
 }
 
 export const questions: SeedQuestion[] = [
@@ -76,6 +87,8 @@ export const questions: SeedQuestion[] = [
     sampleSolution:
       "~1.3 cr population, ~65% tea drinkers ≈ 85 lakh, avg ~1.5 cups/day ≈ 1.3 cr cups; add offices/roadside/tourists → ~1.2–1.8 cr cups/day.",
     tags: "food,frequency,segmentation",
+    // The guest tier's guesstimate.
+    freeTier: true,
   },
   {
     externalId: "autos-bangalore",
@@ -492,6 +505,9 @@ export const questions: SeedQuestion[] = [
     sampleSolution:
       "Steady volume with falling margin points at price or cost per order rather than demand. Common culprits in India: rider payouts rising with fuel and competition for supply, deeper discounting to hold share, and a mix shift toward smaller orders in tier-2 cities where the fixed delivery cost is spread over a lower basket.",
     tags: "profitability,unit economics,delivery",
+    // The guest tier's case: a profitability tree with a declared root cause, so
+    // the sample includes a question that actually scores Diagnosis.
+    freeTier: true,
   },
   {
     externalId: "qual-ev-two-wheeler-entry",
@@ -559,6 +575,9 @@ export const questions: SeedQuestion[] = [
     sampleSolution:
       "At 22% gross margin, break-even ROAS is 4.55, so the celebrated 4.0 was under water the whole time. 91% of ad-driven orders were the lowest-margin product, while organic customers chose the 41%-margin bundle a third of the time — a product-mix problem wearing a marketing problem's clothes. The traps are that the efficiency fixes are real but too small to close a margin gap, and that scaling spend, which the ROAS chart argues for, multiplies the loss.",
     tags: "product management,digital marketing,roas,cac,unit economics,coffee,simulation",
+    // The guest tier's simulation — already the scenario the library shows
+    // first, and the one written to be met cold.
+    freeTier: true,
   },
   {
     externalId: "ab-test-readout",

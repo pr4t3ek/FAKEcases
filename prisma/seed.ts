@@ -43,6 +43,10 @@ async function main() {
         expectedBuckets: q.expectedBuckets ? JSON.stringify(q.expectedBuckets) : null,
         dataPack: q.dataPack ? JSON.stringify(q.dataPack) : null,
         rootCause: q.rootCause ? JSON.stringify(q.rootCause) : null,
+        // Re-asserted on update: the seed is the authority on what ships free,
+        // so a re-seed puts the shop window back where the repo says it should
+        // be rather than leaving an admin's experiment in place.
+        freeTier: q.freeTier ?? false,
         source: "seed",
       },
       create: {
@@ -63,6 +67,7 @@ async function main() {
         expectedBuckets: q.expectedBuckets ? JSON.stringify(q.expectedBuckets) : null,
         dataPack: q.dataPack ? JSON.stringify(q.dataPack) : null,
         rootCause: q.rootCause ? JSON.stringify(q.rootCause) : null,
+        freeTier: q.freeTier ?? false,
         source: "seed",
       },
     });

@@ -38,23 +38,39 @@ export async function loadRun(runId: string) {
 }
 
 /**
+ * An unfinished run for this question, if there is one.
+ *
+ * Split out of `startRun` so the caller can resume *before* deciding whether the
+ * visitor's tier may open the scenario — an access rule should not be able to
+ * strand a war room that is already half-played.
+ */
+export async function findResumableRun(
+  userId: string,
+  questionId: string,
+): Promise<string | null> {
+  const existing = await db.simRun.findFirst({
+    where: { userId, questionId, phase: { not: "debrief" } },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  });
+  return existing?.id ?? null;
+}
+
+/**
  * Resume an in-progress run for this question, or start a fresh one.
  *
  * Resuming rather than restarting matters more here than on an attempt: the
  * analyst-day budget is already partly spent, so a second run would silently
- * hand back spent capacity.
+ * hand back spent capacity. The check is kept here as well as in the caller so
+ * no future entry point can create a duplicate run by forgetting it.
  */
 export async function startRun(
   userId: string,
   questionId: string,
   scenarioSlug: string,
 ): Promise<string> {
-  const existing = await db.simRun.findFirst({
-    where: { userId, questionId, phase: { not: "debrief" } },
-    orderBy: { createdAt: "desc" },
-    select: { id: true },
-  });
-  if (existing) return existing.id;
+  const existing = await findResumableRun(userId, questionId);
+  if (existing) return existing;
 
   const created = await db.simRun.create({
     data: { userId, questionId, scenarioSlug },
@@ -189,11 +205,6 @@ export async function commitRun(args: {
 
 export function outcomeFromResult(result: { outcomeJson: string }): SimOutcomeResult | null {
   return parseJson<SimOutcomeResult>(result.outcomeJson);
-}
-
-/** Completed runs, for the guest wall and the dashboard. */
-export async function countCompletedRuns(userId: string): Promise<number> {
-  return db.simRun.count({ where: { userId, phase: "debrief" } });
 }
 
 export async function listRunsForUser(userId: string) {

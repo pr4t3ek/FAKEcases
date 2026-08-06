@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Siren } from "lucide-react";
+import { ArrowRight, Lock, Siren } from "lucide-react";
 import { startAttempt } from "@/app/actions/attempts";
+import type { UpgradePath } from "@/lib/config";
 import { startSimulation } from "@/app/actions/simulations";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -42,7 +44,20 @@ const diffVariant: Record<string, "success" | "warning" | "destructive"> = {
   Hard: "destructive",
 };
 
-export function QuestionCard({ question }: { question: QuestionCardData }) {
+export function QuestionCard({
+  question,
+  locked = false,
+  upgrade = null,
+}: {
+  question: QuestionCardData;
+  /**
+   * Decided by `lib/entitlements.ts` on the server. A courtesy, not a control:
+   * the same rule is re-checked in `startAttempt` and `startSimulation`, which
+   * is what actually stops a hand-rolled request.
+   */
+  locked?: boolean;
+  upgrade?: UpgradePath | null;
+}) {
   // Checked BEFORE answerModeFor, which is meaningful only for the interview
   // types and would report a simulation as qualitative (see lib/types.ts).
   const simulation = isSimulation(question.type);
@@ -75,8 +90,19 @@ export function QuestionCard({ question }: { question: QuestionCardData }) {
   }
 
   return (
-    <Card className="flex flex-col p-5 transition-shadow hover:shadow-md">
+    <Card
+      className={
+        locked
+          ? "flex flex-col border-dashed p-5"
+          : "flex flex-col p-5 transition-shadow hover:shadow-md"
+      }
+    >
       <div className="mb-3 flex flex-wrap items-center gap-2">
+        {locked && (
+          <Badge variant="muted" className="gap-1">
+            <Lock className="h-3 w-3" /> Locked
+          </Badge>
+        )}
         <Badge variant="secondary">{question.category.name}</Badge>
         <Badge variant={diffVariant[question.difficulty] ?? "muted"}>{question.difficulty}</Badge>
         <Badge variant="outline">
@@ -91,7 +117,7 @@ export function QuestionCard({ question }: { question: QuestionCardData }) {
       </div>
       {/* The icon carries the subject so a grid of cards can be scanned without
           reading every title — see lib/question-icon.ts. */}
-      <div className="flex flex-1 gap-3">
+      <div className={locked ? "flex flex-1 gap-3 opacity-60" : "flex flex-1 gap-3"}>
         <QuestionIcon name={iconNameForQuestion({
           title: question.title,
           tags: question.tags,
@@ -103,7 +129,16 @@ export function QuestionCard({ question }: { question: QuestionCardData }) {
         </div>
       </div>
 
-      {simulation ? (
+      {locked ? (
+        // A link, not a disabled button. A dead control tells someone they
+        // can't have this; a link tells them how to get it, which is the whole
+        // job of a locked card.
+        <Button asChild className="mt-4 w-full" variant="secondary">
+          <Link href={upgrade?.href ?? "/signup"}>
+            <Lock /> {upgrade?.cta ?? "Sign up to unlock"}
+          </Link>
+        </Button>
+      ) : simulation ? (
         // No mode to choose: a simulation's phases are fixed and its budget is
         // the constraint, so there is one way in.
         <Button

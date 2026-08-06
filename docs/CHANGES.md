@@ -128,7 +128,44 @@ Chart styling (`CHART_TOOLTIP_STYLE`, `CHART_TICK`) was extracted from
 `components/dashboard/charts.tsx` and shared rather than copied. Rows are capped at 500
 rather than paginated, which is commented as the deliberate demo-scale choice it is.
 
+### 10. A guest gets one of each format, and the rest is locked
+
+A guest could reach the entire library and was stopped only by a running total — three
+submitted attempts, one simulation run. That gives away all thirty-five items to anyone
+patient enough to open them one at a time, and turns people away from questions they have
+never seen.
+
+Access is now a property of a **tier** (`guest` / `free` / `pro`) rather than an `isGuest`
+check at each call site. `lib/config/access.ts` says what each tier reaches; `lib/entitlements.ts`
+is the pure rule, called by both the server gates (`startAttempt`, `startSimulation`) and the
+library card, so the two cannot disagree. A guest gets the questions flagged
+`Question.freeTier` — seeded as chai in Bangalore, the food-delivery margin case and the Kadak
+Coffee war room — and a locked card that links to sign-up rather than a dead button. The old
+caps are gone; replaying the free three is unmetered.
+
+The flag is deliberately outside the authoring contract in `lib/question-schema.ts`. Whether a
+question is good and whether it is given away are different decisions, and folding it into
+`toQuestionColumns` would have let every admin edit and every CSV re-import quietly relock the
+shop window. It is written by the seed and by `setQuestionFreeTier`, which is also the only
+control that works on a simulation, whose catalogue row the question form refuses to edit.
+
+Two things this exposed. The guest wall banner in `app/library/page.tsx` had never once
+rendered: the caps redirected to `/signup?wall=1`, and only the library reads that parameter —
+so the soft wall was silently a hard bounce to a bare signup form. Refusals now land on
+`/library?wall=locked`, where the banner explains what happened and the free items are still on
+the page. And `recommendQuestions` now takes the tier as a required argument; the dashboard
+turns guests away today, so it is inert, but it is the surface that would have started handing
+out locked cards the moment `free` became restricted.
+
+**Going freemium is a change to `tierAccess`, not to any gate**: set `free` to
+`content: "free-tier-only"`, point its `upgrade` at checkout, and the gates, cards, banner and
+recommendations all follow.
+
 ---
 
-All items verified with `pnpm typecheck`, `pnpm lint`, `pnpm test` (257 tests), and
-`pnpm build`.
+Items 1–9 were verified with `pnpm typecheck`, `pnpm lint`, `pnpm test` (257 tests) and
+`pnpm build`. Item 10 the same, at 727 tests, plus a seeded SQLite database and a real browser:
+the library renders 3 playable cards and 32 locked ones for a visitor with no cookie, the wall
+banner renders, and a **forged Server Action** call to `startAttempt` carrying a locked
+question id is refused with `303 → /library?wall=locked` — no `Attempt` and no `SimRun` exists
+against locked content afterwards.

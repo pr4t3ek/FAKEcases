@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
+import { isLocked, tierFor, upgradeFor, WALL_LOCKED, WALL_PARAM } from "@/lib/entitlements";
 import { listCategories, listQuestions } from "@/lib/questions";
 import { answerModeFor, isSimulation } from "@/lib/types";
 import { AppHeader } from "@/components/app/app-header";
@@ -46,6 +47,15 @@ export default async function LibraryPage({
     .join(", ")
     .replace(/, ([^,]*)$/, " and $1");
 
+  // The same function the server gate calls, so a card can never offer
+  // something `startAttempt` would refuse. `getSessionUser` returns null for a
+  // visitor who hasn't clicked anything yet — `tierFor` reads that as a guest,
+  // which is what they are about to become.
+  const tier = tierFor(user);
+  const upgrade = upgradeFor(tier);
+  const openCount = questions.filter((q) => !isLocked(tier, q)).length;
+  const lockedCount = questions.length - openCount;
+
   return (
     <div className="min-h-screen">
       <AppHeader user={user} />
@@ -53,19 +63,28 @@ export default async function LibraryPage({
         <div className="mb-6">
           <h1 className="text-2xl font-bold tracking-tight">Question Library</h1>
           <p className="mt-1 text-muted-foreground">
-            {summary || "No questions"}, India-only. Pick any — everything is free to practise.
+            {summary || "No questions"}, India-only.{" "}
+            {lockedCount > 0
+              ? `${openCount} open to you, ${lockedCount} unlocked by a free account.`
+              : "Pick any — everything is free to practise."}
           </p>
         </div>
 
-        {sp.wall && (
+        {/* Raised when a gate turned someone away. Landing back here rather than
+            on a bare signup form is the point: it names what happened, and the
+            free items are still on the page to be played. */}
+        {sp[WALL_PARAM] === WALL_LOCKED && upgrade && (
           <div className="mb-6 flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 text-sm">
             <Sparkles className="h-5 w-5 shrink-0 text-primary" />
             <span>
-              You&apos;ve used your free guest attempts.{" "}
-              <Link href="/signup" className="font-medium text-primary underline underline-offset-4">
-                Create a free account
-              </Link>{" "}
-              to keep practising and save your progress.
+              That one needs an account. {upgrade.reason}{" "}
+              <Link
+                href={upgrade.href}
+                className="font-medium text-primary underline underline-offset-4"
+              >
+                {upgrade.cta}
+              </Link>
+              .
             </span>
           </div>
         )}
@@ -79,7 +98,12 @@ export default async function LibraryPage({
         ) : (
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {questions.map((q) => (
-              <QuestionCard key={q.id} question={q} />
+              <QuestionCard
+                key={q.id}
+                question={q}
+                locked={isLocked(tier, q)}
+                upgrade={upgrade}
+              />
             ))}
           </div>
         )}

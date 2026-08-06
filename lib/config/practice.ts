@@ -1,23 +1,22 @@
-/** Practice-experience tunables: hints, guest caps, panel layout defaults. */
+/** Practice-experience tunables: hints, panel layout defaults. */
 
 export const hintConfig = {
   /** Number of escalating hint levels before the AI may fully explain. */
   levels: 3,
 };
 
-export const guestConfig = {
-  /** Attempts a guest may complete before the sign-up soft wall. */
-  attemptCap: 3,
-  /**
-   * Simulations a guest may complete, counted separately.
-   *
-   * A run is a far larger unit of work than an attempt — a dashboard, a
-   * budgeted investigation and a scored decision — so sharing `attemptCap`
-   * would either make three runs free or make one attempt cost a third of the
-   * war room. One full run is enough to show what the format is.
-   */
-  simRunCap: 1,
-};
+/*
+ * The guest caps that used to live here — three submitted attempts, one
+ * simulation run — are gone. What a guest may reach is now a property of the
+ * content (`Question.freeTier`) rather than a running total, and resolved by
+ * `lib/entitlements.ts` against the tier table in `./access.ts`.
+ *
+ * Keeping both would have meant two walls with two different messages: a guest
+ * could be turned away from a question they had never opened, or from one they
+ * had already been given. Replaying the free sample as often as you like costs
+ * nothing worth metering — the reason to sign up is the other thirty items, not
+ * a play counter.
+ */
 
 /**
  * LLM spend guards.

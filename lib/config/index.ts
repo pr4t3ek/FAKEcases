@@ -1,3 +1,4 @@
+export * from "./access";
 export * from "./env";
 export * from "./gamification";
 export * from "./evaluation";

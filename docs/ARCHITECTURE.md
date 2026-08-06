@@ -180,6 +180,7 @@ erDiagram
         string difficulty "Easy | Medium | Hard"
         string interviewLevel "BCG | McKinsey | Bain..."
         string type "guesstimate | qualitative | case"
+        boolean freeTier "reachable without an account"
         float idealLow "guesstimate only"
         float idealHigh "guesstimate only"
         string rootCause "case only — JSON"
@@ -314,6 +315,59 @@ server-side either way — it shows how metrics relate and never which lever fix
 `validateScenario` enforces what `difficulty: "Easy"` promises — at most six drilldowns, six
 causes one level deep, five interventions, a budget covering about half the board, and a primer.
 Otherwise "simpler" decays one scenario at a time.
+
+---
+
+## 3a. Access tiers (and the road to freemium)
+
+A guest reaches one guesstimate, one case and one simulation. Everything else needs an
+account. The rule is a property of a *tier* rather than of a user row, which is what keeps a
+future paid plan from becoming a scavenger hunt through every call site.
+
+```mermaid
+flowchart TB
+    U["User row<br/>(or no session at all)"] --> T["tierFor()<br/>lib/entitlements.ts"]
+    T -->|"isGuest, or no session"| G["guest"]
+    T -->|"plan = free"| F["free"]
+    T -->|"plan = pro"| P["pro"]
+
+    G & F & P --> TA["tierAccess<br/>lib/config/access.ts"]
+    TA --> C{"content"}
+    C -->|"free-tier-only"| Q1["only Question.freeTier"]
+    C -->|"all"| Q2["the whole library"]
+
+    Q1 & Q2 --> CO["canOpen(tier, question)"]
+
+    CO --> Gate["SERVER GATE — the control<br/>startAttempt · startSimulation<br/>refuse → /library?wall=locked"]
+    CO --> UI["UI — a courtesy<br/>locked card · wall banner<br/>dashboard recommendations"]
+
+    style Gate fill:#9b2c2c,color:#fff
+    style TA fill:#2b6cb0,color:#fff
+```
+
+**One function, both callers.** The card and the gate call the same `canOpen`. Anything else
+and the two drift: either the app offers what the server refuses, or it hides what the server
+would have allowed. The card is decoration — a forged Server Action call with a locked
+question id is bounced by `startAttempt` exactly like a click would have been.
+
+**Where the freemium switch is.** `tierAccess` is the only place that says what a tier
+reaches. Turning `free` into a real free plan is `content: "free-tier-only"` plus an `upgrade`
+pointing at checkout; no gate, card or banner changes. `recommendQuestions` takes the tier as
+a *required* argument for the same reason — recommending something the user cannot open is a
+worse failure than not recommending, so the safe case must not be the one you have to
+remember to ask for.
+
+**Both gates resume before they refuse.** An attempt or a run already under way stays openable
+even if its question is un-flagged underneath it. Stranding a half-built tree, or a war room
+with analyst-days already spent, to enforce a merchandising decision is not a trade worth
+making.
+
+**`freeTier` is not part of the authoring contract** (`lib/question-schema.ts`). Whether a
+question is good and whether it is given away are different decisions, and putting the flag in
+`toQuestionColumns` would let every admin edit and every CSV re-import reset it. It is written
+by the seed and by one dedicated action, `setQuestionFreeTier` — which is also the only
+control that works on a simulation, whose catalogue row the question form deliberately refuses
+to edit.
 
 ---
 
@@ -491,7 +545,8 @@ components/
 └── marketing/          Landing page sections
 
 lib/
-├── config/            Central typed config: env, flags, evaluation weights, gamification curve, practice defaults
+├── config/            Central typed config: env, access tiers, evaluation weights, gamification curve, practice defaults
+├── entitlements.ts     What a tier may open — pure, shared by the server gates and the UI
 ├── llm/                Streaming interviewer adapters (mock / gemini / ollama / anthropic / openai),
 │                       prompt builder, NDJSON protocol (stream.ts), spend guards (budget.ts)
 ├── sim/                Simulation engine — all pure, no DB: types, scenarios/, registry,
