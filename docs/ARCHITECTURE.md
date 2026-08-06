@@ -342,13 +342,13 @@ future paid plan from becoming a scavenger hunt through every call site.
 flowchart TB
     U["User row<br/>(or no session at all)"] --> T["tierFor()<br/>lib/entitlements.ts"]
     T -->|"isGuest, or no session"| G["guest"]
-    T -->|"plan = free"| F["free"]
-    T -->|"plan = pro"| P["pro"]
+    T -->|"proUntil null or past"| F["free"]
+    T -->|"proUntil > now"| P["pro"]
 
     G & F & P --> TA["tierAccess<br/>lib/config/access.ts"]
     TA --> C{"content"}
-    C -->|"free-tier-only"| Q1["only Question.freeTier"]
-    C -->|"all"| Q2["the whole library"]
+    C -->|"free-tier-only<br/>(guest AND free)"| Q1["only Question.freeTier"]
+    C -->|"all (pro)"| Q2["the whole library"]
 
     Q1 & Q2 --> CO["canOpen(tier, question)"]
 
@@ -364,12 +364,20 @@ and the two drift: either the app offers what the server refuses, or it hides wh
 would have allowed. The card is decoration — a forged Server Action call with a locked
 question id is bounced by `startAttempt` exactly like a click would have been.
 
-**Where the freemium switch is.** `tierAccess` is the only place that says what a tier
-reaches. Turning `free` into a real free plan is `content: "free-tier-only"` plus an `upgrade`
-pointing at checkout; no gate, card or banner changes. `recommendQuestions` takes the tier as
-a *required* argument for the same reason — recommending something the user cannot open is a
-worse failure than not recommending, so the safe case must not be the one you have to
-remember to ask for.
+**The freemium switch was one line.** `tierAccess` is the only place that says what a tier
+reaches, so turning the paywall on meant setting `free` to `content: "free-tier-only"` and
+giving it an `upgrade`. No gate, card, banner or recommendation changed — they were all
+written against the table. `recommendQuestions` takes the tier as a *required* argument for
+the same reason: recommending something the user cannot open is a worse failure than not
+recommending, so the safe case must not be the one you have to remember to ask for.
+
+**Pro is a deadline, not a subscription.** `User.proUntil` is one nullable timestamp and
+`tierFor()` compares it against `now`, which is why there is no cron, no renewal job and no
+stored tier label to fall out of sync — an expired pass is simply not greater than now.
+`nextProUntil` (`lib/billing.ts`) extends rather than resets, so a second grant adds to what
+is left instead of confiscating it. Nothing is purchasable yet: `grantPro` in
+`app/actions/admin.ts` is the sole entry point, and it is the seam a payment webhook will call
+once one exists.
 
 **Both gates resume before they refuse.** An attempt or a run already under way stays openable
 even if its question is un-flagged underneath it. Stranding a half-built tree, or a war room

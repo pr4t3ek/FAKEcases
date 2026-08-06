@@ -8,6 +8,7 @@ import type { InterviewLevel } from "@/lib/types";
 import { AppHeader } from "@/components/app/app-header";
 import { ProfileForm } from "@/components/profile/profile-form";
 import { PasswordForm } from "@/components/profile/password-form";
+import { PlanCard } from "@/components/profile/plan-card";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,7 @@ export default async function ProfilePage() {
         </div>
 
         <div className="max-w-3xl space-y-6">
+          <PlanCard proUntil={user.proUntil} />
           <ProfileForm
             email={user.email}
             avatarUrl={user.image}

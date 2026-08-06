@@ -152,8 +152,10 @@ Framer Motion · Prisma (SQLite dev → Postgres/Supabase prod) · Recharts · V
 | Change rank percentile bands (Silver→Diamond) | `lib/config/gamification.ts` (`rankBands`) |
 | Adjust evaluation rubric weights / readiness bands | `lib/config/evaluation.ts` |
 | Change hint count / panel defaults | `lib/config/practice.ts` |
-| Change what a guest can reach (and go freemium) | `lib/config/access.ts` (`tierAccess`) |
-| Give a specific question away to guests | Admin panel → **Questions** → the lock button |
+| Change what each tier reaches | `lib/config/access.ts` (`tierAccess`) |
+| Give a specific question away on the free tier | Admin panel → **Questions** → the lock button |
+| Grant or revoke a Pro pass | Admin panel → **Users** → +30 / +90 / Revoke |
+| Change the pass lengths | `lib/billing.ts` (`PRO_PASS_DAYS`) |
 | Add a college to the picker | `lib/config/colleges.ts` |
 | Change avatar size / quality / limits | `lib/config/profile.ts` (`avatarLimits`) |
 | Store avatars somewhere other than the DB | `AVATAR_STORE` + a file in `lib/storage/` |
@@ -283,20 +285,37 @@ A **simulation** is not answered at all — it is played. See below.
 
 ---
 
-## What a guest can reach
-
-A visitor with no account gets **one of each format** — one guesstimate, one case and one
-simulation — and the rest of the library is locked behind sign-up. Today those three are chai
-in Bangalore, the food-delivery margin case, and the Kadak Coffee war room: the most inviting
-of each kind rather than the first of each kind.
+## Tiers: what each one reaches
 
 Access is a property of a **tier**, not of the user row:
 
 | Tier | Who | Reaches |
 |---|---|---|
 | `guest` | no account (or a guest session) | questions flagged `freeTier` |
-| `free` | a registered account | everything |
-| `pro` | `plan = "pro"` | everything |
+| `free` | a registered account | the same questions, plus saved progress, streaks, rank and a profile |
+| `pro` | a live pass (`User.proUntil > now`) | the whole library |
+
+The free set is **one of each format** — one guesstimate, one case and one simulation. Today
+those are chai in Bangalore, the food-delivery margin case, and the Kadak Coffee war room: the
+most inviting of each kind rather than the first of each kind. Widening it is the admin
+panel's per-question toggle, not a code change.
+
+### Pro is a deadline, not a subscription
+
+`User.proUntil` is a single nullable timestamp, and `tierFor()` compares it against *now*.
+That one decision removes most of what a paid tier usually drags in: **there is no renewal job,
+no cron, no "cancel" flow, and no stored label that can drift out of date.** A pass that ran
+out an hour ago is simply not greater than now, so the account is back on the free tier —
+verified by backdating a pass and watching the library re-lock with nothing having run.
+
+Granting a pass **extends** rather than resets (`nextProUntil` in `lib/billing.ts`), because
+resetting to `now + 30` would confiscate whatever was left on exactly the action the buyer is
+watching.
+
+**Nothing is purchasable yet** — no payment gateway is wired up. Passes are granted from
+**Admin → Users**, which is where a checkout webhook will eventually call the same
+`grantPro` action. That is deliberate sequencing: the entitlement half is complete and
+testable before any money moves, and the app stays zero-key.
 
 `lib/entitlements.ts` is the whole rule and is pure, so **the library card and the server gate
 call the same function** — a card can never offer something `startAttempt` then refuses. The
@@ -304,11 +323,9 @@ card is a courtesy; `startAttempt` and `startSimulation` are the control, and a 
 Server Action call with a locked question id gets bounced to `/library?wall=locked` like any
 other.
 
-**Making it freemium is a change to `tierAccess` in `lib/config/access.ts`, not to any gate.**
-Set `free` to `content: "free-tier-only"`, point its `upgrade` at checkout, and the gates,
-the locked cards, the library banner and the dashboard recommendations all follow. That is
-the reason the tier table exists rather than an `isGuest` check at each call site: the day a
-paid plan lands, the checks you forget to update are the ones that give the product away.
+The tier table is why turning the paywall on was a one-line change to
+`lib/config/access.ts` rather than an audit of every gate. Adding a payment gateway is the
+same shape: verify a signature, call `grantPro`, and nothing else moves.
 
 Which questions are free is authored, not derived — `Question.freeTier`, seeded in
 `prisma/seed-data.ts` and toggled per question from **Admin → Questions**. It is deliberately
@@ -320,8 +337,13 @@ question form refuses to edit.
 
 Guests may **replay** their three as often as they like. The old caps — three submitted
 attempts, one simulation run — are gone: two walls with two different messages meant a guest
-could be turned away from a question they had never opened, and the reason to sign up is the
-other thirty items rather than a play counter.
+could be turned away from a question they had never opened, and the reason to sign up is
+saving your work rather than a play counter.
+
+Seeded so both sides are reachable on a fresh clone: `demo@estimateiq.app` carries a 30-day
+pass and sees everything; `admin@estimateiq.app` has none and hits the paywall. A re-seed
+re-asserts both, so a pass granted while testing doesn't leave you without an account that can
+see the locked state.
 
 ---
 
@@ -460,9 +482,13 @@ deliberately unfinished, and it's better to say so than to let you find out:
   control.
 - **Nothing prunes an orphaned avatar** if an external store is ever configured. The built-in
   database store has no such problem: the bytes are on `Profile`, which cascades with the user.
-- **The Pro tier on the landing page is not purchasable.** No Stripe integration exists; the
-  pricing card is illustrative. `plan = "pro"` is a real column and a real access tier, but
-  nothing sets it — a registered free account already reaches everything.
+- **Pro is real but not purchasable.** The tier, the gating and the pass all work; no payment
+  gateway is wired up, so the only way to grant one is Admin → Users. The landing page's Pro
+  card stays disabled and says so. A gateway is a `PaymentProvider` and a webhook that calls
+  the existing `grantPro`.
+- **Dropping `User.plan` needs a migration in production.** It was replaced by `proUntil` and
+  removed with `prisma db push --accept-data-loss`, which is fine on a local SQLite file
+  where every row held the default. A deployed Postgres wants `prisma migrate` instead.
 - **Sessions don't expire server-side.** The signed cookie carries a timestamp that `verify()`
   ignores, so only the cookie's own `maxAge` bounds a session.
 - **Guest rows accumulate.** Every visitor who starts practising gets a `User` row and nothing
@@ -495,6 +521,12 @@ year stays absent instead of becoming the year zero (the `z.coerce.number()` tra
 `lib/question-schema.ts` documents), and that "Other" is stored as a null id plus a written-in
 name. `tests/colleges.test.ts` pins the id contract and `prefillLevel`'s refusal to override a
 URL the visitor chose.
+
+`tests/billing.test.ts` pins the pass arithmetic — that granting again **extends** a live pass
+rather than resetting it, that a lapsed one restarts from now, and that days remaining round up
+so eighteen hours left doesn't read as zero. `tests/entitlements.test.ts` covers the expiry
+matrix against an injected `now`, including the case that stands in for a cron job: a pass one
+second past its deadline is already free.
 
 `tests/entitlements.test.ts` covers the access tiers: that no session reads as a guest rather
 than as an error, that a guest row carrying a paid plan is still a guest, that a tier which

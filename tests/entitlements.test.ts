@@ -15,36 +15,61 @@ import { answerModeFor, isSimulation } from "@/lib/types";
 const free = { freeTier: true };
 const paid = { freeTier: false };
 
+const NOW = new Date("2026-08-06T12:00:00.000Z");
+const DAY = 24 * 60 * 60 * 1000;
+const inDays = (n: number) => new Date(NOW.getTime() + n * DAY);
+
 describe("tierFor", () => {
   it("places a guest row in the guest tier", () => {
-    expect(tierFor({ isGuest: true, plan: "free" })).toBe("guest");
+    expect(tierFor({ isGuest: true, proUntil: null }, NOW)).toBe("guest");
   });
 
-  it("places a registered free account in the free tier", () => {
-    expect(tierFor({ isGuest: false, plan: "free" })).toBe("free");
+  it("places a registered account with no pass in the free tier", () => {
+    expect(tierFor({ isGuest: false, proUntil: null }, NOW)).toBe("free");
   });
 
-  it("places a pro account in the pro tier", () => {
-    expect(tierFor({ isGuest: false, plan: "pro" })).toBe("pro");
+  it("places an account with a live pass in the pro tier", () => {
+    expect(tierFor({ isGuest: false, proUntil: inDays(10) }, NOW)).toBe("pro");
+  });
+
+  /**
+   * The behaviour that replaces a scheduled job. A pass that ran out is simply
+   * not greater than now, so the account is back on the free tier without
+   * anything having run and without a stored label to fall out of date.
+   */
+  it("drops an expired pass back to free with no job having run", () => {
+    expect(tierFor({ isGuest: false, proUntil: inDays(-1) }, NOW)).toBe("free");
+  });
+
+  it("treats a pass expiring exactly now as over", () => {
+    expect(tierFor({ isGuest: false, proUntil: NOW }, NOW)).toBe("free");
+  });
+
+  it("reads the tier as of the moment it is asked", () => {
+    // The same row is pro before its expiry and free after it, with nothing
+    // written in between.
+    const user = { isGuest: false, proUntil: inDays(5) };
+    expect(tierFor(user, inDays(4))).toBe("pro");
+    expect(tierFor(user, inDays(6))).toBe("free");
   });
 
   it("treats no session as a guest, not as an error", () => {
     // A first-time visitor has no User row until they act. Anything else here
     // makes the library render one set of locks before the first click and a
     // different set after it.
-    expect(tierFor(null)).toBe("guest");
-    expect(tierFor(undefined)).toBe("guest");
+    expect(tierFor(null, NOW)).toBe("guest");
+    expect(tierFor(undefined, NOW)).toBe("guest");
   });
 
-  it("ignores a plan value it doesn't recognise rather than upgrading on it", () => {
-    expect(tierFor({ isGuest: false, plan: "enterprise" })).toBe("free");
-    expect(tierFor({ isGuest: false, plan: "" })).toBe("free");
+  it("keeps a guest a guest even if the row somehow carries a live pass", () => {
+    // A guest row is absorbed or deleted at signup, so this should never exist
+    // — but it must not be a way past the gate if it ever does.
+    expect(tierFor({ isGuest: true, proUntil: inDays(30) }, NOW)).toBe("guest");
   });
 
-  it("keeps a guest a guest even if the row somehow carries a paid plan", () => {
-    // Nothing writes this today, but a guest row with plan: "pro" must not be
-    // a way past the gate.
-    expect(tierFor({ isGuest: true, plan: "pro" })).toBe("guest");
+  it("defaults to the real clock when no time is given", () => {
+    expect(tierFor({ isGuest: false, proUntil: new Date(Date.now() + DAY) })).toBe("pro");
+    expect(tierFor({ isGuest: false, proUntil: new Date(Date.now() - DAY) })).toBe("free");
   });
 });
 
@@ -54,8 +79,13 @@ describe("canOpen", () => {
     expect(canOpen("guest", paid)).toBe(false);
   });
 
-  it("gives a registered account everything today", () => {
-    expect(canOpen("free", paid)).toBe(true);
+  it("holds the paid set back from a free account", () => {
+    expect(canOpen("free", free)).toBe(true);
+    expect(canOpen("free", paid)).toBe(false);
+  });
+
+  it("gives a Pro account everything", () => {
+    expect(canOpen("pro", free)).toBe(true);
     expect(canOpen("pro", paid)).toBe(true);
   });
 
@@ -73,14 +103,21 @@ describe("canOpen", () => {
 });
 
 describe("upgradeFor", () => {
-  it("offers a guest a way through", () => {
+  it("sends a guest to sign up", () => {
     expect(upgradeFor("guest")?.href).toBe("/signup");
   });
 
-  it("offers nothing to a tier that is never blocked", () => {
+  it("sends a free account somewhere different from a guest", () => {
+    // Both tiers are blocked now, but not by the same thing, so they must not
+    // be told the same thing: a guest needs an account, a free account needs a
+    // pass.
+    expect(upgradeFor("free")).not.toBeNull();
+    expect(upgradeFor("free")?.href).not.toBe(upgradeFor("guest")?.href);
+  });
+
+  it("offers nothing to Pro, the one tier that is never blocked", () => {
     // Otherwise the UI would render an upgrade CTA on a card that is already
-    // open, which is how a free tier starts looking like a paywall.
-    expect(upgradeFor("free")).toBeNull();
+    // open, to someone who has already paid.
     expect(upgradeFor("pro")).toBeNull();
   });
 

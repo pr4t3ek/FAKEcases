@@ -211,6 +211,42 @@ Deliberately not built: leaderboards. The college field, its index and its stabl
 ship here, and **no copy anywhere promises the feature they're for** — the nudge sells what is
 true the day it ships, which is that goals change what the library shows first.
 
+### 12. Freemium: a paid tier that works, without a payment gateway
+
+The tier table added in item 10 was built for this, and turning the paywall on was the one line
+it was designed to be — `tierAccess.free` from `content: "all"` to `"free-tier-only"`. Every
+gate, locked card, wall banner, library count and dashboard recommendation followed on its own,
+because they were all written against that table rather than against an `isGuest` check.
+
+What was actually missing was that **nobody could become Pro**. `User.plan` existed, was read
+in exactly one place and written nowhere. It is replaced by `User.proUntil`, a single nullable
+timestamp, and removed rather than kept alongside — two sources of truth for one question is
+the trap the tier table exists to avoid.
+
+**A pass is a deadline, not a subscription**, and that choice pays for itself. `tierFor()`
+compares `proUntil` against now, so there is no renewal job, no cron, no cancel flow and no
+stored label that can drift. An expired pass is not greater than now, and the account is free
+again — proved by backdating one and watching the library re-lock, the profile flip and the
+server gate start refusing, with nothing having run. `nextProUntil` extends rather than resets,
+because granting a second pass that silently ate the remaining days of the first would be the
+kind of bug nobody reports.
+
+Passes are granted from **Admin → Users** (+30 / +90 / Revoke). Not a stopgap: support, comps
+and refunds need it permanently, and it keeps the paid tier usable with no gateway configured —
+the same posture as the mock interviewer with no LLM key. **It is also the seam a checkout
+webhook will call**, which is why the entitlement half is complete and testable before any
+money moves.
+
+Two things the browser pass caught that the unit tests could not. The library's count line said
+"32 unlocked by a free account" to someone who *had* a free account — the phrase now comes from
+the tier table (`UpgradePath.unlocks`) so guest and free are told different, true things. And
+the seed's `update: {}` on the demo user meant a re-seed never applied its pass, so the account
+that exists to demonstrate Pro wasn't Pro; the pass is now re-asserted on update and the admin
+account's is cleared, keeping both sides of the paywall reachable after a round of testing.
+
+Deliberately not built: Razorpay, a pricing page, and anything purchasable. The landing page's
+Pro card is untouched — still `planned: true`, still disabled, still saying it isn't available.
+
 ---
 
 Items 1–9 were verified with `pnpm typecheck`, `pnpm lint`, `pnpm test` (257 tests) and
@@ -228,3 +264,10 @@ removal 404ing the old URL, a password change followed by signing back in with t
 a guest bounced from both `/profile` and `/welcome` to `/signup`. The `/dashboard`, `/library`
 and `/profile` payloads were checked to contain no base64 image data, which is the property the
 URL indirection exists for.
+
+Item 12 the same, at 803 tests, driven across all three tiers from a clean seed: a guest sees
+3 of 35 with "32 more with a free account", a newly registered account sees the same 3 with
+"32 more with Pro", the seeded demo account sees all 35, an admin grant unlocks a third account
+live, a second grant reads 60 days rather than 30, and a pass backdated by an hour re-locks the
+library, flips the profile to Free and gets a forged `startAttempt` refused with
+`303 → /library?wall=locked` — with no scheduled job anywhere in the system.
