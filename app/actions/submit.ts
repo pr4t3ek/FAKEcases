@@ -10,6 +10,7 @@ import {
 } from "@/lib/evaluation";
 import { updateProgress, recomputeRank } from "@/lib/progress";
 import { applyAttemptRewards } from "@/lib/gamification";
+import { recordFirstResult } from "@/lib/leaderboard";
 import { parseJson } from "@/lib/json";
 import { answerModeFor, type TreeMode } from "@/lib/types";
 
@@ -118,6 +119,18 @@ export async function submitAttempt(attemptId: string): Promise<SubmitResult> {
   await db.attempt.update({
     where: { id: attemptId },
     data: { status: "submitted", submittedAt: new Date() },
+  });
+
+  // The ranked result, if this is their first attempt at this question. A
+  // replay returns false and changes nothing — see lib/leaderboard.ts for why
+  // a warm retry must not move a standing.
+  await recordFirstResult({
+    userId: user.id,
+    questionId: attempt.questionId,
+    kind: "attempt",
+    score: result.overall,
+    effort: attempt.timeSpentSec,
+    sourceId: attempt.id,
   });
 
   // Progress rollup + rewards + rank (guests get rewards too; harmless).

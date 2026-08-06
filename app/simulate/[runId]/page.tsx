@@ -15,6 +15,7 @@ import {
 } from "@/lib/sim/debrief";
 import { loadRun, outcomeFromResult, ownedInOrder, toRunState } from "@/lib/simulations";
 import { parseJsonArray } from "@/lib/json";
+import { questionLeaderboard, questionStanding } from "@/lib/leaderboard";
 import type { FeedbackItem, SimPhase } from "@/lib/types";
 import { SimulationScreen } from "@/components/simulation/simulation-screen";
 import { SimulationReport } from "@/components/simulation/simulation-report";
@@ -48,6 +49,13 @@ export default async function SimulatePage({
 
     const rows = outcomeRows(scenario, outcome);
     const nsPath = outcome.paths[scenario.northStar] ?? [];
+
+    // The board is keyed on the catalogue question, not the scenario slug, so a
+    // simulation ranks alongside every other question in the same table.
+    const [simBoard, simStanding] = await Promise.all([
+      questionLeaderboard(run.questionId),
+      questionStanding(user.id, run.questionId, run.id),
+    ]);
 
     const data: SimulationReportData = {
       runId: run.id,
@@ -103,6 +111,15 @@ export default async function SimulatePage({
       // Only whether a real provider is configured — the coach answers either
       // way, this just badges it honestly.
       coachAvailable: isRealProvider(getAdapter().name),
+      leaderboard: simBoard.map((r) => ({
+        userId: r.userId,
+        rank: r.rank,
+        name: r.name,
+        college: r.college,
+        value: r.score,
+        detail: String(r.effort),
+      })),
+      standing: simStanding,
     };
 
     return <SimulationReport data={data} user={user} />;

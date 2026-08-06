@@ -25,6 +25,7 @@ import { inScale, moneyScaleFor } from "./money";
 import { MetricMap } from "./metric-map";
 import { PrimerRecap } from "./concept-primer";
 import { SimCoachPanel } from "./sim-coach-panel";
+import { QuestionBoard } from "@/components/leaderboard/question-board";
 import type { SimulationReportData } from "./types";
 import type { SimUnit } from "@/lib/sim/types";
 
@@ -343,6 +344,15 @@ export function SimulationReport({
             </div>
           )}
         </Card>
+
+        {/* ── How this run stands against everyone else's first go ────────── */}
+        <QuestionBoard
+          rows={data.leaderboard}
+          kind="simulation"
+          userId={user?.id}
+          standing={data.standing}
+          thisScore={data.overall}
+        />
 
         <SimCoachPanel runId={data.runId} available={data.coachAvailable} />
 

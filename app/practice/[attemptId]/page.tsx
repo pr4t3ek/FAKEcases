@@ -9,6 +9,7 @@ import { answerModeFor, type NodeOrigin, type NodeStatus, type TreeMode } from "
 import { diagnosisTrail } from "@/lib/diagnosis";
 import { labelMatches, solutionWasRevealed } from "@/lib/evaluation";
 import { parseJson } from "@/lib/json";
+import { questionLeaderboard, questionStanding } from "@/lib/leaderboard";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,13 @@ export default async function PracticePage({
   // Submitted → show the evaluation report.
   if (attempt.status === "submitted" && attempt.evaluation) {
     const answerMode = answerModeFor(attempt.question.type);
+    // Loaded here rather than inside the report: the report is a client
+    // component, and the board is server data that must not become a fetch
+    // waterfall after paint.
+    const [board, standing] = await Promise.all([
+      questionLeaderboard(attempt.questionId),
+      questionStanding(user.id, attempt.questionId, attempt.id),
+    ]);
     const rootCause = parseJson<{ path: string[] }>(attempt.question.rootCause);
     // The trail section only makes sense when there was a declared answer to
     // narrow toward; a brainstorm case has nothing to compare against.
@@ -83,6 +91,16 @@ export default async function PracticePage({
         // always agrees with what the scorer charged for.
         solutionRevealed={solutionWasRevealed(attempt.messages)}
         evaluation={attempt.evaluation}
+        userId={user.id}
+        leaderboard={board.map((r) => ({
+          userId: r.userId,
+          rank: r.rank,
+          name: r.name,
+          college: r.college,
+          value: r.score,
+          detail: String(r.effort),
+        }))}
+        standing={standing}
       />
     );
   }

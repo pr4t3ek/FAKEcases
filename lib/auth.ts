@@ -5,6 +5,7 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { db } from "@/lib/db";
 import { env } from "@/lib/config";
 import { hashPassword, verifyPassword } from "@/lib/password";
+import { mergeGuestEntries } from "@/lib/leaderboard";
 import type { User } from "@prisma/client";
 
 const COOKIE_NAME = "eq_session";
@@ -134,9 +135,13 @@ export async function login(email: string, password: string): Promise<AuthOutcom
   }
 
   // If a guest session with attempts exists, migrate them to this account.
+  // Ranked rows move too, so a question first solved in a guest session stays
+  // that account's first attempt — otherwise signing in would quietly re-open a
+  // question for ranking that the same person had already played.
   const current = await getSessionUser();
   if (current && current.isGuest && current.id !== user.id) {
     await db.attempt.updateMany({ where: { userId: current.id }, data: { userId: user.id } });
+    await mergeGuestEntries(current.id, user.id);
     await db.user.delete({ where: { id: current.id } }).catch(() => {});
   }
 

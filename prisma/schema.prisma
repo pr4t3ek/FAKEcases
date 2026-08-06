@@ -77,6 +77,7 @@ model User {
   profile        Profile?
   simRuns        SimRun[]
   simOverrides   SimScenarioOverride[]
+  ranked         LeaderboardEntry[]
 
   @@index([collegeId])
 }
@@ -196,10 +197,68 @@ model Question {
   bookmarks      Bookmark[]
   feedback       QuestionFeedback[]
   simRuns        SimRun[]
+  ranked         LeaderboardEntry[]
 
   @@index([categoryId])
   @@index([difficulty])
   @@index([interviewLevel])
+}
+
+/// A user's FIRST result on a question — the only row a leaderboard ranks.
+///
+/// **Insert-only, and the unique constraint is the entire first-attempt rule.**
+/// A replay finds the row already there and leaves it untouched, so "only the
+/// first attempt counts" is enforced by the database rather than by a check
+/// every future call site has to remember. Same posture as `SimPurchase`'s
+/// constraint: the integrity rule worth spending an index on is the one a retry
+/// would otherwise corrupt.
+///
+/// The score is DENORMALISED from `Evaluation` / `SimResult` rather than joined
+/// at read time, for two reasons. A leaderboard must not fan out across every
+/// attempt a user ever made to find their earliest one. And pinning the number
+/// here means a later re-scoring — a rubric change, a retuned scenario — cannot
+/// silently rewrite a standing that people have already seen, which is the same
+/// argument that pins `SimResult.outcomeJson`.
+///
+/// Guests get rows like anyone else; they are filtered at READ time, exactly as
+/// `recomputeRank` filters them out of the percentile population. Writing them
+/// is what lets a guest's history survive `claim-on-signup` intact.
+model LeaderboardEntry {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  /// "attempt" | "simulation" — which exercise produced the score, so a row can
+  /// be badged and its effort unit formatted without a join.
+  kind       String
+
+  /// 0–100. `Evaluation.overall` or `SimResult.overall`.
+  score      Int
+
+  /// The tiebreak, and **lower is always better**: seconds taken on an attempt,
+  /// analyst-days spent on a simulation. One column rather than one per kind,
+  /// because the two are never compared against each other — a per-question
+  /// board holds a single kind by construction.
+  effort     Int      @default(0)
+
+  /// The `Attempt.id` or `SimRun.id` this score came from.
+  ///
+  /// Not a foreign key — it points at one of two tables — and not used for
+  /// joining. It exists so a report screen can answer "is the run I am looking
+  /// at the ranked one?" by comparing ids, instead of re-deriving which attempt
+  /// was earliest and risking a different answer than the write path gave.
+  sourceId   String?
+
+  /// When the ranked result was achieved. Drives the weekly board's window, and
+  /// is the final tiebreak so an earlier identical result ranks ahead.
+  achievedAt DateTime @default(now())
+
+  /// The rule itself. Everything else here is presentation.
+  @@unique([userId, questionId])
+  @@index([questionId, score])
+  @@index([achievedAt])
 }
 
 model Attempt {

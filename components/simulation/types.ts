@@ -4,6 +4,7 @@ import type { MetricMapNode } from "@/lib/sim/metric-map";
 import type { OutcomeRow, AllocationComparisonRow, TrailStep } from "@/lib/sim/debrief";
 import type { FeedbackItem } from "@/lib/types";
 import type { SimRubricKey } from "@/lib/config/simulation";
+import type { BoardRow } from "@/components/leaderboard/leaderboard-table";
 
 /**
  * What the run page hands the client.
@@ -76,4 +77,14 @@ export interface SimulationReportData {
   strongAnswer: string;
   /** Whether an LLM debrief coach is reachable at all. */
   coachAvailable: boolean;
+  /** Top first-run scores on this scenario. Empty until somebody ranks. */
+  leaderboard: BoardRow[];
+  /** The viewer's ranked run, or null. False `isThisAttempt` means a replay. */
+  standing: {
+    rank: number;
+    total: number;
+    score: number;
+    effort: number;
+    isThisAttempt: boolean;
+  } | null;
 }
