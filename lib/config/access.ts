@@ -24,6 +24,13 @@ export interface UpgradePath {
   href: string;
   /** One line explaining what being blocked means, shown on the wall banner. */
   reason: string;
+  /**
+   * How the library's count line names the way through — "…and 32 more with
+   * Pro". It lives here rather than in the page because the page would
+   * otherwise have to know which tier it was rendering for, and would tell a
+   * signed-in free account that the rest is "unlocked by a free account".
+   */
+  unlocks: string;
 }
 
 export interface TierAccess {
@@ -42,14 +49,37 @@ export const tierAccess: Record<AccessTier, TierAccess> = {
       reason:
         "You're browsing as a guest. One guesstimate, one case and one simulation are open — " +
         "create a free account to unlock the rest and save your progress.",
+      unlocks: "with a free account",
     },
   },
   /**
-   * A registered account reaches everything. This is the line that changes when
-   * the product goes freemium; until it does, saying so plainly here is better
-   * than a `pro` tier that looks like it already means something.
+   * A registered account opens the free set and keeps its progress; Pro opens
+   * the rest.
+   *
+   * This is the line the whole tier table existed for. Nothing else changed to
+   * turn the paywall on — the gates, the locked cards, the library banner and
+   * the dashboard recommendations were all written against this table, so they
+   * followed on their own.
+   *
+   * Note what a free account still buys over a guest, since it is not content
+   * today: saved attempts, a streak, a percentile rank and a profile. Widening
+   * the free content set is the admin panel's per-question toggle, not a code
+   * change.
    */
-  free: { content: "all", upgrade: null },
+  free: {
+    content: "free-tier-only",
+    upgrade: {
+      cta: "Unlock everything",
+      // The profile, not a pricing page — there is nothing to buy yet, and
+      // sending someone to a checkout that doesn't exist would be worse than
+      // sending them to the page that tells them where they stand.
+      href: "/profile",
+      reason:
+        "Your account opens the free set. Pro opens the whole library — all 24 guesstimates, " +
+        "both cases and all 9 war rooms.",
+      unlocks: "with Pro",
+    },
+  },
   pro: { content: "all", upgrade: null },
 };
 

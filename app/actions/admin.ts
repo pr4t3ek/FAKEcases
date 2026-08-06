@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+import { PRO_PASS_DAYS, nextProUntil } from "@/lib/billing";
 import { FEEDBACK_STATUSES } from "@/lib/types";
 import {
   questionCoreSchema,
@@ -97,6 +98,52 @@ export async function setQuestionFreeTier(id: string, freeTier: boolean): Promis
   await db.question.update({ where: { id }, data: { freeTier } });
   revalidatePath("/admin");
   revalidatePath("/library");
+  return { ok: true };
+}
+
+/**
+ * Give someone a Pro pass, or take it back.
+ *
+ * **This is the seam a payment gateway will call.** When checkout lands, the
+ * webhook's job is to verify a signature and then do exactly this — which is
+ * why the entitlement half of freemium is complete and testable before any
+ * money moves, and why an admin grant is not a stopgap. Support, comps and
+ * refunds need it permanently, and it is what keeps the app usable with no
+ * gateway configured, the same way the mock interviewer keeps it usable with no
+ * LLM key.
+ *
+ * Extending rather than resetting is `nextProUntil`'s job — see the note there.
+ */
+export async function grantPro(userId: string, days: number): Promise<SaveResult> {
+  await assertAdmin();
+
+  if (!PRO_PASS_DAYS.includes(days as (typeof PRO_PASS_DAYS)[number])) {
+    return { ok: false, error: `A pass is ${PRO_PASS_DAYS.join(" or ")} days.` };
+  }
+
+  const user = await db.user.findUnique({ where: { id: userId }, select: { proUntil: true } });
+  if (!user) return { ok: false, error: "No such user." };
+
+  await db.user.update({
+    where: { id: userId },
+    data: { proUntil: nextProUntil(user.proUntil, days) },
+  });
+  revalidatePath("/admin");
+  // The tier decides what the library and the dashboard show, so both have to
+  // re-render for the person whose access just changed.
+  revalidatePath("/library");
+  revalidatePath("/dashboard");
+  revalidatePath("/profile");
+  return { ok: true };
+}
+
+export async function revokePro(userId: string): Promise<SaveResult> {
+  await assertAdmin();
+  await db.user.update({ where: { id: userId }, data: { proUntil: null } });
+  revalidatePath("/admin");
+  revalidatePath("/library");
+  revalidatePath("/dashboard");
+  revalidatePath("/profile");
   return { ok: true };
 }
 

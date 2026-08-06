@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   CalendarPlus,
   CheckCircle2,
@@ -9,10 +10,14 @@ import {
   UserRound,
   Users,
 } from "lucide-react";
+import { toast } from "sonner";
+import { grantPro, revokePro } from "@/app/actions/admin";
 import type { AdminUserRow, AdminUserStats } from "@/lib/admin-stats";
+import { PRO_PASS_DAYS, proDaysRemaining } from "@/lib/billing";
 import { USER_SEGMENT_LABELS, type UserSegment } from "@/lib/user-segment";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { RankDistributionChart, SignupsChart } from "./user-charts";
@@ -23,11 +28,97 @@ const segmentVariant: Record<UserSegment, "default" | "secondary" | "muted"> = {
   benchmark: "muted",
 };
 
-type SortKey = "name" | "level" | "xp" | "attempts" | "avgScore" | "streak" | "lastActive" | "joined";
+type SortKey =
+  | "name"
+  | "pro"
+  | "level"
+  | "xp"
+  | "attempts"
+  | "avgScore"
+  | "streak"
+  | "lastActive"
+  | "joined";
+
+/**
+ * Granting and revoking a Pro pass.
+ *
+ * The only way to become Pro today, and not a stopgap — support, comps and
+ * refunds need it permanently, and it is what keeps the paid tier usable with
+ * no payment gateway configured. When checkout lands, its webhook calls the
+ * same `grantPro` action this button does.
+ */
+function ProCell({ user }: { user: AdminUserRow }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+
+  // Recomputed on render rather than sent as a label: a pass that lapsed since
+  // the page loaded should read as lapsed.
+  const left = proDaysRemaining(user.proUntil ? new Date(user.proUntil) : null);
+
+  function run(action: () => Promise<{ ok: boolean; error?: string }>, done: string) {
+    startTransition(async () => {
+      const result = await action();
+      if (!result.ok) {
+        toast.error(result.error ?? "That didn't work.");
+        return;
+      }
+      toast.success(done);
+      router.refresh();
+    });
+  }
+
+  // A guest row is absorbed or deleted at signup, and `tierFor` returns "guest"
+  // whatever the column says — so granting one a pass would do nothing at all.
+  if (user.segment !== "registered") {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+
+  return (
+    <div className="flex items-center justify-end gap-1.5">
+      {left > 0 ? (
+        <Badge variant="success" className="whitespace-nowrap">
+          Pro · {left}d
+        </Badge>
+      ) : (
+        <span className="text-xs text-muted-foreground">Free</span>
+      )}
+      {PRO_PASS_DAYS.map((days) => (
+        <Button
+          key={days}
+          size="sm"
+          variant="ghost"
+          disabled={pending}
+          className="h-7 px-2 text-xs"
+          title={left > 0 ? `Add ${days} days to the pass` : `Grant a ${days}-day pass`}
+          onClick={() => run(() => grantPro(user.id, days), `${days} days added`)}
+        >
+          +{days}
+        </Button>
+      ))}
+      {left > 0 && (
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={pending}
+          className="h-7 px-2 text-xs text-destructive"
+          onClick={() => run(() => revokePro(user.id), "Pass revoked")}
+        >
+          Revoke
+        </Button>
+      )}
+    </div>
+  );
+}
 
 /** Sorted descending by default — for every column here, "most" is the interesting end. */
 const COLUMNS: { key: SortKey; label: string; numeric?: boolean; title?: string }[] = [
   { key: "name", label: "User" },
+  {
+    key: "pro",
+    label: "Pro",
+    numeric: true,
+    title: "Days left on a Pro pass. Granting again extends it rather than resetting it.",
+  },
   { key: "level", label: "Level", numeric: true },
   { key: "xp", label: "XP", numeric: true },
   { key: "attempts", label: "Attempts", numeric: true },
@@ -45,6 +136,8 @@ function sortValue(row: AdminUserRow, key: SortKey): string | number {
   switch (key) {
     case "name":
       return (row.name ?? row.email ?? "").toLowerCase();
+    case "pro":
+      return row.proUntil ? Date.parse(row.proUntil) : 0;
     case "level":
       return row.level;
     case "xp":
@@ -223,6 +316,9 @@ export function UserDashboard({ stats }: { stats: AdminUserStats }) {
                         {u.role === "admin" && <Badge variant="warning">Admin</Badge>}
                         {u.rank && <Badge variant="outline">{u.rank}</Badge>}
                       </div>
+                    </td>
+                    <td className="p-3">
+                      <ProCell user={u} />
                     </td>
                     <td className="p-3 text-right tabular-nums">{u.level}</td>
                     <td className="p-3 text-right tabular-nums">{u.xp}</td>

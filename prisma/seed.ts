@@ -5,6 +5,8 @@ import { categories, questions, achievements } from "./seed-data";
 
 const db = new PrismaClient();
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 async function main() {
   console.log("🌱 Seeding EstimateIQ (India-only content)…");
 
@@ -89,7 +91,11 @@ async function main() {
   // without anybody typing anything.
   const demo = await db.user.upsert({
     where: { email: "demo@estimateiq.app" },
-    update: {},
+    // `update` is otherwise empty on purpose — a re-seed must not wipe the XP
+    // and streak someone built up demoing. The pass is the exception: it is
+    // seeded state rather than earned state, and it expires, so a re-seed has
+    // to put it back or the demo account silently stops being Pro.
+    update: { proUntil: new Date(Date.now() + 30 * DAY_MS) },
     create: {
       email: "demo@estimateiq.app",
       name: "Demo User",
@@ -97,6 +103,10 @@ async function main() {
       onboardedAt: new Date(),
       profileCompletedAt: new Date(),
       collegeId: "iim-bangalore",
+      // A live Pro pass, so a fresh clone has one account that sees the whole
+      // library and one (admin, below) that hits the paywall — both states
+      // reachable without granting anything first.
+      proUntil: new Date(Date.now() + 30 * DAY_MS),
       xp: 340,
       level: 3,
       coins: 120,
@@ -120,12 +130,15 @@ async function main() {
     },
   });
 
-  // Admin user — deliberately left without a profile, so the empty state and
-  // the dashboard nudge are both reachable on a fresh install without having to
-  // delete the demo user's data first.
+  // Admin user — deliberately left without a profile and without a Pro pass, so
+  // the empty state, the dashboard nudge and the paywall are all reachable on a
+  // fresh install without having to delete the demo user's data first.
   await db.user.upsert({
     where: { email: "admin@estimateiq.app" },
-    update: { role: "admin" },
+    // Cleared on every re-seed, the mirror of demo's pass being re-asserted.
+    // The two accounts exist to show both sides of the paywall, and a pass
+    // granted while testing would otherwise leave no account that can see it.
+    update: { role: "admin", proUntil: null },
     create: {
       email: "admin@estimateiq.app",
       name: "Admin",

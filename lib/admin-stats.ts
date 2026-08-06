@@ -47,6 +47,13 @@ export interface AdminUserRow {
   /** Set on submit, not on login — so it means "last practised". */
   lastActiveDate: string | null;
   createdAt: string;
+  /**
+   * When their Pro pass runs out, or null. Sent as an ISO string rather than a
+   * tier label so the table can show days remaining and so a pass that lapsed
+   * between the query and the render reads correctly — the tier is a comparison
+   * against now, never a stored value.
+   */
+  proUntil: string | null;
 }
 
 export interface AdminUserStats {
@@ -136,6 +143,7 @@ export async function loadUserAdminStats(now: Date = new Date()): Promise<AdminU
     xp: u.xp,
     streak: u.streak,
     rank: u.rank,
+    proUntil: u.proUntil ? u.proUntil.toISOString() : null,
     attempts: u._count.attempts,
     // Progress only exists once something has been submitted, and an avgScore
     // of 0 there means "no graded attempts", not "scored zero".

@@ -17,20 +17,32 @@ import { tierAccess, type AccessTier, type UpgradePath } from "@/lib/config";
 /** The minimum needed to place someone in a tier. */
 export interface TierSubject {
   isGuest: boolean;
-  plan: string;
+  /** When Pro access runs out. Null, or a past instant, is a free account. */
+  proUntil: Date | null;
 }
 
 /**
- * No session is the guest tier, not an error.
+ * Which tier someone is in, right now.
  *
- * A first-time visitor has no `User` row at all — `getOrCreateGuest` mints one
- * at the moment they act. Treating `null` as anything else would make the
- * library render one set of locks before that first click and another set
- * after it.
+ * No session is the guest tier, not an error. A first-time visitor has no
+ * `User` row at all — `getOrCreateGuest` mints one at the moment they act.
+ * Treating `null` as anything else would make the library render one set of
+ * locks before that first click and another set after it.
+ *
+ * Pro is a *date comparison*, not a stored label, and that is the whole design:
+ * a pass that ran out yesterday is simply not greater than now, so the account
+ * is back on the free tier with no job having run and no column to update. The
+ * price is that every caller sees the tier as of the moment it asked, which is
+ * exactly what it should see.
+ *
+ * `now` is injectable so expiry can be tested without touching the clock.
  */
-export function tierFor(user: TierSubject | null | undefined): AccessTier {
+export function tierFor(
+  user: TierSubject | null | undefined,
+  now: Date = new Date(),
+): AccessTier {
   if (!user || user.isGuest) return "guest";
-  return user.plan === "pro" ? "pro" : "free";
+  return user.proUntil && user.proUntil > now ? "pro" : "free";
 }
 
 /** The minimum needed to gate a question. */

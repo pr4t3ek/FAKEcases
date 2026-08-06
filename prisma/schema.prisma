@@ -25,8 +25,15 @@ model User {
   /// payload, since `getSessionUser()` returns this whole row on every page.
   image          String?
   role           String    @default("user") // "user" | "admin"
-  plan           String    @default("free") // "free" | "pro"
   isGuest        Boolean   @default(false)
+
+  /// Pro access runs until this instant, or null for a free account.
+  ///
+  /// The single source of truth for the paid tier, which is why the old `plan`
+  /// column is gone rather than kept alongside it. `tierFor()` compares this
+  /// against now, so a lapsed pass downgrades itself: there is no cron, no
+  /// renewal job, and nothing that can fall out of sync with a stored label.
+  proUntil       DateTime?
 
   // gamification
   xp             Int       @default(0)

@@ -75,9 +75,15 @@ export default async function LibraryPage({
           <h1 className="text-2xl font-bold tracking-tight">Question Library</h1>
           <p className="mt-1 text-muted-foreground">
             {summary || "No questions"}, India-only.{" "}
-            {lockedCount > 0
-              ? `${openCount} open to you, ${lockedCount} unlocked by a free account.`
-              : "Pick any — everything is free to practise."}
+            {/* Tier-aware, because the same sentence has to work for a visitor
+                with no account and for a signed-in one who needs a pass. The
+                phrase comes from the tier table, so neither is told to get
+                something they already have. */}
+            {lockedCount > 0 && upgrade
+              ? `${openCount} open to you, ${lockedCount} more ${upgrade.unlocks}.`
+              : tier === "pro"
+                ? "Pick any — your Pro pass opens all of them."
+                : "Pick any — everything is open to you."}
           </p>
         </div>
 
@@ -88,7 +94,9 @@ export default async function LibraryPage({
           <div className="mb-6 flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 text-sm">
             <Sparkles className="h-5 w-5 shrink-0 text-primary" />
             <span>
-              That one needs an account. {upgrade.reason}{" "}
+              {/* Neutral lead — what's needed differs by tier, and the reason
+                  below already says which. */}
+              That one&apos;s locked. {upgrade.reason}{" "}
               <Link
                 href={upgrade.href}
                 className="font-medium text-primary underline underline-offset-4"
