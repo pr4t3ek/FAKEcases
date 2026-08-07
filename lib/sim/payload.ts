@@ -29,6 +29,26 @@ export const allocationLineSchema = z.object({
 
 export type AllocationLineInput = z.infer<typeof allocationLineSchema>;
 
+/** Message shared by both schemas, so the two cannot drift apart. */
+const NOT_A_LEAF = "Name the specific cause, not the area it sits in";
+
+/**
+ * The causes a run may actually name: leaves only.
+ *
+ * A root is an *area* — the heading a group of branches sits under, not a
+ * hypothesis. Naming one used to earn `ancestorCredit` (55%) for free, and while
+ * the Observe picker never offered roots, nothing here stopped a hand-rolled
+ * request from claiming it. The Commit picker did offer them, as "Somewhere in
+ * {area}", which read as a duplicate of the heading directly above it.
+ *
+ * Enforcing it here rather than in the UI is the point: this file is the trust
+ * boundary, and the picker is a courtesy.
+ */
+function leafCauseIds(scenario: SimScenario): Set<CauseId> {
+  const parents = new Set(scenario.causes.map((c) => c.parentId).filter(Boolean));
+  return new Set(scenario.causes.filter((c) => !parents.has(c.id)).map((c) => c.id));
+}
+
 /**
  * The suspects named at the end of Observe.
  *
@@ -37,23 +57,29 @@ export type AllocationLineInput = z.infer<typeof allocationLineSchema>;
  */
 export function hypothesisSchema(scenario: SimScenario) {
   const known = new Set(scenario.causes.map((c) => c.id));
+  const leaves = leafCauseIds(scenario);
   return z
     .array(z.string().min(1))
     .min(1, "Name at least one suspect")
     .max(simConfig.maxSuspects, `Name at most ${simConfig.maxSuspects}`)
     .refine((ids) => new Set(ids).size === ids.length, "Duplicate suspect")
-    .refine((ids) => ids.every((id) => known.has(id)), "Unknown cause");
+    // Before the leaf check, so an unknown id is reported as unknown rather
+    // than as an area — `firstIssue` only surfaces one.
+    .refine((ids) => ids.every((id) => known.has(id)), "Unknown cause")
+    .refine((ids) => ids.every((id) => leaves.has(id)), NOT_A_LEAF);
 }
 
 /** The causes named at Commit. Same shape, its own cap. */
 export function diagnosisSchema(scenario: SimScenario) {
   const known = new Set(scenario.causes.map((c) => c.id));
+  const leaves = leafCauseIds(scenario);
   return z
     .array(z.string().min(1))
     .min(1, "Name at least one cause")
     .max(simConfig.maxCausesNamed, `Name at most ${simConfig.maxCausesNamed}`)
     .refine((ids) => new Set(ids).size === ids.length, "Duplicate cause")
-    .refine((ids) => ids.every((id) => known.has(id)), "Unknown cause");
+    .refine((ids) => ids.every((id) => known.has(id)), "Unknown cause")
+    .refine((ids) => ids.every((id) => leaves.has(id)), NOT_A_LEAF);
 }
 
 export function allocationSchema(scenario: SimScenario) {

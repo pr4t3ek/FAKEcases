@@ -38,6 +38,26 @@ describe("parseHypothesis", () => {
   it("rejects a non-array payload", () => {
     expect(parseHypothesis(scenario, CAUSE_TRUE).ok).toBe(false);
   });
+
+  // "supply" is a root — an area, not a hypothesis. The Observe picker never
+  // offered roots, so this was only ever reachable by a hand-rolled request,
+  // and it earned `ancestorCredit` (55%) for naming nothing in particular.
+  it("rejects a root cause: an area is not a hypothesis", () => {
+    const result = parseHypothesis(scenario, ["supply"]);
+    expect(result.ok).toBe(false);
+    expect(result.ok ? null : result.error).toMatch(/specific cause/i);
+  });
+
+  it("rejects a root smuggled in beside a leaf", () => {
+    expect(parseHypothesis(scenario, [CAUSE_TRUE, "demand"]).ok).toBe(false);
+  });
+
+  it("still calls an unknown id unknown rather than an area", () => {
+    // Refine order matters: both checks fail for an invented id, and only the
+    // first issue is surfaced.
+    const result = parseHypothesis(scenario, ["invented"]);
+    expect(result.ok ? null : result.error).toMatch(/unknown/i);
+  });
 });
 
 describe("parseCommit", () => {
@@ -106,6 +126,15 @@ describe("parseCommit", () => {
 
   it("rejects more causes than the cap allows", () => {
     expect(commit({ diagnosis: [CAUSE_TRUE, CAUSE_WRONG_LEAF, "supply"] }).ok).toBe(false);
+  });
+
+  // The commit picker used to offer exactly this, as "Somewhere in supply".
+  // Naming an area is a hedge, not a diagnosis, and the schema is what makes
+  // removing the button more than a cosmetic change.
+  it("rejects a root diagnosis", () => {
+    const result = commit({ diagnosis: ["supply"] });
+    expect(result.ok).toBe(false);
+    expect(result.ok ? null : result.error).toMatch(/specific cause/i);
   });
 
   it("rejects a non-finite amount", () => {

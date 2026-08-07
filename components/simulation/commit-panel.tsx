@@ -120,8 +120,9 @@ export function CommitPanel({
           <Target className="h-4 w-4 text-primary" /> What was actually driving the drop?
         </h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Pick up to {simConfig.maxCausesNamed}. Naming the specific branch scores higher than
-          naming the area it sits in. Nothing here is final until you commit the quarter.
+          Pick up to {simConfig.maxCausesNamed}. Name the specific branch — the headings are
+          there to group them, not to be picked. Nothing here is final until you commit the
+          quarter.
         </p>
 
         <SelectionRow
@@ -138,8 +139,12 @@ export function CommitPanel({
             <Card key={root.id} className="p-3">
               <div className="text-xs font-medium text-muted-foreground">{root.label}</div>
               <div className="mt-2 space-y-1.5">
-                {[root, ...childrenOf(root.id)].map((cause: ClientCause) => {
-                  const isRoot = cause.id === root.id;
+                {/* Children only. The root is the card heading directly above,
+                    and injecting it here as well — relabelled "Somewhere in
+                    {area}" — read as a duplicate of that heading and gave people
+                    a hedge that is not a diagnosis. `diagnosisSchema` refuses a
+                    root now, so this is the picker agreeing with the rule. */}
+                {childrenOf(root.id).map((cause: ClientCause) => {
                   const selected = named.includes(cause.id);
                   return (
                     <button
@@ -148,13 +153,12 @@ export function CommitPanel({
                       onClick={() => toggleCause(cause.id)}
                       className={cn(
                         "w-full rounded-md border px-2.5 py-1.5 text-left text-sm transition-colors",
-                        isRoot && "text-muted-foreground",
                         selected
                           ? "border-primary bg-primary/10 font-medium text-foreground"
                           : "hover:bg-accent",
                       )}
                     >
-                      {isRoot ? `Somewhere in ${cause.label.toLowerCase()}` : cause.label}
+                      {cause.label}
                     </button>
                   );
                 })}
