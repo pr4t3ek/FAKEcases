@@ -39,6 +39,11 @@ const RULES: { icon: string; patterns: string[] }[] = [
   { icon: "Syringe", patterns: ["insulin", "diabetic", "diabetes", "vaccine"] },
   { icon: "BedDouble", patterns: ["hospital bed", "bed"] },
   { icon: "Stethoscope", patterns: ["hospital", "clinic", "doctor", "patient"] },
+  { icon: "Shirt", patterns: ["apparel", "garment"] },
+  // Before the banking rule below: "Deccan Ceramics: … the bank wants a word"
+  // is a question about a tile factory, and the bank is in the sentence rather
+  // than in the subject.
+  { icon: "Factory", patterns: ["ceramic", "tile", "kiln"] },
   { icon: "Store", patterns: ["kirana", "dmart", "supermarket", "grocery", "store"] },
   { icon: "GraduationCap", patterns: ["coaching", "jee", "neet", "teacher", "school", "college", "student"] },
   { icon: "MonitorPlay", patterns: ["edtech", "online course", "e-learning"] },

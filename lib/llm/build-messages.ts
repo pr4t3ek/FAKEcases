@@ -5,7 +5,7 @@ import {
   renderSimContextBlock,
   systemPromptForMode,
   hintSystemPrompt,
-  SIM_COACH_RULES,
+  simCoachRules,
 } from "./prompts";
 import type { InterviewerContext, ConvMessage } from "./types";
 
@@ -29,7 +29,7 @@ export function buildReplyMessages(ctx: InterviewerContext): {
   messages: ConvMessage[];
 } {
   if (ctx.simulation) {
-    const system = `${SIM_COACH_RULES}\n\n${renderSimContextBlock(ctx.simulation)}${dataBlock(ctx)}`;
+    const system = `${simCoachRules(ctx.simulation.mentor)}\n\n${renderSimContextBlock(ctx.simulation)}${dataBlock(ctx)}`;
     const messages = ctx.messages.filter((m) => m.role !== "system");
     if (messages.length === 0) {
       messages.push({ role: "user", content: "Walk me through what I got wrong." });

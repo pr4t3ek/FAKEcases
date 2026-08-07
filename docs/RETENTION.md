@@ -8,9 +8,9 @@ This is a strategy document, not a changelog. Nothing in it is built yet.
 
 ---
 
-## 1. The problem is not that there are 35 questions
+## 1. The problem is not that there are 38 questions
 
-The library holds 24 guesstimates, 2 cases and 9 simulations. A candidate practising through
+The library holds 24 guesstimates, 2 cases and 12 simulations. A candidate practising through
 placement season exhausts that in under a fortnight, and the instinct is to author more. More
 content is worth having, but it cannot be the answer, because the rate a motivated user
 consumes content will always beat the rate one person authors it.
@@ -99,7 +99,7 @@ worth having before launch rather than after.
 ## 3. Lever 1 — mastery instead of a checklist
 
 The highest-leverage change in this document, and it needs **no new content**. It converts
-35 items into months of practice by changing what "progress" means.
+38 items into months of practice by changing what "progress" means.
 
 ### Track mastery per question
 
@@ -221,7 +221,7 @@ model is deterministic. So a variant with a *different true cause* and re-tuned 
 genuinely new play from an already-authored file — the candidate cannot replay from memory,
 because what they'd be remembering is now wrong. `SimScenarioOverride` and `lib/sim/overlay.ts`
 already prove the pattern works: a driver graph can be swapped at runtime, re-validated, and
-fall back to the authored code when the merged scenario doesn't hold. Nine scenarios at ~3
+fall back to the authored code when the merged scenario doesn't hold. Twelve scenarios at ~3
 causes each is ~27 war rooms. Any variant must pass `checkBalance`, which brute-forces every
 affordable combination to prove the declared best allocation really is best — a variant that
 can't clear that bar is a broken scenario, not a new one.

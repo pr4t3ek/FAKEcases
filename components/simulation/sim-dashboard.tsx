@@ -15,7 +15,8 @@ import { motion } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { CHART_TICK, CHART_TOOLTIP_STYLE } from "@/components/dashboard/charts";
 import { assertNever, cn } from "@/lib/utils";
-import type { SimPanel, SimUnit, GoodDirection } from "@/lib/sim/types";
+import { inScale, moneyScaleFor } from "./money";
+import type { SimPanel, SimStatementLine, SimUnit, GoodDirection } from "@/lib/sim/types";
 import { formatValue } from "./format";
 
 /**
@@ -58,6 +59,13 @@ export function DeltaLabel({
  * would not fit the gutter.
  */
 const SHARE_UNITS = new Set<SimUnit>(["ratio", "percent", "multiple"]);
+
+/** What the first column of each statement is a list of. */
+const STATEMENT_NOUN: Record<"pnl" | "balance" | "cashflow", string> = {
+  pnl: "Statement of profit and loss",
+  balance: "Balance sheet",
+  cashflow: "Cash flow statement",
+};
 
 const SERIES_STROKES = [
   "hsl(var(--primary))",
@@ -341,16 +349,163 @@ export function SimPanelView({ panel }: { panel: SimPanel }) {
         </PanelShell>
       );
 
+    case "statement": {
+      /**
+       * A statement is rendered as a document rather than as a chart, because
+       * the layout is the lesson: subtotals ruled off from the lines that make
+       * them, components indented under their parent, and last year in the
+       * column beside this year so the comparison needs no arithmetic.
+       *
+       * The change column is authored per line rather than computed for all of
+       * them: a percentage change on a line that crossed zero — operating
+       * profit going from ₹2 cr to −₹1 cr — is a number with no meaning, and
+       * printing "−150%" beside it would teach a reader to trust it.
+       */
+      const comparative = panel.periods.length === 2;
+
+      /**
+       * Growth in the *size* of the line, not in its signed value.
+       *
+       * Cost lines are authored negative so the statement subtracts down the
+       * page, and on the signed value a cost rising from −34 to −43 comes out
+       * as "−25%" — which reads as a cost that fell. What a reader of a
+       * statement means by "cost of goods is up 25%" is the magnitude, so that
+       * is what is shown, and `goodDirection` supplies the colour.
+       */
+      const changeOf = (line: SimStatementLine): number | null => {
+        if (line.priorValue === undefined || line.priorValue === 0) return null;
+        // A line that crossed zero has no meaningful percentage — an operating
+        // profit going from ₹2 cr to −₹1 cr is not "−150%".
+        if (line.priorValue < 0 !== line.value < 0) return null;
+        return (Math.abs(line.value) - Math.abs(line.priorValue)) / Math.abs(line.priorValue);
+      };
+
+      /**
+       * One money scale for the whole statement, chosen from its largest line.
+       *
+       * `formatValue` picks lakh or crore per value, which is right for a stat
+       * tile standing on its own and wrong in a column: it printed "−₹1.30 cr"
+       * directly above "−75.00 L" for the same line in two years, and a reader
+       * comparing them has to rescale in their head. A statement is a column of
+       * numbers in one unit, as its caption promises.
+       */
+      const money = panel.unit === "inr";
+      const scale = money
+        ? moneyScaleFor(
+            Math.max(
+              ...panel.sections
+                .flatMap((s) => s.lines)
+                .flatMap((l) => [Math.abs(l.value), Math.abs(l.priorValue ?? 0)]),
+              0,
+            ),
+          )
+        : null;
+      // "−₹42.85 cr", not "₹-42.85 cr". The sign belongs to the amount, not
+      // between the currency symbol and its digits.
+      const render = (value: number) => {
+        if (!scale) return formatValue(value, panel.unit);
+        const magnitude = inScale(Math.abs(value), scale, 2);
+        return value < 0 ? `−${magnitude}` : magnitude;
+      };
+
+      return (
+        <PanelShell title={panel.title} caption={panel.caption}>
+          {/* Statements are wide and phones are not. */}
+          <div className="-mx-1 overflow-x-auto px-1">
+            <table className="w-full min-w-[22rem] border-collapse text-sm">
+              <thead>
+                <tr className="border-b text-[11px] uppercase tracking-wide text-muted-foreground">
+                  <th className="pb-1.5 text-left font-medium">{STATEMENT_NOUN[panel.statement]}</th>
+                  {panel.periods.map((period) => (
+                    <th key={period} className="pb-1.5 pl-3 text-right font-medium">
+                      {period}
+                    </th>
+                  ))}
+                  {comparative && <th className="pb-1.5 pl-3 text-right font-medium">Change</th>}
+                </tr>
+              </thead>
+              {panel.sections.map((section, si) => (
+                <tbody key={section.title ?? si}>
+                  {section.title && (
+                    <tr>
+                      <td
+                        colSpan={2 + panel.periods.length}
+                        className="pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+                      >
+                        {section.title}
+                      </td>
+                    </tr>
+                  )}
+                  {section.lines.map((line) => {
+                    const change = changeOf(line);
+                    return (
+                      <tr
+                        key={line.label}
+                        className={cn(
+                          "align-baseline",
+                          line.emphasis && "border-t font-semibold",
+                        )}
+                      >
+                        <td className={cn("py-1 pr-3", line.indent && "pl-4")}>
+                          <span className={cn(!line.emphasis && "text-muted-foreground")}>
+                            {line.label}
+                          </span>
+                          {line.note && (
+                            <span className="block text-[11px] font-normal leading-snug text-muted-foreground/80">
+                              {line.note}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-1 pl-3 text-right tabular-nums">
+                          {render(line.value)}
+                        </td>
+                        {comparative && (
+                          <td className="py-1 pl-3 text-right tabular-nums text-muted-foreground">
+                            {line.priorValue === undefined ? "—" : render(line.priorValue)}
+                          </td>
+                        )}
+                        {comparative && (
+                          <td className="py-1 pl-3 text-right">
+                            {change === null ? (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            ) : line.goodDirection ? (
+                              <DeltaLabel deltaPct={change} goodDirection={line.goodDirection} />
+                            ) : (
+                              <span className="text-xs font-medium tabular-nums text-muted-foreground">
+                                {change > 0 ? "+" : ""}
+                                {(change * 100).toFixed(1)}%
+                              </span>
+                            )}
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              ))}
+            </table>
+          </div>
+        </PanelShell>
+      );
+    }
+
     default:
       return assertNever(panel, "panel kind");
   }
 }
 
+const FULL_WIDTH_PANELS = new Set<SimPanel["kind"]>(["stat", "statement"]);
+
 export function SimDashboard({ panels }: { panels: SimPanel[] }) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       {panels.map((panel) => (
-        <div key={panel.id} className={panel.kind === "stat" ? "lg:col-span-2" : undefined}>
+        // A statement takes the full width for the same reason a stat row does:
+        // it is a wide table, and half a grid column turns every line into two.
+        <div
+          key={panel.id}
+          className={FULL_WIDTH_PANELS.has(panel.kind) ? "lg:col-span-2" : undefined}
+        >
           <SimPanelView panel={panel} />
         </div>
       ))}

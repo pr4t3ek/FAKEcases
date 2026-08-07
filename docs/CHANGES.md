@@ -271,3 +271,53 @@ Item 12 the same, at 803 tests, driven across all three tiers from a clean seed:
 live, a second grant reads 60 days rather than 30, and a pass backdated by an hour re-locks the
 library, flips the profile to Free and gets a forged `startAttempt` refused with
 `303 → /library?wall=locked` — with no scheduled job anywhere in the system.
+
+### 13. A finance track: three simulations, one per financial statement
+
+The nine shipped scenarios all taught product and marketing economics — ROAS, LTV:CAC,
+channel margin, match rate. Nothing in the library taught a balance sheet, a profit and
+loss statement or a cash flow statement, which is the vocabulary every other track
+assumes.
+
+Three new scenarios under `lib/sim/scenarios/`, filed under **Finance** at `Big4` level
+and played as a financial analyst rather than a PM. They are a sequence, and sit
+contiguously in `registry.ts` in that order:
+
+- **`pnl-profit-squeeze`** (Easy) — Kirti Apparel, revenue up 22% and profit down 62%.
+  The consolidated P&L is an average of 46 mature stores having a better year than last
+  year and 14 opened in April carrying full cost at 38% of mature revenue. Teaches the
+  statement top to bottom, and the habit of splitting it like-for-like before diagnosing
+  anything. The trap is the advertising cut, authored to save ₹1.70 cr and give back
+  ₹1.65 cr of gross profit — it improves the margin *percentage* and lowers the profit.
+- **`cash-conversion-cycle`** (Easy) — Nirmal Pipes, a record ₹4.19 cr profit and ₹41 lakh
+  in the bank. DSO 52 → 118 on infra milestone terms, DPO 62 → 34 for a 2% early-settlement
+  discount that is borrowing at 26.6% a year. Teaches DSO/DIO/DPO, the cycle, and the
+  single plank bridging EBITDA to cash. The correct answer *lowers reported profit* while
+  nearly tripling the cash, and deliberately does not reach breakeven — it takes the hole
+  from ₹27 cr to ₹10 cr, which is the difference between a facility a bank will write and
+  one it will not.
+- **`balance-sheet-leverage`** (Medium) — Deccan Ceramics, record EBITDA and a going-concern
+  note in the same week. ROCE 14.8% → 8.1% on an EBIT margin that moved 0.8 points and a
+  capital turnover that halved. Teaches liquidity, leverage, ROCE and the DuPont split. Its
+  two best decoys — refinancing and a ₹40 cr rights issue — each fix the ratio they aim at
+  and move ROCE by *zero*, which `tests/sim-scenario.test.ts` asserts to six decimal places.
+
+Supporting changes, all additive:
+
+- **A `statement` panel kind** (`lib/sim/types.ts`, `components/simulation/sim-dashboard.tsx`).
+  No existing panel could render a statement: stat tiles lose the ordering that makes
+  revenue → gross profit → EBITDA a derivation, and a segment chart of balance-sheet lines
+  throws away the fact a balance sheet exists to assert. Sections, indented components,
+  ruled subtotals, a comparative column and per-line notes. `assertNever` made the renderer
+  arm a compile error until it was written. Two invariants added to `validateScenario`.
+- **The debrief coach speaks as the scenario asks.** `SIM_COACH_RULES` became
+  `simCoachRules(mentor)` with the product-leader wording as the default, so the nine
+  existing scenarios produce a byte-identical prompt (`tests/sim-coach-prompt.test.ts`);
+  the finance three declare a CFO. `lib/simulation-context.ts` also stopped hardcoding
+  `"Product Management"` / `"PM"` and now reads them off the catalogue row.
+- **Two subject-icon rules** for apparel and ceramics — the latter because "Deccan Ceramics:
+  … the bank wants a word" was resolving to a bank icon on a question about a tile factory.
+
+853 → 891 tests. The load-bearing one is unchanged: `checkBalance` brute-forces every
+affordable combination of interventions per scenario and fails if anything beats the
+authored `bestAllocation`, so a retune that makes a decoy win cannot ship quietly.

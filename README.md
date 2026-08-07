@@ -30,7 +30,7 @@ and the four levers (mastery, a daily loop, leagues, cheap content) that would k
 cp .env.example .env   # Prisma needs DATABASE_URL; .env is gitignored, so a clone has none
 pnpm install
 pnpm db:push           # create the SQLite database from prisma/schema.prisma
-pnpm db:seed           # 15 categories, 35 questions (24 guesstimates + 2 cases + 9 simulations), achievements, demo users
+pnpm db:seed           # 15 categories, 38 questions (24 guesstimates + 2 cases + 12 simulations), achievements, demo users
 pnpm dev               # http://localhost:3000
 ```
 
@@ -350,7 +350,7 @@ see the locked state.
 
 ---
 
-## Decision simulations (the PM track)
+## Decision simulations
 
 A war room. The candidate reads an analytics dashboard, commits to a hypothesis *before* spending
 anything, buys data pulls out of a budget of analyst-days, names a root cause, and splits a
@@ -359,7 +359,9 @@ then projected forward and reported as **moved metrics — orders, retention, ma
 a mark**. A debrief reveals the true causal chain and compares the candidate's allocation to the
 best available one.
 
-Nine scenarios ship today, easiest first — which is the order the library shows them in:
+Twelve scenarios ship today, easiest first — which is the order the library shows them in. The
+first nine teach product and marketing economics; the last three are a **finance track**, one per
+financial statement, filed under Finance in the library:
 
 | Scenario | Level | Teaches |
 |---|---|---|
@@ -367,6 +369,9 @@ Nine scenarios ship today, easiest first — which is the order the library show
 | **Rangoli** — the test says +6%, ship it Monday? | Easy | A/B tests, sample size, significance, novelty effect, confounded variants — and reading a test on the metric that pays the bills |
 | **Padhai Plus** — growing subscribers, growing burn | Easy | Churn, lifetime, LTV, CAC, payback, and that a subscriber base settles at joiners ÷ churn |
 | **Chaska** — share up five points, profit down a third | Easy | Net realisation, trade promotion, incrementality, cannibalisation — and why market share is a diagnostic rather than a target |
+| **Kirti Apparel** — revenue up 22%, profit down 62% | Easy | Reading a P&L: revenue, COGS, gross margin, opex, EBITDA, depreciation, net profit — and that a consolidated statement is an average of two businesses until you split it like-for-like |
+| **Nirmal Pipes** — a record profit and no money for payroll | Easy | Cash flow and working capital: DSO, DIO, DPO, the cash conversion cycle, and the one plank bridging EBITDA to cash |
+| **Deccan Ceramics** — record EBITDA, and the bank wants a word | Medium | The balance sheet: current and quick ratios, debt to equity, interest cover, ROCE and the DuPont split — and that refinancing and a rights issue both fix a ratio and move the return by nothing |
 | **Suraksha Home** — match the competitor's price cut? | Medium | Contribution per unit, break-even volume on a price change, price elasticity, trade promotion |
 | **Ujala Solar** — planned 10.8 lakh, sold 4.3 lakh | Medium | TAM / SAM / SOM, and channel economics on net rather than gross revenue |
 | **Ghar Sewa** — both sides grew, both sides are angry | Medium | Match rate, liquidity, utilisation, GMV, take rate — and that a platform-level average hides the only markets that matter |

@@ -21,14 +21,27 @@ import { pricingElasticity } from "./scenarios/pricing-elasticity";
 import { marketSizingGtm } from "./scenarios/market-sizing-gtm";
 import { marketplaceLiquidity } from "./scenarios/marketplace-liquidity";
 import { b2bDealTco } from "./scenarios/b2b-deal-tco";
+import { pnlProfitSqueeze } from "./scenarios/pnl-profit-squeeze";
+import { cashConversionCycle } from "./scenarios/cash-conversion-cycle";
+import { balanceSheetLeverage } from "./scenarios/balance-sheet-leverage";
 
 // Easiest first: this is the order the library shows them in, and a beginner
 // meeting the track for the first time should not land on the hardest one.
+//
+// The three finance scenarios sit together rather than being interleaved by
+// topic, because they are a sequence: the P&L one teaches a student to read a
+// statement, the cash flow one shows them that statement cannot tell them
+// whether the company can pay anybody, and the balance sheet one adds the
+// capital neither of the first two can see. Kept contiguous, and still in
+// difficulty order — Easy, Easy, Medium, ahead of the Medium block.
 const ALL: SimScenario[] = [
   adFunnelRoas,
   abTestReadout,
   subscriptionLtvCac,
   channelTradeSpend,
+  pnlProfitSqueeze,
+  cashConversionCycle,
+  balanceSheetLeverage,
   pricingElasticity,
   marketSizingGtm,
   marketplaceLiquidity,

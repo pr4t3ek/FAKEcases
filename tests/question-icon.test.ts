@@ -120,6 +120,10 @@ const EXPECTED: Record<string, string> = {
   "Chaska: share is up five points and the profit is down a third": "Store",
   "Ujala Solar: we planned for 10.8 lakh units and sold 4.3 lakh": "Zap",
   "Lekha: our most profitable customer wants 18% off": "Factory",
+  "Kirti Apparel: revenue is up 22% and profit is down 62%": "Shirt",
+  "Nirmal Pipes: a record profit and no money for payroll": "Factory",
+  // "ceramic" beats "bank" — the bank is in the sentence, not in the subject.
+  "Deccan Ceramics: our best ever EBITDA, and the bank wants a word": "Factory",
   // No subject rule matches these two, so they exercise the Category.icon fallback.
   "Suraksha Home: the competitor cut price — do we match?": "LineChart",
   "Ghar Sewa: customers waiting, professionals idle, both sides growing": "LineChart",
