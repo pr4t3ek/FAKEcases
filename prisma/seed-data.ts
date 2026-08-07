@@ -684,6 +684,60 @@ export const questions: SeedQuestion[] = [
       "The 78% counts hosting only; fully loaded the account runs at 19.5%, and a third of the cost is a bespoke ERP connector booked as R&D. 40 of 900 seats drive 71% of documents and 64% of tickets while the contract charges by seat. Their own cost of ownership is ₹1.15 crore a quarter, our licence 59% of it — so 18% off relieves a tenth of their problem and takes contract contribution from ₹72 lakh to minus ₹37. Retiring the connector and repricing to metered volume relieves more than the discount would, at no cost to price.",
     tags: "product management,b2b saas,cost to serve,total cost of ownership,pricing,net revenue retention,manufacturing,simulation",
   },
+  /**
+   * The finance track: one scenario per financial statement, in the order a
+   * beginner meets them.
+   *
+   * Filed under `finance` rather than `product-management` — the first nine
+   * simulations are all product economics, and a learner filtering the library
+   * for Finance should find these. `Big4` is the closest interview level the
+   * catalogue carries to the financial-analyst role these are played in.
+   */
+  {
+    externalId: "pnl-profit-squeeze",
+    title: "Kirti Apparel: revenue is up 22% and profit is down 62%",
+    prompt:
+      "A 60-store apparel chain grew revenue 22% and lost nearly two thirds of its profit. Three people in the room have three explanations and none of them has separated the 46 stores that traded all year from the 14 that opened in April. You have 6 analyst-days to read the P&L properly, then a quarter of capacity and ₹6 crore to act on what you find.",
+    category: "finance",
+    difficulty: "Easy",
+    interviewLevel: "Big4",
+    type: "simulation",
+    betterApproach:
+      "Never diagnose a consolidated profit and loss statement. Revenue rises whenever a business adds a location, so the first move is to split the statement into units that traded in both periods and units that did not — otherwise every ratio below the top line is an average of two different businesses. Only then ask which subtotal the problem sits above.",
+    sampleSolution:
+      "The 46 mature stores contributed ₹15.64 crore against ₹14.48 crore last year, so like-for-like the business improved. The 14 stores opened in April contributed minus ₹1.09 crore, and brought ₹0.90 crore of fit-out depreciation, ₹0.55 crore of interest and ₹1.20 crore of launch advertising with them — essentially the whole ₹2.90 crore fall in net profit. They are also exactly on the ramp curve every one of this chain's 31 openings has followed. The trap is cutting advertising: it saves ₹1.70 crore, gives back about ₹1.65 crore of gross profit, and removes the launch campaigns from the fourteen stores that need them most.",
+    tags: "finance,accounting,profit and loss,gross margin,ebitda,like-for-like,retail,apparel,simulation",
+  },
+  {
+    externalId: "cash-conversion-cycle",
+    title: "Nirmal Pipes: a record profit and no money for payroll",
+    prompt:
+      "A pipe manufacturer posted its best ever profit — ₹4.19 crore, up 57% — and has ₹41 lakh in the bank against a ₹1.9 crore payroll. Both statements are true and neither is an accounting error. You have 6 analyst-days to find where the money went, then 4 sprints and ₹3 crore.",
+    category: "finance",
+    difficulty: "Easy",
+    interviewLevel: "Big4",
+    type: "simulation",
+    betterApproach:
+      "Bridge profit to cash before arguing about either. Operating cash flow is EBITDA less the increase in working capital, so a profitable company with a rising receivables or inventory balance can consume cash indefinitely. Then decompose the working capital into the only three places it can be — days you collect in, days you hold stock for, days you take to pay — and price each one.",
+    sampleSolution:
+      "EBITDA of ₹9.48 crore against a ₹31.4 crore increase in working capital gives minus ₹21.9 crore of operating cash and minus ₹26.8 crore of free cash flow. The cash conversion cycle went from 61 days to 180: infra customers pay 60 days after a certification running 55 to 80 days late, taking DSO from 52 to 118, while procurement bought a 2% early-settlement discount that cut DPO from 62 to 34 — borrowing at an implied 26.6% a year against an overdraft costing 11.5%. Billing against delivered quantity, a right the contracts already contain, plus a return to 60-day supplier terms takes the hole from ₹27 crore to about ₹10 crore. Drawing more overdraft moves no operational number at all.",
+    tags: "finance,accounting,cash flow,working capital,cash conversion cycle,dso,dpo,manufacturing,simulation",
+  },
+  {
+    externalId: "balance-sheet-leverage",
+    title: "Deccan Ceramics: our best ever EBITDA, and the bank wants a word",
+    prompt:
+      "A tile manufacturer posted record EBITDA the same week its auditor raised a going-concern note and its lender asked about the interest-cover covenant. The managing director wants to announce the EBITDA; the finance director wants to refinance. Work out why both of them can be right, then spend 4 sprints and ₹16 crore.",
+    category: "finance",
+    difficulty: "Medium",
+    interviewLevel: "Big4",
+    type: "simulation",
+    betterApproach:
+      "A profit and loss statement cannot see capital, so judge an expansion by dividing operating profit by the capital it took to earn. Then decompose that return into margin and turnover, because the two look identical in the ratio and have nothing in common as decisions. Keep the liquidity question separate from the return question — they have different causes and different fixes.",
+    sampleSolution:
+      "ROCE fell from 14.8% to 8.1%, and the decomposition puts it entirely in the denominator: EBIT margin went 11.4% to 10.6% while capital turnover went 1.30 to 0.76. ₹161.6 crore of new capital produced ₹3.0 crore of extra operating profit — about 1.9% incremental against debt at 9.9% — because the third kiln runs at 46% and ₹34.8 crore of land and idle plant is in nobody's plan. The liquidity crisis is a separate fact: ₹64 crore reclassified as current when the moratorium ended, with no transaction, taking the current ratio from 2.11 to 0.93. The instructive traps are that refinancing fixes the current ratio and moves ROCE by nothing, and a ₹40 crore rights issue halves debt-to-equity and moves ROCE by nothing, because capital employed is equity plus debt.",
+    tags: "finance,accounting,balance sheet,ratio analysis,roce,dupont,liquidity,leverage,covenant,manufacturing,simulation",
+  },
 ];
 
 export const achievements = [

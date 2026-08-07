@@ -132,12 +132,65 @@ export interface SimSegmentRow {
 }
 
 /**
+ * One row of a financial statement.
+ *
+ * `emphasis` and `indent` are presentation, and that is the point: a statement
+ * is a document with a shape, and the shape carries the meaning. "Gross profit"
+ * sitting under a rule after revenue and cost of goods is what tells a reader it
+ * is a subtotal rather than a fourth cost line, and a beginner who cannot see
+ * that cannot read the statement at all.
+ */
+export interface SimStatementLine {
+  label: string;
+  value: number;
+  /** The comparison period. Absent on a single-column statement. */
+  priorValue?: number;
+  /** A subtotal — Gross profit, EBITDA, Total assets. Ruled off and bolded. */
+  emphasis?: boolean;
+  /** A component of the line above it. */
+  indent?: boolean;
+  /**
+   * Which way is good on this line, colouring the change column.
+   *
+   * Per line rather than per statement, and absent by default, because on a
+   * statement there is no single answer: revenue rising is good, interest cost
+   * rising is not, and cash rising while payables rise with it is a question
+   * rather than either. A line that does not say stays neutral, which is the
+   * honest rendering of "it depends" and stops the colour teaching a direction
+   * the author never claimed.
+   */
+  goodDirection?: GoodDirection;
+  /**
+   * Where the number came from, shown under the label.
+   *
+   * The investigation affordance for a document: an analyst reading a real
+   * statement has the notes to the accounts, and "₹64 cr of the term loan falls
+   * due within 12 months" is exactly the kind of line that is buried in note 14
+   * and explains the whole balance sheet.
+   */
+  note?: string;
+}
+
+export interface SimStatementSection {
+  /** "Current assets", "Cash from operations". Absent on a flat statement. */
+  title?: string;
+  lines: SimStatementLine[];
+}
+
+/**
  * What a panel shows.
  *
  * The `note` arm matters more than it looks: not every data pull comes back as
  * a chart. A support-ticket theme or a partner email is often the pull that
  * cracks a case open, and forcing everything into a series would flatten the
  * scenario into pure arithmetic.
+ *
+ * The `statement` arm exists because none of the others can render a P&L. A
+ * statement is a ruled table of sections and subtotals against a comparative
+ * column, and the alternatives lose precisely what is being taught: stat tiles
+ * drop the ordering that makes revenue → gross profit → EBITDA a derivation,
+ * and a segment chart of balance-sheet lines throws away the one fact a balance
+ * sheet exists to assert, which is that the two sides are equal.
  */
 export type SimPanel =
   | { id: PanelId; kind: "timeseries"; title: string; caption?: string; series: SimSeries[] }
@@ -152,7 +205,19 @@ export type SimPanel =
       dimension: string;
       rows: SimSegmentRow[];
     }
-  | { id: PanelId; kind: "note"; title: string; body: string };
+  | { id: PanelId; kind: "note"; title: string; body: string }
+  | {
+      id: PanelId;
+      kind: "statement";
+      title: string;
+      caption?: string;
+      /** Which statement this is. Drives the column headers and the footer. */
+      statement: "pnl" | "balance" | "cashflow";
+      unit: SimUnit;
+      /** Column headers, current period first. */
+      periods: [string] | [string, string];
+      sections: SimStatementSection[];
+    };
 
 // ─── Investigate: priced data pulls ────────────────────────────────────────
 
@@ -254,6 +319,23 @@ export interface SimCoachFact {
   answer: string;
 }
 
+/**
+ * Who debriefs the run, and who they think they are talking to.
+ *
+ * Optional, defaulting to the product leader the coach has always been. It
+ * exists because the debrief is a conversation with a specific person in a
+ * specific job, and a finance scenario where a "senior product leader" explains
+ * a cash conversion cycle to a "PM candidate" is a small lie that the student
+ * notices immediately — the whole exercise is a role-play, and the mentor is
+ * part of the role.
+ */
+export interface SimMentor {
+  /** "a CFO debriefing a junior financial analyst". Follows "You are ". */
+  persona: string;
+  /** What to call the student in the prose — "analyst", "candidate". */
+  audience: string;
+}
+
 // ─── Teaching ──────────────────────────────────────────────────────────────
 
 /**
@@ -335,6 +417,8 @@ export interface SimScenario {
 
   /** Concept primer and metric map. Absent on scenarios that assume fluency. */
   teaching?: SimTeaching;
+  /** Who runs the debrief. Absent leaves the default product-leader coach. */
+  mentor?: SimMentor;
 
   /** The cheapest sufficient investigation; efficiency is measured against it. */
   parInvestigation: DrilldownId[];

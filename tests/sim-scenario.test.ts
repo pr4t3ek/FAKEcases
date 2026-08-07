@@ -747,6 +747,381 @@ describe("b2b-deal-tco: the numbers the primer promises", () => {
   });
 });
 
+/**
+ * The finance track.
+ *
+ * These three carry more quoted arithmetic than any other scenario, because the
+ * teaching *is* the arithmetic: a primer that says gross margin fell 1.4 points
+ * beside a model that says something else is worse than no primer at all.
+ */
+describe("pnl-profit-squeeze: the numbers the primer promises", () => {
+  const scenario = getScenario("pnl-profit-squeeze");
+  if (!scenario) throw new Error("scenario missing");
+  const v = resolveDrivers(scenario.drivers);
+  const CRORE = 10_000_000;
+
+  it("turns 46 mature and 14 new stores into ₹72.88 crore of revenue", () => {
+    expect(v.matureRevenue / CRORE).toBeCloseTo(65.32, 2);
+    expect(v.newRevenue / CRORE).toBeCloseTo(7.56, 2);
+    expect(v.revenue / CRORE).toBeCloseTo(72.88, 2);
+    // Up 22% on FY24's ₹59.7 crore, which is the headline half of the puzzle.
+    expect(v.revenue / (59.7 * CRORE)).toBeCloseTo(1.221, 3);
+  });
+
+  it("leaves ₹1.77 crore of net profit, down 62% on ₹4.67 crore", () => {
+    // In crore, to two places — the precision the primer quotes.
+    expect(v.grossProfit / CRORE).toBeCloseTo(30.026, 2);
+    expect(v.ebitda / CRORE).toBeCloseTo(6.557, 2);
+    expect(v.netProfit / CRORE).toBeCloseTo(1.767, 2);
+    expect(v.netProfit / (4.67 * CRORE) - 1).toBeCloseTo(-0.621, 2);
+  });
+
+  /**
+   * The sentence the whole scenario exists to make undeniable: split the
+   * statement and one half had a better year than last year.
+   */
+  it("splits into a profitable estate and a loss-making one", () => {
+    expect(v.matureContribution / CRORE).toBeCloseTo(15.642, 2);
+    expect(v.newContribution / CRORE).toBeCloseTo(-1.085, 2);
+    // FY24's mature contribution was ₹14.48 crore, so like-for-like improved.
+    expect(v.matureContribution).toBeGreaterThan(14.48 * CRORE);
+  });
+
+  it("prices a first-year store at 38% of a mature one", () => {
+    expect(v.newRevenuePerStore / v.matureRevenuePerStore).toBeCloseTo(0.38, 2);
+  });
+
+  /**
+   * The trap, and the reason it is a trap: the margin *percentage* improves
+   * while the profit does not.
+   */
+  it("lets the advertising cut improve gross margin and lose money", () => {
+    const cut = runOutcome(scenario, [
+      { interventionId: "iv-cut-ads", sprints: 1, rupees: 0.4 * CRORE },
+    ]);
+    // Revenue falls, so gross profit falls, while opex falls further — nearly
+    // self-cancelling on its own.
+    expect(finalValue(cut.paths, "revenue")).toBeLessThan(finalValue(cut.doNothing, "revenue"));
+
+    // And bolted onto the correct answer it is actively negative, because
+    // ₹1.2 crore of that budget is the launch campaign for the fourteen.
+    const rampOnly = runOutcome(scenario, [
+      { interventionId: "iv-ramp-new", sprints: 2, rupees: 2.4 * CRORE },
+    ]);
+    const rampPlusCut = runOutcome(scenario, [
+      { interventionId: "iv-ramp-new", sprints: 2, rupees: 2.4 * CRORE },
+      { interventionId: "iv-cut-ads", sprints: 1, rupees: 0.4 * CRORE },
+    ]);
+    expect(finalValue(rampPlusCut.paths, "netProfit")).toBeLessThan(
+      finalValue(rampOnly.paths, "netProfit"),
+    );
+  });
+
+  it("makes the price rise buy margin and lose gross profit", () => {
+    const priced = resolveDrivers(scenario.drivers, {
+      grossMarginRate: 1.085,
+      matureRevenuePerStore: 0.93,
+      newRevenuePerStore: 0.91,
+    });
+    expect(priced.grossMarginRate).toBeGreaterThan(v.grossMarginRate);
+    expect(priced.revenue).toBeLessThan(v.revenue);
+    // The nine-store trial's result: 3.5 points of margin on 11% fewer units
+    // moves gross profit by under 1%.
+    expect(priced.grossProfit / v.grossProfit).toBeCloseTo(1.009, 2);
+  });
+
+  it("defines the P&L vocabulary before using it", () => {
+    const terms = scenario.teaching!.primer.terms.map((t) => t.term);
+    for (const expected of [
+      "Revenue",
+      "COGS",
+      "Gross profit",
+      "Gross margin",
+      "Operating expenses",
+      "EBITDA",
+      "Depreciation",
+      "Net profit",
+      "Like-for-like",
+    ]) {
+      expect(terms).toContain(expected);
+    }
+    for (const t of scenario.teaching!.primer.terms) expect(t.matters.length).toBeGreaterThan(20);
+  });
+});
+
+describe("cash-conversion-cycle: the numbers the primer promises", () => {
+  const scenario = getScenario("cash-conversion-cycle");
+  if (!scenario) throw new Error("scenario missing");
+  const v = resolveDrivers(scenario.drivers);
+  const CRORE = 10_000_000;
+
+  /** The formula the whole scenario is built on. */
+  it("puts the cash conversion cycle at 180 days", () => {
+    expect(v.ccc).toBe(118 + 96 - 34);
+    expect(v.ccc).toBe(180);
+    // 61 days last year: 52 + 71 − 62.
+    expect(v.ccc).toBeGreaterThan(61);
+  });
+
+  it("ties up ₹42.8 crore of working capital against ₹11.4 crore a year ago", () => {
+    expect(v.receivables / CRORE).toBeCloseTo(31.036, 2);
+    expect(v.inventory / CRORE).toBeCloseTo(18.18, 2);
+    expect(v.payables / CRORE).toBeCloseTo(6.439, 2);
+    expect(v.workingCapital / CRORE).toBeCloseTo(42.777, 2);
+    expect(v.wcIncrease / CRORE).toBeCloseTo(31.401, 2);
+  });
+
+  /**
+   * The one sentence the scenario exists to land: a record profit and a hole,
+   * with nothing wrong in either statement.
+   */
+  it("reports a record profit and negative free cash flow at the same time", () => {
+    // ₹4.185 cr, which is the ₹4.19 cr the statement panel prints.
+    expect(v.netProfit / CRORE).toBeCloseTo(4.185, 2);
+    expect(v.netProfit).toBeGreaterThan(0);
+    expect(v.operatingCashFlow / CRORE).toBeCloseTo(-21.921, 2);
+    expect(v.freeCashFlow / CRORE).toBeCloseTo(-26.816, 2);
+    expect(v.freeCashFlow).toBeLessThan(0);
+  });
+
+  /** EBITDA less the movement in working capital, and nothing else. */
+  it("bridges earnings to cash through the working-capital movement alone", () => {
+    expect(v.ebitda - v.wcIncrease).toBeCloseTo(v.operatingCashFlow, 2);
+  });
+
+  it("makes the early-payment discount the most expensive borrowing in the company", () => {
+    // 2% for paying 28 days sooner, annualised, against an overdraft at 11.5%.
+    const impliedAnnualRate = (0.02 / 0.98) * (365 / 28);
+    expect(impliedAnnualRate).toBeGreaterThan(0.115);
+    expect(impliedAnnualRate).toBeCloseTo(0.266, 2);
+
+    // Restoring terms costs margin and releases cash — both have to be true or
+    // the trade the scenario is built on disappears.
+    const restored = runOutcome(scenario, [
+      { interventionId: "iv-supplier-terms", sprints: 2, rupees: 0.9 * CRORE },
+    ]);
+    expect(finalValue(restored.paths, "netProfit")).toBeLessThan(
+      finalValue(restored.doNothing, "netProfit"),
+    );
+    expect(finalValue(restored.paths, "freeCashFlow")).toBeGreaterThan(
+      finalValue(restored.doNothing, "freeCashFlow"),
+    );
+  });
+
+  /** The trap: more expensive money, and not one day off the cycle. */
+  it("lets the overdraft cost interest and move the cycle by nothing", () => {
+    const borrowed = runOutcome(scenario, [
+      { interventionId: "iv-overdraft", sprints: 1, rupees: 0.3 * CRORE },
+    ]);
+    expect(finalValue(borrowed.paths, "interest")).toBeGreaterThan(
+      finalValue(borrowed.doNothing, "interest"),
+    );
+    expect(finalValue(borrowed.paths, "ccc")).toBeCloseTo(finalValue(borrowed.doNothing, "ccc"), 6);
+    expect(finalValue(borrowed.paths, "freeCashFlow")).toBeLessThan(
+      finalValue(borrowed.doNothing, "freeCashFlow"),
+    );
+  });
+
+  /**
+   * The correct answer *lowers reported profit* — it hands the discount back —
+   * while nearly tripling the cash. If a retune ever lets profit rise too, the
+   * scenario stops teaching that the two can point in opposite directions.
+   */
+  it("wins on cash while giving up profit, and still does not reach zero", () => {
+    const best = runOutcome(scenario, scenario.bestAllocation);
+    expect(finalValue(best.paths, "netProfit")).toBeLessThan(
+      finalValue(best.doNothing, "netProfit"),
+    );
+    expect(finalValue(best.paths, "ccc")).toBeLessThan(120);
+    const cash = finalValue(best.paths, "freeCashFlow");
+    expect(cash).toBeGreaterThan(finalValue(best.doNothing, "freeCashFlow") + 20 * CRORE);
+    expect(cash).toBeLessThan(0);
+  });
+
+  it("defines the working-capital vocabulary before charging for it", () => {
+    const terms = scenario.teaching!.primer.terms.map((t) => t.term);
+    for (const expected of [
+      "Working capital",
+      "DSO",
+      "DIO",
+      "DPO",
+      "Cash conversion cycle",
+      "Operating cash flow",
+      "Free cash flow",
+    ]) {
+      expect(terms).toContain(expected);
+    }
+  });
+});
+
+describe("balance-sheet-leverage: the numbers the primer promises", () => {
+  const scenario = getScenario("balance-sheet-leverage");
+  if (!scenario) throw new Error("scenario missing");
+  const v = resolveDrivers(scenario.drivers);
+  const CRORE = 10_000_000;
+
+  it("breaches the liquidity ratios without a single transaction", () => {
+    expect(v.currentRatio).toBeCloseTo(0.93, 2);
+    expect(v.currentRatio).toBeLessThan(1);
+    expect(v.quickRatio).toBeCloseTo(0.42, 2);
+    // ₹64 crore of the ₹92.1 crore of current liabilities is the term loan
+    // reclassifying as a repayment date came into range.
+    expect(v.currentPortionLtd / v.currentLiabilities).toBeGreaterThan(0.65);
+  });
+
+  it("sits below the interest-cover covenant of 2.0×", () => {
+    expect(v.interest / CRORE).toBeCloseTo(14.85, 2);
+    expect(v.interestCover).toBeCloseTo(1.7, 2);
+    expect(v.interestCover).toBeLessThan(2);
+    expect(v.debtToEquity).toBeCloseTo(0.92, 2);
+  });
+
+  /** The whole diagnosis in one assertion: the denominator, not the numerator. */
+  it("halves the return on a margin that barely moved", () => {
+    expect(v.roce).toBeCloseTo(0.081, 3);
+    expect(v.ebitMargin).toBeCloseTo(0.106, 3);
+    expect(v.capitalTurnover).toBeCloseTo(0.762, 3);
+    // ROCE is margin × turnover, which is the move the scenario teaches.
+    expect(v.ebitMargin * v.capitalTurnover).toBeCloseTo(v.roce, 6);
+
+    // FY24: 11.4% × 1.30 = 14.8%. The margin fell 0.8 points; the turnover 42%.
+    expect(v.ebitMargin / 0.1138 - 1).toBeGreaterThan(-0.1);
+    expect(v.capitalTurnover / 1.302 - 1).toBeCloseTo(-0.415, 2);
+  });
+
+  it("earns about 1.9% on the capital the expansion added", () => {
+    expect(v.capitalEmployed / CRORE).toBeCloseTo(312.2, 2);
+    const addedCapital = v.capitalEmployed - 150.56 * CRORE;
+    const addedEbit = v.ebit - 22.3 * CRORE;
+    expect(addedEbit / addedCapital).toBeCloseTo(0.019, 3);
+    // Against debt costing 9.9%, which is why this destroys value while growing.
+    expect(addedEbit / addedCapital).toBeLessThan(v.interestRate);
+  });
+
+  /** The authored balance sheet has to balance, or the panel teaches nonsense. */
+  it("publishes a balance sheet whose two sides agree", () => {
+    const panel = scenario.dashboard.find((p) => p.id === "p-bs-balance");
+    expect(panel?.kind).toBe("statement");
+    if (panel?.kind !== "statement") throw new Error("not a statement panel");
+
+    const lineOf = (label: string) => {
+      const line = panel.sections.flatMap((s) => s.lines).find((l) => l.label === label);
+      if (!line) throw new Error(`no line "${label}"`);
+      return line;
+    };
+    for (const period of ["value", "priorValue"] as const) {
+      const assets = lineOf("Total assets")[period]!;
+      const claims = lineOf("Total liabilities and equity")[period]!;
+      expect(assets / CRORE).toBeCloseTo(claims / CRORE, 2);
+    }
+
+    // And the modelled total assets agree with the published one.
+    expect(v.totalAssets / CRORE).toBeCloseTo(lineOf("Total assets").value / CRORE, 2);
+  });
+
+  /**
+   * The two decoys the scenario is really built around. Both are sensible
+   * transactions, both fix the ratio they aim at, and neither moves the return
+   * on capital — because capital employed is equity plus debt.
+   */
+  it("lets refinancing fix liquidity and leave the return untouched", () => {
+    const refi = resolveDrivers(scenario.drivers, {
+      currentPortionLtd: 0.28,
+      longTermDebt: 1.591,
+      interestRate: 1.081,
+    });
+    expect(refi.currentRatio).toBeGreaterThan(1.8);
+    // Debt-neutral by construction: the effects only move it between columns,
+    // to within a rounding bit of the multipliers.
+    expect(refi.totalDebt / CRORE).toBeCloseTo(v.totalDebt / CRORE, 1);
+    expect(refi.roce).toBeCloseTo(v.roce, 3);
+    // A longer tenor costs more, so cover gets slightly worse rather than better.
+    expect(refi.interestCover).toBeLessThan(v.interestCover);
+  });
+
+  it("lets the rights issue clear the covenant and move ROCE by nothing", () => {
+    const equity = resolveDrivers(scenario.drivers, {
+      equity: 1.2466,
+      longTermDebt: 0.4872,
+    });
+    expect(equity.debtToEquity).toBeCloseTo(0.54, 2);
+    expect(equity.interestCover).toBeGreaterThan(2);
+    expect(equity.netProfit).toBeGreaterThan(v.netProfit);
+    // ₹40 crore crossed from one side of capital employed to the other.
+    expect(equity.capitalEmployed / CRORE).toBeCloseTo(v.capitalEmployed / CRORE, 1);
+    expect(equity.roce).toBeCloseTo(v.roce, 6);
+  });
+
+  it("beats every decoy by working on the capital turnover", () => {
+    const best = runOutcome(scenario, scenario.bestAllocation);
+    expect(finalValue(best.paths, "roce")).toBeGreaterThan(v.roce);
+    expect(finalValue(best.paths, "capitalTurnover")).toBeGreaterThan(v.capitalTurnover);
+
+    for (const id of ["iv-refinance", "iv-equity", "iv-price-up", "iv-working-capital"]) {
+      const iv = scenario.interventions.find((i) => i.id === id)!;
+      const alone = runOutcome(scenario, [
+        { interventionId: id, sprints: iv.cost.sprints, rupees: iv.cost.rupees },
+      ]);
+      expect(finalValue(alone.paths, "roce"), `${id} beats the answer`).toBeLessThan(
+        finalValue(best.paths, "roce"),
+      );
+    }
+  });
+
+  it("defines the ratio vocabulary before reading ratios at the student", () => {
+    const terms = scenario.teaching!.primer.terms.map((t) => t.term);
+    for (const expected of [
+      "Current ratio",
+      "Quick ratio",
+      "Debt to equity",
+      "Interest cover",
+      "Capital employed",
+      "ROCE",
+      "Asset turnover",
+      "Margin × turnover",
+    ]) {
+      expect(terms).toContain(expected);
+    }
+  });
+});
+
+/**
+ * The finance track as a track, rather than as three scenarios that happen to
+ * be about money. These are the promises the sequence makes.
+ */
+describe("the finance track", () => {
+  const slugs = ["pnl-profit-squeeze", "cash-conversion-cycle", "balance-sheet-leverage"];
+
+  it("runs easiest first and stays contiguous in the library", () => {
+    const order = listScenarios().map((s) => s.slug);
+    const at = slugs.map((s) => order.indexOf(s));
+    expect(at.every((i) => i >= 0)).toBe(true);
+    expect(at[1]).toBe(at[0] + 1);
+    expect(at[2]).toBe(at[1] + 1);
+    expect(slugs.map((s) => getScenario(s)!.difficulty)).toEqual(["Easy", "Easy", "Medium"]);
+  });
+
+  it("is debriefed by a CFO rather than by a product leader", () => {
+    for (const slug of slugs) {
+      const mentor = getScenario(slug)!.mentor;
+      expect(mentor?.persona).toContain("CFO");
+      expect(mentor?.audience).toBe("analyst");
+    }
+  });
+
+  it("shows each statement as a statement rather than as a chart", () => {
+    const kindsFor = (slug: string) => {
+      const s = getScenario(slug)!;
+      return [...s.dashboard, ...s.drilldowns.flatMap((d) => d.reveals)]
+        .filter((p) => p.kind === "statement")
+        .map((p) => (p.kind === "statement" ? p.statement : ""));
+    };
+    expect(kindsFor("pnl-profit-squeeze")).toContain("pnl");
+    expect(kindsFor("cash-conversion-cycle")).toContain("cashflow");
+    expect(kindsFor("balance-sheet-leverage")).toContain("balance");
+  });
+});
+
 describe("metric-drop-food-delivery specifics", () => {
   const scenario = getScenario("metric-drop-food-delivery");
 

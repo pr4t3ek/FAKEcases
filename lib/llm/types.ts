@@ -35,6 +35,12 @@ export interface AssumptionCtx {
 export interface SimCoachContext {
   scenarioTitle: string;
   company: string;
+  /**
+   * Who debriefs this scenario. Absent leaves the default product-leader coach,
+   * which is what every scenario written before finance joined the library
+   * relies on.
+   */
+  mentor?: { persona: string; audience: string };
   trueCauseLabels: string[];
   causalChain: string[];
   whereTheLeverageWas: string;

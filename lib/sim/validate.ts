@@ -271,12 +271,45 @@ export function validateScenario(scenario: SimScenario): string[] {
     }
   }
 
-  const panelIds = [
-    ...scenario.dashboard.map((p) => p.id),
-    ...scenario.drilldowns.flatMap((d) => d.reveals.map((p) => p.id)),
+  const allPanels = [
+    ...scenario.dashboard,
+    ...scenario.drilldowns.flatMap((d) => d.reveals),
   ];
-  for (const dupe of duplicates(panelIds)) {
+
+  for (const dupe of duplicates(allPanels.map((p) => p.id))) {
     errors.push(`Duplicate panel id "${dupe}" — React keys would collide`);
+  }
+
+  /**
+   * A statement panel is authored figures rather than a projection of the driver
+   * graph, so nothing else in this file can catch a malformed one. These are the
+   * two slips that render as a broken document rather than as an error.
+   */
+  for (const panel of allPanels) {
+    if (panel.kind !== "statement") continue;
+
+    const lines = panel.sections.flatMap((s) => s.lines);
+    if (!lines.length) errors.push(`Statement panel "${panel.id}" has no lines`);
+
+    // A "FY24 / FY25" header over rows that only carry this year prints a column
+    // of em-dashes; one period with prior values silently drops last year.
+    const hasPrior = lines.some((l) => l.priorValue !== undefined);
+    if (hasPrior && panel.periods.length !== 2) {
+      errors.push(
+        `Statement panel "${panel.id}" has prior-period values but only one period header`,
+      );
+    }
+    if (!hasPrior && panel.periods.length === 2) {
+      errors.push(
+        `Statement panel "${panel.id}" has two period headers and no prior-period values`,
+      );
+    }
+
+    for (const dupe of duplicates(lines.map((l) => l.label))) {
+      errors.push(
+        `Statement panel "${panel.id}" repeats the line "${dupe}" — React keys would collide`,
+      );
+    }
   }
 
   return errors;

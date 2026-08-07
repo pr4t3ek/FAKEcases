@@ -40,6 +40,7 @@ export async function loadSimCoachContext(
   const simulation: SimCoachContext = {
     scenarioTitle: scenario.title,
     company: scenario.company,
+    mentor: scenario.mentor,
     trueCauseLabels: trueCauseLabels(scenario),
     causalChain: scenario.debrief.causalChain,
     whereTheLeverageWas: scenario.debrief.whereTheLeverageWas,
@@ -70,9 +71,12 @@ export async function loadSimCoachContext(
     question: {
       title: scenario.title,
       prompt: scenario.premise,
-      category: "Product Management",
+      // From the catalogue row rather than hardcoded: the simulation track is
+      // no longer all product management, and the coach should not be told a
+      // finance scenario is a PM one.
+      category: run.question.category.name,
       difficulty: scenario.difficulty,
-      interviewLevel: "PM",
+      interviewLevel: run.question.interviewLevel,
       idealLow: null,
       idealHigh: null,
       unit: null,

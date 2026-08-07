@@ -6,6 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 import { validateScenario } from "@/lib/sim/validate";
+import type { SimPanel } from "@/lib/sim/types";
 import { CAUSE_TRUE, fixtureScenario } from "./sim-fixture";
 
 const errorsFor = (over: Parameters<typeof fixtureScenario>[0]) =>
@@ -170,6 +171,67 @@ describe("validateScenario", () => {
 
   it("catches an empty trueCauseIds", () => {
     expect(errorsFor({ trueCauseIds: [] })).toMatch(/trueCauseIds is empty/);
+  });
+
+  /**
+   * A statement panel is authored figures rather than a projection of the driver
+   * graph, so none of the checks above can see inside one. These are the slips
+   * that render as a broken document rather than as an error.
+   */
+  describe("statement panels", () => {
+    const withStatement = (panel: SimPanel) =>
+      errorsFor({ dashboard: [...fixtureScenario().dashboard, panel] });
+
+    const statement = (over: Partial<Extract<SimPanel, { kind: "statement" }>> = {}) =>
+      ({
+        id: "p-statement",
+        kind: "statement",
+        statement: "pnl",
+        title: "P&L",
+        unit: "inr",
+        periods: ["FY25"],
+        sections: [{ lines: [{ label: "Revenue", value: 100 }] }],
+        ...over,
+      }) as SimPanel;
+
+    it("passes a well-formed statement", () => {
+      expect(withStatement(statement())).toBe("");
+    });
+
+    it("catches a statement with no lines at all", () => {
+      expect(withStatement(statement({ sections: [{ title: "Empty", lines: [] }] }))).toMatch(
+        /has no lines/,
+      );
+    });
+
+    // A "FY25 / FY24" header over rows carrying only this year prints a column
+    // of em-dashes, and the reverse silently drops last year from the page.
+    it("catches prior-period values with only one period header", () => {
+      expect(
+        withStatement(
+          statement({ sections: [{ lines: [{ label: "Revenue", value: 100, priorValue: 90 }] }] }),
+        ),
+      ).toMatch(/only one period header/);
+    });
+
+    it("catches two period headers with no prior-period values", () => {
+      expect(withStatement(statement({ periods: ["FY25", "FY24"] }))).toMatch(
+        /two period headers and no prior-period values/,
+      );
+    });
+
+    it("catches a repeated line label, which would collide as a React key", () => {
+      expect(
+        withStatement(
+          statement({
+            sections: [
+              { title: "A", lines: [{ label: "Revenue", value: 100 }] },
+              { title: "B", lines: [{ label: "Revenue", value: 50 }] },
+            ],
+          }),
+        ),
+      ).toMatch(/repeats the line "Revenue"/);
+    });
   });
 
   /**

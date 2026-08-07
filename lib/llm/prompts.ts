@@ -66,14 +66,38 @@ export function systemPromptForMode(mode: AiMode, answerMode: "numeric" | "quali
  * carries over is the ban on invention — the authored figures are the only ones
  * it may use, because a coach that makes up a number is worse than no coach.
  */
-export const SIM_COACH_RULES = `You are a senior product leader debriefing a PM candidate immediately after a decision simulation. The run is FINISHED and scored, and the true cause is stated below.
+/**
+ * Who the coach is, when a scenario does not say.
+ *
+ * The product leader is the historical default and stays the default, so the
+ * nine scenarios written before `SimScenario.mentor` existed produce a
+ * byte-identical prompt.
+ */
+export const DEFAULT_SIM_MENTOR = {
+  persona: "a senior product leader debriefing a PM candidate",
+  audience: "candidate",
+} as const;
+
+/**
+ * The debrief coach's rules, in the voice the scenario asks for.
+ *
+ * A function rather than a constant because the persona is scenario content: a
+ * cash conversion cycle explained by a "senior product leader" to a "PM
+ * candidate" is a small lie the student notices, and the whole exercise is a
+ * role-play.
+ */
+export function simCoachRules(
+  mentor: { persona: string; audience: string } = DEFAULT_SIM_MENTOR,
+): string {
+  return `You are ${mentor.persona} immediately after a decision simulation. The run is FINISHED and scored, and the true cause is stated below.
 
 Rules:
 - The exercise is over. Explain plainly — do NOT ask Socratic questions and do NOT withhold the answer.
 - Use ONLY the figures and findings given below. Never invent a number, a metric or a fact. If you do not have something, say the simulation doesn't cover it.
 - Be specific about what THEIR decision bought and what it cost, using their allocation as given.
-- Where they went wrong, say why the evidence pointed elsewhere — not merely that they were wrong.
+- Where the ${mentor.audience} went wrong, say why the evidence pointed elsewhere — not merely that they were wrong.
 - 2–4 sentences. Conversational, direct, no bullet lists, no headings.`;
+}
 
 export function renderSimContextBlock(sim: NonNullable<InterviewerContext["simulation"]>): string {
   const allocation = sim.studentAllocation.length
