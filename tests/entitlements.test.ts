@@ -10,7 +10,12 @@ import {
   WALL_PARAM,
 } from "@/lib/entitlements";
 import { questions as seedQuestions } from "@/prisma/seed-data";
-import { answerModeFor, isSimulation } from "@/lib/types";
+import {
+  answerModeFor,
+  isSimulation,
+  PRACTICE_TYPES,
+  PRACTISABLE_TYPES,
+} from "@/lib/types";
 
 const free = { freeTier: true };
 const paid = { freeTier: false };
@@ -137,6 +142,30 @@ describe("wallRedirect", () => {
     // Not /signup: a bare signup form with no explanation reads as a bug, and
     // the free items should still be on the page.
     expect(wallRedirect()).toBe(`/library?${WALL_PARAM}=${WALL_LOCKED}`);
+  });
+
+  it("sends a refused war room back to the war rooms, not the library", () => {
+    // The library no longer lists simulations, so the old behaviour would bounce
+    // someone to a page with no trace of what they just tried to open — and the
+    // one free war room, sitting there to be played instead, nowhere in sight.
+    expect(wallRedirect("simulation")).toBe(`/simulations?${WALL_PARAM}=${WALL_LOCKED}`);
+  });
+});
+
+describe("PRACTICE_TYPES", () => {
+  it("is the practisable formats minus simulations", () => {
+    expect(PRACTICE_TYPES).toEqual(["guesstimate", "qualitative"]);
+  });
+
+  it("never contains a simulation", () => {
+    // Derived from PRACTISABLE_TYPES rather than written out again, so a new
+    // format added there cannot silently skip the library. This is the assertion
+    // that catches a war room leaking back into the practice catalogue or the
+    // dashboard's recommendation strip.
+    expect(PRACTICE_TYPES.some(isSimulation)).toBe(false);
+    for (const type of PRACTISABLE_TYPES) {
+      expect(PRACTICE_TYPES.includes(type) || isSimulation(type)).toBe(true);
+    }
   });
 });
 

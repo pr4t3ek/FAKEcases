@@ -65,19 +65,19 @@ export async function startSimulation(questionId: string): Promise<void> {
     where: { id: questionId },
     select: { id: true, externalId: true, type: true, freeTier: true },
   });
-  if (!question || question.type !== "simulation") redirect("/library");
+  if (!question || question.type !== "simulation") redirect("/simulations");
 
   // Existence only — an override can retune a scenario but never introduce one,
   // so there is nothing here the authored registry cannot answer.
   const slug = question.externalId;
-  if (!slug || !scenarioExists(slug)) redirect("/library");
+  if (!slug || !scenarioExists(slug)) redirect("/simulations");
 
   // Resume before gating, matching `startAttempt`: a run already under way has
   // spent analyst-days that a refusal would strand.
   const resumable = await findResumableRun(user.id, question.id);
   if (resumable) redirect(`/simulate/${resumable}`);
 
-  if (!canOpen(tierFor(user), question)) redirect(wallRedirect());
+  if (!canOpen(tierFor(user), question)) redirect(wallRedirect("simulation"));
 
   const runId = await startRun(user.id, question.id, slug);
   redirect(`/simulate/${runId}`);

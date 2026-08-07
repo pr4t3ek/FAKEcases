@@ -366,9 +366,15 @@ outcome, which is not how the decision works anywhere else. Where a cause is one
 a monsoon, a competitor's launch — holding the capacity is the answer, and the quarter plays out
 as if nobody acted, because on that reading nobody usefully could.
 
-A finished run can be **played again** from the debrief or the library card, and an unfinished one
-resumes from where it stopped. Only a first result is ever ranked, and the replay says so before
-it starts rather than after the budget is gone.
+A finished run can be **played again** from the debrief or its card, and an unfinished one resumes
+from where it stopped. Only a first result is ever ranked, and the replay says so before it starts
+rather than after the budget is gone.
+
+War rooms live at **`/simulations`**, not in the library. They used to be a filtered view of it,
+which put a four-phase exercise with its own budget in the same grid as a twenty-minute
+guesstimate and implied the two were interchangeable. They have their own leaderboard for the same
+reason: a war room is scored on a different rubric, so adding its score to a practice score — which
+the cumulative board used to do — produced a number that measured nothing.
 
 Twelve scenarios ship today, easiest first — which is the order the library shows them in. The
 first nine teach product and marketing economics; the last three are a **finance track**, one per

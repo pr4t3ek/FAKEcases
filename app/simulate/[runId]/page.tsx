@@ -30,22 +30,22 @@ export default async function SimulatePage({
 }) {
   const { runId } = await params;
   const user = await getSessionUser();
-  if (!user) redirect("/library");
+  if (!user) redirect("/simulations");
 
   const run = await loadRun(runId);
-  if (!run || run.userId !== user.id) redirect("/library");
+  if (!run || run.userId !== user.id) redirect("/simulations");
 
   const scenario = await loadScenario(run.scenarioSlug);
   // A run can outlive the scenario it was played against — a removed scenario
   // should send you back to the library, not throw.
-  if (!scenario) redirect("/library");
+  if (!scenario) redirect("/simulations");
 
   const state = toRunState(run);
 
   // ── Committed → the debrief ───────────────────────────────────────────────
   if (run.phase === "debrief" && run.result) {
     const outcome = outcomeFromResult(run.result);
-    if (!outcome) redirect("/library");
+    if (!outcome) redirect("/simulations");
 
     const rows = outcomeRows(scenario, outcome);
     const nsPath = outcome.paths[scenario.northStar] ?? [];

@@ -13,6 +13,7 @@
  */
 
 import { tierAccess, type AccessTier, type UpgradePath } from "@/lib/config";
+import type { QuestionSurface } from "@/lib/types";
 
 /** The minimum needed to place someone in a tier. */
 export interface TierSubject {
@@ -68,14 +69,21 @@ export function upgradeFor(tier: AccessTier): UpgradePath | null {
 /**
  * Where a refused gate sends someone.
  *
- * The library rather than straight to `/signup`: being bounced to a signup form
- * with no explanation reads as a bug, while landing back on the library with the
- * wall banner up shows both what is locked and what is still open. The banner is
- * keyed off this query parameter.
+ * The catalogue rather than straight to `/signup`: being bounced to a signup
+ * form with no explanation reads as a bug, while landing back on the catalogue
+ * with the wall banner up shows both what is locked and what is still open. The
+ * banner is keyed off this query parameter.
+ *
+ * Which catalogue depends on what was refused. A locked war room has to send you
+ * back to `/simulations` — the library no longer lists them, so the old
+ * behaviour would bounce someone to a page with no trace of the thing they just
+ * tried to open, and the one free war room sitting there to be played instead
+ * would be nowhere in sight.
  */
 export const WALL_PARAM = "wall";
 export const WALL_LOCKED = "locked";
 
-export function wallRedirect(): string {
-  return `/library?${WALL_PARAM}=${WALL_LOCKED}`;
+export function wallRedirect(surface: QuestionSurface = "practice"): string {
+  const path = surface === "simulation" ? "/simulations" : "/library";
+  return `${path}?${WALL_PARAM}=${WALL_LOCKED}`;
 }

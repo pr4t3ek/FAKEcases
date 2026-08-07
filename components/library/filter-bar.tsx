@@ -3,7 +3,12 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Search, X } from "lucide-react";
-import { DIFFICULTIES, INTERVIEW_LEVELS, INTERVIEW_LEVEL_LABELS } from "@/lib/types";
+import {
+  DIFFICULTIES,
+  INTERVIEW_LEVELS,
+  INTERVIEW_LEVEL_LABELS,
+  type QuestionSurface,
+} from "@/lib/types";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
@@ -12,19 +17,32 @@ interface Category {
   name: string;
 }
 
-export function FilterBar({ categories }: { categories: Category[] }) {
+export function FilterBar({
+  categories,
+  surface = "practice",
+}: {
+  categories: Category[];
+  /**
+   * Which catalogue is being filtered. Decides where the filters navigate, and
+   * whether the format dropdown appears at all — the war rooms page holds
+   * exactly one format, so a "which format?" select there would be a control
+   * with one option.
+   */
+  surface?: QuestionSurface;
+}) {
   const router = useRouter();
   const params = useSearchParams();
   const [search, setSearch] = useState(params.get("q") ?? "");
+  const basePath = surface === "simulation" ? "/simulations" : "/library";
 
   const setParam = useCallback(
     (key: string, value: string) => {
       const next = new URLSearchParams(params.toString());
       if (value) next.set(key, value);
       else next.delete(key);
-      router.push(`/library?${next.toString()}`);
+      router.push(`${basePath}?${next.toString()}`);
     },
-    [params, router],
+    [params, router, basePath],
   );
 
   // Debounced search sync.
@@ -57,20 +75,21 @@ export function FilterBar({ categories }: { categories: Category[] }) {
         />
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        {/* The library holds three kinds of exercise now. Without this, a case
-            is only reachable by scrolling past every guesstimate. The default
-            label has to name all of them — "Guesstimates & cases" told people
-            the unfiltered view excluded something it doesn't. */}
-        <select
-          className={selectClass}
-          value={activeType}
-          onChange={(e) => setParam("type", e.target.value)}
-        >
-          <option value="">All exercises</option>
-          <option value="guesstimate">Guesstimates</option>
-          <option value="qualitative">Cases (issue tree)</option>
-          <option value="simulation">Decision simulations</option>
-        </select>
+        {/* Without this a case is only reachable by scrolling past every
+            guesstimate. Simulations are no longer an option here: they have
+            their own catalogue, and leaving them in this list would have been
+            a filter that navigates you off the page you are on. */}
+        {surface === "practice" && (
+          <select
+            className={selectClass}
+            value={activeType}
+            onChange={(e) => setParam("type", e.target.value)}
+          >
+            <option value="">All exercises</option>
+            <option value="guesstimate">Guesstimates</option>
+            <option value="qualitative">Cases (issue tree)</option>
+          </select>
+        )}
         <select
           className={selectClass}
           value={activeCategory}
@@ -111,7 +130,7 @@ export function FilterBar({ categories }: { categories: Category[] }) {
           <button
             onClick={() => {
               setSearch("");
-              router.push("/library");
+              router.push(basePath);
             }}
             className={cn(
               "inline-flex h-10 items-center gap-1 rounded-md px-3 text-sm text-muted-foreground hover:text-foreground",

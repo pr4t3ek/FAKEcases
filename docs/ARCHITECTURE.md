@@ -140,6 +140,18 @@ The two loops share a user, XP and a streak, and nothing else. A simulation writ
 and no `Evaluation`, so `updateProgress` and `recomputeRank` cannot see it — that is what keeps
 interview readiness and percentile rank measuring only interview work.
 
+**They are separate surfaces too, and not only separate tables.** `/library` holds the practice
+formats and `/simulations` holds the war rooms; `QuestionSurface` in `lib/types.ts` is what keeps
+the two catalogue reads apart, and `PRACTICE_TYPES` is derived from `PRACTISABLE_TYPES` so a new
+format cannot silently leak into the library or the dashboard's recommendation strip. The cards
+and the filter bar are shared — this is one catalogue read through two surfaces, not two
+implementations.
+
+The separation reaches the leaderboard, which is where it had quietly failed: `globalStandings`
+summed every ranked entry a user held, adding a war room's score to a guesstimate's. Those come
+off different rubrics with different units of effort, and `simSummary` had already refused to
+average them for exactly that reason. It now takes a `kind`, and there are two boards.
+
 ---
 
 ## 3. Data model (Prisma / SQLite → Postgres)
@@ -661,7 +673,8 @@ app/
 ├── admin/             Admin panel (question/category CRUD, import, feedback queue,
 │                       simulation driver overrides)
 ├── dashboard/         Stats, charts, rank card, achievements
-├── library/           Browse/filter questions
+├── library/           Browse/filter practice questions (guesstimates + cases)
+├── simulations/       Browse/filter war rooms, and their own leaderboard
 ├── practice/[id]/     Core interviewer + calculator + framework + evaluation UI
 ├── simulate/[runId]/  Decision simulation: dashboard, drilldown market, commit, debrief
 └── (login|signup|forgot-password)/   Auth pages

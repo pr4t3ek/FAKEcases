@@ -31,10 +31,26 @@ export function GlobalLeaderboard({
   week,
   all,
   currentUserId,
+  title = "Practice leaderboard",
+  /**
+   * What a point is on this board.
+   *
+   * Named because there are two boards now, and they must not be read as one:
+   * practice points come off the interview rubric, war-room points off a
+   * different one entirely. Summing them — which this used to do — produced a
+   * number measuring nothing.
+   */
+  unit = "question",
+  emptyThisWeek = "No ranked results yet this week. Solve something new to open the board.",
+  emptyAllTime = "No ranked results yet. Your first attempt at any question puts you here.",
 }: {
   week: BoardSide;
   all: BoardSide;
   currentUserId: string;
+  title?: string;
+  unit?: string;
+  emptyThisWeek?: string;
+  emptyAllTime?: string;
 }) {
   const [window, setWindow] = useState<"week" | "all">("week");
   const side = window === "week" ? week : all;
@@ -45,7 +61,7 @@ export function GlobalLeaderboard({
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Trophy className="h-4 w-4 text-warning" />
-          <h2 className="font-semibold">Leaderboard</h2>
+          <h2 className="font-semibold">{title}</h2>
         </div>
         <Tabs value={window} onValueChange={(v) => setWindow(v as "week" | "all")}>
           <TabsList>
@@ -56,18 +72,14 @@ export function GlobalLeaderboard({
       </div>
 
       <p className="mb-3 text-xs text-muted-foreground">
-        Points are the sum of your <strong className="text-foreground">first-attempt</strong> scores.
-        Replaying a question you have already ranked does not add any.
+        Points are the sum of your <strong className="text-foreground">first-attempt</strong> scores
+        on each {unit}. Replaying one you have already ranked does not add any.
       </p>
 
       <LeaderboardTable
         rows={side.rows}
         currentUserId={currentUserId}
-        emptyMessage={
-          window === "week"
-            ? "No ranked results yet this week. Solve something new to open the board."
-            : "No ranked results yet. Your first attempt at any question puts you here."
-        }
+        emptyMessage={window === "week" ? emptyThisWeek : emptyAllTime}
       />
 
       {side.you && !inTop && side.you.rank > 0 && (

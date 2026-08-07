@@ -308,15 +308,24 @@ export interface GlobalStanding {
  * Returns the whole (capped) ordered list rather than just the top few, so the
  * dashboard can slice a top N *and* find the viewer's own position from one
  * query instead of two that could disagree.
+ *
+ * **One kind at a time.** This used to sum every entry a user had, which added a
+ * simulation's score to a guesstimate's — two numbers off different rubrics,
+ * measuring different things, on different scales of effort. `simSummary` had
+ * already refused to do that ("averaging the two numbers would produce something
+ * that means nothing") and this was quietly doing it anyway. Two boards is the
+ * honest shape: a war-room standing and a practice standing are not comparable
+ * and should not be added.
  */
 export async function globalStandings(
   window: LeaderboardWindow,
+  kind: LeaderboardKind,
   now: Date = new Date(),
 ): Promise<GlobalStanding[]> {
   const achievedAt = windowFilter(window, now);
   const grouped = await db.leaderboardEntry.groupBy({
     by: ["userId"],
-    where: { user: rankableUser, ...(achievedAt ? { achievedAt } : {}) },
+    where: { kind, user: rankableUser, ...(achievedAt ? { achievedAt } : {}) },
     _sum: { score: true },
     _count: { _all: true },
     orderBy: { _sum: { score: "desc" } },
@@ -355,9 +364,10 @@ export async function globalStandings(
 export async function globalBoard(
   userId: string,
   window: LeaderboardWindow,
+  kind: LeaderboardKind = "attempt",
   limit = TOP_N,
 ): Promise<{ top: GlobalStanding[]; you: GlobalStanding | null; total: number }> {
-  const standings = await globalStandings(window);
+  const standings = await globalStandings(window, kind);
   return {
     top: standings.slice(0, limit),
     you: standings.find((s) => s.userId === userId) ?? null,

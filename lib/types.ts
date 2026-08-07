@@ -55,6 +55,32 @@ export function isSimulation(type: string): boolean {
 }
 
 /**
+ * The practice formats — everything a candidate *answers*, as opposed to plays.
+ *
+ * War rooms have their own catalogue at `/simulations`, so the library and the
+ * recommendation strip read this rather than `PRACTISABLE_TYPES`. A twenty-minute
+ * guesstimate and a four-phase war room with its own budget are not
+ * interchangeable, and a list that offers them side by side says they are.
+ *
+ * Derived rather than written out again, so adding a format to
+ * `PRACTISABLE_TYPES` cannot silently leave this behind.
+ */
+export const PRACTICE_TYPES = PRACTISABLE_TYPES.filter((t) => !isSimulation(t));
+
+/**
+ * Which catalogue is being read or gated.
+ *
+ * `/library` answers "what can I practise?" and `/simulations` answers "which
+ * war room shall I play?". They differ in what a card offers, what the counts
+ * mean and where a refused gate should bounce you back to — so it is a
+ * parameter rather than something each call site remembers to filter for.
+ *
+ * Here rather than in `lib/questions.ts` because `lib/entitlements.ts` needs it
+ * and is deliberately DB-free.
+ */
+export type QuestionSurface = "practice" | "simulation";
+
+/**
  * A simulation run's phase. Strictly forward: `canAdvanceSimPhase` allows only
  * the next one, and the server enforces it.
  *

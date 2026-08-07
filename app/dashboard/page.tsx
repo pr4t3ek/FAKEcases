@@ -91,8 +91,10 @@ export default async function DashboardPage() {
       db.achievement.findMany(),
       db.userAchievement.findMany({ where: { userId: user.id } }),
       simSummary(user.id),
-      globalBoard(user.id, "week"),
-      globalBoard(user.id, "all"),
+      // Practice only. War rooms have their own board on /simulations — the two
+      // are scored on different rubrics, so one combined total measured nothing.
+      globalBoard(user.id, "week", "attempt"),
+      globalBoard(user.id, "all", "attempt"),
     ]);
 
   const stats = {
@@ -228,7 +230,7 @@ export default async function DashboardPage() {
         <section>
           <div className="mb-3 flex items-center justify-between">
             <h2 className="font-semibold">Product simulations</h2>
-            <Link href="/library?type=simulation" className="text-sm text-primary hover:underline">
+            <Link href="/simulations" className="text-sm text-primary hover:underline">
               Browse simulations <ArrowRight className="inline h-3 w-3" />
             </Link>
           </div>
@@ -243,7 +245,7 @@ export default async function DashboardPage() {
                   </p>
                 </div>
                 <Button asChild variant="outline">
-                  <Link href="/library?type=simulation">
+                  <Link href="/simulations">
                     Try one <ArrowRight />
                   </Link>
                 </Button>
