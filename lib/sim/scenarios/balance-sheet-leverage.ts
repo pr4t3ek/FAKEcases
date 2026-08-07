@@ -407,7 +407,7 @@ export const balanceSheetLeverage: SimScenario = {
       label: "The repayment schedule and the covenant pack",
       question: "What actually falls due, and what has been promised to the bank?",
       cost: 2,
-      evidenceFor: ["funding.maturity", "funding.leverage"],
+      evidenceFor: ["funding.maturity", "funding.leverage", "funding.cost"],
       readsAs:
         "A 15-year kiln was funded with a 5-year loan on a 2-year moratorium that has just ended. Nothing was borrowed this year — ₹64 crore reclassified as current on a date, and that alone took the current ratio from 2.11 to 0.93.",
       reveals: [
@@ -476,7 +476,7 @@ export const balanceSheetLeverage: SimScenario = {
       label: "What the market will take",
       question: "Could we price our way out, or sell our way out?",
       cost: 2,
-      evidenceFor: ["trading.demand", "trading.margin"],
+      evidenceFor: ["trading.demand", "trading.margin", "trading.competition"],
       readsAs:
         "A 5% price rise loses about 6% of volume in a market with Morbi capacity spare everywhere — roughly flat revenue at a slightly better margin. The volume for the third kiln exists, at a price, and it is contract manufacturing rather than the brand.",
       reveals: [
@@ -499,7 +499,7 @@ export const balanceSheetLeverage: SimScenario = {
       label: "Sector comparison",
       question: "Is this a Deccan problem or a tile problem?",
       cost: 2,
-      evidenceFor: ["trading.margin"],
+      evidenceFor: ["trading.margin", "trading.competition"],
       readsAs:
         "Deccan's EBITDA margin is the best of the four listed comparables and its ROCE is the worst. That combination has only one explanation, and it is not on the profit and loss statement.",
       reveals: [
@@ -551,6 +551,13 @@ export const balanceSheetLeverage: SimScenario = {
       verdict:
         "Debt to equity of 0.92× is inside the 1.25× covenant and unremarkable for the sector. Leverage decided how quickly this became urgent; it did not decide that the capital would earn 1.9%. Swapping ₹40 crore of debt for ₹40 crore of equity leaves capital employed — and therefore ROCE — exactly where it was.",
     },
+    {
+      id: "funding.cost",
+      parentId: "funding",
+      label: "We are paying too much for the debt",
+      verdict:
+        "9.9% blended is the market rate for this leverage and this sector, and the lender's own refinance offer is 80 basis points *more*, not less. What capital costs is never the question on its own — the question is the gap between that and what it earns, and here it earns 1.9%.",
+    },
     { id: "trading", parentId: null, label: "The trading performance", verdict: "Is the best it has ever been." },
     {
       id: "trading.margin",
@@ -565,6 +572,13 @@ export const balanceSheetLeverage: SimScenario = {
       label: "The demand for the extra capacity is not there",
       verdict:
         "The demand exists at a price. Two national brands have asked about private-label contract manufacturing at 8% below own-brand realisation, for about 20% more volume, and the enquiry has sat with sales for five months because it dilutes the brand. On a kiln at 46%, 8% off realisation is an extremely cheap way to buy utilisation.",
+    },
+    {
+      id: "trading.competition",
+      parentId: "trading",
+      label: "Morbi has built more capacity than the market can absorb",
+      verdict:
+        "True of the sector and not an explanation of this company. A soft market compresses everyone's margin — and Deccan's EBITDA margin is the best of the four listed comparables while its ROCE is the worst. Only the capital turnover is an outlier, and a sector cannot be blamed for a denominator you chose.",
     },
   ],
   trueCauseIds: ["capital.idle"],
@@ -791,6 +805,16 @@ export const balanceSheetLeverage: SimScenario = {
       topic: ["land", "hosur", "sell", "leaseback", "sale", "press"],
       answer:
         "The Hosur land and the mothballed press are carried at ₹34.8 crore and are in nobody's production plan. Selling them takes ₹34.8 crore straight out of capital employed and off the term loan, and gives up no operating profit at all because they were producing none.",
+    },
+    {
+      topic: ["interest rate", "cost of debt", "9.9", "expensive debt", "cheaper"],
+      answer:
+        "The rate is not the problem. 9.9% blended is market for this leverage, and the ten-year refinance the bank offered is 80 basis points dearer. Capital costing 9.9% and earning 1.9% is a gap you close from the earning side.",
+    },
+    {
+      topic: ["morbi", "competition", "oversupply", "sector", "soft market"],
+      answer:
+        "Morbi is genuinely oversupplied, and it cannot explain Deccan specifically: a soft market squeezes everyone's margin, yet Deccan has the best EBITDA margin of the four listed comparables and the worst ROCE. The outlier is the capital turnover, which is a choice rather than a market.",
     },
     {
       topic: ["price", "5%", "raise prices", "realisation"],
