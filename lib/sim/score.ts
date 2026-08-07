@@ -66,6 +66,14 @@ export function isAncestorOfAny(
  * Naming the maximum allowed and being right scores below naming one and being
  * right. That gap is the point: a hypothesis that hedges across every branch
  * predicts nothing and tells an interviewer nothing.
+ *
+ * **The `ancestor` branch is currently unreachable, by design of the schema.**
+ * `hypothesisSchema` and `diagnosisSchema` (lib/sim/payload.ts) accept leaves
+ * only, so no run can name a root and collect `ancestorCredit`. It is kept
+ * because the rule it encodes is right — naming the region is worth more than
+ * naming the wrong branch — and it works again the day a scenario authors a
+ * cause tree deeper than one level. The boundary test in `tests/sim-payload`
+ * is what documents the deadness.
  */
 export function scoreHypothesis(scenario: SimScenario, suspects: CauseId[]): number {
   if (!suspects.length) return 0;

@@ -249,6 +249,22 @@ export interface SimCause {
   label: string;
   /** Why this was or wasn't it. Revealed only in the debrief. */
   verdict: string;
+  /**
+   * Nothing on this board fixes it, and that is the authored answer rather than
+   * a gap.
+   *
+   * Under gating a diagnosis only unlocks the interventions that address it, so
+   * a cause with no fix behind it would leave the student unable to commit. The
+   * cheap escape would be to invent one — but there is no intervention that
+   * addresses a monsoon or a competitor's launch, and writing a fake one is
+   * worse content than saying plainly that the quarter is not winnable from
+   * here. Holding the capacity is then the correct answer, and the run scores
+   * the do-nothing path honestly.
+   *
+   * Stripped by `toClientCause`: visible before the diagnosis is locked, this
+   * would be a tell about which causes are decoys.
+   */
+  unactionable?: { why: string };
 }
 
 // ─── Commit: candidate interventions ───────────────────────────────────────
@@ -500,7 +516,7 @@ export type ClientDrilldown = Omit<SimDrilldown, "reveals" | "evidenceFor" | "re
   unlocked: boolean;
 };
 
-export type ClientCause = Omit<SimCause, "verdict">;
+export type ClientCause = Omit<SimCause, "verdict" | "unactionable">;
 
 export type ClientIntervention = Omit<SimIntervention, "addresses" | "effects" | "debrief">;
 
@@ -530,5 +546,17 @@ export interface ClientScenario {
   panels: SimPanel[];
   drilldowns: ClientDrilldown[];
   causes: ClientCause[];
+  /**
+   * Only the fixes that treat the cause this run has named — empty until one is.
+   * The gate; see `toClientInterventions` in lib/sim/redact.ts.
+   */
   interventions: ClientIntervention[];
+  /**
+   * Why the named cause has nothing to fund, when it has nothing to fund.
+   *
+   * Scenario-level rather than on the cause, so every `ClientCause` keeps the
+   * same shape and none of them signals anything. Null until a diagnosis is
+   * locked.
+   */
+  unactionableNote: string | null;
 }

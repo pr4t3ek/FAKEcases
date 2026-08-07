@@ -321,3 +321,51 @@ Supporting changes, all additive:
 853 → 891 tests. The load-bearing one is unchanged: `checkBalance` brute-forces every
 affordable combination of interventions per scenario and fails if anything beats the
 authored `bestAllocation`, so a retune that makes a decoy win cannot ship quietly.
+
+---
+
+## The investment gate, and getting back into a war room
+
+891 → 949 tests.
+
+**You now spend against the cause you named.** `runOutcome` takes only the allocation and reads
+`trueCauseIds` to decide whether a fix works — correct, and the reason the debrief can compare
+your path, the do-nothing and the authored best on the same terms, but it let a run name the
+wrong branch, fund the right fix, and score 100 on decision *and* outcome. Commit became two
+steps: naming the cause locks it, and only then does the server ship the fixes that address it.
+`lib/sim/gating.ts` is the single rule, called by both the redaction and the payload check.
+
+The gate is in the redaction rather than the UI because the cause-to-fix mapping gives the answer
+away on its own — the true cause usually has several fixes behind it where a decoy has one, so the
+size of a slate is an oracle. Persisting the diagnosis before computing any list, and refusing to
+rewrite it, is what stops that being read off. `commitDecision` no longer takes a diagnosis at all.
+
+`SimCause.unactionable` marks a cause nothing can fix. There is no intervention that addresses a
+monsoon, and writing a fake one to satisfy the gate is worse content than saying so; holding the
+capacity becomes the answer and the quarter runs the do-nothing path. Four are annotated; eleven
+leaves across seven scenarios still have nothing behind them and want authored interventions.
+
+**"Somewhere in {area}" is gone**, and both schemas take leaves only. Naming an area was a hedge
+worth 55% `ancestorCredit`, the commit picker rendered each area twice — once as its own heading
+and again as a button beneath it — and the Observe picker had already decided areas were not
+offerable. `scoreDiagnosisSim`'s ancestor branch stays, unreachable by design of the schema rather
+than by accident, for the day a scenario authors a deeper tree.
+
+**`checkBalance` prunes.** It walked all 2^n subsets and filtered afterwards, which capped a
+scenario at twelve interventions — the binding constraint on giving every nameable cause something
+to fund. Costs are non-negative, so a total past the budget prunes every superset with it: sixteen
+interventions goes from 65,536 projections to a few thousand. The guard is now a cap on
+combinations swept, and an unfinished sweep reports rather than passing quietly.
+
+**Replaying and resuming are visible.** Both always worked — a committed run ends in
+`phase: "debrief"` so `findResumableRun` returns null and a fresh run is minted — and neither was
+mentioned anywhere. `completedSimQuestionIds` did almost exactly what a card needed and had zero
+callers; `simStateFromRuns` replaces it, with an unfinished run outranking a finished one because
+spent analyst-days are what a replay would strand. The unranked-replay bargain moved to *before*
+the run starts.
+
+**The primer's definitions follow the words.** `SimPrimerTerm.driver` joins each term to its
+metric-map node and was read by nothing; `@radix-ui/react-tooltip` was a dependency and unused.
+`lib/sim/glossary.ts` indexes by term, expansion and driver, matches exactly rather than on
+substrings — a confident wrong definition is worse than none — and withholds formulas wherever the
+metric map is withheld, since a formula names its inputs.

@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import type { MetricMapNode } from "@/lib/sim/metric-map";
 import type { SimUnit } from "@/lib/sim/types";
 import { formatValue } from "./sim-dashboard";
+import { GlossaryTerm } from "./glossary-term";
 
 /**
  * "How is this number built?"
@@ -83,7 +84,11 @@ function MetricNode({ node, highlighted }: { node: MetricMapNode; highlighted: b
       )}
     >
       <div className="flex items-start justify-between gap-1">
-        <span className="text-xs font-medium leading-tight">{node.label}</span>
+        {/* `node.id` is a driver id, and `SimPrimerTerm.driver` is authored
+            against exactly that — an exact join, no label guessing. */}
+        <GlossaryTerm term={node.id} className="text-xs font-medium leading-tight">
+          {node.label}
+        </GlossaryTerm>
         {node.isLever && (
           <Sliders className="mt-0.5 h-3 w-3 shrink-0 text-primary" aria-label="You can change this" />
         )}

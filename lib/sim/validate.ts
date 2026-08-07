@@ -185,6 +185,49 @@ export function validateScenario(scenario: SimScenario): string[] {
     errors.push("No intervention addresses a true cause — the scenario is unwinnable");
   }
 
+  // ── The investment gate's preconditions ─────────────────────────────────
+  //
+  // Under gating a diagnosis unlocks only the interventions that address it, so
+  // three things that used to be merely untidy are now load-bearing.
+
+  // An intervention on a root is unfundable forever: `diagnosisSchema` accepts
+  // leaves only, and `permittedInterventions` matches on exact equality.
+  for (const iv of scenario.interventions) {
+    if (parents.has(iv.addresses)) {
+      errors.push(
+        `Intervention "${iv.id}" addresses "${iv.addresses}", which is an area rather than a branch — no run can name it, so it can never be funded`,
+      );
+    }
+  }
+
+  // An off-target line in `bestAllocation` would put the outcome ceiling out of
+  // reach of every legal allocation, so `scoreOutcome` could never return 100 —
+  // the scorer would grade against something nobody is allowed to build.
+  for (const line of scenario.bestAllocation) {
+    const iv = scenario.interventions.find((i) => i.id === line.interventionId);
+    if (iv && !scenario.trueCauseIds.includes(iv.addresses)) {
+      errors.push(
+        `bestAllocation funds "${iv.id}", which addresses "${iv.addresses}" rather than a true cause — no correct diagnosis could reach the ceiling`,
+      );
+    }
+  }
+
+  // A cause marked unactionable must genuinely have nothing behind it, and must
+  // never be the answer — that would make the scenario unwinnable in a way the
+  // check above does not catch.
+  const addressed = new Set(scenario.interventions.map((i) => i.addresses));
+  for (const cause of scenario.causes) {
+    if (!cause.unactionable) continue;
+    if (addressed.has(cause.id)) {
+      errors.push(
+        `Cause "${cause.id}" is marked unactionable but an intervention addresses it`,
+      );
+    }
+    if (scenario.trueCauseIds.includes(cause.id)) {
+      errors.push(`True cause "${cause.id}" is marked unactionable — the run cannot be won`);
+    }
+  }
+
   // ── Budget and par ──────────────────────────────────────────────────────
   const totalDrilldownCost = scenario.drilldowns.reduce((s, d) => s + d.cost, 0);
   if (totalDrilldownCost <= scenario.budget.analystDays) {

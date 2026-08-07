@@ -9,9 +9,10 @@ import { loadScenario, scenarioExists } from "@/lib/scenario-store";
 import { priceDrilldown } from "@/lib/sim/investigate";
 import { runOutcome } from "@/lib/sim/outcome";
 import { scoreSimulation } from "@/lib/sim/score";
-import { parseCommit, parseHypothesis } from "@/lib/sim/payload";
+import { parseAllocation, parseDiagnosis, parseHypothesis } from "@/lib/sim/payload";
 import type { SimScenario } from "@/lib/sim/types";
 import {
+  commitDiagnosisToRun,
   commitHypothesisToRun,
   commitRun,
   findResumableRun,
@@ -173,6 +174,37 @@ function refusalMessage(reason: string): string {
   }
 }
 
+/**
+ * Name the cause, and narrow the board to the fixes that treat it.
+ *
+ * Its own step, and irreversible. Until this runs the client has been sent no
+ * interventions at all; afterwards it is sent only the ones addressing what was
+ * named. Persisting first and refusing to rewrite is what stops the slate being
+ * used as an oracle — a run that could re-name freely would learn that the true
+ * cause is the one with three fixes behind it and the decoys have one.
+ *
+ * Returns nothing but `ok`. The permitted slate arrives through the ordinary
+ * page render, so there is no second serialisation path to keep honest.
+ */
+export async function lockDiagnosis(
+  runId: string,
+  causeIds: string[],
+): Promise<SimActionResult> {
+  const owned = await ownedRun(runId);
+  if (!owned) return { ok: false, error: "Not found" };
+
+  if (owned.run.phase !== "commit") return { ok: false, error: "Not available yet" };
+  // Idempotent rather than an error: a double submit, or a retry after a dropped
+  // response, should land on the decision screen rather than on a failure.
+  if (owned.run.diagnosis) return { ok: true };
+
+  const parsed = parseDiagnosis(owned.scenario, causeIds);
+  if (!parsed.ok) return { ok: false, error: parsed.error };
+
+  await commitDiagnosisToRun(runId, parsed.value);
+  return { ok: true };
+}
+
 /** Stop investigating and move to the decision. */
 export async function openDecision(runId: string): Promise<SimActionResult> {
   const owned = await ownedRun(runId);
@@ -207,7 +239,6 @@ export interface CommitResult extends SimActionResult {
  */
 export async function commitDecision(
   runId: string,
-  diagnosis: string[],
   allocation: { interventionId: string; sprints: number; rupees: number }[],
 ): Promise<CommitResult> {
   const owned = await ownedRun(runId);
@@ -217,24 +248,30 @@ export async function commitDecision(
   if (run.phase !== "commit") return { ok: false, error: "Not available yet" };
   if (run.result) return { ok: true }; // already committed; the page shows the report
 
-  const parsed = parseCommit(scenario, { diagnosis, allocation });
+  // The diagnosis comes off the run, never off the request. `lockDiagnosis`
+  // wrote it before any intervention was shown, so the allocation is checked
+  // against the same slate the student was actually offered.
+  const state = toRunState(run);
+  if (!state.diagnosis.length) {
+    return { ok: false, error: "Name the cause first" };
+  }
+
+  const parsed = parseAllocation(scenario, state.diagnosis, allocation);
   if (!parsed.ok) return { ok: false, error: parsed.error };
 
-  const state = toRunState(run);
-  const outcome = runOutcome(scenario, parsed.value.allocation);
+  const outcome = runOutcome(scenario, parsed.value);
   const score = scoreSimulation({
     scenario,
     hypothesis: state.hypothesis,
     purchases: state.purchases,
-    diagnosis: parsed.value.diagnosis,
-    allocation: parsed.value.allocation,
+    diagnosis: state.diagnosis,
+    allocation: parsed.value,
     outcome,
   });
 
   await commitRun({
     runId,
-    diagnosis: parsed.value.diagnosis,
-    allocation: parsed.value.allocation,
+    allocation: parsed.value,
     outcome,
     score,
   });

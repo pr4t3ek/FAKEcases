@@ -59,6 +59,7 @@ export default async function SimulatePage({
 
     const data: SimulationReportData = {
       runId: run.id,
+      questionId: run.questionId,
       isGuest: user.isGuest,
       title: scenario.title,
       company: scenario.company,
@@ -138,11 +139,15 @@ export default async function SimulatePage({
     scenario: toClientScenario(scenario, {
       phase: run.phase as SimPhase,
       owned: ownedInOrder(run.purchases),
+      // Empty until `lockDiagnosis` writes it, and that is what keeps the
+      // intervention list empty until a cause has been named.
+      diagnosis: state.diagnosis,
     }),
     daysSpent: run.daysSpent,
     hypothesis: state.hypothesis,
     hypothesisNote: run.hypothesisNote,
     purchaseCount: run.purchases.length,
+    diagnosis: state.diagnosis,
   };
 
   return <SimulationScreen data={data} />;

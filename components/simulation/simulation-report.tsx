@@ -24,7 +24,9 @@ import { formatValue, DeltaLabel } from "./sim-dashboard";
 import { inScale, moneyScaleFor } from "./money";
 import { MetricMap } from "./metric-map";
 import { PrimerRecap } from "./concept-primer";
+import { GlossaryProvider } from "./glossary-term";
 import { SimCoachPanel } from "./sim-coach-panel";
+import { ReplayButton } from "./replay-button";
 import { QuestionBoard } from "@/components/leaderboard/question-board";
 import type { SimulationReportData } from "./types";
 import type { SimUnit } from "@/lib/sim/types";
@@ -47,6 +49,9 @@ export function SimulationReport({
   const scale = moneyScaleFor(data.budgetRupees);
 
   return (
+    // The debrief is where the vocabulary finally has to stick, so the same
+    // hover definitions cover the outcome table and the metric map here too.
+    <GlossaryProvider teaching={data.teaching}>
     <div className="min-h-screen">
       <AppHeader user={user} />
       <main className="container max-w-5xl space-y-6 py-8">
@@ -362,6 +367,15 @@ export function SimulationReport({
               Another simulation <ArrowRight />
             </Link>
           </Button>
+          {/* The same scenario again, with the ranking bargain stated up front.
+              `isThisAttempt` is false when the run being read is itself a replay,
+              which only changes the wording — see ReplayButton. */}
+          <ReplayButton
+            questionId={data.questionId}
+            label="Play this again"
+            variant="secondary"
+            alreadyReplay={data.standing != null && !data.standing.isThisAttempt}
+          />
           <Button asChild variant="outline">
             <Link href="/dashboard">Back to dashboard</Link>
           </Button>
@@ -378,5 +392,6 @@ export function SimulationReport({
         )}
       </main>
     </div>
+    </GlossaryProvider>
   );
 }

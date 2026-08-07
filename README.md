@@ -359,6 +359,17 @@ then projected forward and reported as **moved metrics — orders, retention, ma
 a mark**. A debrief reveals the true causal chain and compares the candidate's allocation to the
 best available one.
 
+**You spend against the cause you named.** Naming it is its own step and it locks: from that point
+the board shows only the fixes that address it, and nothing else can be bought. Diagnosing the
+wrong branch and then funding the right fix anyway used to score full marks on decision and
+outcome, which is not how the decision works anywhere else. Where a cause is one nothing can fix —
+a monsoon, a competitor's launch — holding the capacity is the answer, and the quarter plays out
+as if nobody acted, because on that reading nobody usefully could.
+
+A finished run can be **played again** from the debrief or the library card, and an unfinished one
+resumes from where it stopped. Only a first result is ever ranked, and the replay says so before
+it starts rather than after the budget is gone.
+
 Twelve scenarios ship today, easiest first — which is the order the library shows them in. The
 first nine teach product and marketing economics; the last three are a **finance track**, one per
 financial statement, filed under Finance in the library:

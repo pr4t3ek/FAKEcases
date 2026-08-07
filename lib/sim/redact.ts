@@ -14,16 +14,20 @@
  * and asserts the absence of every secret.
  *
  * Withheld: unowned `reveals`, `trueCauseIds`, `cause.verdict`,
- * `intervention.addresses`, `intervention.effects`, `intervention.debrief`,
- * `drilldown.evidenceFor`, `drilldown.readsAs`, `drivers`, `drift`,
- * `parInvestigation`, `bestAllocation`, `debrief`, `coachFallback`.
+ * `cause.unactionable`, `intervention.addresses`, `intervention.effects`,
+ * `intervention.debrief`, `drilldown.evidenceFor`, `drilldown.readsAs`,
+ * `drivers`, `drift`, `parInvestigation`, `bestAllocation`, `debrief`,
+ * `coachFallback` — and every intervention that does not treat the cause the
+ * run has named, which is the investment gate (see `toClientInterventions`).
  */
 
 import type { SimPhase } from "@/lib/types";
 import { resolveDrivers } from "./drivers";
 import { metricMap } from "./metric-map";
 import { isUnlocked, visibleDashboard } from "./investigate";
+import { permittedInterventions } from "./gating";
 import type {
+  CauseId,
   ClientCause,
   ClientDrilldown,
   ClientIntervention,
@@ -36,6 +40,13 @@ export interface RedactionContext {
   phase: SimPhase;
   /** Purchased pulls, in purchase order. */
   owned: DrilldownId[];
+  /**
+   * The causes named at Commit, once locked. Empty until then.
+   *
+   * This is the gate: it decides which interventions exist as far as the client
+   * is concerned. See `toClientInterventions`.
+   */
+  diagnosis: CauseId[];
 }
 
 /**
@@ -75,15 +86,47 @@ function toClientCause(scenario: SimScenario): ClientCause[] {
  * Interventions keep their pitch and price and lose everything that says
  * whether they work. Choosing between them on the business case alone is the
  * decision being tested.
+ *
+ * **Nothing ships until a diagnosis is locked, and then only what treats it.**
+ * The redaction is the gate rather than the UI, for two reasons. Filtering in
+ * the client would need `addresses` to cross the wire, which is the one field
+ * that says which intervention answers which cause. And the mapping leaks the
+ * answer on its own: the true cause usually has several fixes pointing at it
+ * where a decoy has one, so "the branch with the most options" would be the
+ * answer key. Since the diagnosis is persisted before this is ever called with
+ * a non-empty one, nobody can enumerate the map by trying each cause in turn.
  */
-function toClientInterventions(scenario: SimScenario): ClientIntervention[] {
-  return scenario.interventions.map((i) => ({
+function toClientInterventions(
+  scenario: SimScenario,
+  ctx: RedactionContext,
+): ClientIntervention[] {
+  return permittedInterventions(scenario, ctx.diagnosis).map((i) => ({
     id: i.id,
     label: i.label,
     pitch: i.pitch,
     cost: i.cost,
     minSprints: i.minSprints,
   }));
+}
+
+/**
+ * Why the cause they named has nothing to fund — once they have named it.
+ *
+ * Authored on `SimCause.unactionable` but shipped as a scenario-level field
+ * rather than on the cause, so `ClientCause` keeps one uniform shape for every
+ * cause. A cause carrying an extra field would itself be the tell, which is the
+ * same reason `verdict` never ships (`tests/sim-redact.test.ts` pins the shape).
+ *
+ * Null until a diagnosis is locked, so it can only ever explain a decision
+ * already made.
+ */
+function unactionableNote(scenario: SimScenario, diagnosis: CauseId[]): string | null {
+  if (!diagnosis.length) return null;
+  const named = new Set(diagnosis);
+  const notes = scenario.causes
+    .filter((c) => named.has(c.id) && c.unactionable)
+    .map((c) => c.unactionable!.why);
+  return notes.length ? notes.join(" ") : null;
 }
 
 export function toClientScenario(
@@ -116,6 +159,7 @@ export function toClientScenario(
     panels: visibleDashboard(scenario, ctx.owned),
     drilldowns,
     causes: toClientCause(scenario),
-    interventions: toClientInterventions(scenario),
+    interventions: toClientInterventions(scenario, ctx),
+    unactionableNote: unactionableNote(scenario, ctx.diagnosis),
   };
 }

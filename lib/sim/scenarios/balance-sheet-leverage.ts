@@ -572,6 +572,9 @@ export const balanceSheetLeverage: SimScenario = {
       label: "The demand for the extra capacity is not there",
       verdict:
         "The demand exists at a price. Two national brands have asked about private-label contract manufacturing at 8% below own-brand realisation, for about 20% more volume, and the enquiry has sat with sales for five months because it dilutes the brand. On a kiln at 46%, 8% off realisation is an extremely cheap way to buy utilisation.",
+      unactionable: {
+        why: "If there were genuinely no demand for the capacity, no spend would create it — the answer would be to shrink the asset base, not to fund something. That there is nothing here to buy is the tell that this reading is wrong.",
+      },
     },
     {
       id: "trading.competition",
@@ -579,6 +582,9 @@ export const balanceSheetLeverage: SimScenario = {
       label: "Morbi has built more capacity than the market can absorb",
       verdict:
         "True of the sector and not an explanation of this company. A soft market compresses everyone's margin — and Deccan's EBITDA margin is the best of the four listed comparables while its ROCE is the worst. Only the capital turnover is an outlier, and a sector cannot be blamed for a denominator you chose.",
+      unactionable: {
+        why: "No line in this budget moves how much capacity Morbi has built. Diagnosing the sector is diagnosing something you cannot spend against, which is usually the sign it is not your problem.",
+      },
     },
   ],
   trueCauseIds: ["capital.idle"],

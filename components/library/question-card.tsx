@@ -26,6 +26,9 @@ import {
 } from "@/lib/types";
 import { iconNameForQuestion } from "@/lib/question-icon";
 import { QuestionIcon } from "@/components/library/question-icon";
+import { ReplayButton } from "@/components/simulation/replay-button";
+// From the pure module rather than `lib/simulations`, which reaches `server-only`.
+import type { SimQuestionState } from "@/lib/sim/replay";
 
 interface QuestionCardData {
   id: string;
@@ -48,6 +51,7 @@ export function QuestionCard({
   question,
   locked = false,
   upgrade = null,
+  simState = null,
 }: {
   question: QuestionCardData;
   /**
@@ -57,6 +61,13 @@ export function QuestionCard({
    */
   locked?: boolean;
   upgrade?: UpgradePath | null;
+  /**
+   * Whether this simulation has been started or finished, from
+   * `simStateByQuestion`. Null for a question that isn't a simulation, for a
+   * signed-out visitor, and for one never touched — all three mean "offer the
+   * way in", which is what the card did for everyone before this existed.
+   */
+  simState?: SimQuestionState | null;
 }) {
   // Checked BEFORE answerModeFor, which is meaningful only for the interview
   // types and would report a simulation as qualitative (see lib/types.ts).
@@ -114,6 +125,16 @@ export function QuestionCard({
             <Siren className="h-3 w-3" /> Simulation
           </Badge>
         )}
+        {/* What the grid was missing: it looked identical on visit 1 and visit
+            40. A locked card never shows this — nothing has been played on it. */}
+        {simulation && !locked && simState?.state === "in_progress" && (
+          <Badge variant="warning">In progress</Badge>
+        )}
+        {simulation && !locked && simState?.state === "played" && (
+          <Badge variant="success">
+            Played{simState.bestOverall !== null && ` · ${simState.bestOverall}`}
+          </Badge>
+        )}
       </div>
       {/* The icon carries the subject so a grid of cards can be scanned without
           reading every title — see lib/question-icon.ts. */}
@@ -139,15 +160,42 @@ export function QuestionCard({
           </Link>
         </Button>
       ) : simulation ? (
-        // No mode to choose: a simulation's phases are fixed and its budget is
-        // the constraint, so there is one way in.
-        <Button
-          onClick={() => startTransition(async () => void (await startSimulation(question.id)))}
-          disabled={pending}
-          className="mt-4 w-full"
-        >
-          Enter the war room <ArrowRight />
-        </Button>
+        simState?.state === "in_progress" && simState.runId ? (
+          // A link, not the server action — the same reasoning as the locked
+          // branch above. It is one fewer round-trip, and `startSimulation`
+          // would land here anyway once `findResumableRun` found this run.
+          <Button asChild className="mt-4 w-full">
+            <Link href={`/simulate/${simState.runId}`}>
+              Resume the war room <ArrowRight />
+            </Link>
+          </Button>
+        ) : simState?.state === "played" ? (
+          // Primary action plus a quiet way back to the report, matching the
+          // shape of the qualitative branch below.
+          <div className="mt-4 space-y-2">
+            <ReplayButton questionId={question.id} className="w-full" />
+            {simState.runId && (
+              <div className="text-center">
+                <Link
+                  href={`/simulate/${simState.runId}`}
+                  className="text-[11px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                >
+                  or read your debrief again
+                </Link>
+              </div>
+            )}
+          </div>
+        ) : (
+          // No mode to choose: a simulation's phases are fixed and its budget is
+          // the constraint, so there is one way in.
+          <Button
+            onClick={() => startTransition(async () => void (await startSimulation(question.id)))}
+            disabled={pending}
+            className="mt-4 w-full"
+          >
+            Enter the war room <ArrowRight />
+          </Button>
+        )
       ) : qualitative ? (
         // Chosen here and fixed for the attempt. Offering it mid-attempt would
         // make "solo" meaningless — switch to guided, take the structure, switch

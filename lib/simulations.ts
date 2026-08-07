@@ -22,6 +22,12 @@ import type {
   SimScenario,
 } from "@/lib/sim/types";
 import type { SimScoreResult } from "@/lib/sim/score";
+import { simStateFromRuns, type SimQuestionState } from "@/lib/sim/replay";
+
+// Re-exported so callers have one import for "simulation data access", while the
+// rule itself stays in a module a test can reach — see lib/sim/replay.ts.
+export { simStateFromRuns };
+export type { SimCardState, SimQuestionState } from "@/lib/sim/replay";
 
 /** A run with everything the page and the engine need. */
 export type LoadedRun = NonNullable<Awaited<ReturnType<typeof loadRun>>>;
@@ -128,6 +134,25 @@ export async function commitHypothesisToRun(
 }
 
 /**
+ * Lock the diagnosis, before the board narrows to it.
+ *
+ * Written *before* the permitted interventions are computed, and never rewritten
+ * — that ordering is the anti-enumeration property. If the slate could be
+ * re-rolled by naming a different cause, anyone could learn which branch has
+ * three fixes behind it and which has one, and the branch with three is the
+ * answer. `commitRun` no longer writes this column.
+ */
+export async function commitDiagnosisToRun(
+  runId: string,
+  diagnosis: CauseId[],
+): Promise<void> {
+  await db.simRun.update({
+    where: { id: runId },
+    data: { diagnosis: JSON.stringify(diagnosis) },
+  });
+}
+
+/**
  * Charge for a pull and record it.
  *
  * One transaction, because a purchase that debited the budget without recording
@@ -166,18 +191,20 @@ export async function openCommitPhase(runId: string): Promise<void> {
  */
 export async function commitRun(args: {
   runId: string;
-  diagnosis: CauseId[];
   allocation: SimAllocationLine[];
   outcome: SimOutcomeResult;
   score: SimScoreResult;
 }): Promise<void> {
-  const { runId, diagnosis, allocation, outcome, score } = args;
+  const { runId, allocation, outcome, score } = args;
 
   await db.$transaction(async (tx) => {
     await tx.simRun.update({
       where: { id: runId },
       data: {
-        diagnosis: JSON.stringify(diagnosis),
+        // `diagnosis` is deliberately absent: it was written by
+        // `commitDiagnosisToRun` before the interventions were shown, and
+        // rewriting it here would let the commit disagree with the slate it
+        // was offered.
         allocation: JSON.stringify(allocation),
         phase: "debrief",
         committedAt: new Date(),
@@ -221,6 +248,15 @@ export interface SimSummary {
   bestOverall: number | null;
   causesFound: number;
   latest: { runId: string; title: string; overall: number; band: string } | null;
+  /**
+   * The unfinished run to go back to, if there is one.
+   *
+   * Derived from rows `listRunsForUser` already returns, so the dashboard can
+   * link a resumable run without a second query. `phase` rather than `result` is
+   * the test, matching `findResumableRun` — a run that reached debrief without a
+   * result is not something to send anyone back into.
+   */
+  resumable: { runId: string; title: string } | null;
 }
 
 /**
@@ -236,6 +272,7 @@ export async function simSummary(userId: string): Promise<SimSummary> {
 
   const overalls = done.map((r) => r.result!.overall);
   const latestDone = done[0];
+  const open = runs.find((r) => r.phase !== "debrief");
 
   return {
     completed: done.length,
@@ -250,14 +287,28 @@ export async function simSummary(userId: string): Promise<SimSummary> {
           band: latestDone.result!.band,
         }
       : null,
+    resumable: open ? { runId: open.id, title: open.question.title } : null,
   };
 }
 
-/** Question ids the user has already finished a run for. */
-export async function completedSimQuestionIds(userId: string): Promise<string[]> {
+/**
+ * Simulation state for every question this user has touched, in ONE query.
+ *
+ * One query rather than one per card: the library renders the whole grid, so a
+ * per-card lookup would be an N+1 on the busiest page in the app.
+ */
+export async function simStateByQuestion(
+  userId: string,
+): Promise<Record<string, SimQuestionState>> {
   const rows = await db.simRun.findMany({
-    where: { userId, phase: "debrief" },
-    select: { questionId: true },
+    where: { userId },
+    select: {
+      id: true,
+      questionId: true,
+      phase: true,
+      createdAt: true,
+      result: { select: { overall: true } },
+    },
   });
-  return rows.map((r) => r.questionId);
+  return simStateFromRuns(rows);
 }

@@ -552,6 +552,9 @@ export const metricDropFoodDelivery: SimScenario = {
       parentId: "external",
       label: "Festival seasonality",
       verdict: "The same six weeks last year were flat.",
+      unactionable: {
+        why: "Nobody funds a fix for the calendar. If the festival window really were the cause, the quarter would be something to ride out rather than something to spend on.",
+      },
     },
     {
       id: "external.competitor",
@@ -559,6 +562,9 @@ export const metricDropFoodDelivery: SimScenario = {
       label: "Competitor promotions",
       verdict:
         "Competitor promo intensity did rise — evenly across tiers. A national cause cannot produce a drop four times worse in tier-2 than in the metros. It is, however, the reason the riders left.",
+      unactionable: {
+        why: "You cannot buy a competitor's promotions back down, and matching them is a different diagnosis — it says demand is price-sensitive, not that a rival exists.",
+      },
     },
   ],
   trueCauseIds: ["supply.riders"],

@@ -125,8 +125,9 @@ flowchart LR
     subgraph Sim["Decision simulation (/simulate/[runId])"]
         S1["Observe — dashboard,\nlock a hypothesis"]
         S2["Investigate — buy pulls\nout of an analyst-day budget"]
-        S3["Commit — name a cause,\nsplit sprints + ₹"]
-        S1 --> S2 --> S3
+        S3["Commit (1) — name a cause,\nirreversibly"]
+        S4["Commit (2) — split sprints + ₹\nacross the fixes that treat it"]
+        S1 --> S2 --> S3 --> S4
     end
 
     Sim -->|"Commit"| SK["runOutcome() + scoreSimulation()\ndeterministic causal model"]
@@ -329,9 +330,59 @@ opts in. The map is derived from the driver graph by `lib/sim/metric-map.ts` rat
 it cannot disagree with the arithmetic it explains, and drift and intervention effects stay
 server-side either way — it shows how metrics relate and never which lever fixes them.
 
+The primer's definitions are also reachable from the words themselves, not only from the modal:
+`SimPrimerTerm.driver` joins each term to its node on the metric map, and `lib/sim/glossary.ts`
+indexes them by term, expansion and driver id for the hover tooltips. Formulas are withheld
+wherever the metric map is — a formula names its inputs, which is the shape the map is opt-in to
+protect.
+
 `validateScenario` enforces what `difficulty: "Easy"` promises — at most six drilldowns, six
 causes one level deep, five interventions, a budget covering about half the board, and a primer.
 Otherwise "simpler" decays one scenario at a time.
+
+### The investment gate
+
+Commit is two steps, and the split is the point. `runOutcome(scenario, allocation)` takes only the
+allocation and decides whether a fix works by reading `trueCauseIds` — ground truth, never the
+student's claim. That is correct, and it is why the debrief can compare your path against the
+do-nothing and the authored best on the same terms. But on its own it meant a run could name the
+wrong cause and still fund the fix that works, scoring full marks on decision and outcome.
+
+So the wrong-diagnosis/right-fix allocation is made **unconstructible** rather than penalised
+after the fact, and never by editing the scorer:
+
+```
+lockDiagnosis        persists SimRun.diagnosis, refuses to rewrite it
+   ↓
+toClientInterventions  ships only interventions whose `addresses` is one of them
+   ↓
+parseAllocation      re-checks the same rule against the PERSISTED diagnosis
+```
+
+Both boundaries call `permittedInterventions` in `lib/sim/gating.ts`. One rule, two callers — two
+implementations is exactly how a gate like this comes apart.
+
+The gate lives in the redaction rather than the UI for two reasons. Filtering in the client would
+need `addresses` to cross the wire, and the mapping leaks the answer by itself: the true cause
+usually has several fixes pointing at it where a decoy has one, so the size of a slate is an
+oracle. Persisting the diagnosis *before* any list is computed, and refusing to rewrite it, is what
+stops anyone trying each cause in turn to read that signal off. `commitDecision` takes no diagnosis
+parameter at all — it reads the locked one, so a request cannot name one cause and fund the
+treatment for another.
+
+A cause with nothing behind it is not a dead end. Some causes are honestly unfixable — nothing
+addresses a monsoon — and `SimCause.unactionable` says so rather than inventing a fix to satisfy
+the gate. Holding the capacity is then the answer, an empty allocation is accepted only when the
+slate is genuinely empty, and `runOutcome([])` is the do-nothing path, which is what happens to a
+quarter nobody could act on. The authored reason ships only once that cause has been named:
+before then it separates causes the board can act on from ones it cannot, which is a tell.
+
+`checkBalance` sweeps affordable combinations with a budget-pruned depth-first walk rather than
+enumerating all 2^n subsets and filtering. Every cost is non-negative, so a running total past the
+budget prunes every superset with it — which is what lets a scenario carry enough interventions to
+give each nameable cause something to fund. The guard is a cap on combinations actually swept, and
+an unfinished sweep reports rather than passing quietly, because it proves nothing about the
+ceiling.
 
 ---
 
