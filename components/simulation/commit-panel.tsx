@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { GlossaryTerm } from "./glossary-term";
 import { Progress } from "@/components/ui/progress";
 import { simConfig } from "@/lib/config/simulation";
 import { cn, toIndianWords } from "@/lib/utils";
@@ -222,7 +223,9 @@ export function CommitPanel({
 
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   <label className="text-xs">
-                    <span className="text-muted-foreground">Sprints</span>
+                    <span className="text-muted-foreground">
+                      <GlossaryTerm>Sprints</GlossaryTerm>
+                    </span>
                     <Input
                       type="number"
                       min={0}

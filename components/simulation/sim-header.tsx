@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { SIM_PHASES, type SimPhase } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { ConceptsButton } from "./concept-primer";
+import { GlossaryTerm } from "./glossary-term";
 
 const PHASE_LABELS: Record<SimPhase, string> = {
   observe: "Observe",
@@ -79,7 +80,10 @@ export function SimHeader({
             <div className="hidden w-40 sm:block">
               <div className="mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
                 <span className="flex items-center gap-1">
-                  <Clock className="h-3 w-3" /> Analyst-days
+                  {/* A coined unit, and until now defined nowhere in the UI.
+                      Scenarios that don't author it fall through to plain text. */}
+                  <Clock className="h-3 w-3" />{" "}
+                  <GlossaryTerm>Analyst-days</GlossaryTerm>
                 </span>
                 <span className="tabular-nums">
                   {remaining}/{daysTotal}

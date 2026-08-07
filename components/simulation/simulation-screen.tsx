@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import type { SimPanel } from "@/lib/sim/types";
 import { CommitPanel } from "./commit-panel";
 import { ConceptPrimer } from "./concept-primer";
+import { GlossaryProvider } from "./glossary-term";
 import { DrilldownMarket } from "./drilldown-market";
 import { MetricMap } from "./metric-map";
 import { SelectionRow } from "./selection-row";
@@ -125,6 +126,10 @@ export function SimulationScreen({ data }: { data: SimulationData }) {
   const roots = data.scenario.causes.filter((c) => c.parentId === null);
 
   return (
+    // The primer stays the full reference; this makes every term it defines
+    // reachable from the word itself, for the whole run rather than only on
+    // arrival. Wrapped at the top so the header's "Analyst-days" is covered too.
+    <GlossaryProvider teaching={teaching}>
     <div className="min-h-screen">
       <SimHeader
         title={data.scenario.title}
@@ -383,5 +388,6 @@ export function SimulationScreen({ data }: { data: SimulationData }) {
         </Dialog>
       </main>
     </div>
+    </GlossaryProvider>
   );
 }

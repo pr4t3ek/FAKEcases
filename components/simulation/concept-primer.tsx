@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { SimTeaching } from "@/lib/sim/types";
+import { GlossaryTerm } from "./glossary-term";
 
 /**
  * The vocabulary, before it is needed.
@@ -116,14 +117,22 @@ export function ConceptsButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-/** A compact reminder of the terms, for the debrief. */
+/**
+ * A compact reminder of the terms, for the debrief.
+ *
+ * These badges were the first hover definitions in the app, via a native
+ * `title` — which showed the plain sentence and nothing else, and only after the
+ * browser's own delay. Now that the same definitions are hoverable everywhere
+ * else on the screen, they go through `GlossaryTerm` so the debrief does not
+ * offer a worse version of the thing the dashboard just did.
+ */
 export function PrimerRecap({ teaching }: { teaching: SimTeaching }) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {teaching.primer.terms.map((t) => (
-        <Badge key={t.term} variant="muted" title={t.plain}>
-          {t.term}
-        </Badge>
+        <GlossaryTerm key={t.term} term={t.term} className="no-underline">
+          <Badge variant="muted">{t.term}</Badge>
+        </GlossaryTerm>
       ))}
     </div>
   );

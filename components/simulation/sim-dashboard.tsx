@@ -18,6 +18,7 @@ import { assertNever, cn } from "@/lib/utils";
 import { inScale, moneyScaleFor } from "./money";
 import type { SimPanel, SimStatementLine, SimUnit, GoodDirection } from "@/lib/sim/types";
 import { formatValue } from "./format";
+import { GlossaryTerm } from "./glossary-term";
 
 /**
  * Renders the analytics board.
@@ -85,7 +86,12 @@ function PanelShell({
   return (
     <Card className="p-4">
       <div className="mb-3">
-        <h3 className="text-sm font-semibold">{title}</h3>
+        {/* Panel titles are free text, so this only lights up when the title is
+            exactly a term the scenario defined ("ROAS", "Contribution per
+            order"). That is the intended hit rate — see buildGlossary. */}
+        <h3 className="text-sm font-semibold">
+          <GlossaryTerm>{title}</GlossaryTerm>
+        </h3>
         {caption && <p className="mt-0.5 text-xs text-muted-foreground">{caption}</p>}
       </div>
       {children}
@@ -209,7 +215,9 @@ export function SimPanelView({ panel }: { panel: SimPanel }) {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {panel.tiles.map((tile) => (
               <div key={tile.label} className="rounded-lg border bg-muted/30 p-3">
-                <div className="text-xs text-muted-foreground">{tile.label}</div>
+                <div className="text-xs text-muted-foreground">
+                  <GlossaryTerm>{tile.label}</GlossaryTerm>
+                </div>
                 <div className="mt-1 text-lg font-semibold tabular-nums">
                   {formatValue(tile.value, tile.unit)}
                 </div>
