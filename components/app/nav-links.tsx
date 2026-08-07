@@ -1,38 +1,37 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 /**
- * Simulations are a filtered view of the library rather than a route of their
- * own: a simulation is a `Question` like any other, and a second catalogue would
- * have to reimplement the filters this one already has.
+ * War rooms have their own route.
  *
- * That does mean two links share a pathname, so the active check compares the
- * `type` param too — matching on pathname alone would light up both.
+ * They used to be a filtered view of the library — `/library?type=simulation` —
+ * on the reasoning that a simulation is a `Question` like any other and a second
+ * catalogue would reimplement the filters this one already has. The filters are
+ * in fact shared (`FilterBar` takes a surface), so that cost never materialised,
+ * and the two formats are different enough that one grid holding both offered
+ * them as interchangeable.
+ *
+ * The upside here is that the active check is a plain pathname comparison again.
+ * Two links sharing a pathname meant it had to read the `type` param too, or
+ * both would light up at once.
  */
 export function NavLinks({ isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname();
-  const params = useSearchParams();
-  const activeType = params.get("type") ?? "";
 
   const links = [
     { href: "/dashboard", label: "Dashboard" },
-    { href: "/library", label: "Library", type: "" },
-    { href: "/library?type=simulation", label: "Simulations", type: "simulation" },
+    { href: "/library", label: "Library" },
+    { href: "/simulations", label: "War rooms" },
     ...(isAdmin ? [{ href: "/admin", label: "Admin" }] : []),
   ];
 
   return (
     <nav className="flex items-center gap-1">
       {links.map((l) => {
-        const path = l.href.split("?")[0];
-        const pathMatches = pathname === path || pathname.startsWith(path + "/");
-        const active =
-          l.type === undefined
-            ? pathMatches
-            : pathMatches && (l.type === "simulation") === (activeType === "simulation");
+        const active = pathname === l.href || pathname.startsWith(l.href + "/");
 
         return (
           <Link

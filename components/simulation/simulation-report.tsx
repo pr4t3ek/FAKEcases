@@ -363,8 +363,8 @@ export function SimulationReport({
 
         <div className="flex flex-wrap gap-3">
           <Button asChild>
-            <Link href="/library?type=simulation">
-              Another simulation <ArrowRight />
+            <Link href="/simulations">
+              Another war room <ArrowRight />
             </Link>
           </Button>
           {/* The same scenario again, with the ranking bargain stated up front.

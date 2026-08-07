@@ -7,7 +7,13 @@ import {
   refineQuestion,
   toQuestionColumns,
 } from "@/lib/question-schema";
-import { DIFFICULTIES, PRACTISABLE_TYPES, isSimulation } from "@/lib/types";
+import {
+  DIFFICULTIES,
+  PRACTICE_TYPES,
+  SIMULATION_TYPE,
+  isSimulation,
+  type QuestionSurface,
+} from "@/lib/types";
 
 /** Single source of truth for question reads/writes + bulk import. */
 
@@ -16,23 +22,35 @@ export interface QuestionFilters {
   difficulty?: string;
   interviewLevel?: string;
   search?: string;
-  /** One of QUESTION_TYPES. Omitted means every practisable type. */
+  /** Defaults to the practice catalogue. */
+  surface?: QuestionSurface;
+  /**
+   * Narrows *within* the surface — one of `PRACTICE_TYPES`. Ignored on the
+   * simulation surface, which holds exactly one type.
+   */
   type?: string;
 }
 
 /**
  * See `PRACTISABLE_TYPES` in lib/types — `case` stays out of the library until it
- * has a runtime. Spread into a mutable array for Prisma's `in` filter.
+ * has a runtime. Spread into mutable arrays for Prisma's `in` filter.
  */
-const practisable: string[] = [...PRACTISABLE_TYPES];
+const practice: string[] = [...PRACTICE_TYPES];
 
 export async function listCategories() {
   return db.category.findMany({ orderBy: { order: "asc" } });
 }
 
 export async function listQuestions(filters: QuestionFilters = {}) {
+  // The surface decides the type set; `type` only narrows inside it, and can
+  // never be used to pull a war room into the practice catalogue.
   const where: Record<string, unknown> = {
-    type: filters.type ? filters.type : { in: practisable },
+    type:
+      filters.surface === "simulation"
+        ? SIMULATION_TYPE
+        : filters.type && practice.includes(filters.type)
+          ? filters.type
+          : { in: practice },
   };
   if (filters.categorySlug) {
     const cat = await db.category.findUnique({ where: { slug: filters.categorySlug } });
@@ -53,14 +71,14 @@ export async function listQuestions(filters: QuestionFilters = {}) {
     orderBy: { createdAt: "asc" },
   });
 
-  // Simulations were seeded last, so creation order buried the newest format at
-  // the bottom of a thirty-card page — the least discoverable thing in the app
-  // was the thing we most wanted people to try.
+  // Easiest first on the simulation surface. Creation order put NukkadEats at
+  // the front, which meant a beginner opening the track landed on the hardest
+  // scenario in it. Sorted here rather than by a column, because the running
+  // order of a track is a presentation decision and does not belong in the data.
   //
-  // Within them, easiest first. Creation order put NukkadEats at the front,
-  // which meant a beginner opening the track landed on the hardest scenario in
-  // it. Sorted here rather than by a column, because "show the new format
-  // first, gently" is a presentation decision and does not belong in the data.
+  // (This used to hoist simulations above everything else, back when they shared
+  // a page with the practice questions and creation order buried the newest
+  // format at the bottom of a thirty-card grid. Their own route settles that.)
   const sims = questions
     .filter((q) => isSimulation(q.type))
     .sort((a, b) => difficultyRank(a.difficulty) - difficultyRank(b.difficulty));
@@ -134,7 +152,11 @@ export async function recommendQuestions(userId: string, tier: AccessTier, limit
   async function takeQuestions(where: Record<string, unknown>, take: number) {
     return db.question.findMany({
       where: {
-        type: { in: practisable },
+        // Practice only. This strip sits on the dashboard beside the practice
+        // stats and links into `startAttempt`; dropping a four-phase war room
+        // into it offered the two as interchangeable, and the card that
+        // appeared did not behave like its neighbours.
+        type: { in: practice },
         id: { notIn: [...attemptedIds, ...seen] },
         ...reachable,
         ...where,

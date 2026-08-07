@@ -4,8 +4,7 @@ import { getSessionUser } from "@/lib/auth";
 import { isLocked, tierFor, upgradeFor, WALL_LOCKED, WALL_PARAM } from "@/lib/entitlements";
 import { prefillLevel, targetLevelsFor } from "@/lib/profile";
 import { listCategories, listQuestions } from "@/lib/questions";
-import { simStateByQuestion, type SimQuestionState } from "@/lib/simulations";
-import { answerModeFor, isSimulation, type InterviewLevel } from "@/lib/types";
+import { answerModeFor, type InterviewLevel } from "@/lib/types";
 import { AppHeader } from "@/components/app/app-header";
 import { FilterBar } from "@/components/library/filter-bar";
 import { TargetLevelsHint } from "@/components/library/target-levels-hint";
@@ -23,6 +22,7 @@ export default async function LibraryPage({
     getSessionUser(),
     listCategories(),
     listQuestions({
+      surface: "practice",
       categorySlug: sp.category,
       difficulty: sp.difficulty,
       interviewLevel: sp.level,
@@ -31,32 +31,20 @@ export default async function LibraryPage({
     }),
   ]);
 
-  // Run state for the simulation cards, so the grid stops looking identical on
-  // visit 1 and visit 40. One query for the whole page — see `simStateByQuestion`.
-  // Skipped entirely for a visitor with no session: there is nothing to look up,
-  // and `getOrCreateGuest` only mints a row once they actually click something.
-  const simState: Record<string, SimQuestionState> = user
-    ? await simStateByQuestion(user.id)
-    : {};
-
   // Say what's actually in the list. The old copy called every question a
   // guesstimate, which told anyone hunting for a case that the library held
-  // none — while the cases sat at the bottom of the page. A simulation has to
-  // be counted separately for the same reason, and `isSimulation` is checked
-  // first because `answerModeFor` would report one as qualitative.
-  const simCount = questions.filter((q) => isSimulation(q.type)).length;
-  const caseCount = questions.filter(
-    (q) => !isSimulation(q.type) && answerModeFor(q.type) === "qualitative",
-  ).length;
-  const guesstimateCount = questions.length - caseCount - simCount;
+  // none — while the cases sat at the bottom of the page. War rooms are no
+  // longer counted here at all: they have their own catalogue, and counting
+  // them in a total you cannot reach from this page would be worse than not
+  // mentioning them.
+  const caseCount = questions.filter((q) => answerModeFor(q.type) === "qualitative").length;
+  const guesstimateCount = questions.length - caseCount;
   const summary = [
     guesstimateCount > 0 && `${guesstimateCount} guesstimate${guesstimateCount === 1 ? "" : "s"}`,
     caseCount > 0 && `${caseCount} case${caseCount === 1 ? "" : "s"}`,
-    simCount > 0 && `${simCount} decision simulation${simCount === 1 ? "" : "s"}`,
   ]
     .filter(Boolean)
-    .join(", ")
-    .replace(/, ([^,]*)$/, " and $1");
+    .join(" and ");
 
   // The same function the server gate calls, so a card can never offer
   // something `startAttempt` would refuse. `getSessionUser` returns null for a
@@ -83,7 +71,11 @@ export default async function LibraryPage({
         <div className="mb-6">
           <h1 className="text-2xl font-bold tracking-tight">Question Library</h1>
           <p className="mt-1 text-muted-foreground">
-            {summary || "No questions"}, India-only.{" "}
+            {summary || "No questions"}, India-only. Decision simulations live in{" "}
+            <Link href="/simulations" className="text-primary underline underline-offset-4">
+              War rooms
+            </Link>
+            .{" "}
             {/* Tier-aware, because the same sentence has to work for a visitor
                 with no account and for a signed-in one who needs a pass. The
                 phrase comes from the tier table, so neither is told to get
@@ -136,7 +128,6 @@ export default async function LibraryPage({
                 question={q}
                 locked={isLocked(tier, q)}
                 upgrade={upgrade}
-                simState={simState[q.id] ?? null}
               />
             ))}
           </div>
