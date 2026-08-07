@@ -4,6 +4,7 @@ import { getSessionUser } from "@/lib/auth";
 import { isLocked, tierFor, upgradeFor, WALL_LOCKED, WALL_PARAM } from "@/lib/entitlements";
 import { prefillLevel, targetLevelsFor } from "@/lib/profile";
 import { listCategories, listQuestions } from "@/lib/questions";
+import { simStateByQuestion, type SimQuestionState } from "@/lib/simulations";
 import { answerModeFor, isSimulation, type InterviewLevel } from "@/lib/types";
 import { AppHeader } from "@/components/app/app-header";
 import { FilterBar } from "@/components/library/filter-bar";
@@ -29,6 +30,14 @@ export default async function LibraryPage({
       type: sp.type,
     }),
   ]);
+
+  // Run state for the simulation cards, so the grid stops looking identical on
+  // visit 1 and visit 40. One query for the whole page — see `simStateByQuestion`.
+  // Skipped entirely for a visitor with no session: there is nothing to look up,
+  // and `getOrCreateGuest` only mints a row once they actually click something.
+  const simState: Record<string, SimQuestionState> = user
+    ? await simStateByQuestion(user.id)
+    : {};
 
   // Say what's actually in the list. The old copy called every question a
   // guesstimate, which told anyone hunting for a case that the library held
@@ -127,6 +136,7 @@ export default async function LibraryPage({
                 question={q}
                 locked={isLocked(tier, q)}
                 upgrade={upgrade}
+                simState={simState[q.id] ?? null}
               />
             ))}
           </div>

@@ -269,8 +269,22 @@ export default async function DashboardPage() {
                   </div>
                 </div>
                 <div className="flex items-end">
-                  {simStats.inProgress > 0 ? (
-                    <Badge variant="warning">{simStats.inProgress} in progress</Badge>
+                  {/* This badge used to be dead precisely when it mattered: it
+                      announced "N in progress" with no way in, and the only
+                      /simulate link was rendered when `inProgress === 0` — and
+                      pointed at a finished run. The resumable one is the useful
+                      destination, so it is the one that gets the link. */}
+                  {simStats.resumable ? (
+                    <Link
+                      href={`/simulate/${simStats.resumable.runId}`}
+                      title={simStats.resumable.title}
+                    >
+                      <Badge variant="warning" className="cursor-pointer hover:bg-warning/25">
+                        Resume
+                        {simStats.inProgress > 1 ? ` (${simStats.inProgress})` : ""}{" "}
+                        <ArrowRight className="ml-1 inline h-3 w-3" />
+                      </Badge>
+                    </Link>
                   ) : (
                     simStats.latest && (
                       <Link

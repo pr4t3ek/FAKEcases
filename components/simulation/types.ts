@@ -38,6 +38,12 @@ export type RevealedPanels = SimPanel[];
  */
 export interface SimulationReportData {
   runId: string;
+  /**
+   * The catalogue row this run was played against — what `startSimulation` takes,
+   * so the report can offer a replay without sending anyone back to the library
+   * to find the card again.
+   */
+  questionId: string;
   isGuest: boolean;
   title: string;
   company: string;

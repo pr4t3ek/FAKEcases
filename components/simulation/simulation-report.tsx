@@ -25,6 +25,7 @@ import { inScale, moneyScaleFor } from "./money";
 import { MetricMap } from "./metric-map";
 import { PrimerRecap } from "./concept-primer";
 import { SimCoachPanel } from "./sim-coach-panel";
+import { ReplayButton } from "./replay-button";
 import { QuestionBoard } from "@/components/leaderboard/question-board";
 import type { SimulationReportData } from "./types";
 import type { SimUnit } from "@/lib/sim/types";
@@ -362,6 +363,15 @@ export function SimulationReport({
               Another simulation <ArrowRight />
             </Link>
           </Button>
+          {/* The same scenario again, with the ranking bargain stated up front.
+              `isThisAttempt` is false when the run being read is itself a replay,
+              which only changes the wording — see ReplayButton. */}
+          <ReplayButton
+            questionId={data.questionId}
+            label="Play this again"
+            variant="secondary"
+            alreadyReplay={data.standing != null && !data.standing.isThisAttempt}
+          />
           <Button asChild variant="outline">
             <Link href="/dashboard">Back to dashboard</Link>
           </Button>

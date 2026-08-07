@@ -59,6 +59,7 @@ export default async function SimulatePage({
 
     const data: SimulationReportData = {
       runId: run.id,
+      questionId: run.questionId,
       isGuest: user.isGuest,
       title: scenario.title,
       company: scenario.company,

@@ -22,6 +22,12 @@ import type {
   SimScenario,
 } from "@/lib/sim/types";
 import type { SimScoreResult } from "@/lib/sim/score";
+import { simStateFromRuns, type SimQuestionState } from "@/lib/sim/replay";
+
+// Re-exported so callers have one import for "simulation data access", while the
+// rule itself stays in a module a test can reach — see lib/sim/replay.ts.
+export { simStateFromRuns };
+export type { SimCardState, SimQuestionState } from "@/lib/sim/replay";
 
 /** A run with everything the page and the engine need. */
 export type LoadedRun = NonNullable<Awaited<ReturnType<typeof loadRun>>>;
@@ -221,6 +227,15 @@ export interface SimSummary {
   bestOverall: number | null;
   causesFound: number;
   latest: { runId: string; title: string; overall: number; band: string } | null;
+  /**
+   * The unfinished run to go back to, if there is one.
+   *
+   * Derived from rows `listRunsForUser` already returns, so the dashboard can
+   * link a resumable run without a second query. `phase` rather than `result` is
+   * the test, matching `findResumableRun` — a run that reached debrief without a
+   * result is not something to send anyone back into.
+   */
+  resumable: { runId: string; title: string } | null;
 }
 
 /**
@@ -236,6 +251,7 @@ export async function simSummary(userId: string): Promise<SimSummary> {
 
   const overalls = done.map((r) => r.result!.overall);
   const latestDone = done[0];
+  const open = runs.find((r) => r.phase !== "debrief");
 
   return {
     completed: done.length,
@@ -250,14 +266,28 @@ export async function simSummary(userId: string): Promise<SimSummary> {
           band: latestDone.result!.band,
         }
       : null,
+    resumable: open ? { runId: open.id, title: open.question.title } : null,
   };
 }
 
-/** Question ids the user has already finished a run for. */
-export async function completedSimQuestionIds(userId: string): Promise<string[]> {
+/**
+ * Simulation state for every question this user has touched, in ONE query.
+ *
+ * One query rather than one per card: the library renders the whole grid, so a
+ * per-card lookup would be an N+1 on the busiest page in the app.
+ */
+export async function simStateByQuestion(
+  userId: string,
+): Promise<Record<string, SimQuestionState>> {
   const rows = await db.simRun.findMany({
-    where: { userId, phase: "debrief" },
-    select: { questionId: true },
+    where: { userId },
+    select: {
+      id: true,
+      questionId: true,
+      phase: true,
+      createdAt: true,
+      result: { select: { overall: true } },
+    },
   });
-  return rows.map((r) => r.questionId);
+  return simStateFromRuns(rows);
 }
