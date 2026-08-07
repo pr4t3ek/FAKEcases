@@ -319,4 +319,83 @@ describe("validateScenario", () => {
   it("still resolves the true cause it was given", () => {
     expect(validateScenario(fixtureScenario({ trueCauseIds: [CAUSE_TRUE] }))).toEqual([]);
   });
+
+  /**
+   * Three things the investment gate makes load-bearing.
+   *
+   * A diagnosis unlocks only the interventions that address it, so a fix aimed
+   * at something nobody can name is a fix nobody can buy — which was untidy
+   * before and is now a hole in the board.
+   */
+  describe("the gate's preconditions", () => {
+    const base = fixtureScenario();
+
+    it("catches an intervention aimed at an area rather than a branch", () => {
+      // "supply" is a root. `diagnosisSchema` accepts leaves only, so nothing
+      // addressed to it could ever be funded.
+      expect(
+        errorsFor({
+          interventions: base.interventions.map((iv) =>
+            iv.id === "iv-discount" ? { ...iv, addresses: "supply" } : iv,
+          ),
+        }),
+      ).toMatch(/area rather than a branch/i);
+    });
+
+    it("catches a best allocation that a correct diagnosis could not fund", () => {
+      // `iv-discount` addresses the decoy. Putting it in bestAllocation would
+      // set the outcome ceiling somewhere no legal allocation can reach, so
+      // scoreOutcome could never return 100.
+      expect(
+        errorsFor({
+          bestAllocation: [{ interventionId: "iv-discount", sprints: 1, rupees: 300 }],
+        }),
+      ).toMatch(/rather than a true cause/i);
+    });
+
+    it("catches a cause marked unactionable that something does address", () => {
+      expect(
+        errorsFor({
+          causes: base.causes.map((c) =>
+            c.id === CAUSE_TRUE ? { ...c, unactionable: { why: "Weather." } } : c,
+          ),
+        }),
+      ).toMatch(/marked unactionable but an intervention addresses it/i);
+    });
+
+    it("catches an unactionable cause that is also the answer", () => {
+      const withOrphan = fixtureScenario({
+        causes: [
+          ...base.causes,
+          {
+            id: "external.rain",
+            parentId: "demand",
+            label: "Monsoon",
+            verdict: "Weather.",
+            unactionable: { why: "Nobody funds a fix for the weather." },
+          },
+        ],
+        trueCauseIds: ["external.rain"],
+      });
+      expect(validateScenario(withOrphan).join(" | ")).toMatch(/cannot be won/i);
+    });
+
+    it("accepts an unactionable cause that is merely a decoy", () => {
+      // The point of the annotation: some causes are honestly unfixable, and
+      // saying so beats inventing a fix for a monsoon.
+      const withOrphan = fixtureScenario({
+        causes: [
+          ...base.causes,
+          {
+            id: "external.rain",
+            parentId: "demand",
+            label: "Monsoon",
+            verdict: "Weather.",
+            unactionable: { why: "Nobody funds a fix for the weather." },
+          },
+        ],
+      });
+      expect(validateScenario(withOrphan)).toEqual([]);
+    });
+  });
 });

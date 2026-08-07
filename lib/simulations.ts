@@ -134,6 +134,25 @@ export async function commitHypothesisToRun(
 }
 
 /**
+ * Lock the diagnosis, before the board narrows to it.
+ *
+ * Written *before* the permitted interventions are computed, and never rewritten
+ * — that ordering is the anti-enumeration property. If the slate could be
+ * re-rolled by naming a different cause, anyone could learn which branch has
+ * three fixes behind it and which has one, and the branch with three is the
+ * answer. `commitRun` no longer writes this column.
+ */
+export async function commitDiagnosisToRun(
+  runId: string,
+  diagnosis: CauseId[],
+): Promise<void> {
+  await db.simRun.update({
+    where: { id: runId },
+    data: { diagnosis: JSON.stringify(diagnosis) },
+  });
+}
+
+/**
  * Charge for a pull and record it.
  *
  * One transaction, because a purchase that debited the budget without recording
@@ -172,18 +191,20 @@ export async function openCommitPhase(runId: string): Promise<void> {
  */
 export async function commitRun(args: {
   runId: string;
-  diagnosis: CauseId[];
   allocation: SimAllocationLine[];
   outcome: SimOutcomeResult;
   score: SimScoreResult;
 }): Promise<void> {
-  const { runId, diagnosis, allocation, outcome, score } = args;
+  const { runId, allocation, outcome, score } = args;
 
   await db.$transaction(async (tx) => {
     await tx.simRun.update({
       where: { id: runId },
       data: {
-        diagnosis: JSON.stringify(diagnosis),
+        // `diagnosis` is deliberately absent: it was written by
+        // `commitDiagnosisToRun` before the interventions were shown, and
+        // rewriting it here would let the commit disagree with the slate it
+        // was offered.
         allocation: JSON.stringify(allocation),
         phase: "debrief",
         committedAt: new Date(),

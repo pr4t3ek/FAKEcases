@@ -14,7 +14,8 @@
 import { z } from "zod";
 import { simConfig } from "@/lib/config/simulation";
 import { allocationFits } from "./outcome";
-import type { CauseId, SimAllocationLine, SimScenario } from "./types";
+import { permittedInterventionIds } from "./gating";
+import type { CauseId, InterventionId, SimAllocationLine, SimScenario } from "./types";
 
 /** Sprints are whole units of team time; a third of a sprint is not a thing. */
 const sprintCount = z.number().int().min(0);
@@ -82,14 +83,35 @@ export function diagnosisSchema(scenario: SimScenario) {
     .refine((ids) => ids.every((id) => leaves.has(id)), NOT_A_LEAF);
 }
 
-export function allocationSchema(scenario: SimScenario) {
+/**
+ * The allocation, checked against what the run is entitled to fund.
+ *
+ * `permitted` is derived from the *persisted* diagnosis, never from anything the
+ * client sent — that is what makes the gate a control rather than a courtesy.
+ *
+ * An empty allocation is accepted only when the slate is empty: naming a cause
+ * that nothing on the board addresses (see `SimCause.unactionable`) leaves
+ * holding the capacity as the honest answer, and `runOutcome([])` is exactly the
+ * do-nothing path. When there *is* something to fund, refusing to fund any of it
+ * is a half-finished screen rather than a decision.
+ */
+export function allocationSchema(
+  scenario: SimScenario,
+  permitted: Set<InterventionId>,
+) {
   const known = new Set(scenario.interventions.map((i) => i.id));
   return z
     .array(allocationLineSchema)
-    .min(1, "Fund at least one intervention")
+    .min(permitted.size ? 1 : 0, "Fund at least one intervention")
     .refine(
       (lines) => lines.every((l) => known.has(l.interventionId)),
       "Unknown intervention",
+    )
+    // The gate. A hand-rolled request naming one cause and funding the fix for
+    // another is the exact hole this closes.
+    .refine(
+      (lines) => lines.every((l) => permitted.has(l.interventionId)),
+      "That fix doesn't address the cause you named",
     )
     .refine(
       (lines) => new Set(lines.map((l) => l.interventionId)).size === lines.length,
@@ -100,11 +122,6 @@ export function allocationSchema(scenario: SimScenario) {
       "An intervention funded with nothing should be left out instead",
     )
     .refine((lines) => allocationFits(scenario, lines), "Allocation exceeds the available capacity");
-}
-
-export interface CommitInput {
-  diagnosis: CauseId[];
-  allocation: SimAllocationLine[];
 }
 
 export type ParseResult<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -123,12 +140,32 @@ export function parseHypothesis(
     : { ok: false, error: firstIssue(result.error) };
 }
 
-export function parseCommit(scenario: SimScenario, raw: unknown): ParseResult<CommitInput> {
-  const shape = z.object({
-    diagnosis: diagnosisSchema(scenario),
-    allocation: allocationSchema(scenario),
-  });
-  const result = shape.safeParse(raw);
+/** The causes named at Commit, before the board narrows to them. */
+export function parseDiagnosis(
+  scenario: SimScenario,
+  raw: unknown,
+): ParseResult<CauseId[]> {
+  const result = diagnosisSchema(scenario).safeParse(raw);
+  return result.success
+    ? { ok: true, value: result.data }
+    : { ok: false, error: firstIssue(result.error) };
+}
+
+/**
+ * The allocation, against the diagnosis already stored on the run.
+ *
+ * The diagnosis is a *parameter*, not part of the payload, and that is the whole
+ * design. While the client could restate it at commit time, a request could name
+ * one cause and fund the fix for another and still be internally consistent —
+ * which is precisely the run this change exists to make impossible.
+ */
+export function parseAllocation(
+  scenario: SimScenario,
+  diagnosis: CauseId[],
+  raw: unknown,
+): ParseResult<SimAllocationLine[]> {
+  const permitted = permittedInterventionIds(scenario, diagnosis);
+  const result = allocationSchema(scenario, permitted).safeParse(raw);
   return result.success
     ? { ok: true, value: result.data }
     : { ok: false, error: firstIssue(result.error) };

@@ -322,7 +322,13 @@ export function SimulationScreen({ data }: { data: SimulationData }) {
               </>
             )}
 
-            {data.phase === "commit" && <CommitPanel runId={data.runId} scenario={data.scenario} />}
+            {data.phase === "commit" && (
+              <CommitPanel
+                runId={data.runId}
+                scenario={data.scenario}
+                diagnosis={data.diagnosis}
+              />
+            )}
           </aside>
         </div>
 

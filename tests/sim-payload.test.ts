@@ -1,15 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { parseCommit, parseHypothesis } from "@/lib/sim/payload";
+import { parseAllocation, parseDiagnosis, parseHypothesis } from "@/lib/sim/payload";
 import { CAUSE_TRUE, CAUSE_WRONG_LEAF, fixtureScenario } from "./sim-fixture";
 
 const scenario = fixtureScenario();
 
-const commit = (over: Record<string, unknown> = {}) =>
-  parseCommit(scenario, {
-    diagnosis: [CAUSE_TRUE],
-    allocation: [{ interventionId: "iv-payout", sprints: 2, rupees: 400 }],
-    ...over,
-  });
+/**
+ * A commit, in the two steps the server now takes.
+ *
+ * The diagnosis is locked first and the allocation is checked against it, so
+ * this helper mirrors `lockDiagnosis` followed by `commitDecision` rather than
+ * the single payload the client used to send. A failure in either half is a
+ * failed commit, which is what the assertions below mean.
+ */
+const commit = (over: { diagnosis?: unknown; allocation?: unknown } = {}) => {
+  const diagnosis = parseDiagnosis(scenario, over.diagnosis ?? [CAUSE_TRUE]);
+  if (!diagnosis.ok) return diagnosis;
+  return parseAllocation(
+    scenario,
+    diagnosis.value,
+    over.allocation ?? [{ interventionId: "iv-payout", sprints: 2, rupees: 400 }],
+  );
+};
 
 describe("parseHypothesis", () => {
   it("accepts a single known cause", () => {

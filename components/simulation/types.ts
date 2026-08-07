@@ -27,6 +27,14 @@ export interface SimulationData {
    * re-checks it on every write.
    */
   purchaseCount: number;
+  /**
+   * The causes named at Commit, once locked. Empty until then.
+   *
+   * Commit is two steps because of this: while it is empty, `scenario.interventions`
+   * is empty too — the server ships no fixes at all until a cause has been named,
+   * and afterwards only the ones that treat it.
+   */
+  diagnosis: string[];
 }
 
 /** A panel added to the board by a purchase, after the fact. */

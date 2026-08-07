@@ -2,9 +2,9 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Target } from "lucide-react";
+import { AlertTriangle, Lock, Target } from "lucide-react";
 import { toast } from "sonner";
-import { commitDecision } from "@/app/actions/simulations";
+import { commitDecision, lockDiagnosis } from "@/app/actions/simulations";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -31,84 +31,76 @@ interface Draft {
 }
 
 /**
- * Name the cause, then commit the quarter.
+ * Name the cause, then fund what treats it.
  *
- * Both halves are irreversible and the dialog says so before confirming. That
- * matters more than usual here: the point of the exercise is committing under
- * uncertainty, and an undo button would turn it into a search.
+ * Two steps, and the order is the lesson. Until a cause is named the server has
+ * sent no interventions at all; naming one narrows the board to the fixes that
+ * address it, and nothing else can be bought. A run that diagnoses the wrong
+ * branch can no longer stumble onto the right fix — which it could before, and
+ * scored full marks for.
+ *
+ * Both steps are irreversible and both dialogs say so. That matters more than
+ * usual here: the point of the exercise is committing under uncertainty, and an
+ * undo button would turn it into a search. It is also load-bearing for the first
+ * step specifically — a re-namable diagnosis would let anyone read the answer off
+ * the size of each slate, since the true cause usually has more fixes behind it
+ * than a decoy.
  */
 export function CommitPanel({
   runId,
   scenario,
+  diagnosis,
 }: {
   runId: string;
   scenario: ClientScenario;
+  /** Causes already locked. Empty means step one. */
+  diagnosis: string[];
 }) {
+  const locked = diagnosis.length > 0;
+  return locked ? (
+    <FundStep runId={runId} scenario={scenario} diagnosis={diagnosis} />
+  ) : (
+    <NameStep runId={runId} scenario={scenario} />
+  );
+}
+
+const labelFor = (scenario: ClientScenario, id: string) =>
+  scenario.causes.find((c) => c.id === id)?.label ?? id;
+
+// ── Step one: name the cause ─────────────────────────────────────────────────
+
+function NameStep({ runId, scenario }: { runId: string; scenario: ClientScenario }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [named, setNamed] = useState<string[]>([]);
-  const [draft, setDraft] = useState<Record<string, Draft>>({});
   const [confirming, setConfirming] = useState(false);
 
   const roots = scenario.causes.filter((c) => c.parentId === null);
   const childrenOf = (id: string) => scenario.causes.filter((c) => c.parentId === id);
 
-  // Follows the scenario: a ₹6 lakh budget is worked in lakh, a ₹12 crore one
-  // in crore. Hardcoding either makes the other unusable.
-  const scale = moneyScaleFor(scenario.budget.rupees);
-  const budgetMoney = scenario.budget.rupees / scale.divisor;
-
-  const used = useMemo(() => {
-    let sprints = 0;
-    let money = 0;
-    for (const line of Object.values(draft)) {
-      sprints += line.sprints;
-      money += line.money;
-    }
-    return { sprints, money };
-  }, [draft]);
-
-  const overSprints = used.sprints > scenario.budget.sprints;
-  const overBudget = used.money > budgetMoney + 1e-9;
-  const fundedCount = Object.values(draft).filter((d) => d.sprints > 0 || d.money > 0).length;
-  const canCommit = named.length > 0 && fundedCount > 0 && !overSprints && !overBudget;
-
   function toggleCause(id: string) {
     setNamed((prev) => {
       if (prev.includes(id)) return prev.filter((c) => c !== id);
       if (prev.length >= simConfig.maxCausesNamed) {
-        toast.error(`Name at most ${simConfig.maxCausesNamed} — a list of everything predicts nothing`);
+        toast.error(
+          `Name at most ${simConfig.maxCausesNamed} — a list of everything predicts nothing`,
+        );
         return prev;
       }
       return [...prev, id];
     });
   }
 
-  function setLine(id: string, patch: Partial<Draft>) {
-    setDraft((prev) => ({
-      ...prev,
-      [id]: { ...{ sprints: 0, money: 0 }, ...prev[id], ...patch },
-    }));
-  }
-
-  function commit() {
-    const allocation = Object.entries(draft)
-      .filter(([, d]) => d.sprints > 0 || d.money > 0)
-      .map(([interventionId, d]) => ({
-        interventionId,
-        sprints: d.sprints,
-        // Back to absolute rupees at the boundary; the UI works in whatever
-        // unit this scenario's budget is actually discussed in.
-        rupees: Math.round(d.money * scale.divisor),
-      }));
-
+  function lock() {
     startTransition(async () => {
-      const result = await commitDecision(runId, named, allocation);
+      const result = await lockDiagnosis(runId, named);
       setConfirming(false);
       if (!result.ok) {
-        toast.error(result.error ?? "Could not commit");
+        toast.error(result.error ?? "Could not lock the diagnosis");
         return;
       }
+      // The permitted interventions arrive through the ordinary page render —
+      // there is no second payload to trust.
       router.refresh();
     });
   }
@@ -121,15 +113,16 @@ export function CommitPanel({
         </h2>
         <p className="mt-1 text-xs text-muted-foreground">
           Pick up to {simConfig.maxCausesNamed}. Name the specific branch — the headings are
-          there to group them, not to be picked. Nothing here is final until you commit the
-          quarter.
+          there to group them, not to be picked.{" "}
+          <span className="font-medium text-foreground">
+            This decides what you are allowed to spend on.
+          </span>{" "}
+          Only the fixes that treat what you name will be offered, so a wrong call here cannot
+          be bought back later.
         </p>
 
         <SelectionRow
-          selected={named.map((id) => ({
-            id,
-            label: scenario.causes.find((c) => c.id === id)?.label ?? id,
-          }))}
+          selected={named.map((id) => ({ id, label: labelFor(scenario, id) }))}
           onRemove={toggleCause}
           emptyHint="Nothing named yet — pick the branch you think was driving it."
         />
@@ -139,11 +132,10 @@ export function CommitPanel({
             <Card key={root.id} className="p-3">
               <div className="text-xs font-medium text-muted-foreground">{root.label}</div>
               <div className="mt-2 space-y-1.5">
-                {/* Children only. The root is the card heading directly above,
-                    and injecting it here as well — relabelled "Somewhere in
-                    {area}" — read as a duplicate of that heading and gave people
-                    a hedge that is not a diagnosis. `diagnosisSchema` refuses a
-                    root now, so this is the picker agreeing with the rule. */}
+                {/* Children only. The root is the heading directly above, and
+                    injecting it here as well — as "Somewhere in {area}" — read as
+                    a duplicate of that heading and offered a hedge that is not a
+                    diagnosis. `diagnosisSchema` refuses a root outright. */}
                 {childrenOf(root.id).map((cause: ClientCause) => {
                   const selected = named.includes(cause.id);
                   return (
@@ -167,6 +159,133 @@ export function CommitPanel({
           ))}
         </div>
       </section>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <Button disabled={!named.length || pending} onClick={() => setConfirming(true)}>
+          <Lock /> Name it and see the options
+        </Button>
+        {!named.length && (
+          <span className="text-xs text-muted-foreground">Name a cause first.</span>
+        )}
+      </div>
+
+      <Dialog open={confirming} onOpenChange={(open) => !pending && setConfirming(open)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogTitle>Lock this diagnosis?</DialogTitle>
+          <DialogDescription>
+            You are naming{" "}
+            <strong>{named.map((id) => labelFor(scenario, id)).join(" and ")}</strong>. This
+            locks. After it, the only fixes on the board are the ones that target what you have
+            named — if you have named the wrong thing, you will not be able to buy your way out
+            of it.
+          </DialogDescription>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setConfirming(false)} disabled={pending}>
+              Keep looking
+            </Button>
+            <Button onClick={lock} disabled={pending}>
+              {pending ? "Locking…" : "Lock it in"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ── Step two: fund what treats it ────────────────────────────────────────────
+
+function FundStep({
+  runId,
+  scenario,
+  diagnosis,
+}: {
+  runId: string;
+  scenario: ClientScenario;
+  diagnosis: string[];
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [draft, setDraft] = useState<Record<string, Draft>>({});
+  const [confirming, setConfirming] = useState(false);
+
+  // Follows the scenario: a ₹6 lakh budget is worked in lakh, a ₹12 crore one
+  // in crore. Hardcoding either makes the other unusable.
+  const scale = moneyScaleFor(scenario.budget.rupees);
+  const budgetMoney = scenario.budget.rupees / scale.divisor;
+
+  const used = useMemo(() => {
+    let sprints = 0;
+    let money = 0;
+    for (const line of Object.values(draft)) {
+      sprints += line.sprints;
+      money += line.money;
+    }
+    return { sprints, money };
+  }, [draft]);
+
+  const overSprints = used.sprints > scenario.budget.sprints;
+  const overBudget = used.money > budgetMoney + 1e-9;
+  const fundedCount = Object.values(draft).filter((d) => d.sprints > 0 || d.money > 0).length;
+
+  /**
+   * Nothing on this board addresses what they named.
+   *
+   * Not a bug and not a dead end: some causes are honestly unfixable — there is
+   * no intervention that answers a monsoon — and the scenario says so with
+   * `SimCause.unactionable`. Holding the capacity is then the correct answer,
+   * and an empty allocation runs the do-nothing path, which is what actually
+   * happens to a quarter nobody could act on.
+   */
+  const nothingToFund = scenario.interventions.length === 0;
+  const canCommit = (nothingToFund || fundedCount > 0) && !overSprints && !overBudget;
+
+  function setLine(id: string, patch: Partial<Draft>) {
+    setDraft((prev) => ({
+      ...prev,
+      [id]: { ...{ sprints: 0, money: 0 }, ...prev[id], ...patch },
+    }));
+  }
+
+  function commit() {
+    const allocation = Object.entries(draft)
+      .filter(([, d]) => d.sprints > 0 || d.money > 0)
+      .map(([interventionId, d]) => ({
+        interventionId,
+        sprints: d.sprints,
+        // Back to absolute rupees at the boundary; the UI works in whatever
+        // unit this scenario's budget is actually discussed in.
+        rupees: Math.round(d.money * scale.divisor),
+      }));
+
+    startTransition(async () => {
+      // The diagnosis is not sent — the server reads the one it locked, so this
+      // request cannot name one cause and fund the fix for another.
+      const result = await commitDecision(runId, allocation);
+      setConfirming(false);
+      if (!result.ok) {
+        toast.error(result.error ?? "Could not commit");
+        return;
+      }
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card className="border-primary/30 bg-primary/5 p-3">
+        <div className="flex items-start gap-2">
+          <Lock className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+          <div className="min-w-0 text-xs">
+            <div className="font-medium">
+              You named {diagnosis.map((id) => labelFor(scenario, id)).join(" and ")}
+            </div>
+            <p className="mt-0.5 text-muted-foreground">
+              The board below is what treats it. Nothing else is available.
+            </p>
+          </div>
+        </div>
+      </Card>
 
       <section>
         <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -192,131 +311,149 @@ export function CommitPanel({
           />
         </div>
 
-        <div className="mt-4 space-y-3">
-          {scenario.interventions.map((iv: ClientIntervention) => {
-            const line = draft[iv.id] ?? { sprints: 0, money: 0 };
-            const funded = line.sprints > 0 || line.money > 0;
-            const ask = iv.cost.rupees / scale.divisor;
-            const shortOfMin = iv.minSprints !== undefined && funded && line.sprints < iv.minSprints;
+        {nothingToFund ? (
+          <Card className="mt-4 border-dashed p-5 text-sm">
+            <div className="font-medium">Nothing on this board fixes that.</div>
+            {scenario.unactionableNote && (
+              <p className="mt-1.5 text-xs leading-relaxed">{scenario.unactionableNote}</p>
+            )}
+            <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+              You can commit the quarter with the capacity unspent. That is a real answer, and
+              it is the one your diagnosis implies — the quarter will play out as if nobody
+              acted, because on your reading of it nobody usefully could.
+            </p>
+          </Card>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {scenario.interventions.map((iv: ClientIntervention) => {
+              const line = draft[iv.id] ?? { sprints: 0, money: 0 };
+              const funded = line.sprints > 0 || line.money > 0;
+              const ask = iv.cost.rupees / scale.divisor;
+              const shortOfMin =
+                iv.minSprints !== undefined && funded && line.sprints < iv.minSprints;
 
-            return (
-              <Card key={iv.id} className={cn("p-4", funded && "border-primary/40")}>
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-sm font-medium">{iv.label}</h3>
-                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{iv.pitch}</p>
+              return (
+                <Card key={iv.id} className={cn("p-4", funded && "border-primary/40")}>
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-sm font-medium">{iv.label}</h3>
+                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                        {iv.pitch}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <Badge variant="muted">
+                        asks {iv.cost.sprints} sprint{iv.cost.sprints === 1 ? "" : "s"} · ₹
+                        {toIndianWords(iv.cost.rupees)}
+                      </Badge>
+                      {/* Zeroing two number fields by hand is a fiddly way to undo
+                          a mistyped line, and mistyping is the whole complaint. */}
+                      {funded && (
+                        <button
+                          type="button"
+                          onClick={() => setLine(iv.id, { sprints: 0, money: 0 })}
+                          className="text-[11px] text-muted-foreground underline underline-offset-2 hover:text-destructive"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex shrink-0 flex-col items-end gap-1">
-                    <Badge variant="muted">
-                      asks {iv.cost.sprints} sprint{iv.cost.sprints === 1 ? "" : "s"} · ₹
-                      {toIndianWords(iv.cost.rupees)}
-                    </Badge>
-                    {/* Zeroing two number fields by hand is a fiddly way to undo
-                        a mistyped line, and mistyping is the whole complaint. */}
-                    {funded && (
-                      <button
-                        type="button"
-                        onClick={() => setLine(iv.id, { sprints: 0, money: 0 })}
-                        className="text-[11px] text-muted-foreground underline underline-offset-2 hover:text-destructive"
-                      >
-                        Clear
-                      </button>
-                    )}
+
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <label className="text-xs">
+                      <span className="text-muted-foreground">
+                        <GlossaryTerm>Sprints</GlossaryTerm>
+                      </span>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={scenario.budget.sprints}
+                        step={1}
+                        value={line.sprints}
+                        onChange={(e) =>
+                          setLine(iv.id, {
+                            sprints: Math.max(0, Math.floor(+e.target.value || 0)),
+                          })
+                        }
+                        className="mt-1 h-9"
+                      />
+                    </label>
+                    <label className="text-xs">
+                      <span className="text-muted-foreground">{scale.label}</span>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={budgetMoney}
+                        step={scale.step}
+                        value={line.money}
+                        onChange={(e) =>
+                          setLine(iv.id, { money: Math.max(0, +e.target.value || 0) })
+                        }
+                        className="mt-1 h-9"
+                      />
+                    </label>
                   </div>
-                </div>
 
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  <label className="text-xs">
-                    <span className="text-muted-foreground">
-                      <GlossaryTerm>Sprints</GlossaryTerm>
-                    </span>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={scenario.budget.sprints}
-                      step={1}
-                      value={line.sprints}
-                      onChange={(e) =>
-                        setLine(iv.id, { sprints: Math.max(0, Math.floor(+e.target.value || 0)) })
-                      }
-                      className="mt-1 h-9"
-                    />
-                  </label>
-                  <label className="text-xs">
-                    <span className="text-muted-foreground">{scale.label}</span>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={budgetMoney}
-                      step={scale.step}
-                      value={line.money}
-                      onChange={(e) => setLine(iv.id, { money: Math.max(0, +e.target.value || 0) })}
-                      className="mt-1 h-9"
-                    />
-                  </label>
-                </div>
-
-                {/* Named up front rather than discovered in the debrief: the
-                    lesson is about choosing to fund fewer things properly, and
-                    hiding the threshold would make it a gotcha instead. */}
-                {iv.minSprints !== undefined && (
-                  <p
-                    className={cn(
-                      "mt-2 text-[11px]",
-                      shortOfMin ? "font-medium text-destructive" : "text-muted-foreground",
-                    )}
-                  >
-                    {shortOfMin ? (
-                      <>
-                        <AlertTriangle className="mr-1 inline h-3 w-3" />
-                        Below {iv.minSprints} sprints this ships nothing — the money is still spent.
-                      </>
-                    ) : (
-                      `Ships only at ${iv.minSprints}+ sprints.`
-                    )}
-                  </p>
-                )}
-                {funded && line.money < ask && (
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    Part-funded at {Math.round((line.money / ask) * 100)}% of what it asked for.
-                  </p>
-                )}
-              </Card>
-            );
-          })}
-        </div>
+                  {/* Named up front rather than discovered in the debrief: the
+                      lesson is about choosing to fund fewer things properly, and
+                      hiding the threshold would make it a gotcha instead. */}
+                  {iv.minSprints !== undefined && (
+                    <p
+                      className={cn(
+                        "mt-2 text-[11px]",
+                        shortOfMin ? "font-medium text-destructive" : "text-muted-foreground",
+                      )}
+                    >
+                      {shortOfMin ? (
+                        <>
+                          <AlertTriangle className="mr-1 inline h-3 w-3" />
+                          Below {iv.minSprints} sprints this ships nothing — the money is still
+                          spent.
+                        </>
+                      ) : (
+                        `Ships only at ${iv.minSprints}+ sprints.`
+                      )}
+                    </p>
+                  )}
+                  {funded && line.money < ask && (
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Part-funded at {Math.round((line.money / ask) * 100)}% of what it asked for.
+                    </p>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       <div className="flex flex-wrap items-center gap-3">
         <Button disabled={!canCommit || pending} onClick={() => setConfirming(true)}>
-          Commit the quarter
+          {nothingToFund ? "Hold the capacity and run the quarter" : "Commit the quarter"}
         </Button>
         {!canCommit && (
           <span className="text-xs text-muted-foreground">
-            {named.length === 0
-              ? "Name a cause first."
-              : fundedCount === 0
-                ? "Fund at least one intervention."
-                : "You are over budget."}
+            {fundedCount === 0 ? "Fund at least one intervention." : "You are over budget."}
           </span>
         )}
       </div>
 
-      <Dialog open={confirming} onOpenChange={setConfirming}>
+      <Dialog open={confirming} onOpenChange={(open) => !pending && setConfirming(open)}>
         <DialogContent className="sm:max-w-md">
           <DialogTitle>Commit and run the quarter?</DialogTitle>
           <DialogDescription>
             This is final — the quarters play out and you see what happened, not whether you were
-            right. You are naming{" "}
-            <strong>
-              {named
-                .map((id) => scenario.causes.find((c) => c.id === id)?.label)
-                .filter(Boolean)
-                .join(" and ")}
-            </strong>{" "}
-            and committing {used.sprints} sprint{used.sprints === 1 ? "" : "s"} and ₹
-            {used.money.toFixed(1)} {scale.short} across {fundedCount} intervention
-            {fundedCount === 1 ? "" : "s"}.
+            right.{" "}
+            {nothingToFund ? (
+              <>You are spending nothing, having named a cause this board cannot act on.</>
+            ) : (
+              <>
+                You are committing {used.sprints} sprint{used.sprints === 1 ? "" : "s"} and ₹
+                {used.money.toFixed(1)} {scale.short} across {fundedCount} intervention
+                {fundedCount === 1 ? "" : "s"}.
+              </>
+            )}
           </DialogDescription>
           <DialogFooter>
             <Button variant="secondary" onClick={() => setConfirming(false)} disabled={pending}>
