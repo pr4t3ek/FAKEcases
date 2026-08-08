@@ -7,7 +7,7 @@ import { canOpen, tierFor, wallRedirect } from "@/lib/entitlements";
 import { interviewerReply, isRealProvider } from "@/lib/llm";
 import { recordLlmCall } from "@/lib/llm/budget";
 import { toQuestionContext } from "@/lib/question-context";
-import { answerModeFor, type TreeMode } from "@/lib/types";
+import { answerModeFor, isSimulation, type TreeMode } from "@/lib/types";
 
 /**
  * Returned instead of redirecting when the candidate asks for a tree mode that
@@ -30,6 +30,25 @@ export async function startAttempt(
   opts: { abandonExisting?: boolean } = {},
 ): Promise<StartConflict | void> {
   const user = await getOrCreateGuest();
+
+  const question = await db.question.findUnique({
+    where: { id: questionId },
+    include: { category: true },
+  });
+  // A war room is played, not answered: it has no interviewer, no tree and no
+  // rubric, and `answerModeFor` calls it "qualitative" only because refusing to
+  // answer would be worse than a documented default. Left unguarded, a request
+  // carrying a war-room id created a real `Attempt` on it and fed the practice
+  // rollups and the interview leaderboard with a run off a different rubric.
+  // `startSimulation` has always refused the mirror image of this; the guard
+  // existed in one direction only.
+  //
+  // Above the resume branch, unlike the tier gate below, and the difference is
+  // the point. Resuming past a *type* error would let a row created before this
+  // guard keep working, which makes the guard depend on there being none — and
+  // there is no half-built practice attempt on a war room worth protecting
+  // anyway.
+  if (!question || isSimulation(question.type)) redirect("/library");
 
   // Resume an existing in-progress attempt if one exists.
   const existing = await db.attempt.findFirst({
@@ -57,12 +76,6 @@ export async function startAttempt(
       data: { status: "abandoned" },
     });
   }
-
-  const question = await db.question.findUnique({
-    where: { id: questionId },
-    include: { category: true },
-  });
-  if (!question) redirect("/library");
 
   // The gate, and the only one that counts — the locked card in the library is
   // a courtesy. Checked after the resume branch above on purpose: an attempt

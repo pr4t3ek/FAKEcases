@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Siren, Sparkles } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { isLocked, tierFor, upgradeFor, WALL_LOCKED, WALL_PARAM } from "@/lib/entitlements";
-import { listCategories, listQuestions } from "@/lib/questions";
+import { listCategories, listQuestions, listSectors } from "@/lib/questions";
 import { simStateByQuestion } from "@/lib/simulations";
 import type { SimQuestionState } from "@/lib/sim/replay";
 import { AppHeader } from "@/components/app/app-header";
@@ -59,12 +59,14 @@ export default async function SimulationsPage({
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const sp = await searchParams;
-  const [user, categories, questions] = await Promise.all([
+  const [user, categories, sectors, questions] = await Promise.all([
     getSessionUser(),
-    listCategories(),
+    listCategories("simulation"),
+    listSectors("simulation"),
     listQuestions({
       surface: "simulation",
       categorySlug: sp.category,
+      sector: sp.sector,
       difficulty: sp.difficulty,
       interviewLevel: sp.level,
       search: sp.q,
@@ -157,7 +159,7 @@ export default async function SimulationsPage({
           </div>
         )}
 
-        <FilterBar categories={categories} surface="simulation" />
+        <FilterBar categories={categories} sectors={sectors} surface="simulation" />
 
         {questions.length === 0 ? (
           <div className="mt-16 text-center text-muted-foreground">

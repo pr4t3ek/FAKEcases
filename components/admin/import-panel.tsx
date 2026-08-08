@@ -63,7 +63,7 @@ export function ImportPanel() {
       <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm">
         <strong>India-only:</strong> imported questions must use Indian context and ₹. Required columns:
         title, prompt, category, difficulty, interviewLevel, idealLow, idealHigh, betterApproach,
-        sampleSolution. Optional: unit, tags, sourceUrl, externalId (used to de-duplicate on re-import).
+        sampleSolution. Optional: sector, unit, tags, sourceUrl, externalId (used to de-duplicate on re-import).
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

@@ -3,7 +3,7 @@ import { Sparkles } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { isLocked, tierFor, upgradeFor, WALL_LOCKED, WALL_PARAM } from "@/lib/entitlements";
 import { prefillLevel, targetLevelsFor } from "@/lib/profile";
-import { listCategories, listQuestions } from "@/lib/questions";
+import { listCategories, listQuestions, listSectors } from "@/lib/questions";
 import { answerModeFor, type InterviewLevel } from "@/lib/types";
 import { AppHeader } from "@/components/app/app-header";
 import { FilterBar } from "@/components/library/filter-bar";
@@ -18,12 +18,14 @@ export default async function LibraryPage({
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const sp = await searchParams;
-  const [user, categories, questions] = await Promise.all([
+  const [user, categories, sectors, questions] = await Promise.all([
     getSessionUser(),
-    listCategories(),
+    listCategories("practice"),
+    listSectors("practice"),
     listQuestions({
       surface: "practice",
       categorySlug: sp.category,
+      sector: sp.sector,
       difficulty: sp.difficulty,
       interviewLevel: sp.level,
       search: sp.q,
@@ -71,11 +73,10 @@ export default async function LibraryPage({
         <div className="mb-6">
           <h1 className="text-2xl font-bold tracking-tight">Question Library</h1>
           <p className="mt-1 text-muted-foreground">
-            {summary || "No questions"}, India-only. Decision simulations live in{" "}
-            <Link href="/simulations" className="text-primary underline underline-offset-4">
-              War rooms
-            </Link>
-            .{" "}
+            {/* War rooms are not mentioned here at all. They are a nav item, and
+                a second pointer on the page that does not hold them invited a
+                detour out of the catalogue someone had just opened. */}
+            {summary || "No questions"}, India-only.{" "}
             {/* Tier-aware, because the same sentence has to work for a visitor
                 with no account and for a signed-in one who needs a pass. The
                 phrase comes from the tier table, so neither is told to get
@@ -109,7 +110,7 @@ export default async function LibraryPage({
           </div>
         )}
 
-        <FilterBar categories={categories} />
+        <FilterBar categories={categories} sectors={sectors} />
         <TargetLevelsHint
           targets={targets}
           applied={appliedLevel}

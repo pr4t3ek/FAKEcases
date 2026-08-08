@@ -74,9 +74,14 @@ export const tierAccess: Record<AccessTier, TierAccess> = {
       // sending someone to a checkout that doesn't exist would be worse than
       // sending them to the page that tells them where they stand.
       href: "/profile",
+      // The counts are asserted against the seed and the scenario registry in
+      // tests/entitlements.test.ts. This sentence said "9 war rooms" for three
+      // scenarios longer than it was true — nothing tied the copy to the
+      // catalogue it describes, so the finance scenarios shipped and the pitch
+      // quietly under-sold the product at the moment someone decides to pay.
       reason:
         "Your account opens the free set. Pro opens the whole library — all 24 guesstimates, " +
-        "both cases and all 9 war rooms.",
+        "both cases and all 12 war rooms.",
       unlocks: "with Pro",
     },
   },

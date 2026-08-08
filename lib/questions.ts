@@ -10,15 +10,19 @@ import {
 import {
   DIFFICULTIES,
   PRACTICE_TYPES,
+  SECTORS,
   SIMULATION_TYPE,
   isSimulation,
   type QuestionSurface,
+  type Sector,
 } from "@/lib/types";
 
 /** Single source of truth for question reads/writes + bulk import. */
 
 export interface QuestionFilters {
   categorySlug?: string;
+  /** A `SECTORS` value — the industry axis, independent of `categorySlug`. */
+  sector?: string;
   difficulty?: string;
   interviewLevel?: string;
   search?: string;
@@ -37,8 +41,56 @@ export interface QuestionFilters {
  */
 const practice: string[] = [...PRACTICE_TYPES];
 
-export async function listCategories() {
-  return db.category.findMany({ orderBy: { order: "asc" } });
+/**
+ * The types a surface may show, as a Prisma filter.
+ *
+ * One definition, two readers — `listQuestions` and `listCategories`. They have
+ * to agree: a category is worth offering exactly when it holds something the
+ * grid beneath it can render, and deriving that from a second copy of the rule
+ * is how the two drift into offering a filter that always returns nothing.
+ */
+function typeFilterFor(surface: QuestionSurface = "practice") {
+  return surface === "simulation" ? SIMULATION_TYPE : { in: practice };
+}
+
+/**
+ * The categories worth offering on a surface.
+ *
+ * Surface-aware because the vocabulary is shared but the catalogues are not.
+ * Every war room is filed under `product-management` and no practice question
+ * is, so a surface-blind list offered "Product Management" on `/library` — a
+ * filter that could only ever render "No questions match your filters", since
+ * the type constraint excludes the only rows in it. Asking the database which
+ * categories actually have something to show is both the fix and the guarantee
+ * it stays fixed as content moves.
+ */
+export async function listCategories(surface: QuestionSurface = "practice") {
+  return db.category.findMany({
+    where: { questions: { some: { type: typeFilterFor(surface) } } },
+    orderBy: { order: "asc" },
+  });
+}
+
+/**
+ * The sectors worth offering on a surface, in vocabulary order.
+ *
+ * Surface-aware for exactly the reason `listCategories` is, and the omission was
+ * live: three sectors (Technology, Manufacturing, Energy) are carried only by
+ * war rooms, so a static `SECTORS` list gave `/library` three options that could
+ * only ever render the empty state — the same defect as the "Product Management"
+ * category, reintroduced one dropdown to the left.
+ *
+ * Ordered by `SECTORS` rather than by what the query happened to return, so the
+ * control reads identically on both surfaces.
+ */
+export async function listSectors(surface: QuestionSurface = "practice"): Promise<Sector[]> {
+  const rows = await db.question.findMany({
+    where: { type: typeFilterFor(surface), sector: { not: null } },
+    select: { sector: true },
+    distinct: ["sector"],
+  });
+  const present = new Set(rows.map((r) => r.sector));
+  return SECTORS.filter((s) => present.has(s));
 }
 
 export async function listQuestions(filters: QuestionFilters = {}) {
@@ -46,16 +98,15 @@ export async function listQuestions(filters: QuestionFilters = {}) {
   // never be used to pull a war room into the practice catalogue.
   const where: Record<string, unknown> = {
     type:
-      filters.surface === "simulation"
-        ? SIMULATION_TYPE
-        : filters.type && practice.includes(filters.type)
-          ? filters.type
-          : { in: practice },
+      filters.surface !== "simulation" && filters.type && practice.includes(filters.type)
+        ? filters.type
+        : typeFilterFor(filters.surface),
   };
   if (filters.categorySlug) {
     const cat = await db.category.findUnique({ where: { slug: filters.categorySlug } });
     if (cat) where.categoryId = cat.id;
   }
+  if (filters.sector) where.sector = filters.sector;
   if (filters.difficulty) where.difficulty = filters.difficulty;
   if (filters.interviewLevel) where.interviewLevel = filters.interviewLevel;
   if (filters.search) {

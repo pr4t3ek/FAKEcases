@@ -153,6 +153,17 @@ model Question {
   interviewLevel String   // "BCG" | "McKinsey" | "Bain" | "Big4" | "PM" | "Product" | "GeneralMBA"
   type           String   @default("guesstimate") // "guesstimate" | "qualitative" | "case"
 
+  /// The industry the question is set in — a `SECTORS` value from lib/types.ts.
+  ///
+  /// Its own column rather than a second category, because `categoryId` answers
+  /// "what technique is this?" and this answers "what business is it about?".
+  /// One FK cannot hold both, and merging them is what made the old catalogue
+  /// dropdown a list of two unrelated things.
+  ///
+  /// Nullable so a CSV import that omits it is a question without a sector
+  /// rather than a failed row; the seed fills every one.
+  sector         String?
+
   idealLow       Float?
   idealHigh      Float?
   unit           String?
@@ -202,6 +213,7 @@ model Question {
   @@index([categoryId])
   @@index([difficulty])
   @@index([interviewLevel])
+  @@index([sector])
 }
 
 /// A user's FIRST result on a question — the only row a leaderboard ranks.

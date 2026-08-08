@@ -79,6 +79,7 @@ export default async function AdminPage() {
                 title: q.title,
                 prompt: q.prompt,
                 categoryId: q.categoryId,
+                sector: q.sector,
                 difficulty: q.difficulty,
                 interviewLevel: q.interviewLevel,
                 type: q.type,
