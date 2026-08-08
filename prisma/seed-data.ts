@@ -23,6 +23,15 @@ export interface SeedQuestion {
   title: string;
   prompt: string;
   category: string; // slug
+  /**
+   * Industry the question is set in — a `SECTORS` value from `lib/types.ts`.
+   *
+   * Required here even though the column is nullable: an authored question
+   * always knows what business it is about, and a seed that could quietly omit
+   * it would leave holes in the filter that nothing catches. `tests/sectors`
+   * pins every row against the vocabulary.
+   */
+  sector: string;
   difficulty: "Easy" | "Medium" | "Hard";
   interviewLevel: string;
   /** Omitted for qualitative questions, which don't end in a number. */
@@ -61,6 +70,7 @@ export const questions: SeedQuestion[] = [
     title: "Annual umbrella demand in Mumbai",
     prompt: "Estimate the annual demand for umbrellas in Mumbai.",
     category: "demand-estimation",
+    sector: "consumer-goods",
     difficulty: "Easy",
     interviewLevel: "McKinsey",
     idealLow: 6_000_000,
@@ -77,6 +87,7 @@ export const questions: SeedQuestion[] = [
     title: "Cups of chai consumed in Bangalore per day",
     prompt: "Estimate the number of cups of chai consumed in Bangalore in a day.",
     category: "demand-estimation",
+    sector: "food-beverage",
     difficulty: "Easy",
     interviewLevel: "GeneralMBA",
     idealLow: 8_000_000,
@@ -95,6 +106,7 @@ export const questions: SeedQuestion[] = [
     title: "Number of auto-rickshaws in Bangalore",
     prompt: "Estimate the number of auto-rickshaws operating in Bangalore.",
     category: "transportation",
+    sector: "transportation",
     difficulty: "Easy",
     interviewLevel: "McKinsey",
     idealLow: 200_000,
@@ -111,6 +123,7 @@ export const questions: SeedQuestion[] = [
     title: "Number of smartphone users in Delhi",
     prompt: "Estimate the number of smartphone users in Delhi.",
     category: "population",
+    sector: "telecom",
     difficulty: "Easy",
     interviewLevel: "PM",
     idealLow: 10_000_000,
@@ -127,6 +140,7 @@ export const questions: SeedQuestion[] = [
     title: "Annual market size for Maggi noodles in India",
     prompt: "Estimate the annual market size (in ₹) for Maggi noodles in India.",
     category: "market-sizing",
+    sector: "food-beverage",
     difficulty: "Medium",
     interviewLevel: "McKinsey",
     idealLow: 30_000_000_000,
@@ -143,6 +157,7 @@ export const questions: SeedQuestion[] = [
     title: "Online food delivery market in India per year",
     prompt: "Estimate the annual GMV of online food delivery in India.",
     category: "market-sizing",
+    sector: "food-beverage",
     difficulty: "Hard",
     interviewLevel: "BCG",
     idealLow: 400_000_000_000,
@@ -159,6 +174,7 @@ export const questions: SeedQuestion[] = [
     title: "Annual demand for cricket bats in India",
     prompt: "Estimate the number of cricket bats sold in India each year.",
     category: "demand-estimation",
+    sector: "consumer-goods",
     difficulty: "Medium",
     interviewLevel: "Bain",
     idealLow: 10_000_000,
@@ -175,6 +191,7 @@ export const questions: SeedQuestion[] = [
     title: "Daily revenue of a single Delhi Metro station",
     prompt: "Estimate the daily fare revenue of one busy Delhi Metro station (e.g., Rajiv Chowk).",
     category: "revenue-estimation",
+    sector: "transportation",
     difficulty: "Medium",
     interviewLevel: "BCG",
     idealLow: 300_000,
@@ -191,6 +208,7 @@ export const questions: SeedQuestion[] = [
     title: "Annual revenue of a PVR multiplex in Pune",
     prompt: "Estimate the annual revenue of a single multiplex cinema in Pune.",
     category: "revenue-estimation",
+    sector: "media-entertainment",
     difficulty: "Medium",
     interviewLevel: "Big4",
     idealLow: 150_000_000,
@@ -207,6 +225,7 @@ export const questions: SeedQuestion[] = [
     title: "Number of school teachers in India",
     prompt: "Estimate the total number of school teachers in India.",
     category: "population",
+    sector: "education",
     difficulty: "Medium",
     interviewLevel: "GeneralMBA",
     idealLow: 7_000_000,
@@ -223,6 +242,7 @@ export const questions: SeedQuestion[] = [
     title: "Number of kirana stores in India",
     prompt: "Estimate the number of kirana (neighbourhood grocery) stores in India.",
     category: "retail",
+    sector: "retail",
     difficulty: "Hard",
     interviewLevel: "McKinsey",
     idealLow: 10_000_000,
@@ -239,6 +259,7 @@ export const questions: SeedQuestion[] = [
     title: "Annual sales of a DMart store in Hyderabad",
     prompt: "Estimate the annual sales of a single DMart store in Hyderabad.",
     category: "retail",
+    sector: "retail",
     difficulty: "Medium",
     interviewLevel: "Big4",
     idealLow: 300_000_000,
@@ -255,6 +276,7 @@ export const questions: SeedQuestion[] = [
     title: "Number of hospital beds needed in India",
     prompt: "Estimate the number of hospital beds required to adequately serve India.",
     category: "healthcare",
+    sector: "healthcare",
     difficulty: "Hard",
     interviewLevel: "McKinsey",
     idealLow: 2_000_000,
@@ -271,6 +293,7 @@ export const questions: SeedQuestion[] = [
     title: "Number of insulin-dependent diabetics in India",
     prompt: "Estimate the number of insulin-dependent diabetics in India.",
     category: "healthcare",
+    sector: "healthcare",
     difficulty: "Hard",
     interviewLevel: "Bain",
     idealLow: 8_000_000,
@@ -287,6 +310,7 @@ export const questions: SeedQuestion[] = [
     title: "UPI transactions in India per day",
     prompt: "Estimate the number of UPI transactions happening in India per day.",
     category: "technology",
+    sector: "financial-services",
     difficulty: "Hard",
     interviewLevel: "Product",
     idealLow: 300_000_000,
@@ -303,6 +327,7 @@ export const questions: SeedQuestion[] = [
     title: "Daily data consumed by Jio users in India",
     prompt: "Estimate the total mobile data (in GB) consumed by Jio users in India per day.",
     category: "technology",
+    sector: "telecom",
     difficulty: "Hard",
     interviewLevel: "Product",
     idealLow: 150_000_000,
@@ -319,6 +344,7 @@ export const questions: SeedQuestion[] = [
     title: "Number of JEE/NEET coaching centres in India",
     prompt: "Estimate the number of JEE/NEET coaching centres in India.",
     category: "education",
+    sector: "education",
     difficulty: "Medium",
     interviewLevel: "GeneralMBA",
     idealLow: 30_000,
@@ -335,6 +361,7 @@ export const questions: SeedQuestion[] = [
     title: "Annual edtech market size in India",
     prompt: "Estimate the annual market size (in ₹) of edtech in India.",
     category: "education",
+    sector: "education",
     difficulty: "Hard",
     interviewLevel: "BCG",
     idealLow: 300_000_000_000,
@@ -351,6 +378,7 @@ export const questions: SeedQuestion[] = [
     title: "Annual air passengers between Mumbai and Delhi",
     prompt: "Estimate the number of air passengers flying between Mumbai and Delhi per year.",
     category: "transportation",
+    sector: "transportation",
     difficulty: "Medium",
     interviewLevel: "BCG",
     idealLow: 4_000_000,
@@ -367,6 +395,7 @@ export const questions: SeedQuestion[] = [
     title: "Cars manufactured in India per year",
     prompt: "Estimate the number of passenger cars manufactured in India per year.",
     category: "manufacturing",
+    sector: "automotive",
     difficulty: "Medium",
     interviewLevel: "Bain",
     idealLow: 3_000_000,
@@ -383,6 +412,7 @@ export const questions: SeedQuestion[] = [
     title: "Annual toothpaste demand in India",
     prompt: "Estimate the number of toothpaste tubes sold in India per year.",
     category: "consumer-goods",
+    sector: "consumer-goods",
     difficulty: "Medium",
     interviewLevel: "McKinsey",
     idealLow: 2_000_000_000,
@@ -399,6 +429,7 @@ export const questions: SeedQuestion[] = [
     title: "Number of active credit cards in India",
     prompt: "Estimate the number of active credit cards in India.",
     category: "finance",
+    sector: "financial-services",
     difficulty: "Medium",
     interviewLevel: "Big4",
     idealLow: 60_000_000,
@@ -415,6 +446,7 @@ export const questions: SeedQuestion[] = [
     title: "EV two-wheelers sold per year in Delhi NCR",
     prompt: "Estimate the number of electric two-wheelers sold in Delhi NCR per year.",
     category: "energy",
+    sector: "automotive",
     difficulty: "Medium",
     interviewLevel: "BCG",
     idealLow: 100_000,
@@ -431,6 +463,7 @@ export const questions: SeedQuestion[] = [
     title: "Annual GMV of a mid-size D2C brand in India",
     prompt: "Estimate the annual GMV of a mid-size direct-to-consumer (D2C) brand in India.",
     category: "startups",
+    sector: "consumer-goods",
     difficulty: "Hard",
     interviewLevel: "Product",
     idealLow: 500_000_000,
@@ -455,6 +488,7 @@ export const questions: SeedQuestion[] = [
     prompt:
       "A food-delivery platform in India has seen its per-order contribution margin fall over the last four quarters, even though order volumes are steady. Why might that be happening, and what would you look at first?",
     category: "startups",
+    sector: "food-beverage",
     difficulty: "Medium",
     interviewLevel: "McKinsey",
     type: "qualitative",
@@ -515,6 +549,7 @@ export const questions: SeedQuestion[] = [
     prompt:
       "An established Indian two-wheeler manufacturer is considering entering the electric scooter market. How would you structure the decision, and what would make you say no?",
     category: "transportation",
+    sector: "automotive",
     difficulty: "Medium",
     interviewLevel: "BCG",
     type: "qualitative",
@@ -544,6 +579,7 @@ export const questions: SeedQuestion[] = [
     prompt:
       "Weekly orders at an Indian food-delivery app have fallen 9% over six weeks and the drop hasn't flattened. You have 8 analyst-days to find out why, then a quarter of engineering capacity and ₹12 crore to fix it. You will not be told whether you were right — you will see what happens to the business.",
     category: "product-management",
+    sector: "food-beverage",
     difficulty: "Medium",
     interviewLevel: "PM",
     type: "simulation",
@@ -567,6 +603,7 @@ export const questions: SeedQuestion[] = [
     prompt:
       "A D2C coffee brand spends ₹10 lakh a month on ads. The CMO's dashboard reports a ROAS of 4.0 and wants to double the budget. Finance says every order loses money and wants it switched off. Both are reading correct numbers. Work out why, then spend a quarter fixing it — and watch what your decision does to the business.",
     category: "product-management",
+    sector: "food-beverage",
     difficulty: "Easy",
     interviewLevel: "PM",
     type: "simulation",
@@ -585,6 +622,7 @@ export const questions: SeedQuestion[] = [
     prompt:
       "An A/B test on the product page came back at +6% conversion, properly powered and signed off by data science. Design wants it live on Monday. Work out what the test actually measured before you ship it, then spend a month acting on what you find.",
     category: "product-management",
+    sector: "retail",
     difficulty: "Easy",
     interviewLevel: "PM",
     type: "simulation",
@@ -600,6 +638,7 @@ export const questions: SeedQuestion[] = [
     prompt:
       "A test-prep subscription adds 18,000 members a month, reports an LTV:CAC of 4.6 and burns ₹34 lakh a month anyway. Find out why the ratios look healthy while the business doesn't, then spend a quarter fixing it.",
     category: "product-management",
+    sector: "education",
     difficulty: "Easy",
     interviewLevel: "PM",
     type: "simulation",
@@ -615,6 +654,7 @@ export const questions: SeedQuestion[] = [
     prompt:
       "A snack brand's quick-commerce share went from 4% to 11.5% in three quarters while monthly profit fell a third. The board wants to double the trade spend. Work out what the share actually cost before they do.",
     category: "product-management",
+    sector: "food-beverage",
     difficulty: "Easy",
     interviewLevel: "PM",
     type: "simulation",
@@ -630,6 +670,7 @@ export const questions: SeedQuestion[] = [
     prompt:
       "A competitor cut price 12% and your volume is down 9%. Sales wants to cut 15% to match. Work out how much extra volume that has to buy before you decide — and find out what actually moved the number.",
     category: "product-management",
+    sector: "consumer-goods",
     difficulty: "Medium",
     interviewLevel: "PM",
     type: "simulation",
@@ -645,6 +686,7 @@ export const questions: SeedQuestion[] = [
     prompt:
       "A rooftop solar kit missed its year-one plan by 60%. The CEO calls it an execution problem; the sales head says the number was never real. Decide who is right, then spend a quarter acting on it.",
     category: "product-management",
+    sector: "energy",
     difficulty: "Medium",
     interviewLevel: "PM",
     type: "simulation",
@@ -660,6 +702,7 @@ export const questions: SeedQuestion[] = [
     prompt:
       "A home-services marketplace added 22% more bookings and 19% more professionals, and match rate fell from 88% to 79%. Growth wants ₹4 crore to push demand harder. Work out why adding to both sides made it worse.",
     category: "product-management",
+    sector: "technology",
     difficulty: "Medium",
     interviewLevel: "PM",
     type: "simulation",
@@ -675,6 +718,7 @@ export const questions: SeedQuestion[] = [
     prompt:
       "Your largest account — 900 seats, ₹2.7 crore of ARR, 78% gross margin on the deck — wants 18% off to sign three years. Finance has just run a fully loaded cost to serve for the first time. Work out what the contract is actually worth before you answer.",
     category: "product-management",
+    sector: "technology",
     difficulty: "Medium",
     interviewLevel: "PM",
     type: "simulation",
@@ -699,6 +743,7 @@ export const questions: SeedQuestion[] = [
     prompt:
       "A 60-store apparel chain grew revenue 22% and lost nearly two thirds of its profit. Three people in the room have three explanations and none of them has separated the 46 stores that traded all year from the 14 that opened in April. You have 6 analyst-days to read the P&L properly, then a quarter of capacity and ₹6 crore to act on what you find.",
     category: "finance",
+    sector: "retail",
     difficulty: "Easy",
     interviewLevel: "Big4",
     type: "simulation",
@@ -714,6 +759,7 @@ export const questions: SeedQuestion[] = [
     prompt:
       "A pipe manufacturer posted its best ever profit — ₹4.19 crore, up 57% — and has ₹41 lakh in the bank against a ₹1.9 crore payroll. Both statements are true and neither is an accounting error. You have 6 analyst-days to find where the money went, then 4 sprints and ₹3 crore.",
     category: "finance",
+    sector: "manufacturing",
     difficulty: "Easy",
     interviewLevel: "Big4",
     type: "simulation",
@@ -729,6 +775,7 @@ export const questions: SeedQuestion[] = [
     prompt:
       "A tile manufacturer posted record EBITDA the same week its auditor raised a going-concern note and its lender asked about the interest-cover covenant. The managing director wants to announce the EBITDA; the finance director wants to refinance. Work out why both of them can be right, then spend 4 sprints and ₹16 crore.",
     category: "finance",
+    sector: "manufacturing",
     difficulty: "Medium",
     interviewLevel: "Big4",
     type: "simulation",

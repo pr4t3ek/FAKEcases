@@ -201,12 +201,11 @@ export function QuestionCard({
         // make "solo" meaningless — switch to guided, take the structure, switch
         // back — so the choice is made before the timer starts.
         <div className="mt-4 space-y-2">
-          <Button
-            onClick={() => begin("solo")}
-            disabled={pending}
-            className="w-full"
-            variant="outline"
-          >
+          {/* No variant, so it inherits the primary fill — the same button the
+              war-room card uses. Starting a case is the primary action on this
+              card, and an outline button next to a solid one reads as the
+              lesser of the two. */}
+          <Button onClick={() => begin("solo")} disabled={pending} className="w-full">
             Practise this <ArrowRight />
           </Button>
           <div className="text-center">
@@ -221,12 +220,7 @@ export function QuestionCard({
           </div>
         </div>
       ) : (
-        <Button
-          onClick={() => begin()}
-          disabled={pending}
-          className="mt-4 w-full"
-          variant="outline"
-        >
+        <Button onClick={() => begin()} disabled={pending} className="mt-4 w-full">
           Practise this <ArrowRight />
         </Button>
       )}

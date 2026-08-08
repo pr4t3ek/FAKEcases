@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { AUTHORABLE_TYPES, DIFFICULTIES, INTERVIEW_LEVELS, answerModeFor } from "@/lib/types";
+import {
+  AUTHORABLE_TYPES,
+  DIFFICULTIES,
+  INTERVIEW_LEVELS,
+  SECTORS,
+  answerModeFor,
+} from "@/lib/types";
 
 /**
  * The authoring contract for a question, shared by the admin panel and the
@@ -110,6 +116,11 @@ export const questionCoreSchema = z.object({
   prompt: z.string().trim().min(5),
   difficulty: z.enum(DIFFICULTIES),
   interviewLevel: z.enum(INTERVIEW_LEVELS),
+  // Optional, unlike the seed's required field: a question authored without a
+  // sector is a question that is simply not reachable from that filter, which
+  // is a smaller failure than refusing the row outright — and it keeps every
+  // existing CSV, which has no such column, importable unchanged.
+  sector: z.preprocess((v) => (blank(v) ? undefined : v), z.enum(SECTORS).optional()),
   // AUTHORABLE_TYPES, not QUESTION_TYPES: a `simulation` row is a catalogue
   // entry whose exercise is authored in code, so one created through this
   // contract would have no scenario behind it and would be inert. Refusing it
@@ -173,6 +184,7 @@ export function toQuestionColumns(data: QuestionCore) {
     prompt: data.prompt,
     difficulty: data.difficulty,
     interviewLevel: data.interviewLevel,
+    sector: data.sector ?? null,
     type: data.type,
     idealLow: numeric ? (data.idealLow ?? null) : null,
     idealHigh: numeric ? (data.idealHigh ?? null) : null,

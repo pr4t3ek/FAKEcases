@@ -152,6 +152,34 @@ summed every ranked entry a user held, adding a war room's score to a guesstimat
 off different rubrics with different units of effort, and `simSummary` had already refused to
 average them for exactly that reason. It now takes a `kind`, and there are two boards.
 
+### The catalogue filters
+
+Three of them are worth recording, because each was a control that lied about what it held.
+
+**Sector and topic are two axes, and `Question` carries both.** `categoryId` had been doing the
+work of both: "Market Sizing" and "Retail" sat in one dropdown as though they were the same kind
+of thing, so the four food-and-beverage questions were scattered across three categories with no
+way to ask for them together. `Question.sector` (a `SECTORS` value) is what the business *is*;
+the category stays what you are being asked to *do*. One column could not answer both — which is
+the entire reason for the second one, and `tests/sectors.test.ts` pins that they genuinely
+diverge rather than one being derivable from the other.
+
+**The company filter offers companies only.** `INTERVIEW_LEVELS` is two vocabularies in one coat:
+four firms, and three roles (`PM`, `Product`, `GeneralMBA`). `COMPANY_LEVELS` subtracts the roles
+for the filter and **does not touch the source list**, which is also the enum behind the authoring
+contract, profile goals and the admin form — narrowing it there would invalidate seeded content
+and anyone's saved goals. The 7 library questions carrying a role are reached through "All
+companies", and a goal chip linking to `?level=PM` still filters: the select renders the active
+value as an extra option rather than showing a blank while the grid is filtered.
+
+**Both option lists are surface-aware, and that is not cosmetic.** `listCategories(surface)` and
+`listSectors(surface)` ask the database what a surface can actually show. Every war room is filed
+under `product-management` and no practice question is, so a surface-blind list offered the
+library a filter whose only possible result was the empty state; three sectors (Technology,
+Manufacturing, Energy) are carried only by war rooms and would have done the same one dropdown to
+the left. `typeFilterFor` is shared with `listQuestions` so the grid and the controls above it
+cannot disagree about what the surface holds.
+
 ---
 
 ## 3. Data model (Prisma / SQLite → Postgres)

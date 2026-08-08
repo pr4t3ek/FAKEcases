@@ -15,6 +15,8 @@ import {
   DIFFICULTIES,
   INTERVIEW_LEVELS,
   INTERVIEW_LEVEL_LABELS,
+  SECTORS,
+  SECTOR_LABELS,
   answerModeFor,
   isSimulation,
 } from "@/lib/types";
@@ -36,6 +38,7 @@ export interface AdminQuestion {
   title: string;
   prompt: string;
   categoryId: string;
+  sector: string | null;
   difficulty: string;
   interviewLevel: string;
   type: string;
@@ -82,6 +85,7 @@ const empty = {
   title: "",
   prompt: "",
   categoryId: "",
+  sector: "",
   difficulty: "Medium",
   interviewLevel: "McKinsey",
   type: "guesstimate",
@@ -114,6 +118,7 @@ function QuestionForm({
           title: initial.title,
           prompt: initial.prompt,
           categoryId: initial.categoryId,
+          sector: initial.sector ?? "",
           difficulty: initial.difficulty,
           interviewLevel: initial.interviewLevel,
           type: initial.type || "guesstimate",
@@ -185,6 +190,12 @@ function QuestionForm({
           {INTERVIEW_LEVELS.map((l) => <option key={l} value={l}>{INTERVIEW_LEVEL_LABELS[l]}</option>)}
         </select>
       </div>
+      {/* Optional, so the blank is a real choice rather than a placeholder the
+          form quietly resolves to the first sector. */}
+      <select className={selectClass} value={form.sector} onChange={(e) => set("sector", e.target.value)}>
+        <option value="">No sector</option>
+        {SECTORS.map((s) => <option key={s} value={s}>{SECTOR_LABELS[s]}</option>)}
+      </select>
       <select className={selectClass} value={form.type} onChange={(e) => set("type", e.target.value)}>
         {AUTHORABLE_TYPES.map((t) => (
           <option key={t} value={t}>{QUESTION_TYPE_LABELS[t] ?? t}</option>

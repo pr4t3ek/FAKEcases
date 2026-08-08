@@ -24,6 +24,82 @@ export const INTERVIEW_LEVEL_LABELS: Record<InterviewLevel, string> = {
   GeneralMBA: "General MBA",
 };
 
+/**
+ * The levels that name an actual employer, for the library's company filter.
+ *
+ * `INTERVIEW_LEVELS` is two vocabularies wearing one coat: four firms you could
+ * be interviewing with, and three roles or audiences you could be preparing as.
+ * Offering all seven under one "company" control asks the candidate to read
+ * "General MBA" as a company.
+ *
+ * Derived by subtraction rather than written out again — the same posture as
+ * `PRACTICE_TYPES` below — so a firm added to `INTERVIEW_LEVELS` reaches the
+ * filter on its own, and only a *role* has to be named here.
+ *
+ * Deliberately a view over the vocabulary and not a replacement for it.
+ * `INTERVIEW_LEVELS` is also the enum behind the authoring contract
+ * (`lib/question-schema.ts`), profile goals (`lib/profile-schema.ts`) and the
+ * admin form, and 7 of the 26 library questions carry one of the roles. Narrowing
+ * the source list would invalidate seeded content and saved goals; narrowing the
+ * *filter* only means those questions are reached through "All companies".
+ */
+const ROLE_LEVELS: readonly InterviewLevel[] = ["PM", "Product", "GeneralMBA"];
+
+export const COMPANY_LEVELS = INTERVIEW_LEVELS.filter(
+  (l) => !ROLE_LEVELS.includes(l),
+);
+
+export function isCompanyLevel(level: string): boolean {
+  return (COMPANY_LEVELS as readonly string[]).includes(level);
+}
+
+/**
+ * The industry a question is set in.
+ *
+ * Its own dimension rather than another `Category`, because a question has
+ * exactly one category and the two axes are independent: "Market Sizing" is what
+ * you are being asked to do, "Food & Beverage" is what it is about. Filing chai
+ * under `market-sizing` used to mean it could not be found by anyone browsing
+ * food and beverage, and filing it under `food-beverage` would have lost the
+ * technique — a single column cannot answer both questions.
+ *
+ * Kebab-case values because they travel in a query string beside `category`,
+ * whose slugs already look like this. Labels are separate for the ones that
+ * don't round-trip.
+ */
+export const SECTORS = [
+  "food-beverage",
+  "retail",
+  "consumer-goods",
+  "healthcare",
+  "technology",
+  "telecom",
+  "education",
+  "transportation",
+  "automotive",
+  "manufacturing",
+  "financial-services",
+  "energy",
+  "media-entertainment",
+] as const;
+export type Sector = (typeof SECTORS)[number];
+
+export const SECTOR_LABELS: Record<Sector, string> = {
+  "food-beverage": "Food & Beverage",
+  retail: "Retail",
+  "consumer-goods": "Consumer Goods",
+  healthcare: "Healthcare",
+  technology: "Technology",
+  telecom: "Telecom",
+  education: "Education",
+  transportation: "Transportation",
+  automotive: "Automotive",
+  manufacturing: "Manufacturing",
+  "financial-services": "Financial Services",
+  energy: "Energy",
+  "media-entertainment": "Media & Entertainment",
+};
+
 export const QUESTION_TYPES = ["guesstimate", "qualitative", "case", "simulation"] as const;
 export type QuestionType = (typeof QUESTION_TYPES)[number];
 

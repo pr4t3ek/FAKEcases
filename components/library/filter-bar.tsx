@@ -4,10 +4,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Search, X } from "lucide-react";
 import {
+  COMPANY_LEVELS,
   DIFFICULTIES,
-  INTERVIEW_LEVELS,
   INTERVIEW_LEVEL_LABELS,
+  SECTOR_LABELS,
+  isCompanyLevel,
+  type InterviewLevel,
   type QuestionSurface,
+  type Sector,
 } from "@/lib/types";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -19,9 +23,16 @@ interface Category {
 
 export function FilterBar({
   categories,
+  sectors,
   surface = "practice",
 }: {
   categories: Category[];
+  /**
+   * Passed in rather than read from `SECTORS`, because which sectors are worth
+   * offering depends on the surface — three of them are carried only by war
+   * rooms. Same reasoning as `categories`.
+   */
+  sectors: Sector[];
   /**
    * Which catalogue is being filtered. Decides where the filters navigate, and
    * whether the format dropdown appears at all — the war rooms page holds
@@ -55,10 +66,21 @@ export function FilterBar({
   }, [search]);
 
   const activeCategory = params.get("category") ?? "";
+  const activeSector = params.get("sector") ?? "";
   const activeDifficulty = params.get("difficulty") ?? "";
   const activeLevel = params.get("level") ?? "";
   const activeType = params.get("type") ?? "";
-  const hasFilters = activeCategory || activeDifficulty || activeLevel || activeType || search;
+  const hasFilters =
+    activeCategory || activeSector || activeDifficulty || activeLevel || activeType || search;
+
+  /**
+   * A goal chip on the dashboard can still link to `?level=PM`, which is a real
+   * filter the server honours but not one this control offers. Rendering it as
+   * an extra option means the select states what is actually applied instead of
+   * falling back to "All companies" while the grid shows a filtered list.
+   */
+  const orphanLevel =
+    activeLevel && !isCompanyLevel(activeLevel) ? (activeLevel as InterviewLevel) : null;
 
   const selectClass =
     "h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -90,12 +112,28 @@ export function FilterBar({
             <option value="qualitative">Cases (issue tree)</option>
           </select>
         )}
+        {/* Two axes, two controls. `sector` is what the business is; `category`
+            is what you are being asked to do with it. They used to share one
+            dropdown, which is why "Market Sizing" sat between "Healthcare" and
+            "Retail" as though it were an industry. */}
+        <select
+          className={selectClass}
+          value={activeSector}
+          onChange={(e) => setParam("sector", e.target.value)}
+        >
+          <option value="">All sectors</option>
+          {sectors.map((s) => (
+            <option key={s} value={s}>
+              {SECTOR_LABELS[s]}
+            </option>
+          ))}
+        </select>
         <select
           className={selectClass}
           value={activeCategory}
           onChange={(e) => setParam("category", e.target.value)}
         >
-          <option value="">All categories</option>
+          <option value="">All topics</option>
           {categories.map((c) => (
             <option key={c.slug} value={c.slug}>
               {c.name}
@@ -119,12 +157,19 @@ export function FilterBar({
           value={activeLevel}
           onChange={(e) => setParam("level", e.target.value)}
         >
-          <option value="">Any level</option>
-          {INTERVIEW_LEVELS.map((l) => (
+          {/* Companies only. `INTERVIEW_LEVELS` also carries PM, Product and
+              General MBA, which are roles rather than employers — they stay in
+              the vocabulary (the authoring contract and profile goals both use
+              it) and out of a control labelled "company". */}
+          <option value="">All companies</option>
+          {COMPANY_LEVELS.map((l) => (
             <option key={l} value={l}>
               {INTERVIEW_LEVEL_LABELS[l]}
             </option>
           ))}
+          {orphanLevel && (
+            <option value={orphanLevel}>{INTERVIEW_LEVEL_LABELS[orphanLevel]}</option>
+          )}
         </select>
         {hasFilters && (
           <button
