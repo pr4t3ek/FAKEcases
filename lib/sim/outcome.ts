@@ -132,7 +132,10 @@ export function pathsForFunding(
       }
     }
 
-    const values = resolveDrivers(scenario.drivers, multipliers);
+    // `paths` holds periods 0 … q-1 by now, which is exactly the history a
+    // `stock` or a `lagged` driver reads. Building it forward in place is what
+    // keeps this a single pass rather than a fixed-point iteration.
+    const values = resolveDrivers(scenario.drivers, multipliers, { paths, period: q });
     for (const [id, value] of Object.entries(values)) {
       const path = (paths[id] ??= []);
       path[q] = value;

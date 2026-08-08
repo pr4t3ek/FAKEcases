@@ -76,6 +76,52 @@ export function validateScenario(scenario: SimScenario): string[] {
   }
 
   /**
+   * The kinds that carry state across periods.
+   *
+   * `driverOrder` cannot check these: a `lagged` driver reports no dependency at
+   * all (that is what makes feedback loops legal), so a typo in its `of` is
+   * invisible to the topological sort and would surface as a silently frozen
+   * number rather than an error.
+   */
+  for (const d of scenario.drivers) {
+    if (d.kind === "stock") {
+      for (const [role, ref] of [["inflow", d.inflow], ["outflow", d.outflow]] as const) {
+        if (!driverIds.has(ref)) {
+          errors.push(`Stock "${d.id}" has unknown ${role} "${ref}"`);
+        } else if (ref === d.id) {
+          errors.push(`Stock "${d.id}" uses itself as its ${role}`);
+        }
+      }
+      if (!Number.isFinite(d.initial)) {
+        errors.push(`Stock "${d.id}" needs a finite initial balance`);
+      }
+      if (d.floor !== undefined && d.floor > d.initial) {
+        errors.push(
+          `Stock "${d.id}" opens at ${d.initial}, below its own floor of ${d.floor}`,
+        );
+      }
+    }
+    if (d.kind === "lagged") {
+      if (!driverIds.has(d.of)) {
+        errors.push(`Lagged driver "${d.id}" reads unknown driver "${d.of}"`);
+      } else if (d.of === d.id) {
+        errors.push(`Lagged driver "${d.id}" reads itself`);
+      }
+      if (d.periods !== undefined && d.periods < 1) {
+        errors.push(`Lagged driver "${d.id}" must look back at least one period`);
+      }
+      if (!Number.isFinite(d.initial)) {
+        errors.push(`Lagged driver "${d.id}" needs a finite pre-run value`);
+      }
+    }
+    if (d.kind === "min" && d.of.length < 2) {
+      // One input is not a constraint, it is an alias — and an alias hides the
+      // fact that nothing is actually binding.
+      errors.push(`Driver "${d.id}" takes the smaller of fewer than two inputs`);
+    }
+  }
+
+  /**
    * An effect on a derived driver is the quietest possible authoring bug: it
    * type-checks, it runs, and `resolveDrivers` overwrites the value from the
    * driver's parents a moment later, so the intervention simply does nothing.
