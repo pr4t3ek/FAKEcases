@@ -67,6 +67,11 @@ const RULES: { icon: string; patterns: string[] }[] = [
   { icon: "Wallet", patterns: ["insurance", "loan", "mutual fund", "investment"] },
   { icon: "Rocket", patterns: ["startup", "unicorn", "funding"] },
   { icon: "IndianRupee", patterns: ["revenue", "sales", "turnover", "market size"] },
+  // Last on purpose. "Lekha" is tagged `b2b saas` and already resolves to
+  // Factory on an earlier rule; putting software anywhere above here would
+  // silently repoint it, which the per-question expectations in
+  // tests/question-icon.test.ts would catch but only after the fact.
+  { icon: "Package", patterns: ["saas", "shipment", "logistics", "freight"] },
 ];
 
 /**

@@ -15,6 +15,7 @@
  */
 
 import { driverOrder } from "./drivers";
+import { isTurnaround } from "./formats/registry";
 import { drilldownById, parCost } from "./investigate";
 import type { CauseId, SimEffect, SimScenario } from "./types";
 
@@ -275,25 +276,66 @@ export function validateScenario(scenario: SimScenario): string[] {
   }
 
   // ── Budget and par ──────────────────────────────────────────────────────
-  const totalDrilldownCost = scenario.drilldowns.reduce((s, d) => s + d.cost, 0);
-  if (totalDrilldownCost <= scenario.budget.analystDays) {
-    errors.push(
-      "The analyst-day budget covers every drilldown, so there is nothing to choose between — raise the costs or cut the budget",
-    );
-  }
+  //
+  // Investigation is the WAR ROOM's exercise, not every format's. A turnaround
+  // has no analyst-days and buys no data — the numbers are all on the table from
+  // the first period and the difficulty is entirely in sequencing. Demanding a
+  // priced drilldown board from it would force a scenario to invent one, and an
+  // invented investigation is worse content than no investigation.
+  //
+  // What every format still owes: a cause tree, true causes that are leaves, and
+  // interventions that address them — those drive `whenRootCause` vs `otherwise`
+  // in the projection, so they are engine, not phase.
+  if (isTurnaround(scenario)) {
+    if (scenario.drilldowns.length) {
+      errors.push("A turnaround has no investigation phase, so its drilldowns are unreachable");
+    }
+    if (!scenario.bestSchedule?.length) {
+      errors.push("A turnaround needs a bestSchedule — the ceiling is a sequence, not one line");
+    }
+    if (scenario.horizonQuarters < 2) {
+      errors.push("A turnaround over fewer than two periods is a war room with extra steps");
+    }
+    for (const [p, lines] of (scenario.bestSchedule ?? []).entries()) {
+      let sprints = 0;
+      let rupees = 0;
+      for (const line of lines) {
+        if (!interventionIds.has(line.interventionId)) {
+          errors.push(`bestSchedule period ${p} names unknown intervention "${line.interventionId}"`);
+        }
+        sprints += line.sprints;
+        rupees += line.rupees;
+      }
+      // Per period, because the budget refreshes each period — that is what
+      // makes "spend it now or hold it" a decision rather than an accounting.
+      if (sprints > scenario.budget.sprints) {
+        errors.push(`bestSchedule period ${p} needs ${sprints} sprints, above the ${scenario.budget.sprints} available`);
+      }
+      if (rupees > scenario.budget.rupees) {
+        errors.push(`bestSchedule period ${p} needs ₹${rupees}, above the ₹${scenario.budget.rupees} available`);
+      }
+    }
+  } else {
+    const totalDrilldownCost = scenario.drilldowns.reduce((s, d) => s + d.cost, 0);
+    if (totalDrilldownCost <= scenario.budget.analystDays) {
+      errors.push(
+        "The analyst-day budget covers every drilldown, so there is nothing to choose between — raise the costs or cut the budget",
+      );
+    }
 
-  for (const id of scenario.parInvestigation) {
-    if (!drilldownIds.has(id)) errors.push(`parInvestigation names unknown drilldown "${id}"`);
-  }
-  const par = parCost(scenario);
-  if (par > scenario.budget.analystDays) {
-    errors.push(`parInvestigation costs ${par} days, above the ${scenario.budget.analystDays}-day budget`);
-  }
-  const parReachesCause = scenario.parInvestigation.some((id) =>
-    drilldownById(scenario, id)?.evidenceFor.some((c) => scenario.trueCauseIds.includes(c)),
-  );
-  if (!parReachesCause) {
-    errors.push("parInvestigation contains no drilldown that is evidence for a true cause");
+    for (const id of scenario.parInvestigation) {
+      if (!drilldownIds.has(id)) errors.push(`parInvestigation names unknown drilldown "${id}"`);
+    }
+    const par = parCost(scenario);
+    if (par > scenario.budget.analystDays) {
+      errors.push(`parInvestigation costs ${par} days, above the ${scenario.budget.analystDays}-day budget`);
+    }
+    const parReachesCause = scenario.parInvestigation.some((id) =>
+      drilldownById(scenario, id)?.evidenceFor.some((c) => scenario.trueCauseIds.includes(c)),
+    );
+    if (!parReachesCause) {
+      errors.push("parInvestigation contains no drilldown that is evidence for a true cause");
+    }
   }
 
   // ── Best allocation ─────────────────────────────────────────────────────

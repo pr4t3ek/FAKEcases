@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
   allocationFits,
+  bestScheduleFor,
   finalValue,
   fundingFor,
+  pathsForFunding,
+  pathsForSchedule,
   runOutcome,
+  runSchedule,
   totalChange,
   totalsByIntervention,
 } from "@/lib/sim/outcome";
+import type { SimAllocationLine } from "@/lib/sim/types";
 import { BEST_ALLOCATION, fixtureScenario } from "./sim-fixture";
 
 describe("totalsByIntervention", () => {
@@ -184,5 +189,154 @@ describe("allocationFits", () => {
     expect(
       allocationFits(scenario, [{ interventionId: "iv-payout", sprints: 2, rupees: 9000 }]),
     ).toBe(false);
+  });
+});
+
+// ─── Multi-period: the turnaround format ───────────────────────────────────
+
+/**
+ * `runSchedule` is what makes a format that allocates more than once possible.
+ * These pin the three rules that separate it from four independent guesses, plus
+ * the invariants it inherits and must not lose.
+ */
+describe("pathsForSchedule", () => {
+  const scenario = fixtureScenario({ horizonQuarters: 4 });
+  const payout: SimAllocationLine = { interventionId: "iv-payout", sprints: 2, rupees: 400 };
+
+  it("ignores capacity committed in the current period — you see the quarter you already bought", () => {
+    // Funded in period 0, so period 0 itself cannot have moved.
+    const paths = pathsForSchedule(scenario, [[payout]]);
+    expect(paths.orders[0]).toBe(1000);
+    expect(paths.orders[1]).toBeGreaterThan(1000);
+  });
+
+  /**
+   * A level-change effect on a FLOW converges: once both have fully ramped, an
+   * early and a late commitment sit at the same number, and only the path
+   * between them differs.
+   *
+   * This is worth pinning because it is a real constraint on the format rather
+   * than a defect. It means a turnaround scored purely on the final value of a
+   * flow would make sequencing worth nothing — the exact mistake this test
+   * exists to stop someone making later. The scenario answers it by putting a
+   * `stock` at the north star (see below); the scorer answers it by reading the
+   * whole path.
+   */
+  it("moves the path, not the endpoint, when the north star is a flow", () => {
+    const early = pathsForSchedule(scenario, [[payout], [], [], []]);
+    const late = pathsForSchedule(scenario, [[], [], [payout], []]);
+
+    expect(finalValue(early, "orders")).toBeCloseTo(finalValue(late, "orders"), 6);
+    // The quarters in between are where the difference lives.
+    expect(early.orders[2]).toBeGreaterThan(late.orders[2]);
+  });
+
+  /**
+   * …and with a stock it DOES change the endpoint, because a stock integrates
+   * its flows: every period spent un-fixed is permanently lost from the balance.
+   * This is the property the cash-runway scenario is built on, and the reason
+   * `stock` had to land before this format could.
+   */
+  it("changes the endpoint when the north star accumulates", () => {
+    const banked = fixtureScenario({
+      horizonQuarters: 4,
+      drivers: [
+        ...fixtureScenario().drivers,
+        {
+          id: "zero",
+          kind: "constant",
+          label: "Nothing out",
+          unit: "count",
+          goodDirection: "down",
+          value: 0,
+        },
+        {
+          id: "banked",
+          kind: "stock",
+          label: "Orders banked",
+          unit: "count",
+          goodDirection: "up",
+          initial: 0,
+          inflow: "orders",
+          outflow: "zero",
+        },
+      ],
+    });
+
+    const early = pathsForSchedule(banked, [[payout], [], [], []]);
+    const late = pathsForSchedule(banked, [[], [], [payout], []]);
+    expect(finalValue(early, "banked")).toBeGreaterThan(finalValue(late, "banked"));
+  });
+
+  it("accumulates capacity across periods toward one intervention", () => {
+    const half = { interventionId: "iv-payout", sprints: 1, rupees: 200 };
+    // One sprint is below minSprints, so the first period buys nothing at all;
+    // only once the second lands does the pair clear the bar and start working.
+    const split = pathsForSchedule(scenario, [[half], [half], [], []]);
+    const idle = pathsForSchedule(scenario, [[], [], [], []]);
+    const whole = pathsForSchedule(scenario, [[payout], [], [], []]);
+
+    expect(finalValue(split, "orders")).toBeGreaterThan(finalValue(idle, "orders"));
+    expect(finalValue(whole, "orders")).toBeGreaterThanOrEqual(finalValue(split, "orders"));
+  });
+
+  it("is deterministic", () => {
+    const a = pathsForSchedule(scenario, [[payout], [], [], []]);
+    const b = pathsForSchedule(scenario, [[payout], [], [], []]);
+    expect(a).toEqual(b);
+  });
+
+  it("is order-independent within a period", () => {
+    const other: SimAllocationLine = { interventionId: "iv-discount", sprints: 1, rupees: 300 };
+    const ab = pathsForSchedule(scenario, [[payout, other], [], [], []]);
+    const ba = pathsForSchedule(scenario, [[other, payout], [], [], []]);
+    expect(ab).toEqual(ba);
+  });
+
+  it("still makes doing nothing cost something", () => {
+    const drifting = fixtureScenario({
+      horizonQuarters: 4,
+      drift: [{ driver: "orders", deltaPct: -0.1 }],
+    });
+    const idle = pathsForSchedule(drifting, [[], [], [], []]);
+    expect(finalValue(idle, "orders")).toBeLessThan(idle.orders[0]);
+  });
+
+  it("matches the single-shot projection when everything is committed up front", () => {
+    // The war room is the degenerate case of the same model, and that has to
+    // remain literally true or the two formats are not comparable.
+    const scheduled = pathsForSchedule(scenario, [[payout]]);
+    const oneShot = pathsForFunding(scenario, fundingFor(scenario, [payout]).funding);
+    expect(finalValue(scheduled, "orders")).toBeCloseTo(finalValue(oneShot, "orders"), 6);
+  });
+});
+
+describe("runSchedule", () => {
+  const scenario = fixtureScenario({ horizonQuarters: 4 });
+  const payout: SimAllocationLine = { interventionId: "iv-payout", sprints: 2, rupees: 400 };
+
+  it("reports the run, the do-nothing counterfactual and the ceiling", () => {
+    const result = runSchedule(scenario, [[payout], [], [], []]);
+    expect(finalValue(result.paths, "orders")).toBeGreaterThan(
+      finalValue(result.doNothing, "orders"),
+    );
+    expect(result.best.orders.length).toBe(scenario.horizonQuarters + 1);
+  });
+
+  it("falls back to spending the best allocation in period zero", () => {
+    expect(bestScheduleFor(scenario)).toEqual([scenario.bestAllocation]);
+  });
+
+  it("uses an authored best sequence when there is one", () => {
+    const sequenced = fixtureScenario({
+      horizonQuarters: 4,
+      bestSchedule: [[payout], [], [], []],
+    });
+    expect(bestScheduleFor(sequenced)).toEqual([[payout], [], [], []]);
+  });
+
+  it("still records capacity that never cleared its minimum", () => {
+    const stalled = runSchedule(scenario, [[{ interventionId: "iv-payout", sprints: 1, rupees: 400 }]]);
+    expect(stalled.stalled).toContain("iv-payout");
   });
 });

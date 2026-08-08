@@ -24,6 +24,7 @@ import { b2bDealTco } from "./scenarios/b2b-deal-tco";
 import { pnlProfitSqueeze } from "./scenarios/pnl-profit-squeeze";
 import { cashConversionCycle } from "./scenarios/cash-conversion-cycle";
 import { balanceSheetLeverage } from "./scenarios/balance-sheet-leverage";
+import { cashRunwayTurnaround } from "./scenarios/cash-runway-turnaround";
 
 // Easiest first: this is the order the library shows them in, and a beginner
 // meeting the track for the first time should not land on the hardest one.
@@ -47,6 +48,10 @@ const ALL: SimScenario[] = [
   marketplaceLiquidity,
   b2bDealTco,
   metricDropFoodDelivery,
+  // Last: the only turnaround in the catalogue, and a different exercise from
+  // everything above it. A student meeting the track should play at least one
+  // war room before one that assumes the diagnosis is already done.
+  cashRunwayTurnaround,
 ];
 
 const BY_SLUG: Record<string, SimScenario> = Object.fromEntries(

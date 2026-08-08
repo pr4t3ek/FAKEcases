@@ -457,6 +457,12 @@ export interface SimTeaching {
 export interface SimScenario {
   /** Matches the catalogue `Question.externalId`. */
   slug: string;
+  /**
+   * Which format this is played on — see `lib/sim/formats`. Absent means the
+   * war room, which is what every scenario written before there was a choice
+   * is, so the twelve of them say nothing and stay unchanged.
+   */
+  format?: string;
   title: string;
   company: string;
   /** One line for the catalogue card. */
@@ -485,6 +491,20 @@ export interface SimScenario {
   drift: SimEffect[];
   horizonQuarters: number;
   /**
+   * How many periods the student actually allocates in. Defaults to the whole
+   * horizon, which is what a war room does.
+   *
+   * Splitting the two is what makes a turnaround honest. With decisions and
+   * horizon equal, any damage that ramps — a support cut whose churn arrives two
+   * quarters later — falls off the end of the projection and reads as free. The
+   * brute-force sweep found exactly that: cutting marketing in the second-to-last
+   * period scored BEST, because the customers it destroys had nowhere left to be
+   * missed from. Deciding for four quarters and being judged on eight puts the
+   * consequences back inside the picture, which is the entire point of a format
+   * built on stocks.
+   */
+  decisionPeriods?: number;
+  /**
    * What a period is called in the report. Display only — the model is
    * period-agnostic. An ad campaign or a subscription base moves monthly, and
    * a report reading "Q+1" for a monthly campaign is simply wrong.
@@ -504,6 +524,16 @@ export interface SimScenario {
    * scenario rather than against an absolute nobody can calibrate.
    */
   bestAllocation: SimAllocationLine[];
+  /**
+   * The best SEQUENCE, for a format that allocates more than once. Index is the
+   * period the capacity is committed in.
+   *
+   * Only meaningful on the turnaround format, and optional even there — see
+   * `bestScheduleFor`, which falls back to spending `bestAllocation` in period
+   * zero. Kept alongside rather than replacing it so `SimScenario` has one shape
+   * for both formats and the war room is untouched.
+   */
+  bestSchedule?: SimAllocationLine[][];
 
   debrief: SimDebriefCopy;
   coachFallback: SimCoachFact[];

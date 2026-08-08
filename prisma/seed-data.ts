@@ -785,6 +785,32 @@ export const questions: SeedQuestion[] = [
       "ROCE fell from 14.8% to 8.1%, and the decomposition puts it entirely in the denominator: EBIT margin went 11.4% to 10.6% while capital turnover went 1.30 to 0.76. ₹161.6 crore of new capital produced ₹3.0 crore of extra operating profit — about 1.9% incremental against debt at 9.9% — because the third kiln runs at 46% and ₹34.8 crore of land and idle plant is in nobody's plan. The liquidity crisis is a separate fact: ₹64 crore reclassified as current when the moratorium ended, with no transaction, taking the current ratio from 2.11 to 0.93. The instructive traps are that refinancing fixes the current ratio and moves ROCE by nothing, and a ₹40 crore rights issue halves debt-to-equity and moves ROCE by nothing, because capital employed is equity plus debt.",
     tags: "finance,accounting,balance sheet,ratio analysis,roce,dupont,liquidity,leverage,covenant,manufacturing,simulation",
   },
+  /**
+   * The catalogue's first TURNAROUND, and the only row here whose scenario does
+   * not run the war-room format.
+   *
+   * Nothing in this row says so. The format is a property of the scenario in
+   * `lib/sim/scenarios/cash-runway-turnaround.ts`, matched by `externalId`, so
+   * the catalogue keeps describing what a question is ABOUT and the exercise
+   * stays where the exercise lives. `betterApproach` and `sampleSolution` are
+   * still written for a reader rather than a player, exactly as above.
+   */
+  {
+    externalId: "cash-runway-turnaround",
+    title: "Sutradhar: four quarters of cash and three ways to spend it",
+    prompt:
+      "A logistics SaaS has ₹12 crore in the bank, loses ₹3 crore a quarter and has four quarters of runway. Nothing is hidden — the board is not asking what is wrong, it is asking what you will do, and it asks again after every quarter. Allocate four times and watch where it leaves the company two years out.",
+    category: "product-management",
+    sector: "technology",
+    difficulty: "Medium",
+    interviewLevel: "PM",
+    type: "simulation",
+    betterApproach:
+      "Start from the deadline rather than the ideas: cash divided by net burn is the only number that cannot be argued with. Then split a loss into the two ways of closing it — earn more or spend less — and check what each cost line actually buys before cutting it. Treat customers as a balance, not a rate: one you have paid to acquire and can lose permanently, so anything that shrinks it is spending capital rather than saving cash.",
+    sampleSolution:
+      "₹12 crore against ₹3 crore a quarter is four quarters. Burn is 65% salaries and only 10% engineering, so the cost side cannot close a ₹3 crore gap without cutting the thing that earns the revenue. The two real levers are price — ₹36,000 a quarter unchanged in three years for software the customer runs their shipping on — and retention, because marketing buys 200 customers a quarter while churn takes 180, so ₹1.8 crore a quarter is being spent to stand still. Support is funded for exactly the 2,000 customers that exist, so any growth pushes the service ratio below 1 and raises churn a quarter later. The trap is switching acquisition off: it saves ₹1.35 crore a quarter immediately, the largest single improvement to cash on the board, and it drains the customer balance that every future quarter's revenue depends on — good-looking for two quarters and a smaller company for good.",
+    tags: "product management,finance,saas,unit economics,runway,burn,churn,retention,pricing,turnaround,technology,simulation",
+  },
 ];
 
 export const achievements = [
