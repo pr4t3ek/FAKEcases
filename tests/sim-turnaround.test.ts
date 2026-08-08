@@ -20,6 +20,7 @@ import { formatFor, isTurnaround } from "@/lib/sim/formats/registry";
 import { turnaroundFormat } from "@/lib/sim/formats/turnaround";
 import { canAdvanceIn, weightedOverallFor } from "@/lib/sim/formats/types";
 import { bestScheduleFor, finalValue, pathsForSchedule, runSchedule } from "@/lib/sim/outcome";
+import { scoreTurnaround } from "@/lib/sim/turnaround";
 import { resolveDrivers } from "@/lib/sim/drivers";
 import type { SimAllocationLine, SimScenario } from "@/lib/sim/types";
 
@@ -177,5 +178,72 @@ describe.each(turnarounds.map((s) => [s.slug, s] as const))("turnaround: %s", (_
     // Period 0 churn is untouched — the damage is lagged, which is the point.
     expect(paths.churnRate[0]).toBeCloseTo(pathsForSchedule(scenario, []).churnRate[0], 6);
     expect(paths.churnRate[1]).toBeGreaterThan(paths.churnRate[0]);
+  });
+});
+
+/**
+ * The scorer, pinned by the runs that shaped it.
+ *
+ * Two of these encode defects found by sweeping real sequences rather than by
+ * reading the code: funding both value-destroying traps used to score exactly
+ * the same as holding the capacity, and acting correctly in the final quarter
+ * used to score a perfect 100 on Read while the company went bankrupt.
+ */
+describe("scoreTurnaround", () => {
+  const scenario = listScenarios().find(isTurnaround)!;
+  const fullCost = (id: string): SimAllocationLine => {
+    const iv = scenario.interventions.find((i) => i.id === id)!;
+    return { interventionId: id, sprints: iv.cost.sprints, rupees: iv.cost.rupees };
+  };
+  const score = (schedule: SimAllocationLine[][]) => scoreTurnaround({ scenario, schedule });
+
+  const optimal = score(bestScheduleFor(scenario));
+  const held = score([[], [], [], []]);
+  const traps = score([[fullCost("iv-cut-marketing"), fullCost("iv-cut-eng")], [], [], []]);
+  const late = score([[], [], [], [fullCost("iv-success"), fullCost("iv-price")]]);
+
+  it("gives the authored best sequence full marks", () => {
+    expect(optimal.overall).toBe(100);
+    expect(optimal.solvent).toBe(true);
+  });
+
+  it("scores active value destruction BELOW doing nothing", () => {
+    // Both used to land on exactly the same number, because everything at or
+    // under the do-nothing line clamped to zero. Do-nothing now sits at 25 so
+    // there is room underneath it.
+    expect(held.scores.outcome).toBe(25);
+    expect(traps.scores.outcome).toBeLessThan(held.scores.outcome);
+    expect(traps.overall).toBeLessThan(held.overall);
+  });
+
+  it("marks a late-but-correct run down for reading it late", () => {
+    expect(late.scores.read).toBeLessThan(optimal.scores.read);
+    expect(late.overall).toBeLessThan(optimal.overall);
+    // …and it still went bankrupt, which caps the outcome however good the
+    // process looked.
+    expect(late.solvent).toBe(false);
+    expect(late.scores.outcome).toBeLessThanOrEqual(40);
+  });
+
+  it("penalises repeating a mistake after a quarter's results are in", () => {
+    const stubborn = score([[fullCost("iv-success")], [fullCost("iv-cut-marketing")], [], []]);
+    expect(stubborn.scores.adaptation).toBeLessThan(100);
+  });
+
+  it("penalises funding below the point at which anything ships", () => {
+    const stalled = score([[{ interventionId: "iv-success", sprints: 1, rupees: 60 * 100_000 }], [], [], []]);
+    expect(stalled.scores.patience).toBeLessThan(100);
+    expect(stalled.feedback.some((f) => /nothing was delivered/.test(f.text))).toBe(true);
+  });
+
+  it("never returns a score outside 0–100 on any dimension", () => {
+    for (const run of [optimal, held, traps, late]) {
+      for (const [, v] of Object.entries(run.scores)) {
+        expect(v).toBeGreaterThanOrEqual(0);
+        expect(v).toBeLessThanOrEqual(100);
+      }
+      expect(run.overall).toBeGreaterThanOrEqual(0);
+      expect(run.overall).toBeLessThanOrEqual(100);
+    }
   });
 });

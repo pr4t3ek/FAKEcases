@@ -123,6 +123,55 @@ export function validateScenario(scenario: SimScenario): string[] {
   }
 
   /**
+   * A panel figure denominated in lakh or crore but authored in raw rupees.
+   *
+   * `formatValue` appends the unit to the number as-is, so `inr_crore` with
+   * 120,000,000 renders as "₹120000000.00 cr" — a number a thousand times too
+   * big, on the tile a student reads first. It type-checks, no test covers panel
+   * copy, and the war-room scenarios all happen to get it right, so nothing
+   * would have caught it. This did, on the first turnaround.
+   *
+   * The threshold is a heuristic and deliberately loose: a genuine figure in
+   * crore is single or double digits, and anything past a lakh is rupees that
+   * forgot to be converted. Use `inr`, which scales itself.
+   */
+  const suspiciousDenomination = (unit: string, value: number) =>
+    (unit === "inr_crore" || unit === "inr_lakh") && Math.abs(value) >= 100_000;
+
+  for (const panel of scenario.dashboard) {
+    if (panel.kind === "stat") {
+      for (const tile of panel.tiles) {
+        if (suspiciousDenomination(tile.unit, tile.value)) {
+          errors.push(
+            `Panel "${panel.id}" tile "${tile.label}" is ${tile.value} in ${tile.unit} — that looks like raw rupees; use "inr"`,
+          );
+        }
+      }
+    }
+    if (panel.kind === "segments") {
+      for (const row of panel.rows) {
+        if (suspiciousDenomination(row.unit, row.value)) {
+          errors.push(
+            `Panel "${panel.id}" row "${row.label}" is ${row.value} in ${row.unit} — that looks like raw rupees; use "inr"`,
+          );
+        }
+      }
+    }
+    if (panel.kind === "timeseries") {
+      for (const series of panel.series) {
+        for (const point of series.points) {
+          if (suspiciousDenomination(series.unit, point.value)) {
+            errors.push(
+              `Panel "${panel.id}" series "${series.label}" has ${point.value} in ${series.unit} — that looks like raw rupees; use "inr"`,
+            );
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  /**
    * An effect on a derived driver is the quietest possible authoring bug: it
    * type-checks, it runs, and `resolveDrivers` overwrites the value from the
    * driver's parents a moment later, so the intervention simply does nothing.

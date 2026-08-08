@@ -7,7 +7,14 @@ import { canOpen, tierFor, wallRedirect } from "@/lib/entitlements";
 import { canAdvanceSimPhase, hypothesisEditFor, type SimPhase } from "@/lib/types";
 import { loadScenario, scenarioExists } from "@/lib/scenario-store";
 import { priceDrilldown } from "@/lib/sim/investigate";
-import { runOutcome } from "@/lib/sim/outcome";
+import { runOutcome, runSchedule } from "@/lib/sim/outcome";
+import { formatFor, isTurnaround } from "@/lib/sim/formats/registry";
+import {
+  decisionPeriodsFor,
+  openPeriod,
+  parseTurnaroundState,
+  scoreTurnaround,
+} from "@/lib/sim/turnaround";
 import { scoreSimulation } from "@/lib/sim/score";
 import { parseAllocation, parseDiagnosis, parseHypothesis } from "@/lib/sim/payload";
 import type { SimScenario } from "@/lib/sim/types";
@@ -15,6 +22,7 @@ import {
   commitDiagnosisToRun,
   commitHypothesisToRun,
   commitRun,
+  commitTurnaroundPeriod,
   findResumableRun,
   loadRun,
   openCommitPhase,
@@ -79,7 +87,15 @@ export async function startSimulation(questionId: string): Promise<void> {
 
   if (!canOpen(tierFor(user), question)) redirect(wallRedirect("simulation"));
 
-  const runId = await startRun(user.id, question.id, slug);
+  // The first phase is the format's, not a constant: a turnaround opens on its
+  // briefing, a war room on Observe.
+  const scenario = await loadScenario(slug);
+  const runId = await startRun(
+    user.id,
+    question.id,
+    slug,
+    scenario ? formatFor(scenario).phases[0].id : "observe",
+  );
   redirect(`/simulate/${runId}`);
 }
 
@@ -308,4 +324,97 @@ export async function commitDecision(
       band: score.band,
     },
   };
+}
+
+// ─── Turnaround format ─────────────────────────────────────────────────────
+
+/**
+ * Commit one period's capacity and run the quarter.
+ *
+ * Same posture as `commitDecision`: the allocation is re-validated server-side
+ * against the budget rather than trusted, and the period being written is
+ * derived from stored state rather than taken from the request — otherwise a
+ * replayed call could overwrite an earlier quarter after seeing its result,
+ * which is the one thing this format must not allow.
+ */
+export async function commitPeriod(
+  runId: string,
+  allocation: { interventionId: string; sprints: number; rupees: number }[],
+): Promise<SimActionResult> {
+  const owned = await ownedRun(runId);
+  if (!owned) return { ok: false, error: "Not found" };
+
+  const { run, scenario } = owned;
+  if (!isTurnaround(scenario)) return { ok: false, error: "Not a turnaround" };
+  if (run.result) return { ok: true }; // already finished; the page shows the report
+
+  const state = parseTurnaroundState(run.stateJson);
+  const period = openPeriod(scenario, state);
+  if (period === null) return { ok: false, error: "Every period has been decided" };
+
+  const known = new Set(scenario.interventions.map((i) => i.id));
+  const lines = allocation.filter(
+    (l) => known.has(l.interventionId) && (l.sprints > 0 || l.rupees > 0),
+  );
+  for (const line of lines) {
+    if (line.sprints < 0 || line.rupees < 0) return { ok: false, error: "Capacity cannot be negative" };
+  }
+  const sprints = lines.reduce((s, l) => s + l.sprints, 0);
+  const rupees = lines.reduce((s, l) => s + l.rupees, 0);
+  if (sprints > scenario.budget.sprints) return { ok: false, error: "That is more sprints than you have this quarter" };
+  if (rupees > scenario.budget.rupees) return { ok: false, error: "That is more money than you have this quarter" };
+
+  const schedule = [...state.schedule, lines];
+  const finished = schedule.length >= decisionPeriodsFor(scenario);
+
+  if (!finished) {
+    await commitTurnaroundPeriod({ runId, schedule, finished: false, formatSlug: "turnaround" });
+    return { ok: true };
+  }
+
+  const score = scoreTurnaround({ scenario, schedule });
+  const outcome = runSchedule(scenario, schedule);
+  await commitTurnaroundPeriod({
+    runId,
+    schedule,
+    finished: true,
+    score,
+    outcome,
+    formatSlug: "turnaround",
+  });
+
+  // Ranked like any other question. Effort is periods played rather than
+  // analyst-days — a turnaround spends none, and writing a zero there would sort
+  // every turnaround run to the top of a board that breaks ties on effort.
+  await recordFirstResult({
+    userId: owned.user.id,
+    questionId: run.questionId,
+    kind: "simulation",
+    score: score.overall,
+    effort: score.periodsPlayed,
+    sourceId: runId,
+  });
+
+  await applySimulationRewards(owned.user.id, {
+    overall: score.overall,
+    // The nearest honest mapping: this format has no diagnosis or decision
+    // dimension, so the two that drive the reward read from what it does have.
+    diagnosisScore: score.scores.read ?? 0,
+    decisionScore: score.scores.adaptation ?? 0,
+    causeFound: score.solvent,
+    underPar: score.overall >= 70,
+  });
+
+  return { ok: true };
+}
+
+/** Move a turnaround off its briefing and into the first quarter. */
+export async function beginTurnaround(runId: string): Promise<SimActionResult> {
+  const owned = await ownedRun(runId);
+  if (!owned) return { ok: false, error: "Not found" };
+  if (!isTurnaround(owned.scenario)) return { ok: false, error: "Not a turnaround" };
+  if (owned.run.phase !== "brief") return { ok: true };
+
+  await db.simRun.update({ where: { id: runId }, data: { phase: "period" } });
+  return { ok: true };
 }

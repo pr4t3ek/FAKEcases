@@ -480,4 +480,65 @@ describe("validateScenario", () => {
     });
   });
 
+
+  /**
+   * The bug this caught: a stat tile authored as `12 * CRORE` with unit
+   * `inr_crore` renders as "₹120000000.00 cr", because `formatValue` appends the
+   * unit to the number as-is. Nothing else would have found it — panel copy has
+   * no test, and the twelve war rooms all happen to get it right.
+   */
+  describe("panel denominations", () => {
+    const withPanel = (panel: unknown) =>
+      validateScenario(
+        fixtureScenario({ dashboard: [...fixtureScenario().dashboard, panel as never] }),
+      ).join(" | ");
+
+    it("catches a stat tile authored in rupees but labelled crore", () => {
+      expect(
+        withPanel({
+          id: "p-bad",
+          kind: "stat",
+          title: "Position",
+          tiles: [{ label: "Cash", value: 120_000_000, unit: "inr_crore" }],
+        }),
+      ).toMatch(/looks like raw rupees/);
+    });
+
+    it("catches it in a segment row and in a series", () => {
+      expect(
+        withPanel({
+          id: "p-bad2",
+          kind: "segments",
+          title: "Split",
+          dimension: "Line",
+          rows: [{ label: "Salaries", value: 66_000_000, unit: "inr_lakh" }],
+        }),
+      ).toMatch(/looks like raw rupees/);
+      expect(
+        withPanel({
+          id: "p-bad3",
+          kind: "timeseries",
+          title: "Cash",
+          series: [
+            { label: "Cash", unit: "inr_crore", points: [{ period: "Q-0", value: 120_000_000 }] },
+          ],
+        }),
+      ).toMatch(/looks like raw rupees/);
+    });
+
+    it("accepts a genuine crore figure, and rupees under the auto-scaling unit", () => {
+      expect(
+        withPanel({
+          id: "p-ok",
+          kind: "stat",
+          title: "Position",
+          tiles: [
+            { label: "Cash", value: 12, unit: "inr_crore" },
+            { label: "Cash again", value: 120_000_000, unit: "inr" },
+          ],
+        }),
+      ).toBe("");
+    });
+  });
+
 });

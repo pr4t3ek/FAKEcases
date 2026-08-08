@@ -198,8 +198,8 @@ export const cashRunwayTurnaround: SimScenario = {
       title: "Where you are this morning",
       caption: "The board has seen all of these.",
       tiles: [
-        { label: "Cash in the bank", value: 12 * CRORE, unit: "inr_crore" },
-        { label: "Net burn per quarter", value: 3 * CRORE, unit: "inr_crore", goodDirection: "down" },
+        { label: "Cash in the bank", value: 12 * CRORE, unit: "inr" },
+        { label: "Net burn per quarter", value: 3 * CRORE, unit: "inr", goodDirection: "down" },
         { label: "Runway", value: 4, unit: "count" },
         { label: "Customers", value: 2_000, unit: "count", deltaPct: 0.01 },
         { label: "Quarterly churn", value: 0.09, unit: "ratio", goodDirection: "down" },
@@ -214,7 +214,7 @@ export const cashRunwayTurnaround: SimScenario = {
       series: [
         {
           label: "Cash",
-          unit: "inr_crore",
+          unit: "inr",
           points: [
             { period: "Q-5", value: 27 * CRORE },
             { period: "Q-4", value: 24 * CRORE },
@@ -232,10 +232,10 @@ export const cashRunwayTurnaround: SimScenario = {
       title: "Where ₹10.2 crore a quarter goes",
       dimension: "Cost line",
       rows: [
-        { label: "Salaries, rent, cloud", value: 6.6 * CRORE, unit: "inr_crore" },
-        { label: "Marketing", value: 1.8 * CRORE, unit: "inr_crore" },
-        { label: "Engineering", value: 1.05 * CRORE, unit: "inr_crore" },
-        { label: "Support", value: 75 * LAKH, unit: "inr_crore" },
+        { label: "Salaries, rent, cloud", value: 6.6 * CRORE, unit: "inr" },
+        { label: "Marketing", value: 1.8 * CRORE, unit: "inr" },
+        { label: "Engineering", value: 1.05 * CRORE, unit: "inr" },
+        { label: "Support", value: 75 * LAKH, unit: "inr" },
       ],
     },
     {

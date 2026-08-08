@@ -279,6 +279,10 @@ export function SimulationReport({
         </Card>
 
         {/* ── Investigation trail ─────────────────────────────────────────── */}
+        {/* Hidden entirely on a format without an investigation phase. A
+            turnaround spends no analyst-days, and reporting its period count
+            under that noun is simply false. */}
+        {data.hasInvestigation && (
         <Card className="p-6">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-sm font-semibold">How you investigated</h2>
@@ -333,6 +337,7 @@ export function SimulationReport({
             </div>
           )}
         </Card>
+        )}
 
         {/* ── The model answer ────────────────────────────────────────────── */}
         <Card className="p-6">

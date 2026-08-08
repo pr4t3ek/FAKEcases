@@ -22,6 +22,7 @@ import type {
   SimScenario,
 } from "@/lib/sim/types";
 import type { SimScoreResult } from "@/lib/sim/score";
+import type { TurnaroundScore } from "@/lib/sim/turnaround";
 import { simStateFromRuns, type SimQuestionState } from "@/lib/sim/replay";
 
 // Re-exported so callers have one import for "simulation data access", while the
@@ -74,12 +75,18 @@ export async function startRun(
   userId: string,
   questionId: string,
   scenarioSlug: string,
+  /**
+   * The format's first phase. Defaults to the war room's, so the twelve
+   * scenarios that predate formats keep the behaviour the column default gave
+   * them.
+   */
+  firstPhase = "observe",
 ): Promise<string> {
   const existing = await findResumableRun(userId, questionId);
   if (existing) return existing;
 
   const created = await db.simRun.create({
-    data: { userId, questionId, scenarioSlug },
+    data: { userId, questionId, scenarioSlug, phase: firstPhase },
     select: { id: true },
   });
   return created.id;
@@ -311,4 +318,69 @@ export async function simStateByQuestion(
     },
   });
   return simStateFromRuns(rows);
+}
+
+// ─── Turnaround format ─────────────────────────────────────────────────────
+
+/**
+ * Append one period's allocation and advance, finishing the run when the last
+ * decision is spent.
+ *
+ * The whole sequence lives in `stateJson` rather than in the typed `allocation`
+ * column, because a turnaround commits several times and that column holds one
+ * commitment. `allocation` is still written on the final period with the flat
+ * sequence, so anything reading a run's committed capacity generically — the
+ * admin panel, a future export — sees something true rather than null.
+ */
+export async function commitTurnaroundPeriod(args: {
+  runId: string;
+  schedule: SimAllocationLine[][];
+  finished: boolean;
+  score?: TurnaroundScore;
+  outcome?: SimOutcomeResult;
+  formatSlug: string;
+}): Promise<void> {
+  const { runId, schedule, finished, score, outcome, formatSlug } = args;
+
+  if (!finished) {
+    await db.simRun.update({
+      where: { id: runId },
+      data: { phase: "period", stateJson: JSON.stringify({ schedule }) },
+    });
+    return;
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.simRun.update({
+      where: { id: runId },
+      data: {
+        phase: "debrief",
+        stateJson: JSON.stringify({ schedule }),
+        allocation: JSON.stringify(schedule.flat()),
+        committedAt: new Date(),
+      },
+    });
+    await tx.simResult.create({
+      data: {
+        runId,
+        overall: score!.overall,
+        band: score!.band,
+        formatSlug,
+        // The format's own dimensions. The five typed columns below cannot hold
+        // them — they are named after the war room's — so they take zero and
+        // `formatSlug` tells the report which side to read.
+        scoresJson: JSON.stringify(score!.scores),
+        hypothesis: 0,
+        investigation: 0,
+        diagnosis: 0,
+        decision: 0,
+        outcome: 0,
+        causeFound: score!.solvent,
+        daysSpent: score!.periodsPlayed,
+        daysPar: schedule.length,
+        outcomeJson: JSON.stringify(outcome ?? {}),
+        feedback: JSON.stringify(score!.feedback),
+      },
+    });
+  });
 }
