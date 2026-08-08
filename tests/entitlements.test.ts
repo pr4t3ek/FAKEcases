@@ -10,6 +10,7 @@ import {
   WALL_PARAM,
 } from "@/lib/entitlements";
 import { questions as seedQuestions } from "@/prisma/seed-data";
+import { listScenarios } from "@/lib/sim/registry";
 import {
   answerModeFor,
   isSimulation,
@@ -213,5 +214,37 @@ describe("the seeded shop window", () => {
     // as your first contact with the format is the wrong first impression.
     const guestSim = flagged.find((q) => kindOf(q) === "simulation");
     expect(guestSim?.difficulty).toBe("Easy");
+  });
+});
+
+describe("the Pro pitch names the catalogue it is selling", () => {
+  // The counts in the copy are prose, so nothing made them follow the content.
+  // They didn't: the sentence promised "9 war rooms" from the day the three
+  // finance scenarios shipped until this test was written, under-selling the
+  // product on the one screen where someone decides whether to pay for it.
+  const kindOf = (q: (typeof seedQuestions)[number]) => q.type ?? "guesstimate";
+  const counts = {
+    guesstimate: seedQuestions.filter((q) => kindOf(q) === "guesstimate").length,
+    qualitative: seedQuestions.filter((q) => kindOf(q) === "qualitative").length,
+    simulation: seedQuestions.filter((q) => kindOf(q) === "simulation").length,
+  };
+
+  const reason = tierAccess.free.upgrade?.reason ?? "";
+
+  it("quotes the real number of guesstimates and war rooms", () => {
+    expect(reason).toContain(`${counts.guesstimate} guesstimates`);
+    expect(reason).toContain(`${counts.simulation} war rooms`);
+  });
+
+  it("counts a war room once, in the catalogue and in the registry alike", () => {
+    // A seed row without a scenario behind it is inert, and a scenario without a
+    // row is unreachable. The pitch is only honest if the two agree, so it is
+    // pinned to both rather than to whichever was convenient.
+    expect(counts.simulation).toBe(listScenarios().length);
+  });
+
+  it("says nothing about a tier that is never blocked", () => {
+    // Pro has no upgrade path, so there is no count to keep true for it.
+    expect(tierAccess.pro.upgrade).toBeNull();
   });
 });

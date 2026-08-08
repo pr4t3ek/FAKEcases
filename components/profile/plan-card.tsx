@@ -42,7 +42,7 @@ export function PlanCard({ proUntil }: { proUntil: Date | null }) {
         <div className="rounded-lg border border-dashed p-4 text-sm">
           <p className="font-medium">Pro opens the rest of the library</p>
           <p className="mt-1 text-muted-foreground">
-            All 24 guesstimates, both cases and all 9 decision war rooms. Hints, Teacher mode
+            All 24 guesstimates, both cases and all 12 decision war rooms. Hints, Teacher mode
             and your evaluations are already included on the free plan and always will be.
           </p>
           <p className="mt-2 text-xs text-muted-foreground">
