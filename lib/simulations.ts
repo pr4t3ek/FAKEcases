@@ -23,6 +23,7 @@ import type {
 } from "@/lib/sim/types";
 import type { SimScoreResult } from "@/lib/sim/score";
 import type { TurnaroundScore } from "@/lib/sim/turnaround";
+import { serialiseJournal, type RunJournal } from "@/lib/sim/engine/journal";
 import { simStateFromRuns, type SimQuestionState } from "@/lib/sim/replay";
 
 // Re-exported so callers have one import for "simulation data access", while the
@@ -81,15 +82,32 @@ export async function startRun(
    * them.
    */
   firstPhase = "observe",
+  /**
+   * The RNG seed for a stochastic simulator, or null for the authored formats,
+   * which draw nothing. Assigned ONCE here and never regenerated — every replay,
+   * counterfactual and resume derives from it.
+   */
+  seed: string | null = null,
 ): Promise<string> {
   const existing = await findResumableRun(userId, questionId);
   if (existing) return existing;
 
   const created = await db.simRun.create({
-    data: { userId, questionId, scenarioSlug, phase: firstPhase },
+    data: { userId, questionId, scenarioSlug, phase: firstPhase, seed },
     select: { id: true },
   });
   return created.id;
+}
+
+/**
+ * A fresh seed for a stochastic run.
+ *
+ * The one place in the simulation stack that is allowed to be non-deterministic,
+ * and only because it is the entropy source: everything downstream is a pure
+ * function of what this returns, which is exactly why it is stored.
+ */
+export function runSeed(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 /** The pure view the engine takes. No Prisma types cross this line. */
@@ -380,6 +398,61 @@ export async function commitTurnaroundPeriod(args: {
         daysPar: schedule.length,
         outcomeJson: JSON.stringify(outcome ?? {}),
         feedback: JSON.stringify(score!.feedback),
+      },
+    });
+  });
+}
+
+// ─── Config-driven simulators ──────────────────────────────────────────────
+
+/**
+ * Persist a finished simulator run.
+ *
+ * The journal goes in `stateJson` and the KPI dimensions in `scoresJson`, both
+ * of which exist for exactly this — see the notes on those columns. The five
+ * typed score columns take zero, because they are named after the war room's
+ * dimensions and a buyback run has none of them; `formatSlug` is what tells the
+ * report which side to read.
+ *
+ * `outcomeJson` carries the Monte Carlo distribution rather than a projection,
+ * pinned for the same reason everything else here is pinned: a debrief that drew
+ * a different histogram on every visit would be worse than one that drew none.
+ */
+export async function commitSimulatorRun(args: {
+  runId: string;
+  journal: RunJournal;
+  score: { overall: number; band: string; scores: Record<string, number>; riskPercentile: number };
+  distribution: number[];
+  formatSlug: string;
+}): Promise<void> {
+  const { runId, journal, score, distribution, formatSlug } = args;
+
+  await db.$transaction(async (tx) => {
+    await tx.simRun.update({
+      where: { id: runId },
+      data: {
+        phase: "debrief",
+        stateJson: serialiseJournal(journal),
+        committedAt: new Date(),
+      },
+    });
+    await tx.simResult.create({
+      data: {
+        runId,
+        overall: score.overall,
+        band: score.band,
+        formatSlug,
+        scoresJson: JSON.stringify(score.scores),
+        hypothesis: 0,
+        investigation: 0,
+        diagnosis: 0,
+        decision: 0,
+        outcome: 0,
+        causeFound: score.riskPercentile >= 0.5,
+        daysSpent: journal.entries.length,
+        daysPar: journal.entries.length,
+        outcomeJson: JSON.stringify({ distribution }),
+        feedback: "[]",
       },
     });
   });

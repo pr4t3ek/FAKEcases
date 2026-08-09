@@ -513,6 +513,16 @@ model SimRun {
   /// JSON SimAllocationLine[] — the committed capacity split.
   allocation     String?
 
+  /// The RNG seed for a stochastic simulator, assigned once when the run opens.
+  ///
+  /// Not a convenience. `lib/sim/engine/stochastic.ts` threads a seeded
+  /// generator through every draw precisely so the promise the rest of lib/sim
+  /// makes — a pinned report reads the same next month — survives randomness.
+  /// Without this column the debrief's replay and its counterfactuals would be
+  /// a plausible story rather than the run the student actually played.
+  /// Null on the authored formats, which draw nothing.
+  seed           String?
+
   /// Format-specific run state, as JSON. Null for the war-room format, which
   /// keeps using the four typed columns above.
   ///

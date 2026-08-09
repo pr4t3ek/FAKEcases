@@ -811,6 +811,32 @@ export const questions: SeedQuestion[] = [
       "₹12 crore against ₹3 crore a quarter is four quarters. Burn is 65% salaries and only 10% engineering, so the cost side cannot close a ₹3 crore gap without cutting the thing that earns the revenue. The two real levers are price — ₹36,000 a quarter unchanged in three years for software the customer runs their shipping on — and retention, because marketing buys 200 customers a quarter while churn takes 180, so ₹1.8 crore a quarter is being spent to stand still. Support is funded for exactly the 2,000 customers that exist, so any growth pushes the service ratio below 1 and raises churn a quarter later. The trap is switching acquisition off: it saves ₹1.35 crore a quarter immediately, the largest single improvement to cash on the board, and it drains the customer balance that every future quarter's revenue depends on — good-looking for two quarters and a smaller company for good.",
     tags: "product management,finance,saas,unit economics,runway,burn,churn,retention,pricing,turnaround,technology,simulation",
   },
+  /**
+   * The first CONFIG-DRIVEN simulator, and the only row whose exercise is not an
+   * authored scenario at all.
+   *
+   * `lib/sim/scenarios/*` holds hand-written causal models; this one's rules live
+   * in `lib/sim/configs/buyback.ts` as parameters, and the run page resolves it
+   * through a second registry. The catalogue does not care about the difference
+   * — a question is still a question — which is the point of keeping the two
+   * registries behind one `externalId`.
+   */
+  {
+    externalId: "buyback-contract",
+    title: "Meraki Textiles: twelve months, one supplier, and a clause you can abuse once",
+    prompt:
+      "You order from a single supplier under a buyback clause: whatever you cannot sell, they repurchase — up to a share of your order, at a price they quote each month. Over-ordering is free until it isn't. Twelve months, two decisions a month, and a supplier that is learning what kind of buyer you are.",
+    category: "product-management",
+    sector: "manufacturing",
+    difficulty: "Hard",
+    interviewLevel: "GeneralMBA",
+    type: "simulation",
+    betterApproach:
+      "Read a buyback clause as a relationship rather than a term sheet. The clause transfers risk, so the supplier prices it against how much risk you have been transferring — which means the cheapest way to a good month is also the most expensive way to a good year. Watch three things the P&L will not show you: how much of your order is coming back, how close your order is to the supplier's capacity, and the gap between a profitable month and a collected one.",
+    sampleSolution:
+      "Ordering to demand rather than to the upside is worth more than any pricing move available. Over-ordering captures every unit of a good month at the supplier's expense, and the supplier's belief about you falls with the stock it takes back — so the buyback price and the covered share both drop, permanently, for the rest of the year. Two second-order traps: ordering past about 80% of the supplier's capacity makes the queue non-linear, so lead times climb and stock arrives too late to sell; and 30-day receivables against 45-day payables mean the first profitable month is still a cash-negative one.",
+    tags: "supply chain,operations,contracts,buyback,newsvendor,inventory,working capital,npv,simulation",
+  },
 ];
 
 export const achievements = [
