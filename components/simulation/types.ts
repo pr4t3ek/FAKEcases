@@ -168,3 +168,98 @@ export interface TurnaroundData {
   /** The opening board. Static — a turnaround reveals nothing by purchase. */
   panels: SimPanel[];
 }
+
+// ─── Config-driven simulators (the buyback contract) ───────────────────────
+
+export interface BuybackKpi {
+  key: string;
+  label: string;
+  value: number;
+  unit: SimUnit;
+  goodDirection: GoodDirection;
+}
+
+/** One decision control, described by the config rather than the component. */
+export interface BuybackDecisionSpec {
+  key: string;
+  label: string;
+  help: string;
+  kind: "integer" | "currency";
+  min: number;
+  max: number;
+  step: number;
+  value: number;
+}
+
+/** The three statements for the month just posted. */
+export interface BuybackStatements {
+  pnl: { label: string; value: number; emphasis?: boolean }[];
+  balance: { label: string; value: number; emphasis?: boolean }[];
+  cashFlow: { label: string; value: number; emphasis?: boolean }[];
+}
+
+export interface BuybackData {
+  runId: string;
+  isGuest: boolean;
+  phase: string;
+  title: string;
+  situation: string;
+  /** 0-based month about to be decided. */
+  monthIndex: number;
+  horizon: number;
+
+  decisions: BuybackDecisionSpec[];
+  /** The fork due this month, if there is one. */
+  branch: {
+    prompt: string;
+    options: { id: string; label: string; detail: string }[];
+    chosen: string | null;
+  } | null;
+
+  /** What the supplier is offering for the coming month. */
+  quote: {
+    stance: string;
+    wholesalePrice: number;
+    buybackPrice: number;
+    buybackShare: number;
+  };
+  /** Narrative wrappers that fired last month. */
+  narrative: { id: string; headline: string; body: string }[];
+  /** Public state only — hidden keys are stripped server-side. */
+  signals: { key: string; label: string; value: number; unit: SimUnit }[];
+
+  kpis: BuybackKpi[];
+  /** Recharts rows: one per month played. */
+  trends: Record<string, number | string>[];
+  statements: BuybackStatements | null;
+}
+
+/** What the debrief needs once the year is over. */
+export interface BuybackDebriefData {
+  runId: string;
+  questionId: string;
+  title: string;
+  overall: number;
+  band: string;
+  npv: number;
+  riskPercentile: number;
+  scores: { key: string; label: string; hint: string; value: number }[];
+  kpis: BuybackKpi[];
+  /** Monte Carlo outcomes, sorted, for the histogram. */
+  distribution: number[];
+  /** Per-month replay: decision, result and what was hidden at the time. */
+  timeline: {
+    month: number;
+    decision: Record<string, number>;
+    cash: number;
+    npvSoFar: number;
+    regimeLabel: string;
+    trust: number;
+    scenarios: string[];
+  }[];
+  /** Counterfactual paths: the same seed, one policy changed throughout. */
+  counterfactuals: { label: string; detail: string; npv: number }[];
+  branches: { atMonth: number; prompt: string; chosen: string | null }[];
+  /** The whole run, for the JSON export. */
+  exportJson: string;
+}

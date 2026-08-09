@@ -9,6 +9,20 @@ import { loadScenario, scenarioExists } from "@/lib/scenario-store";
 import { priceDrilldown } from "@/lib/sim/investigate";
 import { runOutcome, runSchedule } from "@/lib/sim/outcome";
 import { formatFor, isTurnaround } from "@/lib/sim/formats/registry";
+import { buybackFormat } from "@/lib/sim/formats/buyback";
+import { getSimulatorConfig, isSimulatorSlug } from "@/lib/sim/configs/registry";
+import type { SimulatorConfig } from "@/lib/sim/configs/types";
+import { applyBranch, openRun, runTick } from "@/lib/sim/engine/time";
+import { quote } from "@/lib/sim/engine/agent";
+import { createRng } from "@/lib/sim/engine/stochastic";
+import { monteCarlo, scoreRun } from "@/lib/sim/engine/scoring";
+import {
+  openJournal,
+  parseJournal,
+  recordBranch,
+  serialiseJournal,
+  type RunJournal,
+} from "@/lib/sim/engine/journal";
 import {
   decisionPeriodsFor,
   openPeriod,
@@ -22,12 +36,14 @@ import {
   commitDiagnosisToRun,
   commitHypothesisToRun,
   commitRun,
+  commitSimulatorRun,
   commitTurnaroundPeriod,
   findResumableRun,
   loadRun,
   openCommitPhase,
   ownedInOrder,
   recordPurchase,
+  runSeed,
   startRun,
   toRunState,
 } from "@/lib/simulations";
@@ -60,6 +76,27 @@ async function ownedRun(runId: string) {
 }
 
 /**
+ * The same ownership check for a CONFIG-driven run.
+ *
+ * Separate from `ownedRun` because that one resolves an authored `SimScenario`
+ * and refuses the run when there isn't one — which every buyback run would fail,
+ * since its rules are a config rather than a scenario. Same posture otherwise:
+ * ownership is re-derived from the session, never taken from the request.
+ */
+async function ownedSimulatorRun(runId: string) {
+  const user = await getSessionUser();
+  if (!user) return null;
+
+  const run = await loadRun(runId);
+  if (!run || run.userId !== user.id) return null;
+
+  const config = getSimulatorConfig(run.scenarioSlug);
+  if (!config) return null;
+
+  return { user, run, config };
+}
+
+/**
  * Open a simulation from its library card.
  *
  * The same tier gate as `startAttempt`, reading the same `freeTier` flag — a
@@ -78,7 +115,12 @@ export async function startSimulation(questionId: string): Promise<void> {
   // Existence only — an override can retune a scenario but never introduce one,
   // so there is nothing here the authored registry cannot answer.
   const slug = question.externalId;
-  if (!slug || !scenarioExists(slug)) redirect("/simulations");
+  // Two registries, one catalogue. `scenarioExists` answers only for the
+  // authored scenarios; a config-driven simulator lives in its own registry and
+  // would otherwise be bounced straight back here despite having a question row.
+  // Widened at the call site rather than inside `scenarioExists`, so that
+  // function keeps meaning exactly what its name says for its other callers.
+  if (!slug || !(scenarioExists(slug) || isSimulatorSlug(slug))) redirect("/simulations");
 
   // Resume before gating, matching `startAttempt`: a run already under way has
   // spent analyst-days that a refusal would strand.
@@ -89,13 +131,14 @@ export async function startSimulation(questionId: string): Promise<void> {
 
   // The first phase is the format's, not a constant: a turnaround opens on its
   // briefing, a war room on Observe.
-  const scenario = await loadScenario(slug);
-  const runId = await startRun(
-    user.id,
-    question.id,
-    slug,
-    scenario ? formatFor(scenario).phases[0].id : "observe",
-  );
+  const simulator = getSimulatorConfig(slug);
+  const scenario = simulator ? undefined : await loadScenario(slug);
+  const firstPhase = simulator
+    ? buybackFormat.phases[0].id
+    : scenario
+      ? formatFor(scenario).phases[0].id
+      : "observe";
+  const runId = await startRun(user.id, question.id, slug, firstPhase, simulator ? runSeed() : null);
   redirect(`/simulate/${runId}`);
 }
 
@@ -416,5 +459,175 @@ export async function beginTurnaround(runId: string): Promise<SimActionResult> {
   if (owned.run.phase !== "brief") return { ok: true };
 
   await db.simRun.update({ where: { id: runId }, data: { phase: "period" } });
+  return { ok: true };
+}
+
+// ─── Config-driven simulators (the buyback contract) ───────────────────────
+
+/**
+ * Rebuild a run's engine state from its seed and its journal.
+ *
+ * State is REPLAYED rather than stored. That looks like extra work — twelve
+ * ticks recomputed on every submission — and it is what makes the format
+ * trustworthy: the run a student resumes is provably the run they left, because
+ * it is derived from the same seed and the same decisions rather than from a
+ * snapshot that could have been written by an older version of the engine.
+ * `tests/buyback-behaviours.test.ts` pins the property this depends on.
+ *
+ * Cheap in absolute terms: twelve ticks of arithmetic, no I/O.
+ */
+function rebuild(config: SimulatorConfig, seed: string, journal: RunJournal) {
+  let ctx = openRun(config, seed, openJournal(seed, config.slug));
+  const quoteRng = createRng(`${seed}:quote`);
+  let lastQuote = quote({ config: config.agent, state: ctx.state.current, rng: quoteRng });
+
+  for (const entry of journal.entries) {
+    const branch = journal.branches[entry.tick];
+    if (branch) {
+      const option = config.branchPoints
+        .flatMap((b) => b.options)
+        .find((o) => o.id === branch);
+      if (option) ctx = applyBranch(ctx, option.transitionMatrix);
+    }
+    ctx = runTick(ctx, entry.decision, lastQuote.offers).ctx;
+    lastQuote = quote({ config: config.agent, state: ctx.state.current, rng: quoteRng });
+  }
+
+  return { ctx, quote: lastQuote, journal };
+}
+
+/** Move a simulator run off its briefing and into the first period. */
+export async function beginSimulator(runId: string): Promise<SimActionResult> {
+  const owned = await ownedSimulatorRun(runId);
+  if (!owned) return { ok: false, error: "Not found" };
+  if (owned.run.phase !== "brief") return { ok: true };
+
+  await db.simRun.update({ where: { id: runId }, data: { phase: "month" } });
+  return { ok: true };
+}
+
+/** Record a branch choice. The world changes forward from here, not backward. */
+export async function chooseBranch(
+  runId: string,
+  optionId: string,
+): Promise<SimActionResult> {
+  const owned = await ownedSimulatorRun(runId);
+  if (!owned) return { ok: false, error: "Not found" };
+  if (owned.run.result) return { ok: true };
+
+  const { run, config } = owned;
+  const journal = parseJournal(run.stateJson) ?? openJournal(run.seed ?? "", config.slug);
+  const tick = journal.entries.length;
+
+  const point = config.branchPoints.find((b) => b.atTick === tick);
+  if (!point) return { ok: false, error: "No decision is open" };
+  if (!point.options.some((o) => o.id === optionId)) return { ok: false, error: "Unknown option" };
+  if (journal.branches[tick]) return { ok: true }; // already taken; not re-openable
+
+  await db.simRun.update({
+    where: { id: runId },
+    data: { stateJson: serialiseJournal(recordBranch(journal, tick, optionId)) },
+  });
+  return { ok: true };
+}
+
+/**
+ * Play one month.
+ *
+ * The tick index comes from the stored journal, never from the request, so a
+ * replayed or forged call cannot rewrite a month after seeing how it turned out
+ * — the same rule `commitPeriod` enforces for the turnaround, and the one thing
+ * a sequential format must not get wrong.
+ */
+export async function submitMonth(
+  runId: string,
+  decision: Record<string, number>,
+): Promise<SimActionResult> {
+  const owned = await ownedSimulatorRun(runId);
+  if (!owned) return { ok: false, error: "Not found" };
+
+  const { run, config } = owned;
+  if (run.result) return { ok: true }; // finished; the page shows the debrief
+  const seed = run.seed;
+  if (!seed) return { ok: false, error: "This run has no seed and cannot be replayed" };
+
+  const journal = parseJournal(run.stateJson) ?? openJournal(seed, config.slug);
+  if (journal.entries.length >= config.horizon) return { ok: false, error: "The year is over" };
+
+  // Bounds are re-checked server-side against the config. A slider is a
+  // courtesy; this is the control.
+  const clean: Record<string, number> = {};
+  for (const spec of config.decisions) {
+    const raw = decision[spec.key];
+    if (typeof raw !== "number" || !Number.isFinite(raw)) {
+      return { ok: false, error: `${spec.label} is required` };
+    }
+    if (raw < spec.min || raw > spec.max) {
+      return { ok: false, error: `${spec.label} must be between ${spec.min} and ${spec.max}` };
+    }
+    clean[spec.key] = spec.kind === "integer" ? Math.round(raw) : raw;
+  }
+
+  const replayed = rebuild(config, seed, journal);
+  const result = runTick(replayed.ctx, clean, replayed.quote.offers);
+  const nextJournal = { ...journal, entries: result.ctx.journal.entries };
+  const finished = nextJournal.entries.length >= config.horizon;
+
+  if (!finished) {
+    await db.simRun.update({
+      where: { id: runId },
+      data: { phase: "month", stateJson: serialiseJournal(nextJournal) },
+    });
+    return { ok: true };
+  }
+
+  // ── The year is done: score it against its own distribution ─────────────
+  //
+  // The Monte Carlo runs ONCE, here, and is stored with the result. Recomputing
+  // it on each visit to the debrief would show a different histogram every time,
+  // which is worse than showing none.
+  const distribution = monteCarlo({
+    config,
+    seed,
+    paths: config.monteCarloPaths,
+    policy: (tick) => nextJournal.entries[tick]?.decision ?? nextJournal.entries[0].decision,
+  });
+
+  const score = scoreRun({
+    config,
+    format: buybackFormat,
+    ctx: result.ctx,
+    distribution,
+    receivables: result.posted.balance.receivables,
+    payables: result.posted.balance.payables,
+  });
+
+  await commitSimulatorRun({
+    runId,
+    journal: nextJournal,
+    score,
+    distribution: distribution.outcomes,
+    formatSlug: buybackFormat.slug,
+  });
+
+  await recordFirstResult({
+    userId: owned.user.id,
+    questionId: run.questionId,
+    kind: "simulation",
+    score: score.overall,
+    // Months played, not analyst-days — this format spends none, and a zero
+    // would sort every buyback run to the top of a board that ties on effort.
+    effort: nextJournal.entries.length,
+    sourceId: runId,
+  });
+
+  await applySimulationRewards(owned.user.id, {
+    overall: score.overall,
+    diagnosisScore: score.scores[config.primaryKpi] ?? 0,
+    decisionScore: Math.round(score.riskPercentile * 100),
+    causeFound: score.riskPercentile >= 0.5,
+    underPar: score.overall >= 70,
+  });
+
   return { ok: true };
 }

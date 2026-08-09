@@ -19,8 +19,18 @@ import { questionLeaderboard, questionStanding } from "@/lib/leaderboard";
 import type { FeedbackItem, SimPhase } from "@/lib/types";
 import { SimulationScreen } from "@/components/simulation/simulation-screen";
 import { TurnaroundScreen } from "@/components/simulation/turnaround-screen";
+import { BuybackScreen } from "@/components/simulation/buyback/buyback-screen";
+import { getSimulatorConfig } from "@/lib/sim/configs/registry";
+import { openRun, reveal, runTick } from "@/lib/sim/engine/time";
+import { quote } from "@/lib/sim/engine/agent";
+import { createRng } from "@/lib/sim/engine/stochastic";
+import { computeKpis, rollingValuation } from "@/lib/sim/engine/scoring";
+import { openJournal, parseJournal } from "@/lib/sim/engine/journal";
+import { toChartRows } from "@/lib/sim/engine/state";
+import { openLedger, postPeriod } from "@/lib/sim/engine/financials";
 import { SimulationReport } from "@/components/simulation/simulation-report";
 import type {
+  BuybackData,
   SimulationData,
   SimulationReportData,
   TurnaroundData,
@@ -35,6 +45,11 @@ import {
 
 export const dynamic = "force-dynamic";
 
+/** Prefer the catalogue's title, which is what the student clicked on. */
+function scenarioTitleFor(fallback: string, questionTitle?: string): string {
+  return questionTitle?.trim() || fallback;
+}
+
 export default async function SimulatePage({
   params,
 }: {
@@ -46,6 +61,140 @@ export default async function SimulatePage({
 
   const run = await loadRun(runId);
   if (!run || run.userId !== user.id) redirect("/simulations");
+
+  // ── A config-driven simulator ─────────────────────────────────────────────
+  //
+  // Checked BEFORE the scenario lookup, because a simulator has no authored
+  // scenario and `loadScenario` would send it back to the catalogue.
+  //
+  // State is REPLAYED from the stored seed and journal rather than read from a
+  // snapshot, which is what makes a resumed run provably the run that was left.
+  const simulator = getSimulatorConfig(run.scenarioSlug);
+  if (simulator) {
+    const seed = run.seed ?? "";
+    const journal = parseJournal(run.stateJson) ?? openJournal(seed, simulator.slug);
+
+    let ctx = openRun(simulator, seed, openJournal(seed, simulator.slug));
+    const quoteRng = createRng(`${seed}:quote`);
+    let offered = quote({ config: simulator.agent, state: ctx.state.current, rng: quoteRng });
+    let ledger = openLedger();
+    let lastPosted = null as ReturnType<typeof postPeriod>["posted"] | null;
+
+    for (const entry of journal.entries) {
+      const stepped = runTick(ctx, entry.decision, offered.offers);
+      ctx = stepped.ctx;
+      lastPosted = stepped.posted;
+      ledger = openLedger();
+      offered = quote({ config: simulator.agent, state: ctx.state.current, rng: quoteRng });
+    }
+    void ledger;
+
+    if (run.phase === "debrief" && run.result) {
+      // The debrief is its own component; until it lands, a finished run shows
+      // the last month rather than a blank page.
+      redirect("/simulations");
+    }
+
+    const view = reveal(ctx, createRng(`${seed}:peek`));
+    const monthIndex = journal.entries.length;
+    const branchPoint = simulator.branchPoints.find((b) => b.atTick === monthIndex);
+    const labelOf = (key: string) =>
+      key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
+
+    const lastEntry = journal.entries[journal.entries.length - 1];
+    const firedIds = new Set(lastEntry?.scenarios ?? []);
+
+    const money = (n: number) => n;
+    const data: BuybackData = {
+      runId: run.id,
+      isGuest: user.isGuest,
+      phase: run.phase,
+      title: scenarioTitleFor(simulator.label, run.question?.title),
+      situation: simulator.situation,
+      monthIndex,
+      horizon: simulator.horizon,
+      decisions: simulator.decisions.map((d) => ({
+        key: d.key,
+        label: d.label,
+        help: d.help,
+        kind: d.kind,
+        min: d.min,
+        max: d.max,
+        step: d.step,
+        value: lastEntry?.decision[d.key] ?? d.default,
+      })),
+      branch: branchPoint
+        ? {
+            prompt: branchPoint.prompt,
+            options: branchPoint.options.map((o) => ({
+              id: o.id,
+              label: o.label,
+              detail: o.detail,
+            })),
+            chosen: journal.branches[monthIndex] ?? null,
+          }
+        : null,
+      quote: {
+        stance: offered.label,
+        wholesalePrice: offered.offers.wholesalePrice ?? 0,
+        buybackPrice: offered.offers.buybackPrice ?? 0,
+        buybackShare: offered.offers.buybackShare ?? 0,
+      },
+      narrative: simulator.scenarios
+        .filter((sc) => firedIds.has(sc.id))
+        .map((sc) => ({ id: sc.id, headline: sc.headline, body: sc.body })),
+      signals: ["cash", "inventory", "unitsSold", "demand", "leadTime", "factoryUtilization"]
+        .filter((k) => k in view.signals)
+        .map((k) => ({
+          key: k,
+          label: labelOf(k),
+          value: view.signals[k],
+          unit: (k === "cash" ? "inr" : k === "leadTime" ? "days" : k === "factoryUtilization" ? "ratio" : "count") as BuybackData["signals"][number]["unit"],
+        })),
+      kpis: computeKpis({
+        config: simulator,
+        state: ctx.state,
+        cashFlows: ctx.cashFlows,
+        receivables: lastPosted?.balance.receivables ?? 0,
+        payables: lastPosted?.balance.payables ?? 0,
+      }).map((k) => ({
+        key: k.key,
+        label: k.label,
+        value: k.key === "npv" ? rollingValuation(ctx) : k.value,
+        unit: k.unit as BuybackData["kpis"][number]["unit"],
+        goodDirection: k.goodDirection,
+      })),
+      trends: journal.entries.length
+        ? toChartRows(ctx.state, ["cash", "unitsSold", "inventory"], (t) => (t === 0 ? "start" : `M${t}`))
+        : [],
+      statements: lastPosted
+        ? {
+            pnl: [
+              { label: "Revenue", value: money(lastPosted.pnl.revenue) },
+              { label: "Cost of goods", value: money(-lastPosted.pnl.costOfGoodsSold) },
+              { label: "Gross profit", value: money(lastPosted.pnl.grossProfit), emphasis: true },
+              { label: "Buyback credit", value: money(lastPosted.pnl.contractSettlement) },
+              { label: "Operating cost", value: money(-lastPosted.pnl.operatingCost) },
+              { label: "Net profit", value: money(lastPosted.pnl.netProfit), emphasis: true },
+            ],
+            balance: [
+              { label: "Cash", value: money(lastPosted.balance.cash) },
+              { label: "Receivables", value: money(lastPosted.balance.receivables) },
+              { label: "Stock", value: money(lastPosted.balance.inventoryValue) },
+              { label: "Payables", value: money(-lastPosted.balance.payables) },
+              { label: "Net assets", value: money(lastPosted.balance.netAssets), emphasis: true },
+            ],
+            cashFlow: [
+              { label: "Collected", value: money(lastPosted.cashFlow.collected) },
+              { label: "Paid out", value: money(-lastPosted.cashFlow.paid) },
+              { label: "Net movement", value: money(lastPosted.cashFlow.net), emphasis: true },
+            ],
+          }
+        : null,
+    };
+
+    return <BuybackScreen data={data} />;
+  }
 
   const scenario = await loadScenario(run.scenarioSlug);
   // A run can outlive the scenario it was played against — a removed scenario

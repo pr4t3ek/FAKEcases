@@ -11,6 +11,7 @@ import {
 } from "@/lib/entitlements";
 import { questions as seedQuestions } from "@/prisma/seed-data";
 import { listScenarios } from "@/lib/sim/registry";
+import { listSimulators } from "@/lib/sim/configs/registry";
 import {
   answerModeFor,
   isSimulation,
@@ -236,11 +237,16 @@ describe("the Pro pitch names the catalogue it is selling", () => {
     expect(reason).toContain(`${counts.simulation} war rooms`);
   });
 
-  it("counts a war room once, in the catalogue and in the registry alike", () => {
-    // A seed row without a scenario behind it is inert, and a scenario without a
-    // row is unreachable. The pitch is only honest if the two agree, so it is
+  it("counts a war room once, in the catalogue and in the registries alike", () => {
+    // A seed row without an exercise behind it is inert, and an exercise without
+    // a row is unreachable. The pitch is only honest if the two agree, so it is
     // pinned to both rather than to whichever was convenient.
-    expect(counts.simulation).toBe(listScenarios().length);
+    //
+    // BOTH registries: authored scenarios live in lib/sim/registry, and
+    // config-driven simulators in lib/sim/configs/registry. Checking only the
+    // first is what this assertion did before the buyback simulator existed, and
+    // it failed the moment a catalogue row pointed at the second.
+    expect(counts.simulation).toBe(listScenarios().length + listSimulators().length);
   });
 
   it("says nothing about a tier that is never blocked", () => {

@@ -10,6 +10,7 @@ import type { SimScenario } from "../types";
 import type { SimFormat } from "./types";
 import { warRoomFormat } from "./war-room";
 import { turnaroundFormat } from "./turnaround";
+import { buybackFormat } from "./buyback";
 
 /**
  * The format a scenario runs on when it does not say.
@@ -21,7 +22,7 @@ import { turnaroundFormat } from "./turnaround";
  */
 export const DEFAULT_FORMAT_SLUG = warRoomFormat.slug;
 
-const ALL: SimFormat[] = [warRoomFormat, turnaroundFormat];
+const ALL: SimFormat[] = [warRoomFormat, turnaroundFormat, buybackFormat];
 
 const BY_SLUG: Record<string, SimFormat> = Object.fromEntries(
   ALL.map((format) => [format.slug, format]),
@@ -47,4 +48,9 @@ export function formatFor(scenario: Pick<SimScenario, "format">): SimFormat {
 
 export function isTurnaround(scenario: Pick<SimScenario, "format">): boolean {
   return formatFor(scenario).slug === turnaroundFormat.slug;
+}
+
+/** The format a config-driven simulator plays on. */
+export function formatForSimulator(): SimFormat {
+  return buybackFormat;
 }
