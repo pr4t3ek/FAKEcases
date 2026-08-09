@@ -49,6 +49,17 @@ function formulaFor(driver: SimDriver, labelOf: (id: DriverId) => string): strin
       return `${labelOf(driver.minuend)} − ${labelOf(driver.subtrahend)}`;
     case "quotient":
       return `${labelOf(driver.numerator)} ÷ ${labelOf(driver.denominator)}`;
+    case "min":
+      // "whichever is smaller" rather than "min(a, b)": the point of the node is
+      // that one of them is binding, and a student reads the constraint faster
+      // in words than in a function call.
+      return `whichever is smaller: ${driver.of.map(labelOf).join(" or ")}`;
+    case "stock":
+      return `last period + ${labelOf(driver.inflow)} − ${labelOf(driver.outflow)}`;
+    case "lagged": {
+      const back = Math.max(1, driver.periods ?? 1);
+      return `${labelOf(driver.of)}, ${back === 1 ? "last period" : `${back} periods ago`}`;
+    }
     default:
       return assertNever(driver, "driver kind");
   }

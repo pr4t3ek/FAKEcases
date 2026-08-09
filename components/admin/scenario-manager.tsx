@@ -59,6 +59,12 @@ function formulaOf(driver: SimDriver): string {
       return `${driver.minuend} − ${driver.subtrahend}`;
     case "quotient":
       return `${driver.numerator} ÷ ${driver.denominator}`;
+    case "min":
+      return `smaller of ${driver.of.join(", ")}`;
+    case "stock":
+      return `last period + ${driver.inflow} − ${driver.outflow}`;
+    case "lagged":
+      return `${driver.of} (${Math.max(1, driver.periods ?? 1)} period(s) back)`;
   }
 }
 

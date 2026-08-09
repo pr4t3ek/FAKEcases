@@ -1,5 +1,12 @@
 import type { SimPhase } from "@/lib/types";
-import type { ClientScenario, SimPanel, SimTeaching } from "@/lib/sim/types";
+import type {
+  ClientIntervention,
+  ClientScenario,
+  GoodDirection,
+  SimPanel,
+  SimTeaching,
+  SimUnit,
+} from "@/lib/sim/types";
 import type { MetricMapNode } from "@/lib/sim/metric-map";
 import type { OutcomeRow, AllocationComparisonRow, TrailStep } from "@/lib/sim/debrief";
 import type { FeedbackItem } from "@/lib/types";
@@ -60,7 +67,11 @@ export interface SimulationReportData {
   causeFound: boolean;
   daysSpent: number;
   daysPar: number;
-  scores: { key: SimRubricKey; label: string; hint: string; value: number }[];
+  /**
+   * The format's own dimensions. Keyed by string rather than `SimRubricKey`
+   * because a turnaround's keys are not the war room's — see `SimResult.scoresJson`.
+   */
+  scores: { key: string; label: string; hint: string; value: number }[];
   feedback: FeedbackItem[];
   northStarLabel: string;
   outcome: OutcomeRow[];
@@ -73,6 +84,14 @@ export interface SimulationReportData {
   trueCauses: string[];
   /** "month" or "quarter" — a monthly campaign reported in Q+1 reads as wrong. */
   periodNoun: "month" | "quarter";
+  /**
+   * Whether this run had an investigation phase at all.
+   *
+   * False on a turnaround, which buys no data and spends no analyst-days.
+   * Without it the report told a turnaround player they had "spent 4
+   * analyst-days" — the period count wearing the war room's noun.
+   */
+  hasInvestigation: boolean;
   /**
    * The scenario's money budget, so the debrief picks the same unit the
    * allocation screen used. Re-denominating between the two would silently
@@ -101,4 +120,51 @@ export interface SimulationReportData {
     effort: number;
     isThisAttempt: boolean;
   } | null;
+}
+
+// ─── Turnaround format ─────────────────────────────────────────────────────
+
+/** One quarter's row in the timeline. */
+export interface TurnaroundPeriodRow {
+  /** 0-based decision period. */
+  period: number;
+  /** "Q1", "Q2" — what the student calls it. */
+  label: string;
+  state: "done" | "open" | "future";
+  /** What was funded in this period, once it has been. */
+  committed: { label: string; sprints: number; rupees: number }[];
+  /**
+   * Where the business stood at the END of this quarter. Present only for
+   * quarters already played — projecting a future one onto the screen would
+   * hand over the answer.
+   */
+  metrics: {
+    driver: string;
+    label: string;
+    value: number;
+    unit: SimUnit;
+    deltaPct?: number;
+    goodDirection?: GoodDirection;
+  }[];
+}
+
+/** What the turnaround run page hands the client. */
+export interface TurnaroundData {
+  runId: string;
+  isGuest: boolean;
+  phase: string;
+  title: string;
+  company: string;
+  situation: string;
+  periodNoun: "month" | "quarter";
+  budget: { sprints: number; rupees: number };
+  /** One row per decision period, in order. */
+  periods: TurnaroundPeriodRow[];
+  /** Which period is open for allocation, or null when they are all spent. */
+  openPeriod: number | null;
+  interventions: ClientIntervention[];
+  teaching: SimTeaching | null;
+  metricMap: MetricMapNode[] | null;
+  /** The opening board. Static — a turnaround reveals nothing by purchase. */
+  panels: SimPanel[];
 }

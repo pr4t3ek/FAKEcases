@@ -93,7 +93,67 @@ export type SimDriver =
    * `validateScenario` can reject an intervention authored against it. "Improve
    * the number of months in a year by 8%" should be a build failure.
    */
-  | (SimDriverBase & { kind: "constant"; value: number });
+  | (SimDriverBase & { kind: "constant"; value: number })
+  /**
+   * A quantity that ACCUMULATES: `prior + inflow − outflow`.
+   *
+   * The first kind that carries anything between periods, and the reason the
+   * resolver had to learn about history at all. Everything above is memoryless —
+   * evaluate the graph at quarter 3 and quarter 2 never happened — which is why
+   * no scenario could previously ask "is there any cash left", only "is this
+   * ratio wrong". Cash, inventory, a subscriber base, a backlog and debt are all
+   * stocks, and none of them were expressible.
+   *
+   * `floor` clamps the bottom for the quantities that physically cannot go
+   * negative — you cannot hold −40 units of inventory. It is deliberately
+   * OPTIONAL and deliberately absent on cash: a company whose balance goes below
+   * zero has run out of money, and clamping that away would hide the single
+   * outcome the scenario exists to teach.
+   */
+  | (SimDriverBase & {
+      kind: "stock";
+      initial: number;
+      inflow: DriverId;
+      outflow: DriverId;
+      floor?: number;
+    })
+  /**
+   * The value another driver had `periods` ago. Default 1 — last period.
+   *
+   * **This is what makes feedback loops legal.** `dependenciesOf` reports NO
+   * dependency for it, because it reads history rather than the current period,
+   * so `driverOrder` still sees a strict DAG and still throws on a genuine
+   * instantaneous cycle. The loop closes across time instead of within a period,
+   * which is both how the real system works and the only way to keep a
+   * single-pass evaluator.
+   *
+   * What it buys: cutting support this quarter raises churn next quarter and
+   * shrinks collections the quarter after. A death spiral is a cycle, and a
+   * cycle was previously a build failure.
+   *
+   * `initial` is the value to use before that far back exists — the quarter
+   * before the run started. It is authored explicitly rather than read off `of`
+   * for an ordering reason that matters: since this kind reports no dependency,
+   * `of` is not guaranteed to be computed yet when this one is, so there is
+   * nothing to read at period 0. Normally it equals `of`'s baseline (the system
+   * was in equilibrium); authoring it separately also allows a scenario to open
+   * mid-swing on purpose.
+   */
+  | (SimDriverBase & {
+      kind: "lagged";
+      of: DriverId;
+      periods?: number;
+      initial: number;
+    })
+  /**
+   * The smallest of its inputs — the binding constraint.
+   *
+   * You cannot spend cash you do not have, and you cannot sell what you cannot
+   * make. Modelled rather than scored, for the same reason `minSprints` is: a
+   * constraint that only shows up in the debrief is a rule the student never got
+   * to bump into.
+   */
+  | (SimDriverBase & { kind: "min"; of: DriverId[] });
 
 // ─── Dashboard panels ──────────────────────────────────────────────────────
 
@@ -397,6 +457,12 @@ export interface SimTeaching {
 export interface SimScenario {
   /** Matches the catalogue `Question.externalId`. */
   slug: string;
+  /**
+   * Which format this is played on — see `lib/sim/formats`. Absent means the
+   * war room, which is what every scenario written before there was a choice
+   * is, so the twelve of them say nothing and stay unchanged.
+   */
+  format?: string;
   title: string;
   company: string;
   /** One line for the catalogue card. */
@@ -425,6 +491,20 @@ export interface SimScenario {
   drift: SimEffect[];
   horizonQuarters: number;
   /**
+   * How many periods the student actually allocates in. Defaults to the whole
+   * horizon, which is what a war room does.
+   *
+   * Splitting the two is what makes a turnaround honest. With decisions and
+   * horizon equal, any damage that ramps — a support cut whose churn arrives two
+   * quarters later — falls off the end of the projection and reads as free. The
+   * brute-force sweep found exactly that: cutting marketing in the second-to-last
+   * period scored BEST, because the customers it destroys had nowhere left to be
+   * missed from. Deciding for four quarters and being judged on eight puts the
+   * consequences back inside the picture, which is the entire point of a format
+   * built on stocks.
+   */
+  decisionPeriods?: number;
+  /**
    * What a period is called in the report. Display only — the model is
    * period-agnostic. An ad campaign or a subscription base moves monthly, and
    * a report reading "Q+1" for a monthly campaign is simply wrong.
@@ -444,6 +524,16 @@ export interface SimScenario {
    * scenario rather than against an absolute nobody can calibrate.
    */
   bestAllocation: SimAllocationLine[];
+  /**
+   * The best SEQUENCE, for a format that allocates more than once. Index is the
+   * period the capacity is committed in.
+   *
+   * Only meaningful on the turnaround format, and optional even there — see
+   * `bestScheduleFor`, which falls back to spending `bestAllocation` in period
+   * zero. Kept alongside rather than replacing it so `SimScenario` has one shape
+   * for both formats and the war room is untouched.
+   */
+  bestSchedule?: SimAllocationLine[][];
 
   debrief: SimDebriefCopy;
   coachFallback: SimCoachFact[];

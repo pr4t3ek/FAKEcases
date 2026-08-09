@@ -2,10 +2,10 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import { isRealProvider } from "@/lib/llm";
 import { getAdapter } from "@/lib/llm";
-import { simRubric } from "@/lib/config/simulation";
 import { loadScenario } from "@/lib/scenario-store";
 import { toClientScenario } from "@/lib/sim/redact";
 import { metricMap } from "@/lib/sim/metric-map";
+import { resolveDrivers } from "@/lib/sim/drivers";
 import {
   allocationComparison,
   investigationTrail,
@@ -14,12 +14,24 @@ import {
   trueCauseLabels,
 } from "@/lib/sim/debrief";
 import { loadRun, outcomeFromResult, ownedInOrder, toRunState } from "@/lib/simulations";
-import { parseJsonArray } from "@/lib/json";
+import { parseJson, parseJsonArray } from "@/lib/json";
 import { questionLeaderboard, questionStanding } from "@/lib/leaderboard";
 import type { FeedbackItem, SimPhase } from "@/lib/types";
 import { SimulationScreen } from "@/components/simulation/simulation-screen";
+import { TurnaroundScreen } from "@/components/simulation/turnaround-screen";
 import { SimulationReport } from "@/components/simulation/simulation-report";
-import type { SimulationData, SimulationReportData } from "@/components/simulation/types";
+import type {
+  SimulationData,
+  SimulationReportData,
+  TurnaroundData,
+} from "@/components/simulation/types";
+import { formatFor, isTurnaround } from "@/lib/sim/formats/registry";
+import { pathsForSchedule } from "@/lib/sim/outcome";
+import {
+  decisionPeriodsFor,
+  openPeriod,
+  parseTurnaroundState,
+} from "@/lib/sim/turnaround";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +60,9 @@ export default async function SimulatePage({
     if (!outcome) redirect("/simulations");
 
     const rows = outcomeRows(scenario, outcome);
+    // Present for any format that stores its scores as JSON; null for the twelve
+    // war rooms, which keep using the typed columns.
+    const storedScores = parseJson<Record<string, number>>(run.result.scoresJson);
     const nsPath = outcome.paths[scenario.northStar] ?? [];
 
     // The board is keyed on the catalogue question, not the scenario slug, so a
@@ -68,11 +83,17 @@ export default async function SimulatePage({
       causeFound: run.result.causeFound,
       daysSpent: run.result.daysSpent,
       daysPar: run.result.daysPar,
-      scores: simRubric.map((dim) => ({
+      // The format's rubric, not a constant. A turnaround writes its four
+      // dimensions to `scoresJson` and leaves the five typed columns at zero,
+      // because those columns are named after the war room's dimensions —
+      // reading them here would report a turnaround as having scored nothing.
+      scores: formatFor(scenario).rubric.map((dim) => ({
         key: dim.key,
         label: dim.label,
         hint: dim.hint,
-        value: run.result![dim.key],
+        value:
+          storedScores?.[dim.key] ??
+          (dim.key in run.result! ? (run.result as unknown as Record<string, number>)[dim.key] : 0),
       })),
       feedback: parseJsonArray<FeedbackItem>(run.result.feedback),
       northStarLabel:
@@ -93,6 +114,7 @@ export default async function SimulatePage({
       }),
       trueCauses: trueCauseLabels(scenario),
       periodNoun: scenario.periodNoun ?? "quarter",
+      hasInvestigation: scenario.drilldowns.length > 0,
       budgetRupees: scenario.budget.rupees,
       // Built at end-of-horizon values rather than baseline, so the chain shows
       // where the student's decision actually landed. Safe to reveal here —
@@ -124,6 +146,89 @@ export default async function SimulatePage({
     };
 
     return <SimulationReport data={data} user={user} />;
+  }
+
+  // ── A turnaround, still playing ───────────────────────────────────────────
+  //
+  // Its own screen rather than a branch inside `SimulationScreen`: the format
+  // owns its layout, and sharing the war room's chrome is exactly what would
+  // make a second format feel like the first one.
+  if (isTurnaround(scenario)) {
+    const tState = parseTurnaroundState(run.stateJson);
+    const periods = decisionPeriodsFor(scenario);
+    const noun = scenario.periodNoun === "month" ? "M" : "Q";
+
+    // Projected from the COMMITTED schedule only, and read no further than the
+    // quarters already played. Values beyond that are the answer, and a server
+    // component serialises whatever it hands a client one.
+    const played = pathsForSchedule(scenario, tState.schedule);
+    const shown = [scenario.northStar, ...scenario.reported];
+    const labelOf = (id: string) =>
+      scenario.drivers.find((d) => d.id === id)?.label ?? id;
+    const unitOf = (id: string) =>
+      scenario.drivers.find((d) => d.id === id)?.unit ?? "count";
+    const directionOf = (id: string) =>
+      scenario.drivers.find((d) => d.id === id)?.goodDirection;
+
+    const byId = new Map(scenario.interventions.map((i) => [i.id, i]));
+    const openAt = openPeriod(scenario, tState);
+
+    const data: TurnaroundData = {
+      runId: run.id,
+      isGuest: user.isGuest,
+      phase: run.phase,
+      title: scenario.title,
+      company: scenario.company,
+      situation: scenario.situation,
+      periodNoun: scenario.periodNoun ?? "quarter",
+      budget: { sprints: scenario.budget.sprints, rupees: scenario.budget.rupees },
+      openPeriod: openAt,
+      periods: Array.from({ length: periods }, (_, p) => {
+        const done = p < tState.schedule.length;
+        return {
+          period: p,
+          label: `${noun}${p + 1}`,
+          state: done ? ("done" as const) : p === openAt ? ("open" as const) : ("future" as const),
+          committed: (tState.schedule[p] ?? []).map((line) => ({
+            label: byId.get(line.interventionId)?.label ?? line.interventionId,
+            sprints: line.sprints,
+            rupees: line.rupees,
+          })),
+          // End-of-quarter values, only for quarters that have run.
+          metrics: done
+            ? shown.map((id) => {
+                const path = played[id] ?? [];
+                const value = path[p + 1] ?? path[0] ?? 0;
+                const start = path[0] ?? 0;
+                return {
+                  driver: id,
+                  label: labelOf(id),
+                  value,
+                  unit: unitOf(id),
+                  deltaPct: start === 0 ? undefined : (value - start) / Math.abs(start),
+                  goodDirection: directionOf(id),
+                };
+              })
+            : [],
+        };
+      }),
+      // Every option is on the table from the start — there is no diagnosis
+      // gate here, so nothing is withheld behind one.
+      interventions: scenario.interventions.map((iv) => ({
+        id: iv.id,
+        label: iv.label,
+        pitch: iv.pitch,
+        cost: iv.cost,
+        minSprints: iv.minSprints,
+      })),
+      teaching: scenario.teaching ?? null,
+      metricMap: scenario.teaching?.showMetricMap
+        ? metricMap(scenario, resolveDrivers(scenario.drivers))
+        : null,
+      panels: scenario.dashboard,
+    };
+
+    return <TurnaroundScreen data={data} />;
   }
 
   // ── Still playing ─────────────────────────────────────────────────────────

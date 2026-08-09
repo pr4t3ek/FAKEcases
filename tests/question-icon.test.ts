@@ -124,6 +124,7 @@ const EXPECTED: Record<string, string> = {
   "Nirmal Pipes: a record profit and no money for payroll": "Factory",
   // "ceramic" beats "bank" — the bank is in the sentence, not in the subject.
   "Deccan Ceramics: our best ever EBITDA, and the bank wants a word": "Factory",
+  "Sutradhar: four quarters of cash and three ways to spend it": "Package",
   // No subject rule matches these two, so they exercise the Category.icon fallback.
   "Suraksha Home: the competitor cut price — do we match?": "LineChart",
   "Ghar Sewa: customers waiting, professionals idle, both sides growing": "LineChart",

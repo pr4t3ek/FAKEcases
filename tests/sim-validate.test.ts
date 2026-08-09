@@ -398,4 +398,147 @@ describe("validateScenario", () => {
       expect(validateScenario(withOrphan)).toEqual([]);
     });
   });
+
+  /**
+   * The kinds that carry state across periods. `driverOrder` cannot catch a
+   * mistake in a `lagged` reference at all — it reports no dependency, so a
+   * typo is invisible to the topological sort and would surface as a number
+   * that silently never changes.
+   */
+  describe("stateful drivers", () => {
+    const withDriver = (driver: unknown) => {
+      const scenario = fixtureScenario();
+      scenario.drivers = [...scenario.drivers, driver as never];
+      return validateScenario(scenario).join(" | ");
+    };
+
+    const base = { label: "X", unit: "count" as const, goodDirection: "up" as const };
+
+    it("rejects a stock whose flows do not resolve", () => {
+      expect(
+        withDriver({ ...base, id: "s1", kind: "stock", initial: 5, inflow: "nope", outflow: "nah" }),
+      ).toMatch(/unknown inflow "nope"[\s\S]*unknown outflow "nah"/);
+    });
+
+    it("rejects a stock that feeds on itself", () => {
+      expect(
+        withDriver({ ...base, id: "s2", kind: "stock", initial: 5, inflow: "s2", outflow: "s2" }),
+      ).toMatch(/uses itself/);
+    });
+
+    it("rejects a stock that opens below its own floor", () => {
+      const scenario = fixtureScenario();
+      const flow = scenario.drivers[0].id;
+      scenario.drivers = [
+        ...scenario.drivers,
+        { ...base, id: "s3", kind: "stock", initial: 0, floor: 10, inflow: flow, outflow: flow } as never,
+      ];
+      expect(validateScenario(scenario).join(" | ")).toMatch(/below its own floor/);
+    });
+
+    it("rejects a lagged driver reading a name that does not exist", () => {
+      expect(withDriver({ ...base, id: "l1", kind: "lagged", of: "ghost", initial: 1 })).toMatch(
+        /reads unknown driver "ghost"/,
+      );
+    });
+
+    it("rejects a lagged driver reading itself", () => {
+      expect(withDriver({ ...base, id: "l2", kind: "lagged", of: "l2", initial: 1 })).toMatch(
+        /reads itself/,
+      );
+    });
+
+    it("rejects looking back less than a period", () => {
+      const scenario = fixtureScenario();
+      const any = scenario.drivers[0].id;
+      scenario.drivers = [
+        ...scenario.drivers,
+        { ...base, id: "l3", kind: "lagged", of: any, periods: 0, initial: 1 } as never,
+      ];
+      expect(validateScenario(scenario).join(" | ")).toMatch(/at least one period/);
+    });
+
+    it("rejects a one-sided constraint — that is an alias, not a bottleneck", () => {
+      const scenario = fixtureScenario();
+      const any = scenario.drivers[0].id;
+      scenario.drivers = [
+        ...scenario.drivers,
+        { ...base, id: "m1", kind: "min", of: [any] } as never,
+      ];
+      expect(validateScenario(scenario).join(" | ")).toMatch(/fewer than two inputs/);
+    });
+
+    it("refuses an intervention aimed at a stock — target its flows instead", () => {
+      const scenario = fixtureScenario();
+      const flow = scenario.drivers[0].id;
+      scenario.drivers = [
+        ...scenario.drivers,
+        { ...base, id: "s4", kind: "stock", initial: 5, inflow: flow, outflow: flow } as never,
+      ];
+      scenario.interventions[0].effects.whenRootCause = [{ driver: "s4", deltaPct: 0.1 }];
+      expect(validateScenario(scenario).join(" | ")).toMatch(/derived driver "s4" and would do nothing/);
+    });
+  });
+
+
+  /**
+   * The bug this caught: a stat tile authored as `12 * CRORE` with unit
+   * `inr_crore` renders as "₹120000000.00 cr", because `formatValue` appends the
+   * unit to the number as-is. Nothing else would have found it — panel copy has
+   * no test, and the twelve war rooms all happen to get it right.
+   */
+  describe("panel denominations", () => {
+    const withPanel = (panel: unknown) =>
+      validateScenario(
+        fixtureScenario({ dashboard: [...fixtureScenario().dashboard, panel as never] }),
+      ).join(" | ");
+
+    it("catches a stat tile authored in rupees but labelled crore", () => {
+      expect(
+        withPanel({
+          id: "p-bad",
+          kind: "stat",
+          title: "Position",
+          tiles: [{ label: "Cash", value: 120_000_000, unit: "inr_crore" }],
+        }),
+      ).toMatch(/looks like raw rupees/);
+    });
+
+    it("catches it in a segment row and in a series", () => {
+      expect(
+        withPanel({
+          id: "p-bad2",
+          kind: "segments",
+          title: "Split",
+          dimension: "Line",
+          rows: [{ label: "Salaries", value: 66_000_000, unit: "inr_lakh" }],
+        }),
+      ).toMatch(/looks like raw rupees/);
+      expect(
+        withPanel({
+          id: "p-bad3",
+          kind: "timeseries",
+          title: "Cash",
+          series: [
+            { label: "Cash", unit: "inr_crore", points: [{ period: "Q-0", value: 120_000_000 }] },
+          ],
+        }),
+      ).toMatch(/looks like raw rupees/);
+    });
+
+    it("accepts a genuine crore figure, and rupees under the auto-scaling unit", () => {
+      expect(
+        withPanel({
+          id: "p-ok",
+          kind: "stat",
+          title: "Position",
+          tiles: [
+            { label: "Cash", value: 12, unit: "inr_crore" },
+            { label: "Cash again", value: 120_000_000, unit: "inr" },
+          ],
+        }),
+      ).toBe("");
+    });
+  });
+
 });

@@ -513,6 +513,17 @@ model SimRun {
   /// JSON SimAllocationLine[] — the committed capacity split.
   allocation     String?
 
+  /// Format-specific run state, as JSON. Null for the war-room format, which
+  /// keeps using the four typed columns above.
+  ///
+  /// A second format does not have a hypothesis, a diagnosis or a single
+  /// allocation — the turnaround format has a schedule of them, one per period,
+  /// and a cursor saying which period is open. Widening those four columns to
+  /// cover both would give every war-room row three nullable fields it never
+  /// uses and no type safety in either direction, so the format that needs a
+  /// different shape carries its own and the original columns stay honest.
+  stateJson      String?
+
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   committedAt    DateTime?
@@ -552,9 +563,28 @@ model SimResult {
   overall       Int
   band          String   // see simBands in lib/config/simulation.ts
 
+  /// Which format produced this result, so the report knows how to read the
+  /// scores below. Defaults to the only format that existed when the column was
+  /// added, which is exactly what every historical row was.
+  formatSlug    String   @default("war-room")
+
+  /// JSON Record<string, number> — the format's rubric dimensions, keyed by its
+  /// own rubric keys.
+  ///
+  /// The five typed columns below CANNOT hold a second format's scores: they are
+  /// named after the war room's dimensions. Rather than rename them to something
+  /// generic and lose the readability that lets the report iterate the rubric and
+  /// index by key, a format with different dimensions writes here and leaves them
+  /// alone. `overall` stays format-agnostic and is what the leaderboard and the
+  /// percentile rank read, so nothing downstream needs to know which format ran.
+  scoresJson    String   @default("{}")
+
   /// Column names mirror the simRubric keys exactly, so the report can iterate
   /// the rubric and index by key. Unlike Evaluation these are non-null: every
   /// run passes through every phase, so no dimension is ever "not applicable".
+  ///
+  /// Written by the war-room format only. A turnaround result stores zero here
+  /// and its real scores in `scoresJson` — see `formatSlug`.
   hypothesis    Int
   investigation Int
   diagnosis     Int

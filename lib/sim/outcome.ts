@@ -132,7 +132,10 @@ export function pathsForFunding(
       }
     }
 
-    const values = resolveDrivers(scenario.drivers, multipliers);
+    // `paths` holds periods 0 … q-1 by now, which is exactly the history a
+    // `stock` or a `lagged` driver reads. Building it forward in place is what
+    // keeps this a single pass rather than a fixed-point iteration.
+    const values = resolveDrivers(scenario.drivers, multipliers, { paths, period: q });
     for (const [id, value] of Object.entries(values)) {
       const path = (paths[id] ??= []);
       path[q] = value;
@@ -140,6 +143,113 @@ export function pathsForFunding(
   }
 
   return paths;
+}
+
+// ─── Multi-period: the turnaround format ───────────────────────────────────
+
+/**
+ * Capacity committed period by period. Index is the period it was decided in.
+ *
+ * The war room's `SimAllocationLine[]` is the degenerate case — one decision,
+ * taken before anything is seen.
+ */
+export type SimSchedule = SimAllocationLine[][];
+
+/** The first period an intervention received any capacity, or null. */
+function firstFundedPeriod(schedule: SimSchedule, id: InterventionId): number | null {
+  for (let p = 0; p < schedule.length; p++) {
+    const got = (schedule[p] ?? []).filter((l) => l.interventionId === id);
+    if (got.some((l) => l.sprints > 0 || l.rupees > 0)) return p;
+  }
+  return null;
+}
+
+/**
+ * Quarterly values when capacity arrives over time rather than all at once.
+ *
+ * Three rules, each of which is the point of the format:
+ *
+ *   - **Only capacity committed in an EARLIER period counts.** Deciding in
+ *     period 2 cannot move period 2's numbers; you see the quarter you already
+ *     bought. This is what stops the format from being four independent guesses.
+ *   - **Funding accumulates.** Two sprints now and two later fund the same
+ *     intervention as four now — but they ramp from later, so the same capacity
+ *     buys less. Committing early is worth something real.
+ *   - **The ramp is measured from the first period the thing was funded**, not
+ *     from the start of the run, so a fix begun in period 3 has not magically
+ *     been ramping since period 0.
+ *
+ * Order-independence within a period and compounding drift both survive, which
+ * is what keeps this comparable with `pathsForFunding`.
+ */
+export function pathsForSchedule(scenario: SimScenario, schedule: SimSchedule): SimPaths {
+  const paths: SimPaths = {};
+
+  for (let q = 0; q <= scenario.horizonQuarters; q++) {
+    const multipliers: Record<DriverId, number> = {};
+    const scale = (driver: DriverId, factor: number) => {
+      multipliers[driver] = (multipliers[driver] ?? 1) * factor;
+    };
+
+    for (const effect of scenario.drift) {
+      scale(effect.driver, Math.pow(1 + effect.deltaPct, q));
+    }
+
+    // Everything decided strictly before this period.
+    const committed = schedule.slice(0, q).flat();
+    const { funding } = fundingFor(scenario, committed);
+
+    for (const iv of scenario.interventions) {
+      const ratio = funding[iv.id] ?? 0;
+      if (ratio <= 0) continue;
+      const started = firstFundedPeriod(schedule, iv.id);
+      if (started === null) continue;
+
+      const onTarget = scenario.trueCauseIds.includes(iv.addresses);
+      const effects = onTarget ? iv.effects.whenRootCause : iv.effects.otherwise;
+      for (const effect of effects) {
+        scale(effect.driver, 1 + effect.deltaPct * ratio * rampFraction(effect, q - started));
+      }
+    }
+
+    const values = resolveDrivers(scenario.drivers, multipliers, { paths, period: q });
+    for (const [id, value] of Object.entries(values)) {
+      const path = (paths[id] ??= []);
+      path[q] = value;
+    }
+  }
+
+  return paths;
+}
+
+/**
+ * The authored best sequence, or the single best allocation taken in period 0.
+ *
+ * The fallback matters: it means a turnaround scenario that has not authored a
+ * schedule still gets a coherent ceiling rather than an empty one, and the
+ * ceiling is "you should have committed everything immediately" — which is a
+ * defensible answer, just rarely the optimal one.
+ */
+export function bestScheduleFor(scenario: SimScenario): SimSchedule {
+  if (scenario.bestSchedule?.length) return scenario.bestSchedule;
+  return [scenario.bestAllocation];
+}
+
+/** `runOutcome`'s multi-period sibling. Same result shape, so the debrief is shared. */
+export function runSchedule(
+  scenario: SimScenario,
+  schedule: SimSchedule,
+): SimOutcomeResult {
+  const flat = schedule.flat();
+  const mine = fundingFor(scenario, flat);
+
+  return {
+    paths: pathsForSchedule(scenario, schedule),
+    doNothing: pathsForSchedule(scenario, []),
+    best: pathsForSchedule(scenario, bestScheduleFor(scenario)),
+    funding: mine.funding,
+    stalled: mine.stalled,
+  };
 }
 
 /** Project a run, its do-nothing counterfactual, and the achievable ceiling. */

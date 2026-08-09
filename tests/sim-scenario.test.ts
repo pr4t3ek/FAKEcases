@@ -40,11 +40,27 @@ describe("the scenario registry", () => {
 });
 
 describe.each(scenarios.map((s) => [s.slug, s] as const))("scenario: %s", (_slug, scenario) => {
+  /**
+   * Most of what follows checks the WAR ROOM's exercise — a priced drilldown
+   * board, a par investigation, a single best allocation that leaves no spare
+   * capacity. A turnaround has none of those: it buys no data and allocates once
+   * per period against a budget that refreshes, so `bestAllocation` is not the
+   * thing it is graded against and `checkBalance`'s single-shot sweep cannot
+   * describe its ceiling.
+   *
+   * Skipped rather than loosened. Weakening a shared assertion until it passes
+   * for both formats would quietly stop it protecting the twelve scenarios it
+   * was written for. `tests/sim-turnaround.test.ts` carries the equivalent
+   * guarantees for the other format.
+   */
+  const warRoom = (scenario.format ?? "war-room") === "war-room";
+  const forWarRoom = warRoom ? it : it.skip;
+
   it("passes every authoring invariant", () => {
     expect(validateScenario(scenario)).toEqual([]);
   });
 
-  it("prices the investigation so the budget cannot buy everything", () => {
+  forWarRoom("prices the investigation so the budget cannot buy everything", () => {
     const total = scenario.drilldowns.reduce((s, d) => s + d.cost, 0);
     // Scarce enough that choosing bites — but an Easy scenario deliberately
     // hands over about half the board rather than a third, so the bar moves
@@ -53,7 +69,7 @@ describe.each(scenarios.map((s) => [s.slug, s] as const))("scenario: %s", (_slug
     expect(total).toBeGreaterThan(scenario.budget.analystDays * factor);
   });
 
-  it("has a par investigation that is affordable and actually sufficient", () => {
+  forWarRoom("has a par investigation that is affordable and actually sufficient", () => {
     expect(parCost(scenario)).toBeLessThanOrEqual(scenario.budget.analystDays);
 
     const reaches = scenario.parInvestigation.some((id) =>
@@ -62,7 +78,7 @@ describe.each(scenarios.map((s) => [s.slug, s] as const))("scenario: %s", (_slug
     expect(reaches).toBe(true);
   });
 
-  it("has a par investigation whose dependencies are satisfiable in order", () => {
+  forWarRoom("has a par investigation whose dependencies are satisfiable in order", () => {
     const owned: string[] = [];
     for (const id of scenario.parInvestigation) {
       const d = drilldownById(scenario, id);
@@ -78,7 +94,7 @@ describe.each(scenarios.map((s) => [s.slug, s] as const))("scenario: %s", (_slug
     expect(allocationFits(scenario, scenario.bestAllocation)).toBe(true);
   });
 
-  it("scores a perfect run at the top", () => {
+  forWarRoom("scores a perfect run at the top", () => {
     const outcome = runOutcome(scenario, scenario.bestAllocation);
     const result = scoreSimulation({
       scenario,
@@ -127,7 +143,7 @@ describe.each(scenarios.map((s) => [s.slug, s] as const))("scenario: %s", (_slug
     }
   });
 
-  it("leaves no spare capacity after the best allocation", () => {
+  forWarRoom("leaves no spare capacity after the best allocation", () => {
     // Spare capacity is what lets a candidate bolt a margin-destroying extra
     // onto the correct answer and score above the ceiling.
     const used = scenario.bestAllocation.reduce(
@@ -150,7 +166,7 @@ describe.each(scenarios.map((s) => [s.slug, s] as const))("scenario: %s", (_slug
    * and this one proves `checkBalance` — the thing standing between an admin's
    * driver edit and a scorer that lies — agrees with them.
    */
-  it("reports no balance errors through checkBalance", () => {
+  forWarRoom("reports no balance errors through checkBalance", () => {
     expect(checkBalance(scenario)).toEqual([]);
   });
 });

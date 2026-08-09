@@ -12,21 +12,50 @@
  */
 
 import { assertNever } from "@/lib/utils";
-import type { DriverId, SimDriver } from "./types";
+import type { DriverId, SimDriver, SimPaths } from "./types";
 
-/** The drivers this one is computed from. Empty for an `input`. */
+/**
+ * What a driver needs from the periods already computed.
+ *
+ * Absent means "period 0" — the baseline, where no history exists yet. A `stock`
+ * then takes its `initial` and a `lagged` its authored pre-run value, which is
+ * exactly what those fields are for.
+ */
+export interface DriverHistory {
+  /** Resolved values per driver for periods `0 … period-1`. */
+  paths: SimPaths;
+  /** The period being computed. */
+  period: number;
+}
+
+/**
+ * The drivers this one is computed from, WITHIN the current period.
+ *
+ * `lagged` deliberately reports nothing. It reads a previous period, so it
+ * imposes no ordering constraint now — and that is precisely what lets a
+ * scenario close a feedback loop (support cuts → churn → collections → support
+ * budget) while `driverOrder` still refuses a genuine instantaneous cycle. A
+ * loop through time is a model; a loop within a period is a contradiction.
+ *
+ * `stock` reports its inflow and outflow but NOT itself: the `prior + …` term
+ * comes out of history, so the self-reference is across periods too.
+ */
 export function dependenciesOf(driver: SimDriver): DriverId[] {
   switch (driver.kind) {
     case "input":
     case "constant":
+    case "lagged":
       return [];
     case "product":
     case "sum":
+    case "min":
       return driver.of;
     case "difference":
       return [driver.minuend, driver.subtrahend];
     case "quotient":
       return [driver.numerator, driver.denominator];
+    case "stock":
+      return [driver.inflow, driver.outflow];
   }
 }
 
@@ -82,6 +111,7 @@ export function driverOrder(drivers: SimDriver[]): DriverId[] {
 export function resolveDrivers(
   drivers: SimDriver[],
   multipliers: Record<DriverId, number> = {},
+  history?: DriverHistory,
 ): Record<DriverId, number> {
   const byId = indexById(drivers);
   const values: Record<DriverId, number> = {};
@@ -90,6 +120,18 @@ export function resolveDrivers(
     const v = values[id];
     if (v === undefined) throw new Error(`Driver "${id}" read before it was computed`);
     return v;
+  };
+
+  /**
+   * A driver's value `back` periods ago, or undefined if the run has not run
+   * that long. Undefined is the signal to fall back to an authored initial
+   * rather than an error: period 0 legitimately has no yesterday.
+   */
+  const past = (id: DriverId, back: number): number | undefined => {
+    if (!history) return undefined;
+    const index = history.period - back;
+    if (index < 0) return undefined;
+    return history.paths[id]?.[index];
   };
 
   for (const id of driverOrder(drivers)) {
@@ -121,6 +163,27 @@ export function resolveDrivers(
         // Not scaled by `multipliers`, by definition — see the type.
         values[id] = driver.value;
         break;
+      case "min":
+        values[id] = Math.min(...driver.of.map(valueOf));
+        break;
+      case "stock": {
+        const prior = past(id, 1);
+        // No yesterday means this is the opening balance.
+        const base =
+          prior === undefined
+            ? driver.initial
+            : prior + valueOf(driver.inflow) - valueOf(driver.outflow);
+        values[id] = driver.floor === undefined ? base : Math.max(driver.floor, base);
+        break;
+      }
+      case "lagged": {
+        const back = Math.max(1, driver.periods ?? 1);
+        const prior = past(driver.of, back);
+        // Before the run began, the authored pre-run value. See the type: `of`
+        // may not be computed yet, so reading it here is not an option.
+        values[id] = prior === undefined ? driver.initial : prior;
+        break;
+      }
       default:
         assertNever(driver, "driver kind");
     }
