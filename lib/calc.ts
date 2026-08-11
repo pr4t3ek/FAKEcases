@@ -4,6 +4,37 @@
  * M (1e6), b / bn (1e9). Returns null on invalid input.
  */
 
+import { formatIndianNumber, toIndianWords } from "@/lib/utils";
+
+/** The operator keys the calculator offers, and the syntax this file parses. */
+export const CALCULATOR_KEYS = ["+", "-", "*", "/", "(", ")"] as const;
+
+/**
+ * How a result should read.
+ *
+ * Two forms were always printed — "48 · 48" — because the grouped number and the
+ * lakh/crore shorthand only diverge above a thousand. Below that they are the
+ * same string twice, which reads as a bug because it looks like one. The
+ * shorthand earns its place at "1,40,00,000 · 1.40 cr" and nowhere else, so it
+ * appears only when it says something the exact figure did not.
+ *
+ * Two decimals, because a calculator that answers "6" to `44 / 8` is wrong
+ * rather than tidy — which is what the shared integer formatter was doing here.
+ */
+export function resultForms(n: number): { exact: string; short: string | null } {
+  const exact = formatIndianNumber(n, 2);
+
+  // Below a thousand `toIndianWords` has no K/L/cr to reach for and simply
+  // rounds to an integer, which is never a second reading of the number — only
+  // a worse one. Comparing the two strings is not enough to catch that: `44 / 8`
+  // produced "5.5 · 6", where the shorthand both duplicated the answer and got
+  // it wrong. The threshold is where the shorthand starts meaning something.
+  if (Math.abs(n) < 1000) return { exact, short: null };
+
+  const short = toIndianWords(n);
+  return { exact, short: short === exact ? null : short };
+}
+
 function preprocess(input: string): string {
   return input
     .replace(/,/g, "")
