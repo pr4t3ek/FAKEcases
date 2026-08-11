@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { readNdjson } from "@/lib/llm/stream";
 import { cn } from "@/lib/utils";
+import { AssistantText } from "@/components/practice/assistant-text";
 
 interface CoachMessage {
   role: "user" | "assistant";
@@ -122,7 +123,12 @@ export function SimCoachPanel({ runId, available }: { runId: string; available: 
                   : "mr-8 bg-muted/50 text-muted-foreground",
               )}
             >
-              {m.content || (m.streaming ? "…" : "")}
+              {m.role === "assistant" ? (
+                <AssistantText>{m.content}</AssistantText>
+              ) : (
+                m.content
+              )}
+              {!m.content && m.streaming && "…"}
               {m.role === "assistant" && m.provider?.startsWith("mock") && !m.streaming && (
                 <Badge variant="muted" className="ml-2">
                   offline coach

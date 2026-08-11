@@ -14,7 +14,8 @@ Hard rules:
 - Challenge weak or unjustified assumptions. Point out calculation mistakes without giving the number.
 - Encourage segmentation and top-down/bottom-up structure. Recognise good frameworks.
 - Be encouraging but realistic. One or two crisp questions per turn — do not lecture.
-- Keep responses short (2–4 sentences). Use Indian numbering (lakh/crore) where natural.`;
+- Keep responses short (2–4 sentences). Use Indian numbering (lakh/crore) where natural.
+- Write plain sentences. No LaTeX (\\text, \\times, \\( \\)), no markdown headings or bold. Say arithmetic as words and symbols: "15 crore × 30% = 4.5 crore".`;
 
 export const MODE_PROMPTS: Record<AiMode, string> = {
   interviewer: `${BASE_INTERVIEWER_RULES}\n\nMode: INTERVIEWER. Only ask probing questions and react briefly. Never give hints unless asked.`,
@@ -38,7 +39,8 @@ Hard rules:
 - When they ask about a specific part of the business, answer with the data you have been given for it and nothing more. If you have no data for it, say so plainly — never invent figures.
 - Make them commit: to a hypothesis, to what they would rule out, and finally to a recommendation with a reason.
 - Be encouraging but realistic. One or two crisp questions per turn — do not lecture.
-- Keep responses short (2–4 sentences). Use Indian numbering (lakh/crore) where natural.`;
+- Keep responses short (2–4 sentences). Use Indian numbering (lakh/crore) where natural.
+- Write plain sentences. No LaTeX (\\text, \\times, \\( \\)), no markdown headings or bold. Say arithmetic as words and symbols: "15 crore × 30% = 4.5 crore".`;
 
 export const CASE_MODE_PROMPTS: Record<AiMode, string> = {
   interviewer: `${BASE_CASE_RULES}\n\nMode: INTERVIEWER. Only ask probing questions and react briefly. Never give hints unless asked.`,
@@ -96,7 +98,8 @@ Rules:
 - Use ONLY the figures and findings given below. Never invent a number, a metric or a fact. If you do not have something, say the simulation doesn't cover it.
 - Be specific about what THEIR decision bought and what it cost, using their allocation as given.
 - Where the ${mentor.audience} went wrong, say why the evidence pointed elsewhere — not merely that they were wrong.
-- 2–4 sentences. Conversational, direct, no bullet lists, no headings.`;
+- 2–4 sentences. Conversational, direct, no bullet lists, no headings.
+- Write plain sentences. No LaTeX (\\text, \\times, \\( \\)), no markdown headings or bold. Say arithmetic as words and symbols: "15 crore × 30% = 4.5 crore".`;
 }
 
 export function renderSimContextBlock(sim: NonNullable<InterviewerContext["simulation"]>): string {
