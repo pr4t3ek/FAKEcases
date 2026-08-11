@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { DictationButton } from "./dictation-button";
+import { AssistantText } from "./assistant-text";
 import type { UiMessage } from "./types";
 
 /** Any mock-produced turn is badged so a degraded answer is never mistaken for the real one. */
@@ -219,7 +220,7 @@ export function ChatPanel({
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} className="scrollbar-thin flex-1 space-y-3 overflow-y-auto p-4">
+      <div ref={scrollRef} className="scrollbar-thin scroll-gutter flex-1 space-y-3 overflow-y-auto p-4">
         {messages.length === 0 && (
           <p className="mt-8 text-center text-sm text-muted-foreground">
             The interviewer is ready. Share how you&apos;d approach this.
@@ -237,7 +238,10 @@ export function ChatPanel({
                     : "bg-muted",
               )}
             >
-              {m.content}
+              {/* Only the assistant's text is normalised. A student who types
+                  `**` meant `**`, and rewriting what someone said back at them
+                  is a different thing entirely. */}
+              {m.role === "assistant" ? <AssistantText>{m.content}</AssistantText> : m.content}
               {m.streaming && <span className="ml-0.5 animate-pulse">▍</span>}
 
               {m.role === "assistant" && !m.streaming && isMockProvider(m.provider) && (

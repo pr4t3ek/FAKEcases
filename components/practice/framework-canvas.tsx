@@ -8,6 +8,7 @@ import {
   ChevronRight,
   GripVertical,
   Maximize2,
+  Minimize2,
   Minus,
   Plus,
   Scan,
@@ -69,6 +70,19 @@ const MAX_ZOOM = 2.5;
  * trackpad's stream of small deltas stays smooth rather than snapping.
  */
 const WHEEL_ZOOM_SENSITIVITY = 500;
+/**
+ * How little of the tree may be on screen before the canvas offers a way back.
+ *
+ * Panning is deliberately *not* bounded. Being able to scroll past the tree is
+ * how a canvas should feel, and fencing the view in makes a big diagram feel
+ * stuck to the walls. What was missing is the other half: scroll far enough and
+ * you got an empty rectangle with no indication of which way the tree had gone,
+ * and on a wheel with no horizontal axis no obvious way back.
+ *
+ * So the fix is recovery, not restriction — below this many visible pixels on
+ * either axis, a "Back to the tree" control appears.
+ */
+const LOST_BELOW_PX = 24;
 
 /**
  * Wheel deltas in pixels, whatever units the browser chose to report.
@@ -171,8 +185,13 @@ export interface FrameworkCanvasProps {
 
   /** Fill the parent instead of taking a fixed height — used by fullscreen. */
   fill?: boolean;
-  /** Omitted when there is nowhere to expand to (i.e. already fullscreen). */
+  /**
+   * Toggle fullscreen. Omitted only where there is no fullscreen to toggle at
+   * all — a narrow viewport, or a disabled canvas.
+   */
   onFullscreen?: () => void;
+  /** Which way `onFullscreen` currently goes, and which icon says so. */
+  isFullscreen?: boolean;
 }
 
 export function FrameworkCanvas(props: FrameworkCanvasProps) {
@@ -184,6 +203,7 @@ export function FrameworkCanvas(props: FrameworkCanvasProps) {
     hasDataPack,
     fill,
     onFullscreen,
+    isFullscreen,
     answerMode = "qualitative",
     numeric,
   } = props;
@@ -194,6 +214,8 @@ export function FrameworkCanvas(props: FrameworkCanvasProps) {
   const [view, setView] = useState({ x: STAGE_PAD, y: STAGE_PAD, k: 1 });
   const panFrom = useRef<{ x: number; y: number; vx: number; vy: number } | null>(null);
   const didFit = useRef(false);
+  /** True when the tree has been scrolled off screen — see the detector below. */
+  const [lost, setLost] = useState(false);
 
   const byParent = new Map<string | null, UiFrameworkNode[]>();
   for (const n of nodes) {
@@ -305,6 +327,32 @@ export function FrameworkCanvas(props: FrameworkCanvasProps) {
     didFit.current = true;
     fit();
   }, [fit, layout.width]);
+
+  /**
+   * Has the tree been scrolled out of sight?
+   *
+   * The stage is drawn at `translate(x, y) scale(k)` from the origin, so the
+   * content occupies `[x, x + width·k]` in viewport coordinates; intersecting
+   * that with `[0, viewport]` gives how much of it is actually on screen.
+   *
+   * Deliberately a *detector* and not a limiter. Panning stays unbounded —
+   * scrolling past the edge of a diagram is normal and fencing the view in makes
+   * a large tree feel walled — but once essentially none of it is left, the
+   * canvas says so and offers the way back.
+   */
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el || layout.width <= 0 || layout.height <= 0) {
+      setLost(false);
+      return;
+    }
+    const rect = el.getBoundingClientRect();
+    const onScreenX =
+      Math.min(view.x + layout.width * view.k, rect.width) - Math.max(view.x, 0);
+    const onScreenY =
+      Math.min(view.y + layout.height * view.k, rect.height) - Math.max(view.y, 0);
+    setLost(Math.min(onScreenX, onScreenY) < LOST_BELOW_PX);
+  }, [view, layout.width, layout.height]);
 
   /**
    * Scale about a fixed point in viewport coordinates, so whatever sits under
@@ -534,6 +582,19 @@ export function FrameworkCanvas(props: FrameworkCanvasProps) {
           })}
         </div>
 
+        {/* Scrolled clean off the tree. Rather than fencing the pan in, the way
+            back is offered at the moment it is needed — and nowhere near the
+            moment it isn't. */}
+        {lost && (
+          <button
+            data-canvas-overlay
+            onClick={fit}
+            className="absolute left-1/2 top-2 z-10 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full border bg-card/95 px-3 py-1.5 text-xs font-medium shadow-md backdrop-blur transition-colors hover:bg-muted"
+          >
+            <Scan className="h-3.5 w-3.5 text-primary" /> Back to the tree
+          </button>
+        )}
+
         {/* Viewport controls. Absolute, so they don't ride the transform, and
             flagged so the pan handler leaves their pointer events alone. */}
         <div
@@ -568,14 +629,26 @@ export function FrameworkCanvas(props: FrameworkCanvasProps) {
           >
             <Scan className="h-3.5 w-3.5" />
           </button>
+          {/* One control, both directions. It used to be omitted once fullscreen
+              was open, so the way out was a button in the top bar, nowhere near
+              the one that got you in — you had to go looking for an exit in a
+              different place from the entrance. */}
           {onFullscreen && (
             <button
               onClick={onFullscreen}
               className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-              aria-label="Open the tree fullscreen"
-              title="Fullscreen — the interviewer moves to a floating window"
+              aria-label={isFullscreen ? "Exit fullscreen" : "Open the tree fullscreen"}
+              title={
+                isFullscreen
+                  ? "Exit fullscreen (Esc)"
+                  : "Fullscreen — the interviewer moves to a floating window"
+              }
             >
-              <Maximize2 className="h-3.5 w-3.5" />
+              {isFullscreen ? (
+                <Minimize2 className="h-3.5 w-3.5" />
+              ) : (
+                <Maximize2 className="h-3.5 w-3.5" />
+              )}
             </button>
           )}
         </div>

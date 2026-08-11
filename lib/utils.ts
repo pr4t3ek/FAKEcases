@@ -5,21 +5,32 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-/** Format a large integer using the Indian numbering system (lakh/crore). */
-export function formatIndianNumber(n: number): string {
+/**
+ * Format a number using the Indian numbering system (lakh/crore).
+ *
+ * Integers by default, which is what every display caller wants — a population
+ * of "1,42,86,000.4" helps nobody. `maxDecimals` is for the one caller where
+ * rounding is a lie rather than a tidy-up: the calculator, where `44 / 8` has to
+ * read as 5.5 and not as 6. Trailing zeros are dropped, so an exact result still
+ * prints exactly.
+ */
+export function formatIndianNumber(n: number, maxDecimals = 0): string {
   if (!isFinite(n)) return "—";
-  const rounded = Math.round(n);
-  const isNegative = rounded < 0;
-  const s = Math.abs(rounded).toString();
+  const fixed = Math.abs(n).toFixed(maxDecimals);
+  const [whole, fraction = ""] = fixed.split(".");
+  const isNegative = n < 0 && Number(fixed) !== 0;
+
   let out: string;
-  if (s.length <= 3) {
-    out = s;
+  if (whole.length <= 3) {
+    out = whole;
   } else {
-    const last3 = s.slice(-3);
-    const rest = s.slice(0, -3);
+    const last3 = whole.slice(-3);
+    const rest = whole.slice(0, -3);
     out = rest.replace(/\B(?=(\d{2})+(?!\d))/g, ",") + "," + last3;
   }
-  return (isNegative ? "-" : "") + out;
+
+  const trimmed = fraction.replace(/0+$/, "");
+  return (isNegative ? "-" : "") + out + (trimmed ? `.${trimmed}` : "");
 }
 
 /** Human "crore / lakh" label for very large numbers. */

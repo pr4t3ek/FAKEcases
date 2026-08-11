@@ -122,6 +122,7 @@ export function FrameworkBuilder({
   questionFramework = null,
   canvasFill = false,
   onFullscreen,
+  isFullscreen,
   demoNodes = EMPTY_DEMO,
 }: {
   attemptId: string;
@@ -141,8 +142,10 @@ export function FrameworkBuilder({
   questionFramework?: string | null;
   /** Fullscreen: the canvas fills its parent rather than taking a fixed height. */
   canvasFill?: boolean;
-  /** Omitted when already fullscreen, which hides the expand control. */
+  /** Toggle fullscreen. Omitted where there is no fullscreen to toggle at all. */
   onFullscreen?: () => void;
+  /** Which way `onFullscreen` currently goes. Forwarded to the canvas control. */
+  isFullscreen?: boolean;
   /**
    * Tutorial illustration branches. Merged into what the canvas draws and
    * nowhere else — deliberately kept out of `nodes`, which is debounce-saved
@@ -1305,6 +1308,7 @@ export function FrameworkBuilder({
           messageText={messageText}
           fill={canvasFill}
           onFullscreen={onFullscreen}
+          isFullscreen={isFullscreen}
           answerMode={answerMode}
           // The chain's arithmetic stays here; the canvas only draws it.
           numeric={

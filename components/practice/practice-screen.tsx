@@ -255,6 +255,12 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
             questionFramework={data.question.framework}
             onChainResult={handleChainResult}
             canvasFill
+            // Same control, the other way round. The header's Exit stays as
+            // well — it is the one a keyboard user tabs to first — but nobody
+            // should have to hunt for the way out somewhere other than where
+            // the way in was.
+            onFullscreen={() => setFullscreen(false)}
+            isFullscreen
             demoNodes={demoNodes}
           />
         </div>
@@ -328,7 +334,14 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
           >
             {tools}
           </Panel>
-          <PanelResizeHandle className="w-1.5 bg-border transition-colors hover:bg-primary/40" />
+          {/* A 10px grab area around a 6px line. The divider used to be 6px of
+              hit area sitting flush against a panel's scrollbar, so aiming at
+              one and catching the other was a coin toss — the scroll containers
+              now keep a gutter clear of it, and the target you are aiming at is
+              centred in something wider than itself. */}
+          <PanelResizeHandle className="group relative w-2.5 shrink-0">
+            <div className="pointer-events-none absolute inset-y-0 left-1/2 w-1.5 -translate-x-1/2 bg-border transition-colors group-hover:bg-primary/40 group-data-[resize-handle-state=drag]:bg-primary" />
+          </PanelResizeHandle>
           <Panel
             defaultSize={treeFirstPanelDefaults.center}
             minSize={28}
@@ -336,7 +349,14 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
           >
             {chat}
           </Panel>
-          <PanelResizeHandle className="w-1.5 bg-border transition-colors hover:bg-primary/40" />
+          {/* A 10px grab area around a 6px line. The divider used to be 6px of
+              hit area sitting flush against a panel's scrollbar, so aiming at
+              one and catching the other was a coin toss — the scroll containers
+              now keep a gutter clear of it, and the target you are aiming at is
+              centred in something wider than itself. */}
+          <PanelResizeHandle className="group relative w-2.5 shrink-0">
+            <div className="pointer-events-none absolute inset-y-0 left-1/2 w-1.5 -translate-x-1/2 bg-border transition-colors group-hover:bg-primary/40 group-data-[resize-handle-state=drag]:bg-primary" />
+          </PanelResizeHandle>
           {/* A tree needs the width more than a summary of itself does, so this
               starts collapsed — collapsed, not removed: the handle pulls it back
               open for anyone who wants the mirror. */}
