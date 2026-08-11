@@ -255,6 +255,12 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
             questionFramework={data.question.framework}
             onChainResult={handleChainResult}
             canvasFill
+            // Same control, the other way round. The header's Exit stays as
+            // well — it is the one a keyboard user tabs to first — but nobody
+            // should have to hunt for the way out somewhere other than where
+            // the way in was.
+            onFullscreen={() => setFullscreen(false)}
+            isFullscreen
             demoNodes={demoNodes}
           />
         </div>
