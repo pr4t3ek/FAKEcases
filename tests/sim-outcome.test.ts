@@ -26,37 +26,52 @@ describe("totalsByIntervention", () => {
 
 describe("fundingFor", () => {
   it("fully funds an intervention that got everything it asked for", () => {
-    const { funding, stalled } = fundingFor(fixtureScenario(), BEST_ALLOCATION);
-    expect(funding["iv-payout"]).toBe(1);
+    const { ratios, funding, stalled } = fundingFor(fixtureScenario(), BEST_ALLOCATION);
+    expect(ratios["iv-payout"]).toBe(1);
+    expect(funding["iv-payout"].shipped).toBe(true);
     expect(stalled).toEqual([]);
   });
 
   it("takes the weakest cost dimension, not the average", () => {
     // All the sprints, a quarter of the money: a quarter of the work gets done.
-    const { funding } = fundingFor(fixtureScenario(), [
+    const { ratios } = fundingFor(fixtureScenario(), [
       { interventionId: "iv-payout", sprints: 2, rupees: 100 },
     ]);
-    expect(funding["iv-payout"]).toBeCloseTo(0.25);
+    expect(ratios["iv-payout"]).toBeCloseTo(0.25);
   });
 
   it("stalls an intervention funded below its minimum, and still spends the money", () => {
-    const { funding, stalled } = fundingFor(fixtureScenario(), [
+    const { ratios, funding, stalled } = fundingFor(fixtureScenario(), [
       { interventionId: "iv-rebuild", sprints: 2, rupees: 200 },
     ]);
-    expect(funding["iv-rebuild"]).toBe(0);
+    expect(ratios["iv-rebuild"]).toBe(0);
     expect(stalled).toEqual(["iv-rebuild"]);
+    // The money is gone even though nothing shipped, and the record says so
+    // rather than leaving the debrief to infer it from a zero.
+    expect(funding["iv-rebuild"]).toMatchObject({ shipped: false, rupees: 200 });
   });
 
   it("leaves an unfunded intervention out entirely", () => {
-    const { funding } = fundingFor(fixtureScenario(), BEST_ALLOCATION);
+    const { ratios, funding } = fundingFor(fixtureScenario(), BEST_ALLOCATION);
+    expect(ratios["iv-discount"]).toBeUndefined();
     expect(funding["iv-discount"]).toBeUndefined();
   });
 
   it("never funds above 1, however much is thrown at it", () => {
-    const { funding } = fundingFor(fixtureScenario(), [
+    const { ratios } = fundingFor(fixtureScenario(), [
       { interventionId: "iv-payout", sprints: 3, rupees: 700 },
     ]);
-    expect(funding["iv-payout"]).toBe(1);
+    expect(ratios["iv-payout"]).toBe(1);
+  });
+
+  it("records how far past the ask the money went, uncapped", () => {
+    // The ratio saturates at 1 and forgets. `askMultiple` is what the v2 curve
+    // reads and what tells a debrief the second ₹350 bought nothing.
+    const { ratios, funding } = fundingFor(fixtureScenario(), [
+      { interventionId: "iv-payout", sprints: 2, rupees: 700 },
+    ]);
+    expect(ratios["iv-payout"]).toBe(1);
+    expect(funding["iv-payout"].askMultiple).toBeCloseTo(1.75);
   });
 });
 

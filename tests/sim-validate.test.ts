@@ -7,7 +7,7 @@
 import { describe, expect, it } from "vitest";
 import { validateScenario } from "@/lib/sim/validate";
 import type { SimPanel } from "@/lib/sim/types";
-import { CAUSE_TRUE, fixtureScenario } from "./sim-fixture";
+import { CAUSE_TRUE, fixtureScenario, v2FixtureScenario } from "./sim-fixture";
 
 const errorsFor = (over: Parameters<typeof fixtureScenario>[0]) =>
   validateScenario(fixtureScenario(over)).join(" | ");
@@ -541,4 +541,61 @@ describe("validateScenario", () => {
     });
   });
 
+  describe("response curves", () => {
+    it("passes a well-formed v2 scenario", () => {
+      expect(validateScenario(v2FixtureScenario())).toEqual([]);
+    });
+
+    it("refuses a curve on a scenario that is not on the v2 engine", () => {
+      // The failure this prevents is the quiet one: an author tunes a
+      // saturation curve, the scenario keeps projecting linearly, and the
+      // tuning reads as a decision that was made.
+      const scenario = fixtureScenario();
+      expect(
+        validateScenario({
+          ...scenario,
+          interventions: scenario.interventions.map((iv) => ({
+            ...iv,
+            saturation: { otherwise: { kind: "exponential", ceiling: 0.3, halfAt: 0.2 } },
+          })),
+        }).join(" | "),
+      ).toMatch(/need engine: "v2"/);
+    });
+
+    it("refuses a halfAt of zero, which would divide by it", () => {
+      const scenario = v2FixtureScenario();
+      expect(
+        validateScenario({
+          ...scenario,
+          interventions: scenario.interventions.map((iv) => ({
+            ...iv,
+            saturation: { whenRootCause: { kind: "hill", ceiling: 1, halfAt: 0 } },
+          })),
+        }).join(" | "),
+      ).toMatch(/halfAt must be above 0/);
+    });
+
+    it("refuses a ceiling of zero, which is a lever that cannot move", () => {
+      const scenario = v2FixtureScenario();
+      expect(
+        validateScenario({
+          ...scenario,
+          interventions: scenario.interventions.map((iv) => ({
+            ...iv,
+            saturation: { whenRootCause: { kind: "hill", ceiling: 0, halfAt: 0.5 } },
+          })),
+        }).join(" | "),
+      ).toMatch(/ceiling must be above 0/);
+    });
+
+    it("refuses a money cap below the intervention's own asking price", () => {
+      const scenario = v2FixtureScenario();
+      expect(
+        validateScenario({
+          ...scenario,
+          interventions: scenario.interventions.map((iv) => ({ ...iv, maxAskMultiple: 0.5 })),
+        }).join(" | "),
+      ).toMatch(/maxAskMultiple must be at least 1/);
+    });
+  });
 });

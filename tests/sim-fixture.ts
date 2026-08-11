@@ -170,3 +170,83 @@ export function fixtureScenario(overrides: Partial<SimScenario> = {}): SimScenar
 
 /** The allocation that fully funds the on-target intervention. */
 export const BEST_ALLOCATION = [{ interventionId: "iv-payout", sprints: 2, rupees: 400 }];
+
+/**
+ * The same scenario on the v2 engine.
+ *
+ * Kept as a separate builder rather than a flag on `fixtureScenario`, because
+ * the v1 fixture is the control in every reduction test in the suite and it
+ * must stay unreachable from the v2 path.
+ *
+ * The curves are the engine defaults, stated explicitly so a test reading this
+ * file can see what it is asserting against rather than having to go and look
+ * them up in config — and so a later retune of the defaults fails the tests
+ * that care about specific numbers instead of silently changing what they mean.
+ */
+export function v2FixtureScenario(overrides: Partial<SimScenario> = {}): SimScenario {
+  const base = fixtureScenario();
+  return {
+    ...base,
+    engine: "v2",
+    interventions: base.interventions.map((iv) => ({
+      ...iv,
+      saturation: {
+        whenRootCause: { kind: "hill", ceiling: 1.3, halfAt: 0.45 },
+        otherwise: { kind: "exponential", ceiling: 0.35, halfAt: 0.2 },
+      },
+    })),
+    ...overrides,
+  };
+}
+
+/**
+ * A v2 scenario where over-spending genuinely hurts.
+ *
+ * Worth understanding before using it, because it encodes the sharpest lesson
+ * of the v2 engine: **saturating the benefit is not enough.** A flat response
+ * curve makes extra money pointless, not harmful, so on a scenario with one
+ * lever and no cost side "spend it all" remains weakly optimal — never better,
+ * but never worse either, and a student who empties the budget still lands on
+ * the ceiling.
+ *
+ * An interior optimum needs the money to be *paid for*. Here the payout fix
+ * lifts orders on a saturating curve and raises cost per order on a
+ * `proportional` one, so the benefit flattens while the bill keeps climbing.
+ * Margin therefore peaks part-way up the budget and falls after it, and the
+ * correct play is to fund the fix and bank the rest.
+ *
+ * This is the shape every re-authored pilot scenario needs, which is why it is
+ * a fixture rather than an argument in a comment.
+ */
+export function v2CostedFixtureScenario(overrides: Partial<SimScenario> = {}): SimScenario {
+  const base = v2FixtureScenario();
+  return {
+    ...base,
+    northStar: "margin",
+    reported: ["orders", "revenue"],
+    // Spending the whole budget puts 18% on cost per order. Every lever is
+    // paid for, not just the ones an author remembered to charge for — which
+    // is the failure this scenario-level field exists to prevent.
+    spend: { driver: "cpo", atFullBudget: 0.18 },
+    ...overrides,
+  };
+}
+
+/**
+ * The v2 fixture with every curve linear — algebraically the v1 model.
+ *
+ * This is the control that proves the v2 code path is a superset rather than a
+ * rewrite: it must project identically to `fixtureScenario()`.
+ */
+export function v2LinearFixtureScenario(overrides: Partial<SimScenario> = {}): SimScenario {
+  const base = fixtureScenario();
+  return {
+    ...base,
+    engine: "v2",
+    interventions: base.interventions.map((iv) => ({
+      ...iv,
+      saturation: { whenRootCause: { kind: "linear" }, otherwise: { kind: "linear" } },
+    })),
+    ...overrides,
+  };
+}

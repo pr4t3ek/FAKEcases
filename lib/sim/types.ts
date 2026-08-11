@@ -329,6 +329,27 @@ export interface SimCause {
 
 // ─── Commit: candidate interventions ───────────────────────────────────────
 
+/**
+ * How an effect responds to the money behind it, in **ask multiples**
+ * (`u = rupees ÷ cost.rupees`). See `lib/sim/response.ts` for the shapes and
+ * why these three.
+ *
+ * `halfAt` is the ask multiple at which half the ceiling has arrived, so it is
+ * the "how fast" knob and `ceiling` is the "how high" one. A `ceiling` above 1
+ * is legal and meaningful: it says over-funding this lever really can do more
+ * than the authored `deltaPct`, which is true of a fix that is working and
+ * false of one that is not.
+ */
+export type SimResponse =
+  /** `clamp(u, 0, 1)` — the v1 curve, written down. */
+  | { kind: "linear" }
+  /** `slope · u`, uncapped. The cost side of a lever whose benefit flattens. */
+  | { kind: "proportional"; slope?: number }
+  /** `ceiling · (1 − 2^(−u/halfAt))`. Hard ceiling, satiates fast. */
+  | { kind: "exponential"; ceiling: number; halfAt: number }
+  /** `ceiling · u / (halfAt + u)`. Michaelis–Menten; always a little more. */
+  | { kind: "hill"; ceiling: number; halfAt: number };
+
 export interface SimEffect {
   /** Must name an `input` driver — enforced by `validateScenario`. */
   driver: DriverId;
@@ -336,6 +357,14 @@ export interface SimEffect {
   deltaPct: number;
   /** Quarters to reach full effect. Default 1, i.e. immediate. */
   rampQuarters?: number;
+  /**
+   * How this effect responds to money. Absent falls back to the intervention's
+   * arm default, then the engine default for the arm.
+   *
+   * Only read when the scenario is on `engine: "v2"`; `validateScenario`
+   * refuses it otherwise rather than letting it sit there doing nothing.
+   */
+  saturation?: SimResponse;
 }
 
 export interface SimIntervention {
@@ -363,11 +392,32 @@ export interface SimIntervention {
      */
     otherwise: SimEffect[];
   };
+  /**
+   * Default response curves for this intervention's effects, per arm.
+   *
+   * The arm defaults in `simConfig.responseDefaults` are usually right, and an
+   * intervention should only state its own when it genuinely behaves
+   * differently — a fix whose benefit is bounded by something physical, or a
+   * lever whose cost side has to keep rising while its benefit flattens.
+   */
+  saturation?: { whenRootCause?: SimResponse; otherwise?: SimResponse };
+  /**
+   * Money cap as a multiple of `cost.rupees`. Bounds the slider and the
+   * optimiser's search. Defaults to `simConfig.maxAskMultiple`.
+   */
+  maxAskMultiple?: number;
   /** What the debrief says about funding this. */
   debrief: string;
 }
 
 export interface SimCapacity {
+  /**
+   * Team capacity. Called **people-weeks** everywhere a student can see, and
+   * `sprints` everywhere the code can: the field name is persisted inside
+   * `SimRun.allocation` on every run ever played, so renaming the column would
+   * rewrite the meaning of stored data to buy a word. The label and the field
+   * differ on purpose.
+   */
   sprints: number;
   /** Rupees. Authored in absolute rupees; the UI renders crore. */
   rupees: number;
@@ -463,6 +513,22 @@ export interface SimScenario {
    * is, so the twelve of them say nothing and stay unchanged.
    */
   format?: string;
+  /**
+   * Which outcome engine projects this scenario. Absent means `"v1"`: effects
+   * are linear in the funding ratio, money is not itself a cost, and nothing
+   * saturates.
+   *
+   * Explicit rather than derived from the presence of a curve. `validateScenario`
+   * has to know which invariant set applies *before* an author has finished
+   * tuning, `checkBalance` has to choose between the sweep and the optimiser,
+   * and the commit panel has to choose between a slider and a number box. A
+   * derived marker would also let a half-converted scenario validate quietly as
+   * v1, which is the one failure mode worth spending a field to prevent.
+   *
+   * Same convention as `format` above: absent means the original, so every
+   * scenario written before there was a choice says nothing and is unchanged.
+   */
+  engine?: "v1" | "v2";
   title: string;
   company: string;
   /** One line for the catalogue card. */
@@ -486,6 +552,27 @@ export interface SimScenario {
   /** Leaves only — enforced by `validateScenario`. */
   trueCauseIds: CauseId[];
   interventions: SimIntervention[];
+
+  /**
+   * Where the money goes on the way out — how committed rupees reach the P&L.
+   *
+   * Without this, spending is free inside the model: no driver is debited by an
+   * allocation, so a saturating response curve makes over-funding *pointless*
+   * but never *harmful*, and emptying the budget stays weakly optimal. A
+   * student who understands nothing but "spend it all" still lands on the
+   * ceiling.
+   *
+   * `atFullBudget` is the fractional rise in `driver` when the entire money
+   * budget is committed, scaled linearly with what was actually spent —
+   * linearly because money is money, and the interesting curvature belongs on
+   * the benefit side. Point it at whichever input carries cost: opex, cost per
+   * order, marketing spend.
+   *
+   * v2 only, and optional even there — a scenario whose north star is a volume
+   * metric nobody pays for can honestly leave it out, and `checkBalance` will
+   * then be the thing that notices there is no decision left in the budget.
+   */
+  spend?: { driver: DriverId; atFullBudget: number };
 
   /** Untreated bleed, compounding per period, so doing nothing is not free. */
   drift: SimEffect[];
@@ -564,6 +651,26 @@ export interface SimRunState {
 /** driverId → value per quarter. Index 0 is today's baseline. */
 export type SimPaths = Record<DriverId, number[]>;
 
+export interface InterventionFunding {
+  /** Cleared its capacity gate. False means stalled: every response is 0. */
+  shipped: boolean;
+  sprints: number;
+  rupees: number;
+  /**
+   * `rupees ÷ cost.rupees`, uncapped. What a v2 response curve reads, and the
+   * number the debrief's "you paid twice what this could use" line is built on.
+   */
+  askMultiple: number;
+  /**
+   * The v1 number: `clamp(min(sprints/cost.sprints, rupees/cost.rupees), 0, 1)`.
+   *
+   * Produced by the original expression, unmoved, because a v1 scenario has to
+   * come out of the projection bit-identical and float arithmetic does not
+   * forgive an algebraically equal rewrite.
+   */
+  ratio: number;
+}
+
 export interface SimOutcomeResult {
   /** What this run's allocation produced. */
   paths: SimPaths;
@@ -573,6 +680,16 @@ export interface SimOutcomeResult {
   best: SimPaths;
   /** Funding ratio actually achieved per intervention, for the debrief. */
   funding: Record<InterventionId, number>;
+  /**
+   * The full funding picture — rupees committed, the ask multiple they came to,
+   * and whether the thing shipped.
+   *
+   * Optional because every `SimResult.outcomeJson` written before it existed
+   * has no such field, and those rows are pinned records that must go on
+   * reading correctly rather than be migrated. `funding` above stays the ratio
+   * map for exactly the same reason.
+   */
+  fundingDetail?: Record<InterventionId, InterventionFunding>;
   /** Funded but never shipped, below `minSprints`. The expensive mistake. */
   stalled: InterventionId[];
 }

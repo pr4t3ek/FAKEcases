@@ -17,7 +17,7 @@
 import { driverOrder } from "./drivers";
 import { isTurnaround } from "./formats/registry";
 import { drilldownById, parCost } from "./investigate";
-import type { CauseId, SimEffect, SimScenario } from "./types";
+import type { CauseId, SimEffect, SimResponse, SimScenario } from "./types";
 
 /**
  * What "Easy" is allowed to mean, in numbers.
@@ -44,6 +44,7 @@ function duplicates(ids: string[]): string[] {
 
 export function validateScenario(scenario: SimScenario): string[] {
   const errors: string[] = [];
+  const isV2 = scenario.engine === "v2";
 
   const driverIds = new Set(scenario.drivers.map((d) => d.id));
   const causeIds = new Set(scenario.causes.map((c) => c.id));
@@ -203,10 +204,59 @@ export function validateScenario(scenario: SimScenario): string[] {
       if (e.rampQuarters !== undefined && e.rampQuarters < 1) {
         errors.push(`${where}: rampQuarters must be at least 1`);
       }
+      if (e.saturation) {
+        checkResponse(e.saturation, `${where}: effect on "${e.driver}"`);
+      }
+    }
+  };
+
+  /**
+   * A response curve nothing will read is worse than no curve: it looks like a
+   * tuning decision, and the scenario behaves as though it were never made.
+   */
+  const checkResponse = (curve: SimResponse, where: string) => {
+    if (!isV2) {
+      errors.push(
+        `${where}: response curves need engine: "v2" — on v1 this does nothing at all`,
+      );
+      return;
+    }
+    if (curve.kind === "proportional") {
+      if (curve.slope !== undefined && !(curve.slope > 0)) {
+        errors.push(`${where}: proportional slope must be above 0`);
+      }
+      return;
+    }
+    if (curve.kind === "linear") return;
+
+    if (!(curve.ceiling > 0)) {
+      errors.push(`${where}: response ceiling must be above 0`);
+    }
+    if (!(curve.halfAt > 0)) {
+      // The formulas divide by `halfAt`, so zero is a NaN generator rather than
+      // an aggressive curve.
+      errors.push(`${where}: response halfAt must be above 0 — it is an ask multiple`);
     }
   };
 
   checkEffects(scenario.drift, "drift");
+
+  if (scenario.spend) {
+    if (!isV2) {
+      errors.push('spend needs engine: "v2" — on v1 money never reaches the driver graph');
+    } else if (!driverIds.has(scenario.spend.driver)) {
+      errors.push(`spend targets unknown driver "${scenario.spend.driver}"`);
+    } else if (!inputDrivers.has(scenario.spend.driver)) {
+      // Same trap as an effect on a derived driver: it would be overwritten by
+      // `resolveDrivers` a moment later and the budget would go on being free.
+      errors.push(
+        `spend targets derived driver "${scenario.spend.driver}" and would do nothing — point it at an input that carries cost`,
+      );
+    }
+    if (scenario.spend.atFullBudget <= 0) {
+      errors.push("spend.atFullBudget must be above 0, or the money is not being paid for");
+    }
+  }
 
   // ── Cause tree ──────────────────────────────────────────────────────────
   for (const cause of scenario.causes) {
@@ -272,6 +322,23 @@ export function validateScenario(scenario: SimScenario): string[] {
       errors.push(
         `Intervention "${iv.id}" has minSprints above its own cost, so it can never ship`,
       );
+    }
+    if (iv.saturation?.whenRootCause) {
+      checkResponse(iv.saturation.whenRootCause, `Intervention "${iv.id}" (whenRootCause)`);
+    }
+    if (iv.saturation?.otherwise) {
+      checkResponse(iv.saturation.otherwise, `Intervention "${iv.id}" (otherwise)`);
+    }
+    if (iv.maxAskMultiple !== undefined) {
+      if (!isV2) {
+        errors.push(
+          `Intervention "${iv.id}": maxAskMultiple needs engine: "v2" — on v1 funding caps at the ask anyway`,
+        );
+      } else if (!(iv.maxAskMultiple >= 1)) {
+        // Below 1 the slider could not reach the intervention's own asking
+        // price, which every other part of the format treats as "fully funded".
+        errors.push(`Intervention "${iv.id}": maxAskMultiple must be at least 1`);
+      }
     }
     checkEffects(iv.effects.whenRootCause, `Intervention "${iv.id}" (whenRootCause)`);
     checkEffects(iv.effects.otherwise, `Intervention "${iv.id}" (otherwise)`);

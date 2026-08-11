@@ -67,7 +67,11 @@ function review(slug: string, driversJson: string): string[] {
   const structural = validateScenario(merged);
   if (structural.length) return structural;
 
-  return checkBalance(merged);
+  // `fast` because an admin is watching a spinner. On a v2 scenario this is a
+  // search rather than a sweep, and the strict grid is a test-suite budget, not
+  // a save-path one — a coarser search that finishes is worth more here than a
+  // finer one that times out the request.
+  return checkBalance(merged, { mode: "fast" });
 }
 
 /** Validate without storing — the editor's "check" button. */
