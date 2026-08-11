@@ -170,3 +170,50 @@ export function fixtureScenario(overrides: Partial<SimScenario> = {}): SimScenar
 
 /** The allocation that fully funds the on-target intervention. */
 export const BEST_ALLOCATION = [{ interventionId: "iv-payout", sprints: 2, rupees: 400 }];
+
+/**
+ * The same scenario on the v2 engine.
+ *
+ * Kept as a separate builder rather than a flag on `fixtureScenario`, because
+ * the v1 fixture is the control in every reduction test in the suite and it
+ * must stay unreachable from the v2 path.
+ *
+ * The curves are the engine defaults, stated explicitly so a test reading this
+ * file can see what it is asserting against rather than having to go and look
+ * them up in config — and so a later retune of the defaults fails the tests
+ * that care about specific numbers instead of silently changing what they mean.
+ */
+export function v2FixtureScenario(overrides: Partial<SimScenario> = {}): SimScenario {
+  const base = fixtureScenario();
+  return {
+    ...base,
+    engine: "v2",
+    interventions: base.interventions.map((iv) => ({
+      ...iv,
+      saturation: {
+        whenRootCause: { kind: "hill", ceiling: 1.3, halfAt: 0.45 },
+        otherwise: { kind: "exponential", ceiling: 0.35, halfAt: 0.2 },
+      },
+    })),
+    ...overrides,
+  };
+}
+
+/**
+ * The v2 fixture with every curve linear — algebraically the v1 model.
+ *
+ * This is the control that proves the v2 code path is a superset rather than a
+ * rewrite: it must project identically to `fixtureScenario()`.
+ */
+export function v2LinearFixtureScenario(overrides: Partial<SimScenario> = {}): SimScenario {
+  const base = fixtureScenario();
+  return {
+    ...base,
+    engine: "v2",
+    interventions: base.interventions.map((iv) => ({
+      ...iv,
+      saturation: { whenRootCause: { kind: "linear" }, otherwise: { kind: "linear" } },
+    })),
+    ...overrides,
+  };
+}

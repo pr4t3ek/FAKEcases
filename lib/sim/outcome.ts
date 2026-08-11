@@ -17,9 +17,12 @@
  */
 
 import { clamp } from "@/lib/utils";
+import { simConfig } from "@/lib/config/simulation";
 import { resolveDrivers } from "./drivers";
+import { evalResponse, responseFor } from "./response";
 import type {
   DriverId,
+  InterventionFunding,
   InterventionId,
   SimAllocationLine,
   SimEffect,
@@ -44,8 +47,13 @@ export function totalsByIntervention(
 }
 
 export interface FundingResult {
-  /** Ratio in [0,1] per intervention. Absent means unfunded. */
-  funding: Record<InterventionId, number>;
+  funding: Record<InterventionId, InterventionFunding>;
+  /**
+   * Ratio in [0,1] per intervention, for every caller that only ever wanted
+   * that — `SimOutcomeResult.funding`, the report, and the stored `outcomeJson`
+   * of every run already played.
+   */
+  ratios: Record<InterventionId, number>;
   /** Funded but below `minSprints`: money spent, nothing shipped. */
   stalled: InterventionId[];
 }
@@ -68,28 +76,77 @@ export function fundingFor(
   allocation: SimAllocationLine[],
 ): FundingResult {
   const totals = totalsByIntervention(allocation);
-  const funding: Record<InterventionId, number> = {};
+  const funding: Record<InterventionId, InterventionFunding> = {};
+  const ratios: Record<InterventionId, number> = {};
   const stalled: InterventionId[] = [];
 
   for (const iv of scenario.interventions) {
     const got = totals.get(iv.id);
     if (!got || (got.sprints <= 0 && got.rupees <= 0)) continue;
 
+    const askMultiple = iv.cost.rupees > 0 ? got.rupees / iv.cost.rupees : 1;
+
     if (iv.minSprints !== undefined && got.sprints < iv.minSprints) {
-      funding[iv.id] = 0;
+      funding[iv.id] = {
+        shipped: false,
+        sprints: got.sprints,
+        rupees: got.rupees,
+        askMultiple,
+        ratio: 0,
+      };
+      ratios[iv.id] = 0;
       stalled.push(iv.id);
       continue;
     }
 
-    const ratios: number[] = [];
-    if (iv.cost.sprints > 0) ratios.push(got.sprints / iv.cost.sprints);
-    if (iv.cost.rupees > 0) ratios.push(got.rupees / iv.cost.rupees);
-    const ratio = ratios.length ? Math.min(...ratios) : 1;
+    const dims: number[] = [];
+    if (iv.cost.sprints > 0) dims.push(got.sprints / iv.cost.sprints);
+    if (iv.cost.rupees > 0) dims.push(got.rupees / iv.cost.rupees);
+    const ratio = dims.length ? Math.min(...dims) : 1;
 
-    funding[iv.id] = clamp(ratio, 0, 1);
+    const clamped = clamp(ratio, 0, 1);
+    funding[iv.id] = {
+      shipped: true,
+      sprints: got.sprints,
+      rupees: got.rupees,
+      askMultiple,
+      ratio: clamped,
+    };
+    ratios[iv.id] = clamped;
   }
 
-  return { funding, stalled };
+  return { funding, ratios, stalled };
+}
+
+/**
+ * What `pathsForFunding` accepts.
+ *
+ * The rich record is what `fundingFor` now returns; the bare ratio map is what
+ * `{}` (the do-nothing counterfactual) and every stored `outcomeJson` look
+ * like. Taking both means no caller had to change to gain the curve.
+ */
+export type FundingInput =
+  | Record<InterventionId, InterventionFunding>
+  | Record<InterventionId, number>;
+
+function normaliseFunding(input: FundingInput): Record<InterventionId, InterventionFunding> {
+  const out: Record<InterventionId, InterventionFunding> = {};
+  for (const [id, value] of Object.entries(input)) {
+    out[id] =
+      typeof value === "number"
+        ? {
+            shipped: value > 0,
+            sprints: 0,
+            rupees: 0,
+            // A bare ratio carries no rupee figure to divide, so the ask
+            // multiple is the ratio itself. Only a v2 projection reads this,
+            // and a v2 projection is always fed the rich record.
+            askMultiple: value,
+            ratio: value,
+          }
+        : value;
+  }
+  return out;
 }
 
 /** How much of an effect has landed by quarter `q`. Zero at the baseline. */
@@ -107,8 +164,10 @@ function rampFraction(effect: SimEffect, q: number): number {
  */
 export function pathsForFunding(
   scenario: SimScenario,
-  funding: Record<InterventionId, number>,
+  rawFunding: FundingInput,
 ): SimPaths {
+  const funding = normaliseFunding(rawFunding);
+  const v2 = scenario.engine === "v2";
   const paths: SimPaths = {};
 
   for (let q = 0; q <= scenario.horizonQuarters; q++) {
@@ -122,13 +181,24 @@ export function pathsForFunding(
     }
 
     for (const iv of scenario.interventions) {
-      const ratio = funding[iv.id] ?? 0;
-      if (ratio <= 0) continue;
+      const got = funding[iv.id];
+      if (!got || !got.shipped) continue;
+      // v1: a line with capacity but no money has ratio 0 and is skipped
+      // outright. Kept as its own branch rather than folded into the v2 path,
+      // because `evalResponse(curve, 0) === 0` reaches the same answer by a
+      // different route and this file owes v1 an identical one.
+      if (!v2 && got.ratio <= 0) continue;
 
       const onTarget = scenario.trueCauseIds.includes(iv.addresses);
       const effects = onTarget ? iv.effects.whenRootCause : iv.effects.otherwise;
       for (const effect of effects) {
-        scale(effect.driver, 1 + effect.deltaPct * ratio * rampFraction(effect, q));
+        const response = v2
+          ? evalResponse(
+              responseFor(iv, effect, onTarget, simConfig.responseDefaults),
+              Math.min(got.askMultiple, iv.maxAskMultiple ?? simConfig.maxAskMultiple),
+            )
+          : got.ratio;
+        scale(effect.driver, 1 + effect.deltaPct * response * rampFraction(effect, q));
       }
     }
 
@@ -200,7 +270,10 @@ export function pathsForSchedule(scenario: SimScenario, schedule: SimSchedule): 
     const { funding } = fundingFor(scenario, committed);
 
     for (const iv of scenario.interventions) {
-      const ratio = funding[iv.id] ?? 0;
+      // The turnaround format is v1 only, so the linear ratio is the whole
+      // story here. When a v2 scenario needs periods, this loop grows the same
+      // branch `pathsForFunding` has.
+      const ratio = funding[iv.id]?.ratio ?? 0;
       if (ratio <= 0) continue;
       const started = firstFundedPeriod(schedule, iv.id);
       if (started === null) continue;
@@ -247,7 +320,8 @@ export function runSchedule(
     paths: pathsForSchedule(scenario, schedule),
     doNothing: pathsForSchedule(scenario, []),
     best: pathsForSchedule(scenario, bestScheduleFor(scenario)),
-    funding: mine.funding,
+    funding: mine.ratios,
+    fundingDetail: mine.funding,
     stalled: mine.stalled,
   };
 }
@@ -264,7 +338,8 @@ export function runOutcome(
     paths: pathsForFunding(scenario, mine.funding),
     doNothing: pathsForFunding(scenario, {}),
     best: pathsForFunding(scenario, best.funding),
-    funding: mine.funding,
+    funding: mine.ratios,
+    fundingDetail: mine.funding,
     stalled: mine.stalled,
   };
 }

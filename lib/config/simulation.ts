@@ -116,4 +116,27 @@ export const simConfig = {
   unevidencedInvestigationCap: 45,
   /** Score cost of funding an intervention below its `minSprints`, per stall. */
   stalledDecisionPenalty: 18,
+
+  // ─── v2 engine: how money becomes effect ─────────────────────────────────
+
+  /**
+   * The response curve an effect gets when neither it nor its intervention
+   * states one. The arm is the important part: an intervention aimed at
+   * something that is not the problem **saturates early and low**, which is the
+   * whole reason pouring money at the wrong cause has to stop working.
+   *
+   * Read the numbers as: on target, half the effect has arrived by 45% of the
+   * ask and there is always a little more past it. Off target, the ceiling is
+   * a third of the authored effect, half of that arrives at a fifth of the ask,
+   * and 95% of it by 86% of the ask — so the second crore into the wrong lever
+   * is worth roughly a thousandth of the first.
+   */
+  responseDefaults: {
+    onTarget: { kind: "hill", ceiling: 1.3, halfAt: 0.45 },
+    offTarget: { kind: "exponential", ceiling: 0.35, halfAt: 0.2 },
+  },
+  /** Default cap on what one intervention may be given, as a multiple of its ask. */
+  maxAskMultiple: 3,
+  /** Share of the ceiling that counts as "this has stopped paying". */
+  satiationFraction: 0.95,
 } as const;
