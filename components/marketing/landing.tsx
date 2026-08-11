@@ -229,7 +229,7 @@ function HowItWorks() {
 }
 
 const FEATURES = [
-  { icon: Brain, title: "Socratic AI interviewer", body: "Four modes — Interviewer, Coach, Teacher, Evaluator. It questions and guides, never spoon-feeds." },
+  { icon: Brain, title: "Socratic AI interviewer", body: "Two modes — Interviewer questions you the way a real one would; Teacher walks the whole solution through when you want it." },
   { icon: Layers, title: "Framework builder", body: "Drag-and-arrange your estimation chain: population → segmentation → frequency → final estimate." },
   { icon: Target, title: "Assumption ratings", body: "Every assumption is rated Reasonable / Weak / Excellent with a note, so you learn to justify numbers." },
   { icon: Gauge, title: "8-category evaluation", body: "Structuring, segmentation, assumptions, calculation, communication, business sense and more." },
