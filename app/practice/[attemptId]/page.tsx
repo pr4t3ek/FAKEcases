@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { PracticeScreen } from "@/components/practice/practice-screen";
 import { EvaluationReport } from "@/components/practice/evaluation-report";
 import type { PracticeData } from "@/components/practice/types";
-import type { AiMode } from "@/lib/config";
+import { selectableMode } from "@/lib/config";
 import { answerModeFor, type NodeOrigin, type NodeStatus, type TreeMode } from "@/lib/types";
 import { diagnosisTrail } from "@/lib/diagnosis";
 import { labelMatches, solutionWasRevealed } from "@/lib/evaluation";
@@ -150,7 +150,9 @@ export default async function PracticePage({
       sourceMessageId: f.sourceMessageId,
       origin: (f.origin as NodeOrigin | null) ?? null,
     })),
-    mode: (attempt.mode as AiMode) || "interviewer",
+    // Coerced, so an attempt left on a mode that is no longer offered opens
+    // on the interviewer rather than on a picker with nothing selected.
+    mode: selectableMode(attempt.mode),
     finalEstimate: attempt.finalEstimate,
     finalAnswer: attempt.finalAnswer,
     treeMode: (attempt.treeMode as TreeMode | null) ?? null,

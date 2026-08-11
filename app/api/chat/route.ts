@@ -6,12 +6,18 @@ import { loadInterviewerContext } from "@/lib/practice-context";
 import { interviewerReplyStream, isRealProvider } from "@/lib/llm";
 import { checkBudget, recordLlmCall } from "@/lib/llm/budget";
 import { ndjsonResponse, type StreamLine } from "@/lib/llm/stream";
+import { aiModes, type SelectableMode } from "@/lib/config";
 import type { AiMode } from "@/lib/config";
 
 const schema = z.object({
   attemptId: z.string(),
   content: z.string().min(1).max(4000),
-  mode: z.enum(["interviewer", "coach", "teacher", "evaluator"]).default("interviewer"),
+  // Only what the picker offers. Removing a button that the route still honours
+  // is decoration — Coach handed out hints without touching `hintsUsed`, which
+  // is exactly the sort of thing a hand-rolled request would go looking for.
+  mode: z
+    .enum(aiModes.map((m) => m.key) as [SelectableMode, ...SelectableMode[]])
+    .default("interviewer"),
 });
 
 export async function POST(req: Request) {

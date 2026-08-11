@@ -199,9 +199,11 @@ const CASE_STEPS: Step[] = [
     panel: "chat",
     title: "Choose how much help you want",
     body:
-      "Interviewer only asks questions. Coach nudges you. Teacher explains outright. Evaluator " +
-      "grades as you go. Switch at any time.",
-    scoring: "The mode itself is never scored — pick whatever helps you learn today.",
+      "Interviewer only asks questions — that is the real thing. Teacher works the whole " +
+      "problem through instead. Switch at any time.",
+    scoring:
+      "Teacher is the one that costs: roughly what using every hint costs, and your evaluation " +
+      "says it happened.",
   },
   {
     target: "hint",
@@ -337,9 +339,11 @@ const STEPS: Step[] = [
     panel: "chat",
     title: "Choose how much help you want",
     body:
-      "Interviewer only asks questions. Coach nudges you. Teacher explains outright. Evaluator " +
-      "grades as you go. Switch at any time.",
-    scoring: "The mode itself is never scored — pick whatever helps you learn today.",
+      "Interviewer only asks questions — that is the real thing. Teacher works the whole " +
+      "problem through instead. Switch at any time.",
+    scoring:
+      "Teacher is the one that costs: roughly what using every hint costs, and your evaluation " +
+      "says it happened.",
   },
   {
     target: "composer",
