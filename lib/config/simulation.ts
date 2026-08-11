@@ -139,4 +139,24 @@ export const simConfig = {
   maxAskMultiple: 3,
   /** Share of the ceiling that counts as "this has stopped paying". */
   satiationFraction: 0.95,
+  /**
+   * How far the authored best must beat "fund everything to its cap" before a
+   * v2 scenario is certified.
+   *
+   * Without this a scenario could carry response curves and still have
+   * "spend everything" as its answer, which is the exact play the curves exist
+   * to retire — and it would validate, balance and score perfectly while doing
+   * it. `checkBalance` refuses instead.
+   */
+  interiorityMargin: 0.02,
+  /**
+   * How much better spending the leftover money must be before `checkBalance`
+   * calls an underspent ceiling an oversight rather than a decision.
+   *
+   * Not float slack — a materiality threshold. Under saturation the last
+   * rupees of a budget routinely buy a hundredth of a percent, and a scenario
+   * whose declared best banks them is making exactly the point the format is
+   * for. Anything above this is money that was obviously worth spending.
+   */
+  spareMoneyTolerance: 0.005,
 } as const;

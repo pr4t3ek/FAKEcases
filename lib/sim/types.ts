@@ -553,6 +553,27 @@ export interface SimScenario {
   trueCauseIds: CauseId[];
   interventions: SimIntervention[];
 
+  /**
+   * Where the money goes on the way out — how committed rupees reach the P&L.
+   *
+   * Without this, spending is free inside the model: no driver is debited by an
+   * allocation, so a saturating response curve makes over-funding *pointless*
+   * but never *harmful*, and emptying the budget stays weakly optimal. A
+   * student who understands nothing but "spend it all" still lands on the
+   * ceiling.
+   *
+   * `atFullBudget` is the fractional rise in `driver` when the entire money
+   * budget is committed, scaled linearly with what was actually spent —
+   * linearly because money is money, and the interesting curvature belongs on
+   * the benefit side. Point it at whichever input carries cost: opex, cost per
+   * order, marketing spend.
+   *
+   * v2 only, and optional even there — a scenario whose north star is a volume
+   * metric nobody pays for can honestly leave it out, and `checkBalance` will
+   * then be the thing that notices there is no decision left in the budget.
+   */
+  spend?: { driver: DriverId; atFullBudget: number };
+
   /** Untreated bleed, compounding per period, so doing nothing is not free. */
   drift: SimEffect[];
   horizonQuarters: number;

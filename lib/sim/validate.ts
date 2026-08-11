@@ -241,6 +241,23 @@ export function validateScenario(scenario: SimScenario): string[] {
 
   checkEffects(scenario.drift, "drift");
 
+  if (scenario.spend) {
+    if (!isV2) {
+      errors.push('spend needs engine: "v2" — on v1 money never reaches the driver graph');
+    } else if (!driverIds.has(scenario.spend.driver)) {
+      errors.push(`spend targets unknown driver "${scenario.spend.driver}"`);
+    } else if (!inputDrivers.has(scenario.spend.driver)) {
+      // Same trap as an effect on a derived driver: it would be overwritten by
+      // `resolveDrivers` a moment later and the budget would go on being free.
+      errors.push(
+        `spend targets derived driver "${scenario.spend.driver}" and would do nothing — point it at an input that carries cost`,
+      );
+    }
+    if (scenario.spend.atFullBudget <= 0) {
+      errors.push("spend.atFullBudget must be above 0, or the money is not being paid for");
+    }
+  }
+
   // ── Cause tree ──────────────────────────────────────────────────────────
   for (const cause of scenario.causes) {
     if (cause.parentId && !causeIds.has(cause.parentId)) {

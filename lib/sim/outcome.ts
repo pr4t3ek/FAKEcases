@@ -180,6 +180,22 @@ export function pathsForFunding(
       scale(effect.driver, Math.pow(1 + effect.deltaPct, q));
     }
 
+    /**
+     * The bill.
+     *
+     * Every rupee committed counts, including money behind an intervention
+     * that stalled below its capacity gate — that money is gone in exactly the
+     * way the stall already models, and letting it escape the P&L would make
+     * the cheapest way to spend nothing be to spend it badly.
+     */
+    if (v2 && scenario.spend && q > 0) {
+      const committed = Object.values(funding).reduce((sum, f) => sum + f.rupees, 0);
+      const budget = scenario.budget.rupees;
+      if (budget > 0 && committed > 0) {
+        scale(scenario.spend.driver, 1 + scenario.spend.atFullBudget * (committed / budget));
+      }
+    }
+
     for (const iv of scenario.interventions) {
       const got = funding[iv.id];
       if (!got || !got.shipped) continue;

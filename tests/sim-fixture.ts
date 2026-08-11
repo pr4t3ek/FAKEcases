@@ -200,6 +200,39 @@ export function v2FixtureScenario(overrides: Partial<SimScenario> = {}): SimScen
 }
 
 /**
+ * A v2 scenario where over-spending genuinely hurts.
+ *
+ * Worth understanding before using it, because it encodes the sharpest lesson
+ * of the v2 engine: **saturating the benefit is not enough.** A flat response
+ * curve makes extra money pointless, not harmful, so on a scenario with one
+ * lever and no cost side "spend it all" remains weakly optimal — never better,
+ * but never worse either, and a student who empties the budget still lands on
+ * the ceiling.
+ *
+ * An interior optimum needs the money to be *paid for*. Here the payout fix
+ * lifts orders on a saturating curve and raises cost per order on a
+ * `proportional` one, so the benefit flattens while the bill keeps climbing.
+ * Margin therefore peaks part-way up the budget and falls after it, and the
+ * correct play is to fund the fix and bank the rest.
+ *
+ * This is the shape every re-authored pilot scenario needs, which is why it is
+ * a fixture rather than an argument in a comment.
+ */
+export function v2CostedFixtureScenario(overrides: Partial<SimScenario> = {}): SimScenario {
+  const base = v2FixtureScenario();
+  return {
+    ...base,
+    northStar: "margin",
+    reported: ["orders", "revenue"],
+    // Spending the whole budget puts 18% on cost per order. Every lever is
+    // paid for, not just the ones an author remembered to charge for — which
+    // is the failure this scenario-level field exists to prevent.
+    spend: { driver: "cpo", atFullBudget: 0.18 },
+    ...overrides,
+  };
+}
+
+/**
  * The v2 fixture with every curve linear — algebraically the v1 model.
  *
  * This is the control that proves the v2 code path is a superset rather than a

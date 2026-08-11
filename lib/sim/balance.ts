@@ -20,7 +20,14 @@
  * Pure and DB-free, like the rest of `lib/sim`.
  */
 
+import { simConfig } from "@/lib/config/simulation";
 import { allocationFits, finalValue, runOutcome } from "./outcome";
+import {
+  betterOnNorthStar,
+  formatAllocation,
+  optimiseAllocation,
+  type OptimiseOptions,
+} from "./optimise";
 import type { SimAllocationLine, SimScenario } from "./types";
 
 /**
@@ -130,7 +137,10 @@ export function fullyFundableCombos(scenario: SimScenario): SimAllocationLine[][
  * `bestAllocation` and the intervention list as given, and a dangling reference
  * there is that function's job to report, not this one's.
  */
-export function checkBalance(scenario: SimScenario): string[] {
+export function checkBalance(
+  scenario: SimScenario,
+  opts: OptimiseOptions = {},
+): string[] {
   const errors: string[] = [];
 
   if (!allocationFits(scenario, scenario.bestAllocation)) {
@@ -138,6 +148,8 @@ export function checkBalance(scenario: SimScenario): string[] {
     // Every check below compares against it, so there is nothing further to say.
     return errors;
   }
+
+  if (scenario.engine === "v2") return checkBalanceV2(scenario, opts);
 
   const bestOutcome = runOutcome(scenario, scenario.bestAllocation);
   const best = finalValue(bestOutcome.paths, scenario.northStar);
@@ -187,4 +199,113 @@ export function checkBalance(scenario: SimScenario): string[] {
   }
 
   return errors;
+}
+
+/**
+ * The v2 balance check.
+ *
+ * Three of its five assertions have no v1 counterpart, and each exists because
+ * the v2 model made a new kind of authoring mistake possible.
+ *
+ * **Interiority** is the one this whole engine change was for. If funding every
+ * on-target lever to its cap is still the best play, the scenario has response
+ * curves and no decision — the student is back to "spend everything", and the
+ * saturation is decoration. Refusing to certify such a scenario is what stops
+ * that from being authored by accident.
+ *
+ * **Binding money** replaces the v1 spare-capacity rule for the money budget.
+ * Under a linear model, unspent rupees were always a mistake; under saturation
+ * they are frequently correct, so the rule inverts: the money budget must
+ * either be spent or be demonstrably past the point of doing anything.
+ */
+function checkBalanceV2(scenario: SimScenario, opts: OptimiseOptions): string[] {
+  const errors: string[] = [];
+
+  const bestOutcome = runOutcome(scenario, scenario.bestAllocation);
+  const declared = finalValue(bestOutcome.paths, scenario.northStar);
+  const nothing = finalValue(bestOutcome.doNothing, scenario.northStar);
+
+  if (!betterOnNorthStar(scenario, declared, nothing)) {
+    errors.push(
+      `Doing nothing (${nothing}) is no worse than the best allocation (${declared}) on "${scenario.northStar}", so the outcome score has no gradient`,
+    );
+  }
+
+  const search = optimiseAllocation(scenario, opts);
+  if (search.truncated) {
+    return [
+      `The allocation search hit its evaluation cap before it finished, so the ceiling is unproven; reduce the interventions or tighten the capacity budget`,
+    ];
+  }
+
+  // Relative rather than absolute: a north star measured in crore and one
+  // measured in minutes cannot share a fixed tolerance, and an absolute 1e-6
+  // on a value of 24,00,000 is a comparison of rounding noise.
+  const slack = 1e-6 * Math.max(1, Math.abs(declared));
+  if (betterOnNorthStar(scenario, search.best.northStar, declared + slack)) {
+    const gap = Math.abs((search.best.northStar - declared) / declared) * 100;
+    errors.push(
+      `A better allocation exists: ${describe(search.best.allocation)} reaches ${search.best.northStar} on "${scenario.northStar}" against the declared ${declared} (${gap.toFixed(1)}% better). Adopt it:\n  ${formatAllocation(search.best)}`,
+    );
+  }
+
+  /**
+   * Interiority — the assertion this whole engine change exists to make
+   * possible.
+   *
+   * Take the plays the declared best already backs, and pour every rupee the
+   * budget allows into them, capped only by what each will absorb. If that is
+   * as good, the scenario still rewards emptying the wallet and the response
+   * curves are decoration: a student who understands nothing but "spend it all"
+   * lands on the ceiling, which is the exact habit the format was rebuilt to
+   * stop rewarding.
+   *
+   * Framed against the declared subset rather than against every lever at its
+   * cap, because the latter is usually not a play at all — two levers at three
+   * times their ask fit inside no budget, so comparing with it would fail every
+   * scenario for a reason that has nothing to do with saturation.
+   */
+  let remaining = scenario.budget.rupees;
+  const maxedOut = scenario.bestAllocation.map((line) => {
+    const iv = scenario.interventions.find((i) => i.id === line.interventionId);
+    const cap = (iv?.cost.rupees ?? 0) * (iv?.maxAskMultiple ?? simConfig.maxAskMultiple);
+    const give = Math.min(cap, remaining);
+    remaining -= give;
+    return { ...line, rupees: give };
+  });
+  if (maxedOut.length) {
+    const value = finalValue(runOutcome(scenario, maxedOut).paths, scenario.northStar);
+    const margin = Math.abs(declared) * simConfig.interiorityMargin;
+    if (!betterOnNorthStar(scenario, declared, value + margin)) {
+      errors.push(
+        `Pouring the whole budget into the same levers reaches ${value} against the declared best of ${declared} — less than ${(simConfig.interiorityMargin * 100).toFixed(0)}% apart, so "spend everything" is still the play and the response curves are not doing any work`,
+      );
+    }
+  }
+
+  // Money must be binding, or provably past the point of mattering.
+  const spentMoney = scenario.bestAllocation.reduce((s, l) => s + l.rupees, 0);
+  if (spentMoney < scenario.budget.rupees) {
+    const spare = scenario.budget.rupees - spentMoney;
+    const spendItAnyway = scenario.bestAllocation.map((line, i) => ({
+      ...line,
+      rupees: i === 0 ? line.rupees + spare : line.rupees,
+    }));
+    const value = finalValue(runOutcome(scenario, spendItAnyway).paths, scenario.northStar);
+    const material = Math.abs(declared) * simConfig.spareMoneyTolerance;
+    if (betterOnNorthStar(scenario, value, declared + material)) {
+      errors.push(
+        `The best allocation leaves ${Math.round(spare)} rupees unspent, and spending them on "${scenario.bestAllocation[0]?.interventionId}" reaches ${value} against ${declared} — more than ${(simConfig.spareMoneyTolerance * 100).toFixed(1)}% better, so the remainder is not a decision, it is an oversight`,
+      );
+    }
+  }
+
+  return errors;
+}
+
+function describe(allocation: SimAllocationLine[]): string {
+  if (!allocation.length) return "(nothing)";
+  return allocation
+    .map((l) => `${l.interventionId} ₹${Math.round(l.rupees)}`)
+    .join(" + ");
 }
