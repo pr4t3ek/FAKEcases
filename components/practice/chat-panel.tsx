@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Lightbulb, Loader2, SendHorizontal, WifiOff } from "lucide-react";
+import { ArrowDown, Lightbulb, Loader2, Pause, Play, SendHorizontal, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import { aiModes, hintConfig, type AiMode } from "@/lib/config";
 import { readNdjson } from "@/lib/llm/stream";
@@ -57,12 +57,73 @@ export function ChatPanel({
   const [teacherAccepted, setTeacherAccepted] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  /**
+   * Holding the text still while you read it.
+   *
+   * A long Teacher answer arrives faster than anyone reads, and there was no way
+   * to stop it. Pausing holds the *rendering*: deltas keep arriving and go into a
+   * buffer, and resuming flushes them in one go. The model carries on either way
+   * — this is a reader's control, not a cancel — so nothing is lost by pausing
+   * and the answer is complete whenever you come back to it.
+   */
+  const [paused, setPaused] = useState(false);
+  const pausedRef = useRef(false);
+  const bufferRef = useRef("");
+  const streamingIdRef = useRef<string | null>(null);
+
+  /**
+   * Whether the transcript is following the newest text.
+   *
+   * The autoscroll used to fire on every token unconditionally, so scrolling up
+   * during a long answer was pointless: the next delta yanked you back to the
+   * bottom, which is the "scroll doesn't work" complaint. Now it only follows
+   * while you are already at the bottom, and stepping away detaches it until you
+   * come back — by scrolling down yourself or with the button.
+   */
+  const [atBottom, setAtBottom] = useState(true);
+  const atBottomRef = useRef(true);
+
+  function stickToBottom(behavior: ScrollBehavior = "auto") {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior });
+  }
+
+  function onScroll() {
+    const el = scrollRef.current;
+    if (!el) return;
+    // A threshold rather than an exact match: sub-pixel layout and the growing
+    // last bubble mean "at the bottom" is never exactly zero.
+    const near = el.scrollHeight - el.scrollTop - el.clientHeight <= 64;
+    atBottomRef.current = near;
+    setAtBottom(near);
+  }
+
+  // Read from the ref, so this fires on new text and not when the flag flips —
+  // and `auto` rather than `smooth`, because a smooth scroll emits its own
+  // scroll events mid-animation, which `onScroll` would read as the user
+  // stepping away and switch following off after the first token.
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+    if (atBottomRef.current) stickToBottom();
   }, [messages, awaitingFirstToken]);
 
   function patch(id: string, fn: (m: UiMessage) => UiMessage) {
     onMessages((all) => all.map((m) => (m.id === id ? fn(m) : m)));
+  }
+
+  /** Empty the pause buffer into the bubble it belongs to. */
+  function flushBuffer() {
+    const pending = bufferRef.current;
+    const id = streamingIdRef.current;
+    bufferRef.current = "";
+    if (pending && id) patch(id, (m) => ({ ...m, content: m.content + pending }));
+  }
+
+  function togglePause() {
+    const next = !pausedRef.current;
+    pausedRef.current = next;
+    setPaused(next);
+    if (!next) flushBuffer();
   }
 
   /**
@@ -79,6 +140,7 @@ export function ChatPanel({
     const id = `a-${Date.now()}`;
     let received = false;
 
+    streamingIdRef.current = id;
     setBusy(true);
     setAwaitingFirstToken(true);
 
@@ -108,7 +170,10 @@ export function ChatPanel({
             received = true;
             setAwaitingFirstToken(false);
           }
-          patch(id, (m) => ({ ...m, content: m.content + line.v }));
+          // Paused holds the text, it does not drop it — the stream is still
+          // being read, so nothing arrives out of order when it resumes.
+          if (pausedRef.current) bufferRef.current += line.v;
+          else patch(id, (m) => ({ ...m, content: m.content + line.v }));
         } else if (line.t === "error") {
           patch(id, (m) => ({ ...m, interrupted: true }));
           toast.error(
@@ -137,6 +202,12 @@ export function ChatPanel({
       }
       return null;
     } finally {
+      // Whatever the outcome, anything held back belongs on screen: the answer
+      // is finished, so there is nothing left for a pause to protect.
+      flushBuffer();
+      pausedRef.current = false;
+      setPaused(false);
+      streamingIdRef.current = null;
       setBusy(false);
       setAwaitingFirstToken(false);
     }
@@ -220,7 +291,11 @@ export function ChatPanel({
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} className="scrollbar-thin scroll-gutter flex-1 space-y-3 overflow-y-auto p-4">
+      <div
+        ref={scrollRef}
+        onScroll={onScroll}
+        className="scrollbar-thin scroll-gutter relative flex-1 space-y-3 overflow-y-auto p-4"
+      >
         {messages.length === 0 && (
           <p className="mt-8 text-center text-sm text-muted-foreground">
             The interviewer is ready. Share how you&apos;d approach this.
@@ -242,7 +317,14 @@ export function ChatPanel({
                   `**` meant `**`, and rewriting what someone said back at them
                   is a different thing entirely. */}
               {m.role === "assistant" ? <AssistantText>{m.content}</AssistantText> : m.content}
-              {m.streaming && <span className="ml-0.5 animate-pulse">▍</span>}
+              {m.streaming &&
+                (paused ? (
+                  <span className="ml-1 rounded bg-foreground/10 px-1.5 py-0.5 text-[11px] font-medium">
+                    paused
+                  </span>
+                ) : (
+                  <span className="ml-0.5 animate-pulse">▍</span>
+                ))}
 
               {m.role === "assistant" && !m.streaming && isMockProvider(m.provider) && (
                 <span
@@ -290,6 +372,25 @@ export function ChatPanel({
             Hints used: {hintsUsed}/{hintConfig.levels}
           </span>
         </div>
+        {/* Scrolled away from the newest text. The transcript stops following
+            while you are up here, so this is how you re-attach it — the same
+            bargain as the canvas's "Back to the tree". */}
+        {!atBottom && (
+          <div className="mb-2 flex justify-center">
+            <button
+              type="button"
+              onClick={() => {
+                atBottomRef.current = true;
+                setAtBottom(true);
+                stickToBottom("smooth");
+              }}
+              className="inline-flex items-center gap-1.5 rounded-full border bg-card px-3 py-1 text-xs font-medium shadow-sm hover:bg-muted"
+            >
+              <ArrowDown className="h-3.5 w-3.5" />
+              {busy ? "Jump to the latest — it's still writing" : "Jump to the latest"}
+            </button>
+          </div>
+        )}
         <div className="flex items-end gap-2" data-tour="composer">
           <Textarea
             value={input}
@@ -305,9 +406,28 @@ export function ChatPanel({
             disabled={busy || disabled}
           />
           <DictationButton onValueChange={setInput} disabled={busy || disabled} />
-          <Button size="icon" onClick={onSubmit} disabled={busy || disabled || !input.trim()}>
-            <SendHorizontal className="h-4 w-4" />
-          </Button>
+          {/* While it is writing, the send button has nothing to do — you cannot
+              send anyway — so its place goes to the one control you might
+              actually want mid-answer. */}
+          {busy ? (
+            <Button
+              size="icon"
+              variant={paused ? "default" : "secondary"}
+              onClick={togglePause}
+              aria-label={paused ? "Resume the answer" : "Pause the answer"}
+              title={
+                paused
+                  ? "Resume — the text held back appears at once"
+                  : "Pause the text so you can read it. The answer keeps being written."
+              }
+            >
+              {paused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+            </Button>
+          ) : (
+            <Button size="icon" onClick={onSubmit} disabled={disabled || !input.trim()}>
+              <SendHorizontal className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </div>
 
