@@ -22,6 +22,9 @@ scoring/integrity corrections.
 🔁 **[Retention](docs/RETENTION.md)** — why a finite library is not the reason people leave,
 and the four levers (mastery, a daily loop, leagues, cheap content) that would keep them.
 
+🎤 **[Pitch deck kit](docs/PITCH_DECK.md)** — a 16-slide spec (headline, visual, speaker notes
+per slide) plus the prompts to generate the deck, for pitching what this is and where it's going.
+
 ---
 
 ## Quick start
