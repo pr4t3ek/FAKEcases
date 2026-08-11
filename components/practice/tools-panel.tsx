@@ -182,7 +182,7 @@ export function ToolsPanel({
             </TabsTrigger>
           </TabsList>
         </div>
-        <div className="scrollbar-thin flex-1 overflow-y-auto p-4">
+        <div className="scrollbar-thin scroll-gutter flex-1 overflow-y-auto p-4">
           <TabsContent value="framework" className="mt-0" data-tour="framework">
             <FrameworkBuilder
               attemptId={attemptId}

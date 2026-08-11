@@ -108,15 +108,47 @@
   }
 }
 
-/* Thin, unobtrusive scrollbars for the practice workspace */
+/* Thin, unobtrusive scrollbars for the practice workspace.
+ *
+ * Every one of these sits directly beside a panel resize handle, and an 8px
+ * thumb a couple of pixels from a drag divider is a coin toss: aim slightly wide
+ * and you resize the workspace instead of scrolling it.
+ *
+ * So the track is 12px — a real target — while a transparent border and
+ * `background-clip` keep the *visible* thumb at 6px, thinner than it was. The
+ * hit area grows, the chrome does not. The other half of the fix is the gutter
+ * class below, which moves the whole thing clear of the divider.
+ */
 .scrollbar-thin::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 12px;
+  height: 12px;
 }
 .scrollbar-thin::-webkit-scrollbar-thumb {
   background: hsl(var(--border));
   border-radius: 9999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.55);
+  background-clip: padding-box;
 }
 .scrollbar-thin::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/*
+ * Hold a scrolling panel clear of the resize handle on its right.
+ *
+ * The gap is dead space belonging to the panel, so overshooting the scrollbar
+ * lands on nothing rather than on the divider.
+ *
+ * 12px, and the number is not arbitrary: react-resizable-panels extends every
+ * handle's grab area 5px beyond its own box for a mouse (`hitAreaMargins.fine`,
+ * default 5). A gutter narrower than that is decorative — it looks like a gap
+ * while the divider still answers the click. This leaves 7px that genuinely
+ * belongs to the panel.
+ */
+.scroll-gutter {
+  margin-right: 12px;
 }

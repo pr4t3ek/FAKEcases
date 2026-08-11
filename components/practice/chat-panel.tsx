@@ -219,7 +219,7 @@ export function ChatPanel({
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} className="scrollbar-thin flex-1 space-y-3 overflow-y-auto p-4">
+      <div ref={scrollRef} className="scrollbar-thin scroll-gutter flex-1 space-y-3 overflow-y-auto p-4">
         {messages.length === 0 && (
           <p className="mt-8 text-center text-sm text-muted-foreground">
             The interviewer is ready. Share how you&apos;d approach this.
