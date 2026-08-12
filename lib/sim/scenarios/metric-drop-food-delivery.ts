@@ -27,12 +27,18 @@
  *
  * ── Balance notes ─────────────────────────────────────────────────────────
  *
- * `bestAllocation` consumes the budget *exactly* (4 sprints, ₹12 cr), so there
- * is no spare capacity to bolt a fourth bet onto — without that, part-funding a
- * discount push on top of the correct answer would score better than the correct
- * answer, which would teach precisely the wrong lesson.
- * `tests/sim-scenario.test.ts` brute-forces every affordable combination to keep
- * that true; if you retune an effect, that test is what will tell you.
+ * `bestAllocation` uses every people-week and **banks ₹5.38 crore of ₹12**.
+ * That inversion is the point of the v2 conversion. Capacity is still the
+ * binding constraint — there is no spare slot to bolt a discount push onto —
+ * but money is no longer something to get rid of: response curves make the
+ * fourth crore behind the right fix nearly worthless, and `spend` charges every
+ * committed rupee to contribution every week, so the fourth crore is worse than
+ * worthless. The answer to "how much?" is a number strictly inside the budget.
+ *
+ * `checkBalance` searches the money lattice rather than sweeping full-cost
+ * subsets, and `tests/sim-scenario.test.ts` runs it. If you retune an effect or
+ * a curve, that test is what will tell you — and `scripts/best-allocation.ts`
+ * is what will tell you the new answer.
  */
 
 import type { SimScenario } from "../types";
@@ -49,16 +55,47 @@ export const metricDropFoodDelivery: SimScenario = {
     "You are the PM for growth at NukkadEats, a food-delivery app operating in 180 Indian cities. " +
     "Weekly orders have fallen from 26.4 lakh to 24 lakh over the last six weeks — about 9% — and the drop has not flattened out. " +
     "Nobody has a convincing explanation yet. Marketing thinks a competitor is outspending us. Engineering thinks it started around a release. Ops thinks it's the festival calendar. " +
-    "You have 8 analyst-days to find out what is actually happening, and then one quarter of engineering capacity and ₹12 crore to do something about it.",
+    "You have 8 analyst-days to find out what is actually happening, and then engineering capacity and ₹12 crore to do something about it. " +
+    "The board's question is not the orders line: you are judged on weekly contribution margin, which is what is left after every rupee this business pays to serve an order and every rupee you spend fixing it.",
   difficulty: "Medium",
+
+  /**
+   * Saturating response, so "how much?" has an answer that is not "all of it".
+   *
+   * See lib/sim/response.ts for the family. What makes the money decision real
+   * here is `spend` below rather than the curves alone: saturation stops an
+   * extra crore from *helping*, and only a cost that reaches the P&L stops it
+   * from being free.
+   */
+  engine: "v2",
 
   // ── The model ───────────────────────────────────────────────────────────
   // Orders is deliberately derived rather than an input: it is the product of
   // traffic and conversion, and keeping those two terms visible is most of the
   // lesson. An intervention that lifts sessions while conversion is broken can
   // then be seen doing almost nothing, rather than asserted to.
-  northStar: "orders",
-  reported: ["contributionMargin", "conversion", "sessions", "avgEta", "revenue"],
+  /**
+   * The quarter is judged on contribution, not on the number in the title.
+   *
+   * Orders was the north star while money was free inside the model: nothing
+   * a candidate could spend touched it, so "fund everything to its ask" was
+   * weakly optimal however the response curves were tuned, and the scenario
+   * could not ask "how much?" at all.
+   *
+   * Contribution is the honest fix and it is the same lesson the debrief was
+   * already teaching in prose. Deeper discounting genuinely lifts orders and
+   * hands back the whole unit margin to do it; the brand campaign buys traffic
+   * a broken funnel cannot convert. Under a volume north star both are punished
+   * only by a report nobody is scored on. Under this one the model itself says
+   * so, and the money committed says so too.
+   *
+   * The situation names the objective outright. A trap that works by hiding
+   * what is being measured is a gotcha, and the mistake worth catching here is
+   * an error of analysis — believing volume carries a business whose unit
+   * contribution is ₹11.80 against a ₹96 cost — not an error of reading.
+   */
+  northStar: "contributionMargin",
+  reported: ["orders", "conversion", "sessions", "avgEta", "revenue"],
   drivers: [
     {
       id: "sessions",
@@ -140,6 +177,30 @@ export const metricDropFoodDelivery: SimScenario = {
       goodDirection: "down",
       of: ["orders", "costPerOrder"],
     },
+    /**
+     * What the fixes cost to run, in the same weekly terms as everything else.
+     *
+     * Non-zero at baseline because `spend` scales a driver rather than setting
+     * it: a programme cost of zero would stay zero however much was committed,
+     * and the budget would be free again. ₹15 lakh a week is what the growth
+     * programme already costs before this quarter's decision.
+     */
+    {
+      id: "programmeSpend",
+      kind: "input",
+      label: "Programme cost / week",
+      unit: "inr",
+      goodDirection: "down",
+      baseline: 15_00_000,
+    },
+    {
+      id: "weeklyCost",
+      kind: "sum",
+      label: "Weekly cost, all in",
+      unit: "inr",
+      goodDirection: "down",
+      of: ["totalCost", "programmeSpend"],
+    },
     {
       id: "contributionMargin",
       kind: "difference",
@@ -147,7 +208,7 @@ export const metricDropFoodDelivery: SimScenario = {
       unit: "inr",
       goodDirection: "up",
       minuend: "revenue",
-      subtrahend: "totalCost",
+      subtrahend: "weeklyCost",
     },
     {
       id: "avgEta",
@@ -194,7 +255,7 @@ export const metricDropFoodDelivery: SimScenario = {
         { label: "App sessions", value: 96_00_000, unit: "count", deltaPct: 0.01, goodDirection: "up" },
         { label: "Session → order", value: 0.25, unit: "ratio", deltaPct: -0.096, goodDirection: "up" },
         { label: "Average order value", value: 385, unit: "inr", deltaPct: 0.021, goodDirection: "up" },
-        { label: "Contribution margin / week", value: 2.83 * CRORE, unit: "inr", deltaPct: -0.34, goodDirection: "up" },
+        { label: "Contribution margin / week", value: 2.68 * CRORE, unit: "inr", deltaPct: -0.34, goodDirection: "up" },
       ],
     },
     {
@@ -580,16 +641,16 @@ export const metricDropFoodDelivery: SimScenario = {
       cost: { sprints: 2, rupees: 9 * CRORE },
       minSprints: 2,
       effects: {
+        // The payout rise is not a permanent per-order cost here — it is what
+        // the ₹12 crore is *for*, and `spend` above already charges it to the
+        // P&L. Modelling it in both places would bill the same rupee twice, and
+        // on a business whose unit contribution is ₹11.80 against a ₹96 cost
+        // that double-charge is enough to make the correct answer lose.
         whenRootCause: [
           { driver: "conversion", deltaPct: 0.09 },
           { driver: "avgEta", deltaPct: -0.22 },
-          // Riders cost more now. The fix is not free, and the report shows it.
-          { driver: "deliveryCost", deltaPct: 0.06 },
         ],
-        otherwise: [
-          { driver: "conversion", deltaPct: 0.01 },
-          { driver: "deliveryCost", deltaPct: 0.06 },
-        ],
+        otherwise: [{ driver: "conversion", deltaPct: 0.01 }],
       },
       debrief:
         "The bet that addressed the cause. It costs real money per order — delivery cost rises 6% — and still pays for itself, because it recovers orders that were being lost at checkout rather than buying new ones.",
@@ -640,7 +701,7 @@ export const metricDropFoodDelivery: SimScenario = {
         // This is the trap, and it is deliberately effective on the north star.
         otherwise: [
           { driver: "conversion", deltaPct: 0.05 },
-          { driver: "discount", deltaPct: 0.35 },
+          { driver: "discount", deltaPct: 0.28 },
         ],
       },
       debrief:
@@ -653,6 +714,22 @@ export const metricDropFoodDelivery: SimScenario = {
         "A six-week brand push across streaming and outdoor to rebuild top-of-mind against the competitor's spending.",
       addresses: "demand.interest",
       cost: { sprints: 1, rupees: 4.5 * CRORE },
+      /**
+       * The one lever that genuinely delivers what it promises.
+       *
+       * The off-target default saturates early and low, on the reasoning that
+       * money aimed at the wrong problem stops working almost immediately.
+       * That reasoning is wrong for media: reach is exactly as buyable as the
+       * plan says, and a campaign that quietly failed to buy traffic would
+       * teach a candidate that the campaign was badly run.
+       *
+       * The lesson here is the opposite and it is sharper. You buy precisely
+       * the traffic you paid for, and orders barely move, because orders are
+       * sessions times conversion and conversion is what broke. Blunting the
+       * lever would let a candidate walk away believing the media plan was the
+       * problem.
+       */
+      saturation: { otherwise: { kind: "hill", ceiling: 1.0, halfAt: 0.2 } },
       effects: {
         whenRootCause: [{ driver: "sessions", deltaPct: 0.12 }],
         // The clearest lesson in the scenario: traffic up, orders barely move,
@@ -702,6 +779,39 @@ export const metricDropFoodDelivery: SimScenario = {
   // Untreated, riders keep leaving: conversion keeps sliding and ETAs keep
   // stretching, compounding each quarter. Doing nothing is a decision with a
   // cost, and the outcome report shows it as one.
+  /**
+   * Committing the whole ₹12 crore raises what the programme costs to run by
+   * 160%, from ₹15 lakh a week to ₹39 lakh.
+   *
+   * Scaled against weekly contribution — ₹2.68 crore — rather than against the
+   * budget's face value, because the budget is a one-off quarter's investment
+   * and the north star is a weekly figure. Charging ₹12 crore a week against a
+   * ₹2.68 crore margin would make doing nothing the answer to everything, which
+   * is a different broken scenario from the one being fixed.
+   */
+  spend: { driver: "programmeSpend", atFullBudget: 1.6 },
+
+  /**
+   * The quarter not going exactly to plan.
+   *
+   * Conversion moves week to week on 96 lakh sessions and is the tightest of
+   * the three; sessions swing wider, because a promo calendar and a weather
+   * week move traffic more than they move intent; order value is steadier than
+   * either. None is drawn wide enough to drown a decision — a student watching
+   * a quarter come in has to be able to read their own fix out of it.
+   *
+   * Effects are never noised, only the weather. The payout correction works,
+   * and the debrief's account of why the number moved stays true.
+   */
+  noise: {
+    drivers: [
+      { driver: "conversion", sigma: 0.02 },
+      { driver: "sessions", sigma: 0.035 },
+      { driver: "aov", sigma: 0.015 },
+    ],
+    driftSigma: 0.25,
+  },
+
   drift: [
     { driver: "conversion", deltaPct: -0.04 },
     { driver: "avgEta", deltaPct: 0.05 },
@@ -709,10 +819,22 @@ export const metricDropFoodDelivery: SimScenario = {
   horizonQuarters: 2,
 
   parInvestigation: ["dd-city", "dd-riders"],
+  /**
+   * Derived by `scripts/best-allocation.ts`, not by hand — and it leaves ₹5.38
+   * crore of ₹12 crore in the bank.
+   *
+   * That is the whole point of the conversion and it is not guessable. Every
+   * capacity slot goes to a fix that treats rider supply, and each is funded
+   * well below what it asked for: past about 44% of its ask the payout
+   * correction is buying rider hours it does not need, while the programme cost
+   * of the money keeps coming off contribution every week. The optimiser
+   * searched 12,517 allocations to find it and spending the remainder scores
+   * strictly worse.
+   */
   bestAllocation: [
-    { interventionId: "iv-payout", sprints: 2, rupees: 9 * CRORE },
-    { interventionId: "iv-referral", sprints: 1, rupees: 2.5 * CRORE },
-    { interventionId: "iv-eta-honesty", sprints: 1, rupees: 0.5 * CRORE },
+    { interventionId: "iv-payout", sprints: 2, rupees: 4 * CRORE },
+    { interventionId: "iv-referral", sprints: 1, rupees: 1.875 * CRORE },
+    { interventionId: "iv-eta-honesty", sprints: 1, rupees: 0.75 * CRORE },
   ],
 
   debrief: {

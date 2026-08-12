@@ -1,6 +1,7 @@
 import type { SimPhase } from "@/lib/types";
 import type {
   ClientIntervention,
+  ClientPeriods,
   ClientScenario,
   GoodDirection,
   SimPanel,
@@ -44,7 +45,21 @@ export interface SimulationData {
    * and afterwards only the ones that treat it.
    */
   diagnosis: string[];
+  /**
+   * Present only on a war room that commits more than once.
+   *
+   * Absent is the ordinary single commit, which is why the field is optional
+   * rather than a `total: 1` every existing scenario would have to carry.
+   */
+  periods?: SimulationPeriods;
 }
+
+/**
+ * Re-exported under the name the components use. The shape is defined next to
+ * `ClientScenario` because it crosses the same boundary and is redacted by the
+ * same module — see `toClientPeriods` in lib/sim/redact.ts.
+ */
+export type SimulationPeriods = ClientPeriods;
 
 /** A panel added to the board by a purchase, after the fact. */
 export type RevealedPanels = SimPanel[];

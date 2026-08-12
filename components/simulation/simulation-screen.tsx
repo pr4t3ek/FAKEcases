@@ -338,6 +338,7 @@ export function SimulationScreen({ data }: { data: SimulationData }) {
                 runId={data.runId}
                 scenario={data.scenario}
                 diagnosis={data.diagnosis}
+                periods={data.periods}
               />
             )}
           </aside>

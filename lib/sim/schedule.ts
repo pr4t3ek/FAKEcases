@@ -127,3 +127,38 @@ export function meanCommitPeriod(scenario: SimScenario, schedule: SimSchedule): 
 
   return total === 0 ? 0 : weighted / total;
 }
+
+/** What a war room's `SimRun.stateJson` holds while it is played over periods. */
+export interface PeriodicState {
+  /** Committed allocations, index = the period they were decided in. */
+  schedule: SimSchedule;
+}
+
+export function parsePeriodicState(json: string | null): PeriodicState {
+  if (!json) return { schedule: [] };
+  try {
+    const parsed = JSON.parse(json) as { periodic?: Partial<PeriodicState> };
+    const schedule = parsed?.periodic?.schedule;
+    return { schedule: Array.isArray(schedule) ? (schedule as SimSchedule) : [] };
+  } catch {
+    return { schedule: [] };
+  }
+}
+
+/**
+ * The schedule written back into the state blob, preserving whatever else is
+ * there — the hypothesis revision log lives in the same column.
+ */
+export function withPeriodicState(existing: string | null, state: PeriodicState): string {
+  let base: Record<string, unknown> = {};
+  if (existing) {
+    try {
+      const parsed = JSON.parse(existing);
+      if (parsed && typeof parsed === "object") base = parsed as Record<string, unknown>;
+    } catch {
+      // Unreadable state cannot be preserved. Losing it beats refusing the
+      // write and stranding a run mid-schedule.
+    }
+  }
+  return JSON.stringify({ ...base, periodic: state });
+}

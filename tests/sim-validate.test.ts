@@ -598,4 +598,36 @@ describe("validateScenario", () => {
       ).toMatch(/maxAskMultiple must be at least 1/);
     });
   });
+
+  describe("decision periods", () => {
+    const periodic = (over: Record<string, unknown> = {}) =>
+      validateScenario({
+        ...v2FixtureScenario(),
+        decisionPeriods: 3,
+        horizonQuarters: 4,
+        bestSchedule: [[{ interventionId: "iv-payout", sprints: 2, rupees: 400 }], [], []],
+        ...over,
+      } as ReturnType<typeof v2FixtureScenario>).join(" | ");
+
+    it("passes a war room with a declared sequence and a tail to land in", () => {
+      expect(periodic()).toBe("");
+    });
+
+    it("refuses a horizon that does not outrun the decisions", () => {
+      // The exploit this closes: with them equal, the last commitment's
+      // consequences fall outside the projection and it reads as free.
+      expect(periodic({ horizonQuarters: 3 })).toMatch(/horizon must outrun the decisions/);
+    });
+
+    it("refuses a multi-period war room with no bestSchedule", () => {
+      // Not a missing field so much as a missing claim: without it the ceiling
+      // silently defaults to committing everything in period 0, and nobody has
+      // checked that this is the right thing to do.
+      expect(periodic({ bestSchedule: undefined })).toMatch(/the ceiling is a sequence/);
+    });
+
+    it("says nothing about either on a single commit", () => {
+      expect(validateScenario(v2FixtureScenario({ horizonQuarters: 1 }))).toEqual([]);
+    });
+  });
 });

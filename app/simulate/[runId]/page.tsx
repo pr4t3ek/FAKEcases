@@ -3,7 +3,7 @@ import { getSessionUser } from "@/lib/auth";
 import { isRealProvider } from "@/lib/llm";
 import { getAdapter } from "@/lib/llm";
 import { loadScenario } from "@/lib/scenario-store";
-import { toClientScenario } from "@/lib/sim/redact";
+import { toClientPeriods, toClientScenario } from "@/lib/sim/redact";
 import { metricMap } from "@/lib/sim/metric-map";
 import { wasRevised } from "@/lib/sim/hypothesis-log";
 import { resolveDrivers } from "@/lib/sim/drivers";
@@ -33,6 +33,7 @@ import { SimulationReport } from "@/components/simulation/simulation-report";
 import type {
   BuybackData,
   SimulationData,
+  SimulationPeriods,
   SimulationReportData,
   TurnaroundData,
 } from "@/components/simulation/types";
@@ -43,6 +44,7 @@ import {
   openPeriod,
   parseTurnaroundState,
 } from "@/lib/sim/turnaround";
+import { parsePeriodicState } from "@/lib/sim/schedule";
 
 export const dynamic = "force-dynamic";
 
@@ -421,6 +423,7 @@ export default async function SimulatePage({
     hypothesisNote: run.hypothesisNote,
     purchaseCount: run.purchases.length,
     diagnosis: state.diagnosis,
+    periods: toClientPeriods(scenario, parsePeriodicState(run.stateJson).schedule, run.seed),
   };
 
   return <SimulationScreen data={data} />;

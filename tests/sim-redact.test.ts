@@ -9,7 +9,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { toClientScenario, type RedactionContext } from "@/lib/sim/redact";
+import { toClientPeriods, toClientScenario, type RedactionContext } from "@/lib/sim/redact";
 import {
   CAUSE_TRUE,
   CAUSE_WRONG_LEAF,
@@ -382,5 +382,60 @@ describe("toClientScenario: the metric map gate", () => {
     for (const line of withMap.debrief.causalChain) {
       expect(payload).not.toContain(line);
     }
+  });
+});
+
+describe("toClientPeriods", () => {
+  const periodic = () =>
+    v2FixtureScenario({ decisionPeriods: 3, horizonQuarters: 4 });
+  const payout = [{ interventionId: "iv-payout", sprints: 2, rupees: 400 }];
+
+  it("is absent on a war room that commits once", () => {
+    expect(toClientPeriods(v2FixtureScenario(), [], null)).toBeUndefined();
+  });
+
+  it("ships nothing observed before the first period is committed", () => {
+    // There is no quarter to read yet, and a "Start" reading alone would invite
+    // one to be inferred from it.
+    expect(toClientPeriods(periodic(), [], null)?.observed).toEqual([]);
+  });
+
+  it("ships only the quarters that have been played", () => {
+    // The projection runs to the end of the horizon and its tail is what this
+    // allocation will eventually do — which is the question the run is still
+    // asking. One reading per period committed, plus the baseline.
+    const one = toClientPeriods(periodic(), [payout], null);
+    expect(one?.observed).toHaveLength(2);
+    const two = toClientPeriods(periodic(), [payout, []], null);
+    expect(two?.observed).toHaveLength(3);
+    expect(two?.observed.at(-1)?.label).toBe("Q+2");
+  });
+
+  it("never ships the counterfactual or the ceiling", () => {
+    const payload = JSON.stringify(toClientPeriods(periodic(), [payout], null));
+    expect(payload).not.toContain("doNothing");
+    expect(payload).not.toContain("best");
+    expect(payload).not.toContain("funding");
+    expect(payload).not.toContain("expected");
+  });
+
+  it("carries the realised weather, not the noise-free expectation", () => {
+    // A candidate reading a quarter mid-run should be reading the quarter they
+    // got. Grading takes the luck back out; this does not.
+    const noisy = v2FixtureScenario({
+      decisionPeriods: 3,
+      horizonQuarters: 4,
+      noise: { drivers: [{ driver: "orders", sigma: 0.05 }], driftSigma: 0.2 },
+    });
+    const a = toClientPeriods(noisy, [payout], "seed-a");
+    const b = toClientPeriods(noisy, [payout], "seed-b");
+    expect(a?.observed).not.toEqual(b?.observed);
+  });
+
+  it("reports the pool rather than the budget", () => {
+    const scenario = periodic();
+    const periods = toClientPeriods(scenario, [payout], null);
+    expect(periods?.moneyRemaining).toBe(scenario.budget.rupees - 400);
+    expect(periods?.open).toBe(1);
   });
 });

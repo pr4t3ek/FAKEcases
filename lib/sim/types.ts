@@ -798,6 +798,44 @@ export type ClientIntervention = Omit<
   saturationHint?: SaturationHint;
 };
 
+/**
+ * Where a war room played over several periods has got to.
+ *
+ * A redacted projection like `ClientScenario`, and for the same reason: a
+ * server component serialises whatever it hands a client component, so the
+ * shape of this type is the shape of what a student can read in the page
+ * source. Built by `toClientPeriods` in ./redact.ts.
+ */
+export interface ClientPeriods {
+  /** How many commitments this scenario allows. */
+  total: number;
+  /** The one being decided, 0-based. */
+  open: number;
+  /** Everything committed so far, oldest first. */
+  committed: SimAllocationLine[][];
+  /**
+   * Rupees still in the pool. Capacity has no equivalent because it is a rate:
+   * every period gets the whole team back, so the budget is the budget.
+   */
+  moneyRemaining: number;
+  /**
+   * The north star as it has actually come in, oldest first, under the periods
+   * committed so far — the reason there is any point deciding more than once.
+   *
+   * Only what has happened. The projection runs to the end of the horizon and
+   * its tail is the answer, so everything past the periods already played is
+   * cut before it crosses this boundary. It carries the run's realised weather
+   * rather than the noise-free expectation, because a candidate reacting to a
+   * quarter should be reacting to the quarter they got.
+   *
+   * Neither the do-nothing path nor the ceiling appears here. Those are the
+   * grading counterfactuals, and shipping them mid-run would answer the
+   * question the run is asking.
+   */
+  observed: { label: string; value: number }[];
+  northStar: { label: string; unit: SimUnit };
+}
+
 export interface ClientScenario {
   slug: string;
   title: string;
