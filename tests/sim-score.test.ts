@@ -10,6 +10,7 @@ import {
   scoreOutcome,
   scoreSimulation,
 } from "@/lib/sim/score";
+import { simConfig } from "@/lib/config/simulation";
 import type { SimPurchaseRecord } from "@/lib/sim/types";
 import {
   BEST_ALLOCATION,
@@ -78,6 +79,48 @@ describe("scoreHypothesis", () => {
 
   it("still credits committing to something falsifiable but wrong", () => {
     expect(scoreHypothesis(scenario, [CAUSE_WRONG_LEAF])).toBe(15);
+  });
+
+  it("cheapens that consolation as more branches are named", () => {
+    // One wrong-but-committed suspect is a prediction that failed. Three is not
+    // three predictions, it is one hedge, and it should not collect the same
+    // credit for having been falsifiable.
+    const one = scoreHypothesis(scenario, [CAUSE_WRONG_LEAF]);
+    const two = scoreHypothesis(scenario, [CAUSE_WRONG_LEAF, "demand.other"]);
+    expect(two).toBeLessThan(one);
+  });
+
+  /**
+   * The property the whole dimension exists for, tested as a property rather
+   * than as a number.
+   *
+   * A candidate who knows nothing can either name one branch at random or hedge
+   * across the maximum. If hedging has the higher expected value, the phase is
+   * teaching the opposite of what it claims to, and no amount of copy about
+   * "commit before you look" will out-argue the scoreboard.
+   *
+   * This is what set `shotgunPenalty`. At the old 0.8, three picks on a
+   * six-leaf tree beat one pick outright — and it is exactly the trap that
+   * widening the cap from two to three would have walked into unnoticed.
+   */
+  describe("guessing at random", () => {
+    const expectedValue = (leaves: number, picks: number) => {
+      // Hypergeometric: the chance at least one of `picks` distinct leaves is
+      // the single true one.
+      const hit = picks / leaves;
+      const hitScore = 100 * Math.pow(simConfig.shotgunPenalty, picks - 1);
+      const missScore = 15 * Math.pow(simConfig.hedgedMissCredit, picks - 1);
+      return hit * hitScore + (1 - hit) * missScore;
+    };
+
+    for (const leaves of [6, 8, 10, 12]) {
+      it(`makes one confident pick beat hedging on a ${leaves}-leaf tree`, () => {
+        const single = expectedValue(leaves, 1);
+        for (let picks = 2; picks <= simConfig.maxSuspects; picks++) {
+          expect(expectedValue(leaves, picks)).toBeLessThan(single);
+        }
+      });
+    }
   });
 });
 
