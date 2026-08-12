@@ -109,6 +109,16 @@ export interface SimulationReportData {
    */
   budgetRupees: number;
   /**
+   * What the quarter did against what the decision was worth.
+   *
+   * Null on a scenario that draws no weather, where the two are the same number
+   * and saying so twice would only invite the question of why. Present, it is
+   * the difference between "you got lucky" and "your fix worked", and the
+   * report has to be able to tell a student which — the grade is on the
+   * expectation, and an unexplained gap between the two reads as a bug.
+   */
+  variance: { realised: number; expected: number } | null;
+  /**
    * The chain at end-of-horizon values, so the student can see which link their
    * decision actually moved. Null on scenarios that keep the model hidden.
    */

@@ -583,6 +583,25 @@ export interface SimScenario {
    */
   spend?: { driver: DriverId; atFullBudget: number };
 
+  /**
+   * What is genuinely uncertain about the next few quarters.
+   *
+   * Absent means a scenario plays out exactly as its model says, which is
+   * right for one built to teach a specific arithmetic and wrong for one meant
+   * to be replayed. Only the weather is drawn — the drift already bleeding,
+   * and whichever inputs the author calls uncertain. Intervention effects are
+   * never noised: a fix that works must not randomly fail, or the causal
+   * lesson stops being learnable.
+   *
+   * Sigmas are per quarter and multiplicative. 0.015–0.025 suits a
+   * well-instrumented funnel input; 0.03–0.05 a demand-side one. v2 only.
+   */
+  noise?: {
+    drivers: { driver: DriverId; sigma: number }[];
+    /** How unreliable the bleed itself is. 0.25 is a reasonable default. */
+    driftSigma?: number;
+  };
+
   /** Untreated bleed, compounding per period, so doing nothing is not free. */
   drift: SimEffect[];
   horizonQuarters: number;
@@ -708,6 +727,17 @@ export interface SimOutcomeResult {
    * map for exactly the same reason.
    */
   fundingDetail?: Record<InterventionId, InterventionFunding>;
+  /**
+   * The same three projections with the weather taken out.
+   *
+   * What the scorer reads, so that two candidates who played identically score
+   * identically however their luck ran — see `lib/sim/noise.ts`. Absent on a
+   * run with no seed or a scenario with no `noise`, in which case the realised
+   * paths above *are* the expectation and scoring falls back to them.
+   */
+  expected?: { paths: SimPaths; doNothing: SimPaths; best: SimPaths };
+  /** The run's seed, so a stored report can be explained after the fact. */
+  seed?: string;
   /** Funded but never shipped, below `minSprints`. The expensive mistake. */
   stalled: InterventionId[];
 }

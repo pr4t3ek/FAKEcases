@@ -138,7 +138,12 @@ export async function startSimulation(questionId: string): Promise<void> {
     : scenario
       ? formatFor(scenario).phases[0].id
       : "observe";
-  const runId = await startRun(user.id, question.id, slug, firstPhase, simulator ? runSeed() : null);
+  // Seeded whether or not anything currently draws from it. A run that starts
+  // without one can never gain the weather later — the seed is the entropy
+  // source everything downstream is a pure function of — so a scenario gaining
+  // `noise` would otherwise leave every run started before that day playing a
+  // different game from every run started after.
+  const runId = await startRun(user.id, question.id, slug, firstPhase, runSeed());
   redirect(`/simulate/${runId}`);
 }
 
@@ -331,7 +336,7 @@ export async function commitDecision(
   const parsed = parseAllocation(scenario, state.diagnosis, allocation);
   if (!parsed.ok) return { ok: false, error: parsed.error };
 
-  const outcome = runOutcome(scenario, parsed.value);
+  const outcome = runOutcome(scenario, parsed.value, { seed: run.seed });
   const score = scoreSimulation({
     scenario,
     hypothesis: state.hypothesis,

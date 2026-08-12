@@ -241,6 +241,31 @@ export function validateScenario(scenario: SimScenario): string[] {
 
   checkEffects(scenario.drift, "drift");
 
+  if (scenario.noise) {
+    if (!isV2) {
+      errors.push('noise needs engine: "v2" — on v1 nothing draws it');
+    }
+    for (const n of scenario.noise.drivers) {
+      if (!driverIds.has(n.driver)) {
+        errors.push(`noise targets unknown driver "${n.driver}"`);
+      } else if (!inputDrivers.has(n.driver)) {
+        // Same trap as an effect on a derived driver: `resolveDrivers` would
+        // overwrite it from its parents and the weather would silently vanish.
+        errors.push(
+          `noise targets derived driver "${n.driver}" and would do nothing — noise an input it depends on`,
+        );
+      }
+      if (!(n.sigma > 0) || n.sigma > 0.1) {
+        // Above 10% per quarter the weather drowns the decision, and a student
+        // stops being able to read their own effect out of the result.
+        errors.push(`noise sigma on "${n.driver}" must be above 0 and at most 0.1`);
+      }
+    }
+    if (scenario.noise.driftSigma !== undefined && !(scenario.noise.driftSigma >= 0)) {
+      errors.push("noise.driftSigma must not be negative");
+    }
+  }
+
   if (scenario.spend) {
     if (!isV2) {
       errors.push('spend needs engine: "v2" — on v1 money never reaches the driver graph');

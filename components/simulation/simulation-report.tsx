@@ -282,6 +282,38 @@ export function SimulationReport({
         {/* Hidden entirely on a format without an investigation phase. A
             turnaround spends no analyst-days, and reporting its period count
             under that noun is simply false. */}
+        {/* The gap between what happened and what the decision was worth.
+            Without it a run that landed 3% above its own expectation reads as
+            a model that cannot add up — and the grade, which is on the
+            expectation, reads as unfair. Naming the weather is what makes both
+            honest. */}
+        {data.variance && (
+          <Card className="p-5">
+            <h2 className="text-sm font-semibold">Luck, separated out</h2>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div>
+                <div className="text-xs text-muted-foreground">What the quarter did</div>
+                <div className="mt-0.5 text-lg font-semibold tabular-nums">
+                  {formatValue(data.variance.realised, "inr")}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">
+                  What your decision was worth
+                </div>
+                <div className="mt-0.5 text-lg font-semibold tabular-nums">
+                  {formatValue(data.variance.expected, "inr")}
+                </div>
+              </div>
+            </div>
+            <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+              {describeVariance(data.variance)} You are graded on the second number, not the
+              first — the same decision played twice lands on two different quarters, and only
+              one of those is something you did.
+            </p>
+          </Card>
+        )}
+
         {/* Only shown to someone who actually changed their mind, and shown
             without a score attached. Updating a belief on evidence is a skill
             and it is invisible unless something writes it down — but grading it
@@ -430,4 +462,23 @@ export function SimulationReport({
     </div>
     </GlossaryProvider>
   );
+}
+
+/**
+ * How far the quarter ran from the decision, in words.
+ *
+ * Deliberately never congratulatory about the gap in either direction: good
+ * luck is not an achievement and bad luck is not a lesson, and the whole point
+ * of separating them is to stop a student reading either as feedback.
+ */
+function describeVariance({ realised, expected }: { realised: number; expected: number }): string {
+  if (expected === 0) return "The quarter and the decision landed in the same place.";
+  const gap = (realised - expected) / Math.abs(expected);
+  const pct = Math.abs(gap * 100);
+
+  if (pct < 0.5) return "The quarter landed almost exactly where the decision put it.";
+  if (gap > 0) {
+    return `The quarter ran about ${pct.toFixed(1)}% ahead of that — conversion and returns went your way, which is weather rather than a decision.`;
+  }
+  return `The quarter ran about ${pct.toFixed(1)}% behind it — conversion and returns went against you, which is weather rather than a mistake.`;
 }

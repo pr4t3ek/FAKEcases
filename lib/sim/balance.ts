@@ -21,13 +21,15 @@
  */
 
 import { simConfig } from "@/lib/config/simulation";
-import { allocationFits, finalValue, runOutcome } from "./outcome";
+import { allocationFits, bestScheduleFor, finalValue, pathsForSchedule, runOutcome } from "./outcome";
 import {
   betterOnNorthStar,
   formatAllocation,
   optimiseAllocation,
+  optimiseSchedule,
   type OptimiseOptions,
 } from "./optimise";
+import { scheduleFits } from "./schedule";
 import type { SimAllocationLine, SimScenario } from "./types";
 
 /**
@@ -219,6 +221,8 @@ export function checkBalance(
  * either be spent or be demonstrably past the point of doing anything.
  */
 function checkBalanceV2(scenario: SimScenario, opts: OptimiseOptions): string[] {
+  if ((scenario.decisionPeriods ?? 1) > 1) return checkScheduleBalance(scenario, opts);
+
   const errors: string[] = [];
 
   const bestOutcome = runOutcome(scenario, scenario.bestAllocation);
@@ -312,4 +316,62 @@ function describe(allocation: SimAllocationLine[]): string {
   return allocation
     .map((l) => `${l.interventionId} ₹${Math.round(l.rupees)}`)
     .join(" + ");
+}
+
+/**
+ * The same question for a scenario that commits over several periods.
+ *
+ * Deliberately a smaller set of assertions than the one-shot check, because the
+ * beam search behind it is a weaker instrument than the exhaustive lattice and
+ * asserting more than it can support would be dressing a search up as a proof.
+ * What it does certify:
+ *
+ *   - the declared `bestSchedule` is within reach of the best the beam found,
+ *   - and acting still beats standing still.
+ *
+ * The interiority and binding-money rules are deliberately absent. Under a
+ * schedule, "leave money unspent" and "spend it in a later period" are the same
+ * shape of decision, so a rule about the leftover cannot distinguish thrift
+ * from patience — and the thing they existed to prevent, "empty the wallet
+ * immediately", is already priced by the fact that money spent in period 0 is
+ * unavailable in period 2.
+ */
+function checkScheduleBalance(scenario: SimScenario, opts: OptimiseOptions): string[] {
+  const errors: string[] = [];
+
+  const declared = bestScheduleFor(scenario);
+  const fit = scheduleFits(scenario, declared);
+  if (!fit.ok) return [`bestSchedule does not fit the budget: ${fit.error}`];
+
+  const mine = finalValue(pathsForSchedule(scenario, declared), scenario.northStar);
+  const nothing = finalValue(pathsForSchedule(scenario, []), scenario.northStar);
+
+  if (!betterOnNorthStar(scenario, mine, nothing)) {
+    errors.push(
+      `Doing nothing (${nothing}) is no worse than the best schedule (${mine}) on "${scenario.northStar}", so the outcome score has no gradient`,
+    );
+  }
+
+  const search = optimiseSchedule(scenario, opts);
+  if (search.truncated) {
+    return [
+      "The schedule search hit its evaluation cap before it finished, so the ceiling is unproven",
+    ];
+  }
+
+  const slack = 1e-6 * Math.max(1, Math.abs(mine));
+  if (betterOnNorthStar(scenario, search.best.northStar, mine + slack)) {
+    const shape = search.best.schedule
+      .map((lines, period) =>
+        lines.length
+          ? `P${period}: ${lines.map((l) => `${l.interventionId} ₹${Math.round(l.rupees)}`).join(" + ")}`
+          : `P${period}: hold`,
+      )
+      .join("  ·  ");
+    errors.push(
+      `A better schedule exists: ${shape} reaches ${search.best.northStar} on "${scenario.northStar}" against the declared ${mine}. Adopt it as bestSchedule.`,
+    );
+  }
+
+  return errors;
 }

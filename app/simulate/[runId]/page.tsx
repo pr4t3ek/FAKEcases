@@ -37,7 +37,7 @@ import type {
   TurnaroundData,
 } from "@/components/simulation/types";
 import { formatFor, isTurnaround } from "@/lib/sim/formats/registry";
-import { pathsForSchedule } from "@/lib/sim/outcome";
+import { finalValue, pathsForSchedule } from "@/lib/sim/outcome";
 import {
   decisionPeriodsFor,
   openPeriod,
@@ -278,6 +278,12 @@ export default async function SimulatePage({
       periodNoun: scenario.periodNoun ?? "quarter",
       hasInvestigation: scenario.drilldowns.length > 0,
       budgetRupees: scenario.budget.rupees,
+      variance: outcome.expected
+        ? {
+            realised: finalValue(outcome.paths, scenario.northStar),
+            expected: finalValue(outcome.expected.paths, scenario.northStar),
+          }
+        : null,
       // Built at end-of-horizon values rather than baseline, so the chain shows
       // where the student's decision actually landed. Safe to reveal here —
       // the run is over.
