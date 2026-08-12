@@ -56,6 +56,13 @@ export const abTestReadout: SimScenario = {
     "The only dissenting voice is warehouse ops, who say their reverse-logistics queue has been growing for three weeks and nobody has told them why. " +
     "You have 6 analyst-days to work out what the test actually measured, then 3 sprints and ₹30 lakh to act on it.",
   difficulty: "Easy",
+  /**
+   * The first scenario on the saturating engine. Money now buys a response
+   * curve rather than a straight line, and it costs something on the way out —
+   * so the answer to "how much?" is a number inside the budget rather than all
+   * of it.
+   */
+  engine: "v2",
   periodNoun: "month",
 
   // ── Teaching ────────────────────────────────────────────────────────────
@@ -144,7 +151,7 @@ export const abTestReadout: SimScenario = {
         "18.5 lakh people used the app last month and 4.12% of them ordered — 76,220 orders at an average of ₹640, so about ₹4.88 crore of sales.",
         "6.1% of those orders came back, so customers kept ₹4.58 crore of it. At 19% gross margin that is ₹87.0 lakh of margin.",
         "The 4,649 returns cost ₹210 each to collect, inspect and repack — ₹9.8 lakh.",
-        "₹87.0 lakh minus ₹9.8 lakh is ₹77.3 lakh of net contribution. That is the number a ship decision has to be judged on, and it is not the number the test reported.",
+        "₹87.0 lakh minus ₹9.8 lakh is ₹77.3 lakh of trading contribution. That is the number a ship decision has to be judged on, and it is not the number the test reported. What your fix costs to run comes off it — the scoreboard is contribution after you have paid for the answer.",
       ],
     },
   },
@@ -187,13 +194,32 @@ export const abTestReadout: SimScenario = {
       of: ["returnedOrders", "returnCostPerOrder"],
     },
     {
+      id: "tradingContribution",
+      kind: "difference",
+      label: "Contribution before programme cost",
+      unit: "inr",
+      goodDirection: "up",
+      minuend: "grossProfit",
+      subtrahend: "returnCost",
+    },
+    /**
+     * What the squad and its tooling cost to run, per month.
+     *
+     * The baseline is the standing cost of having a team on this at all; what
+     * the candidate commits inflates it (see `spend` below). Without a driver
+     * like this the money budget is free inside the model — the north star
+     * cannot feel it — and "spend the whole budget" is never a mistake, which
+     * is the single behaviour this scenario is being converted to punish.
+     */
+    { id: "programmeCost", kind: "input", label: "Programme cost / month", unit: "inr", goodDirection: "down", baseline: 1_50_000 },
+    {
       id: "netContribution",
       kind: "difference",
       label: "Net contribution / month",
       unit: "inr",
       goodDirection: "up",
-      minuend: "grossProfit",
-      subtrahend: "returnCost",
+      minuend: "tradingContribution",
+      subtrahend: "programmeCost",
     },
   ],
 
@@ -269,7 +295,7 @@ export const abTestReadout: SimScenario = {
     },
   ],
 
-  budget: { analystDays: 6, sprints: 3, rupees: 30 * LAKH },
+  budget: { analystDays: 6, sprints: 3, rupees: 36 * LAKH },
 
   drilldowns: [
     {
@@ -587,7 +613,28 @@ export const abTestReadout: SimScenario = {
       pitch:
         "Park the test, spend the quarter's capacity on festive merchandising and paid traffic while demand is high, and revisit the page in January.",
       addresses: "impact.seasonal",
-      cost: { sprints: 1, rupees: 14 * LAKH },
+      cost: { sprints: 1, rupees: 10 * LAKH },
+      /**
+       * Not every wrong answer is wrong in the same way, and the default arm
+       * treats them as if they were.
+       *
+       * The engine's off-target default saturates hard and low, because a lever
+       * aimed at a cause that is not the problem usually cannot work — a brand
+       * campaign does not fix a broken checkout however much is poured into it.
+       * Buying festive traffic is not that. It works exactly as advertised
+       * whatever is wrong with the product page, because traffic does not care
+       * why you wanted it.
+       *
+       * So this one keeps most of its effect and is a bad decision for the
+       * reason the debrief gives — it is small, it costs margin and returns,
+       * and none of it is still there in January — rather than because the
+       * model quietly decided a wrong diagnosis makes money stop working. An
+       * honest decoy that genuinely beats standing still teaches more than one
+       * that is simply bad.
+       */
+      saturation: {
+        otherwise: { kind: "hill", ceiling: 1.0, halfAt: 0.35 },
+      },
       effects: {
         whenRootCause: [{ driver: "monthlyUsers", deltaPct: 0.09 }],
         otherwise: [
@@ -604,6 +651,16 @@ export const abTestReadout: SimScenario = {
   // The catalogue keeps widening into unbranded sellers with inconsistent
   // sizing, and everyone discounts into the festive season. Both bleed if
   // nobody touches them.
+  /**
+   * Committing the whole budget doubles what the programme costs to run.
+   *
+   * Scaled against the gains the fixes actually produce — a few lakh a month —
+   * rather than against the budget's face value: the ₹45 lakh is a programme
+   * investment and the north star is a monthly figure, so charging the full
+   * amount every month would make doing nothing the answer to everything.
+   */
+  spend: { driver: "programmeCost", atFullBudget: 1.6 },
+
   drift: [
     { driver: "returnRate", deltaPct: 0.04 },
     { driver: "marginRate", deltaPct: -0.01 },
@@ -611,9 +668,18 @@ export const abTestReadout: SimScenario = {
   horizonQuarters: 2,
 
   parInvestigation: ["dd-split", "dd-returns"],
+  /**
+   * Derived by `scripts/best-allocation.ts`, not by hand.
+   *
+   * Under saturating response curves the ceiling is an interior point that
+   * depends on how two curves interact with a spend that reaches the P&L, and
+   * it is not guessable: both fixes are funded well below what they asked for,
+   * and ₹13.5 lakh of a ₹36 lakh budget is deliberately left in the bank.
+   * Spending it buys under a fifth of what banking it is worth.
+   */
   bestAllocation: [
-    { interventionId: "iv-unbundle", sprints: 1, rupees: 8 * LAKH },
-    { interventionId: "iv-sizing", sprints: 2, rupees: 22 * LAKH },
+    { interventionId: "iv-unbundle", sprints: 1, rupees: 5 * LAKH },
+    { interventionId: "iv-sizing", sprints: 2, rupees: 17.5 * LAKH },
   ],
 
   debrief: {

@@ -25,6 +25,8 @@ import type { SimPhase } from "@/lib/types";
 import { resolveDrivers } from "./drivers";
 import { metricMap } from "./metric-map";
 import { visibleDashboard } from "./investigate";
+import { responseFor, satiationMultiple } from "./response";
+import { simConfig } from "@/lib/config/simulation";
 import { permittedInterventions } from "./gating";
 import type {
   CauseId,
@@ -102,13 +104,45 @@ function toClientInterventions(
   scenario: SimScenario,
   ctx: RedactionContext,
 ): ClientIntervention[] {
-  return permittedInterventions(scenario, ctx.diagnosis).map((i) => ({
-    id: i.id,
-    label: i.label,
-    pitch: i.pitch,
-    cost: i.cost,
-    minSprints: i.minSprints,
-  }));
+  const v2 = scenario.engine === "v2";
+  return permittedInterventions(scenario, ctx.diagnosis).map((i) => {
+    const client: ClientIntervention = {
+      id: i.id,
+      label: i.label,
+      pitch: i.pitch,
+      cost: i.cost,
+      minSprints: i.minSprints,
+      maxAskMultiple: i.maxAskMultiple,
+    };
+    if (!v2) return client;
+
+    /**
+     * Described from the ON-TARGET curve, deliberately.
+     *
+     * This runs after the diagnosis gate, so the board already holds only
+     * fixes for the cause the student named — and describing each lever as
+     * though their diagnosis were right is the only consistent thing to do.
+     * Using whichever arm actually applies would make the shape of the readout
+     * a tell about whether they got the cause right, which is exactly the
+     * disclosure `permittedInterventions` exists to prevent.
+     */
+    const curve = responseFor(
+      i,
+      { driver: "", deltaPct: 0 },
+      true,
+      simConfig.responseDefaults,
+    );
+    const satiation = satiationMultiple(curve, simConfig.satiationFraction);
+    client.saturationHint = {
+      halfAtRupees:
+        curve.kind === "hill" || curve.kind === "exponential"
+          ? curve.halfAt * i.cost.rupees
+          : i.cost.rupees,
+      satiationRupees: satiation === null ? null : satiation * i.cost.rupees,
+      capRupees: i.cost.rupees * (i.maxAskMultiple ?? simConfig.maxAskMultiple),
+    };
+    return client;
+  });
 }
 
 /**

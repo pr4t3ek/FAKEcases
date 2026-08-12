@@ -83,14 +83,17 @@ export function scoreHypothesis(scenario: SimScenario, suspects: CauseId[]): num
   const direct = suspects.some((s) => scenario.trueCauseIds.includes(s));
   const ancestor = suspects.some((s) => isAncestorOfAny(scenario, s, scenario.trueCauseIds));
 
+  const extras = Math.max(0, suspects.length - 1);
+
   let base: number;
   if (direct) base = 100;
   else if (ancestor) base = 100 * simConfig.ancestorCredit;
   // Wrong, but they committed to something falsifiable before looking, which is
-  // the habit being built. Worth more than nothing, not much more.
-  else return 15;
+  // the habit being built. Worth more than nothing, not much more — and worth
+  // less the more branches were named, or "commit to half the board" collects
+  // the consolation for a prediction that predicted nothing.
+  else return Math.round(15 * Math.pow(simConfig.hedgedMissCredit, extras));
 
-  const extras = Math.max(0, suspects.length - 1);
   return Math.round(base * Math.pow(simConfig.shotgunPenalty, extras));
 }
 

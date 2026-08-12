@@ -370,8 +370,11 @@ describe("ab-test-readout: the numbers the primer promises", () => {
     expect(v.returnCost).toBeCloseTo(9.764 * 100_000, -2);
   });
 
-  it("leaves ₹77.3 lakh of net contribution", () => {
-    expect(v.netContribution).toBeCloseTo(77.266 * 100_000, -2);
+  // Trading contribution, not net: the primer's chain is margin minus returns,
+  // and what the squad costs to run sits below it as the price of acting. The
+  // north star carries both, which is why the two drivers are separate.
+  it("leaves ₹77.3 lakh of trading contribution", () => {
+    expect(v.tradingContribution).toBeCloseTo(77.266 * 100_000, -2);
   });
 
   /**
@@ -388,19 +391,20 @@ describe("ab-test-readout: the numbers the primer promises", () => {
     expect(shipped.revenue / v.revenue).toBeCloseTo(1.06, 4);
     expect(shipped.returnRate).toBeCloseTo(0.0976, 4);
 
-    const change = (shipped.netContribution - v.netContribution) / v.netContribution;
+    const change =
+      (shipped.tradingContribution - v.tradingContribution) / v.tradingContribution;
     expect(change).toBeCloseTo(-0.067, 3);
   });
 
   /** The debrief's arithmetic: the returns cost about twice the added margin. */
   it("costs about twice in returns what the extra orders earn in margin", () => {
     const moreOrders = resolveDrivers(scenario.drivers, { conversionRate: 1.06 });
-    const earned = moreOrders.netContribution - v.netContribution;
+    const earned = moreOrders.tradingContribution - v.tradingContribution;
     const shipped = resolveDrivers(scenario.drivers, {
       conversionRate: 1.06,
       returnRate: 1.6,
     });
-    const lost = moreOrders.netContribution - shipped.netContribution;
+    const lost = moreOrders.tradingContribution - shipped.tradingContribution;
 
     expect(earned).toBeGreaterThan(0);
     expect(lost / earned).toBeGreaterThan(1.8);
@@ -428,8 +432,11 @@ describe("ab-test-readout: the numbers the primer promises", () => {
    * festive push has to genuinely work and still be the wrong call.
    */
   it("lets the festive push genuinely help, and lose anyway", () => {
+    // Funded at its own ask rather than at a literal, so retuning the
+    // intervention cannot silently turn this into a test of over-funding.
+    const ask = scenario.interventions.find((i) => i.id === "iv-festive")!.cost;
     const festive = runOutcome(scenario, [
-      { interventionId: "iv-festive", sprints: 1, rupees: 14 * 100_000 },
+      { interventionId: "iv-festive", sprints: ask.sprints, rupees: ask.rupees },
     ]);
     const ns = "netContribution";
     expect(finalValue(festive.paths, ns)).toBeGreaterThan(finalValue(festive.doNothing, ns));

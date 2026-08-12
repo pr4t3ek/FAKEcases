@@ -102,12 +102,36 @@ export const simConfig = {
    * guarantees a hit and tells an interviewer nothing, which is precisely the
    * habit this phase exists to break.
    */
-  maxSuspects: 2,
-  maxCausesNamed: 2,
+  maxSuspects: 3,
+  maxCausesNamed: 3,
   /** Credit for naming an ancestor of the true cause — the right region, not the cause. */
   ancestorCredit: 0.55,
-  /** Score multiplier per extra cause named beyond the first correct one. */
-  shotgunPenalty: 0.8,
+  /**
+   * Score multiplier per extra cause named beyond the first correct one.
+   *
+   * Lowered from 0.8 when the cap rose from two to three, because the old value
+   * did not survive the wider board. The test to run is expected value against
+   * a random guesser: on a six-leaf tree, naming three suspects hits with
+   * probability 3/6, and `0.5 × 100 × 0.8² = 32` already beats the 29.2 a
+   * single random pick earns. Hedging *paid*, on the dimension whose entire
+   * purpose is to make a candidate commit.
+   *
+   * No adjustment to the miss credit can fix that — the hit term alone clears
+   * it — so the multiplier itself had to come down. At 0.7 a single pick
+   * dominates two and three across every board size we author (6, 8, 10 and 12
+   * leaves), which `tests/sim-score.test.ts` pins as a property rather than as
+   * a number.
+   */
+  shotgunPenalty: 0.7,
+  /**
+   * Multiplier per extra suspect on the consolation a wrong-but-committed
+   * hypothesis earns.
+   *
+   * The flat 15 was defensible for one pick — you committed to something
+   * falsifiable, which is the habit — and indefensible for three, where it
+   * became a participation fee for naming half the board.
+   */
+  hedgedMissCredit: 0.5,
   /**
    * Ceiling on Investigation when no purchased drilldown was evidence for the
    * cause eventually named. Guessing right is worth less than diagnosing right —
@@ -140,15 +164,22 @@ export const simConfig = {
   /** Share of the ceiling that counts as "this has stopped paying". */
   satiationFraction: 0.95,
   /**
-   * How far the authored best must beat "fund everything to its cap" before a
-   * v2 scenario is certified.
+   * How much of the *achievable gain* over-spending must cost before a v2
+   * scenario is certified.
    *
-   * Without this a scenario could carry response curves and still have
-   * "spend everything" as its answer, which is the exact play the curves exist
-   * to retire — and it would validate, balance and score perfectly while doing
-   * it. `checkBalance` refuses instead.
+   * Without a check like this a scenario could carry response curves and still
+   * have "spend everything" as its answer — the exact play the curves exist to
+   * retire — while validating, balancing and scoring perfectly.
+   *
+   * Measured against `best − doNothing` rather than against `best` itself, and
+   * the denominator is the whole point. A north star of ₹75 lakh whose entire
+   * achievable range is ₹2.5 lakh cannot be asked to give up 2% of ₹75 lakh to
+   * prove a point — that is 60% of everything available, and demanding it
+   * forces a scenario to price money so punishingly that the optimum banks two
+   * thirds of the budget. As a share of the range it means what it should:
+   * emptying the wallet has to cost you a fifth of what you could have won.
    */
-  interiorityMargin: 0.02,
+  interiorityMargin: 0.2,
   /**
    * How much better spending the leftover money must be before `checkBalance`
    * calls an underspent ceiling an oversight rather than a decision.
