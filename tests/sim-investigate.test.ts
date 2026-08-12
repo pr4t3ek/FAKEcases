@@ -125,3 +125,54 @@ describe("isEvidenceFor", () => {
     expect(isEvidenceFor(noise, [CAUSE_TRUE])).toBe(false);
   });
 });
+
+/**
+ * What may be bought, and what may not.
+ *
+ * Play-testing produced the report that prompted this: a candidate who had
+ * named demand, found the supply pull showing a padlock, and concluded the
+ * board only offered analyses for the branch they had committed to. It never
+ * has — but nothing said so, and the card carrying the padlock was the one card
+ * whose reason was hidden behind a tooltip.
+ *
+ * So the rule gets a test rather than a comment. Any analysis on any branch is
+ * buyable at any time, which is the property that makes it possible to disprove
+ * your own hypothesis — and disproving your own hypothesis is the entire point
+ * of being able to revise it.
+ */
+describe("what gates an analysis", () => {
+  const scenario = fixtureScenario();
+
+  it("never consults the hypothesis", () => {
+    // `d-funnel` is evidence for the price branch. A run that named the rider
+    // branch — the opposite corner of the tree — may still buy it.
+    const run = { phase: "investigate" as const, daysSpent: 0, owned: [] };
+    expect(priceDrilldown(scenario, run, "d-funnel").ok).toBe(true);
+
+    // And the reverse: having named price, the supply pull is still open.
+    expect(priceDrilldown(scenario, run, "d-city").ok).toBe(true);
+  });
+
+  it("gates only on phase, dependencies, ownership and budget", () => {
+    // The exhaustive list, asserted as a list. A refusal reason that is not one
+    // of these is a gate somebody added without saying so.
+    const reasons = new Set<string>();
+    for (const phase of ["observe", "investigate", "commit", "debrief"] as const) {
+      for (const owned of [[], ["d-city"]]) {
+        for (const days of [0, 99]) {
+          for (const id of ["d-city", "d-riders", "d-funnel", "d-noise", "nope"]) {
+            const decision = priceDrilldown(scenario, { phase, daysSpent: days, owned }, id);
+            if (!decision.ok) reasons.add(decision.reason);
+          }
+        }
+      }
+    }
+    expect([...reasons].sort()).toEqual([
+      "already_owned",
+      "insufficient_budget",
+      "locked",
+      "unknown_drilldown",
+      "wrong_phase",
+    ]);
+  });
+});

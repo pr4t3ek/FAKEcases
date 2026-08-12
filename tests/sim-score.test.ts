@@ -118,6 +118,78 @@ describe("scoreInvestigation", () => {
     );
     expect(chasing).toBeGreaterThan(flailing);
   });
+
+  /**
+   * The hindsight exploit, and its fix.
+   *
+   * The hypothesis is revisable throughout Investigate now, which opens an
+   * obvious cheat: buy whatever, then rewrite the hypothesis to name whatever
+   * those pulls turned out to be evidence for, and collect full relevance for
+   * a search you never conducted. Relevance is judged against the belief
+   * standing at each purchase instead, so the cheat pays nothing.
+   */
+  describe("with a revised hypothesis", () => {
+    const purchases = [buy("d-city", 2, 1), buy("d-funnel", 2, 2)];
+
+    it("does not reward rewriting the hypothesis to match what was bought", () => {
+      // Both runs end holding the same belief and hold the same two pulls. The
+      // difference is only when the belief was formed.
+      const hindsight = scoreInvestigation(scenario, purchases, [CAUSE_WRONG_LEAF], {
+        revisions: [
+          // Opened somewhere the funnel pull says nothing about…
+          { causeIds: [CAUSE_TRUE], note: null, afterPurchases: 0, afterDays: 0, at: "t0" },
+          // …and only claimed the price branch after both pulls were in hand.
+          {
+            causeIds: [CAUSE_WRONG_LEAF],
+            note: null,
+            afterPurchases: 2,
+            afterDays: 4,
+            at: "t1",
+          },
+        ],
+      });
+
+      const genuine = scoreInvestigation(scenario, purchases, [CAUSE_WRONG_LEAF], {
+        revisions: [
+          {
+            causeIds: [CAUSE_WRONG_LEAF],
+            note: null,
+            afterPurchases: 0,
+            afterDays: 0,
+            at: "t0",
+          },
+        ],
+      });
+
+      expect(hindsight).toBeLessThan(genuine);
+    });
+
+    it("still credits a pull bought under the belief it was testing", () => {
+      // Revising is not itself penalised. A run that opened on the price
+      // branch, bought the funnel pull to test it, then moved on scores that
+      // pull as the reasonable spend it was.
+      const revised = scoreInvestigation(scenario, purchases, [CAUSE_TRUE], {
+        revisions: [
+          {
+            causeIds: [CAUSE_WRONG_LEAF],
+            note: null,
+            afterPurchases: 0,
+            afterDays: 0,
+            at: "t0",
+          },
+          { causeIds: [CAUSE_TRUE], note: null, afterPurchases: 2, afterDays: 4, at: "t1" },
+        ],
+      });
+      const neverBelievedIt = scoreInvestigation(scenario, purchases, [CAUSE_TRUE]);
+      expect(revised).toBeGreaterThan(neverBelievedIt);
+    });
+
+    it("scores a run with no log exactly as it did before the log existed", () => {
+      expect(scoreInvestigation(scenario, purchases, [CAUSE_WRONG_LEAF], { revisions: [] })).toBe(
+        scoreInvestigation(scenario, purchases, [CAUSE_WRONG_LEAF]),
+      );
+    });
+  });
 });
 
 describe("scoreDiagnosisSim", () => {

@@ -24,6 +24,11 @@ import type {
 import type { SimScoreResult } from "@/lib/sim/score";
 import type { TurnaroundScore } from "@/lib/sim/turnaround";
 import { serialiseJournal, type RunJournal } from "@/lib/sim/engine/journal";
+import {
+  appendRevision,
+  parseHypothesisLog,
+  withHypothesisLog,
+} from "@/lib/sim/hypothesis-log";
 import { simStateFromRuns, type SimQuestionState } from "@/lib/sim/replay";
 
 // Re-exported so callers have one import for "simulation data access", while the
@@ -117,6 +122,7 @@ export function toRunState(run: {
   hypothesis: string | null;
   diagnosis: string | null;
   allocation: string | null;
+  stateJson?: string | null;
   purchases: { drilldownId: string; cost: number; seq: number }[];
 }): SimRunState {
   return {
@@ -126,6 +132,9 @@ export function toRunState(run: {
       (p): SimPurchaseRecord => ({ drilldownId: p.drilldownId, cost: p.cost, seq: p.seq }),
     ),
     hypothesis: parseJsonArray<CauseId>(run.hypothesis),
+    // Empty for every run played before revisions existed, which then scores
+    // against its single hypothesis exactly as it always did.
+    hypothesisLog: parseHypothesisLog(run.stateJson ?? null),
     diagnosis: parseJsonArray<CauseId>(run.diagnosis),
     allocation: parseJsonArray<SimAllocationLine>(run.allocation),
   };
@@ -142,17 +151,45 @@ export async function scenarioForRun(
   return loadScenario(run.scenarioSlug);
 }
 
-/** Lock the hypothesis and open the investigation. */
-export async function commitHypothesisToRun(
-  runId: string,
-  suspects: CauseId[],
-  note: string | null,
-): Promise<void> {
+/**
+ * Record the hypothesis — the opening call, or a revision made after the data
+ * started arriving — and open the investigation.
+ *
+ * The two typed columns hold the *current* belief, because that is what the
+ * final score reads and what every existing caller expects. The log alongside
+ * them holds what was believed before it, which `scoreInvestigation` needs to
+ * rate each pull against the belief that was standing when it was bought.
+ *
+ * One update, so a revision cannot half-land: the columns and the history it
+ * has to agree with are written together or not at all.
+ */
+export async function commitHypothesisToRun(args: {
+  runId: string;
+  suspects: CauseId[];
+  note: string | null;
+  purchaseCount: number;
+  daysSpent: number;
+  stateJson: string | null;
+}): Promise<void> {
+  const { runId, suspects, note, purchaseCount, daysSpent, stateJson } = args;
+  const trimmed = note?.trim() || null;
+
+  const log = appendRevision(parseHypothesisLog(stateJson), {
+    causeIds: suspects,
+    note: trimmed,
+    afterPurchases: purchaseCount,
+    afterDays: daysSpent,
+    at: new Date().toISOString(),
+  });
+
   await db.simRun.update({
     where: { id: runId },
     data: {
       hypothesis: JSON.stringify(suspects),
-      hypothesisNote: note?.trim() || null,
+      hypothesisNote: trimmed,
+      stateJson: withHypothesisLog(stateJson, log),
+      // A no-op when amending, since that is already the phase — so one path
+      // serves the opening call and every revision after it.
       phase: "investigate",
     },
   });

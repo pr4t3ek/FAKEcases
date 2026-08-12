@@ -113,7 +113,8 @@ function NameStep({ runId, scenario }: { runId: string; scenario: ClientScenario
         </h2>
         <p className="mt-1 text-xs text-muted-foreground">
           Pick up to {simConfig.maxCausesNamed}. Name the specific branch — the headings are
-          there to group them, not to be picked.{" "}
+          there to group them, not to be picked. This is your answer, not your opening
+          hypothesis: name whatever the data ended up saying.{" "}
           <span className="font-medium text-foreground">
             This decides what you are allowed to spend on.
           </span>{" "}

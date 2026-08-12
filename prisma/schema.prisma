@@ -503,9 +503,14 @@ model SimRun {
   /// a single read rather than a join on every render.
   daysSpent      Int       @default(0)
 
-  /// JSON string[] of cause ids named as suspects, locked once Investigate
-  /// begins. A hypothesis revised after seeing the data is not a hypothesis —
-  /// the same argument that fixes Attempt.treeMode at creation.
+  /// JSON string[] — the cause ids currently named as suspects.
+  ///
+  /// Revisable throughout Investigate and settled when Commit opens: a
+  /// prediction you may not update when the data contradicts it is not a
+  /// hypothesis either. Holds only the CURRENT belief; the history lives in
+  /// `stateJson` (see lib/sim/hypothesis-log.ts), which is what lets
+  /// `scoreInvestigation` rate each pull against what was believed when it was
+  /// bought rather than against whatever was claimed afterwards.
   hypothesis     String?
   hypothesisNote String?
   /// JSON string[] — cause ids named at Commit.
@@ -523,8 +528,11 @@ model SimRun {
   /// Null on the authored formats, which draw nothing.
   seed           String?
 
-  /// Format-specific run state, as JSON. Null for the war-room format, which
-  /// keeps using the four typed columns above.
+  /// Format-specific run state, as JSON.
+  ///
+  /// The war room keeps its decisions in the four typed columns above and uses
+  /// this only for the hypothesis revision log — history the columns cannot
+  /// hold, because they hold the current belief and are overwritten by it.
   ///
   /// A second format does not have a hypothesis, a diagnosis or a single
   /// allocation — the turnaround format has a schedule of them, one per period,

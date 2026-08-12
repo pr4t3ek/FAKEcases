@@ -18,6 +18,7 @@
 
 import type { Difficulty, SimPhase } from "@/lib/types";
 import type { MetricMapNode } from "./metric-map";
+import type { HypothesisLog } from "./hypothesis-log";
 
 export type DriverId = string;
 export type CauseId = string;
@@ -641,7 +642,16 @@ export interface SimRunState {
   phase: SimPhase;
   daysSpent: number;
   purchases: SimPurchaseRecord[];
+  /** The belief currently held. Revisable until Commit opens. */
   hypothesis: CauseId[];
+  /**
+   * Every belief held along the way, oldest first.
+   *
+   * Empty for a run played before revisions existed. `scoreInvestigation` needs
+   * it to rate a pull against what was believed when it was bought; the debrief
+   * uses it to tell the candidate how their thinking moved.
+   */
+  hypothesisLog: HypothesisLog;
   diagnosis: CauseId[];
   allocation: SimAllocationLine[];
 }

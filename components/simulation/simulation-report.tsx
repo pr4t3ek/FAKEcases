@@ -282,6 +282,37 @@ export function SimulationReport({
         {/* Hidden entirely on a format without an investigation phase. A
             turnaround spends no analyst-days, and reporting its period count
             under that noun is simply false. */}
+        {/* Only shown to someone who actually changed their mind, and shown
+            without a score attached. Updating a belief on evidence is a skill
+            and it is invisible unless something writes it down — but grading it
+            would turn "was I right to move?" into a mark, and the point is to
+            let a candidate read their own reasoning back. */}
+        {data.hypothesisTrail.length > 1 && (
+          <Card className="p-6">
+            <h2 className="text-sm font-semibold">How your thinking moved</h2>
+            <ol className="mt-3 space-y-2">
+              {data.hypothesisTrail.map((step, i) => (
+                <li key={i} className="flex gap-3">
+                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-medium text-muted-foreground">
+                    {i + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium">
+                      {step.causes.join(" and ") || "—"}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {step.afterPurchases === 0
+                        ? "Before buying anything"
+                        : `After ${step.afterPurchases} pull${step.afterPurchases === 1 ? "" : "s"}`}
+                      {step.note ? ` — “${step.note}”` : ""}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </Card>
+        )}
+
         {data.hasInvestigation && (
         <Card className="p-6">
           <div className="flex flex-wrap items-baseline justify-between gap-2">

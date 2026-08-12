@@ -16,11 +16,13 @@ import { clamp } from "@/lib/utils";
 import { simConfig, weightedSimOverall, bandForSimScore } from "@/lib/config/simulation";
 import type { SimBand, SimScores } from "@/lib/config/simulation";
 import type { FeedbackItem } from "@/lib/types";
+import { hypothesisAtPurchase, type HypothesisLog } from "./hypothesis-log";
 import { drilldownById, isEvidenceFor, parCost } from "./investigate";
 import { finalValue, totalsByIntervention } from "./outcome";
 import type {
   CauseId,
   SimAllocationLine,
+  SimDrilldown,
   SimOutcomeResult,
   SimPurchaseRecord,
   SimScenario,
@@ -98,9 +100,19 @@ export function scoreHypothesis(scenario: SimScenario, suspects: CauseId[]): num
  * Under par is full marks and never more — buying less than the cheapest
  * sufficient investigation is not a virtue if it means guessing.
  *
- * A pull counts as relevant if it spoke to a true cause *or* to their declared
- * hypothesis: chasing a wrong-but-reasonable hypothesis is good practice that
- * happened not to pay, and shouldn't be scored as waste.
+ * A pull counts as relevant if it spoke to a true cause *or* to the hypothesis
+ * the candidate held **when they bought it**: chasing a wrong-but-reasonable
+ * hypothesis is good practice that happened not to pay, and shouldn't be scored
+ * as waste.
+ *
+ * "When they bought it" is doing real work now that the hypothesis is revisable
+ * (`hypothesisEditFor`). Judged against the final belief instead, a run could
+ * buy anything at all, revise to name whatever those pulls turned out to be
+ * evidence for, and score full relevance for a search it never conducted — the
+ * same hindsight problem the old purchase-count lock existed to prevent,
+ * wearing this dimension's clothes. `hypothesisAtPurchase` is what closes it,
+ * and the question it asks is the better one: was this worth buying, given what
+ * you believed at the time?
  *
  * The gate matters most. A run that never bought anything bearing on the real
  * cause is capped however confident its diagnosis — guessing right is worth
@@ -110,6 +122,7 @@ export function scoreInvestigation(
   scenario: SimScenario,
   purchases: SimPurchaseRecord[],
   hypothesis: CauseId[],
+  log: HypothesisLog = { revisions: [] },
 ): number {
   if (!purchases.length) return 0;
 
@@ -118,17 +131,25 @@ export function scoreInvestigation(
   const parRatio = par > 0 ? par / Math.max(spent, par) : 1;
 
   const bought = purchases
-    .map((p) => drilldownById(scenario, p.drilldownId))
-    .filter((d): d is NonNullable<typeof d> => !!d);
+    .map((p) => ({ record: p, drilldown: drilldownById(scenario, p.drilldownId) }))
+    .filter(
+      (b): b is { record: SimPurchaseRecord; drilldown: SimDrilldown } => !!b.drilldown,
+    );
   if (!bought.length) return 0;
 
-  const worthLooking = [...scenario.trueCauseIds, ...hypothesis];
-  const relevant = bought.filter((d) => isEvidenceFor(d, worthLooking)).length;
+  const relevant = bought.filter(({ record, drilldown }) =>
+    isEvidenceFor(drilldown, [
+      ...scenario.trueCauseIds,
+      ...hypothesisAtPurchase(log, record.seq, hypothesis),
+    ]),
+  ).length;
   const relevance = relevant / bought.length;
 
   let score = Math.round(100 * (0.55 * parRatio + 0.45 * relevance));
 
-  const foundEvidence = bought.some((d) => isEvidenceFor(d, scenario.trueCauseIds));
+  const foundEvidence = bought.some(({ drilldown }) =>
+    isEvidenceFor(drilldown, scenario.trueCauseIds),
+  );
   if (!foundEvidence) score = Math.min(score, simConfig.unevidencedInvestigationCap);
 
   return clamp(score, 0, 100);
@@ -228,7 +249,13 @@ export function scoreOutcome(scenario: SimScenario, outcome: SimOutcomeResult): 
 
 export interface SimScoreInput {
   scenario: SimScenario;
+  /** The final standing hypothesis — what the candidate believed at Commit. */
   hypothesis: CauseId[];
+  /**
+   * Everything they believed along the way. Absent on a run played before the
+   * log existed, which then scores exactly as it did then.
+   */
+  hypothesisLog?: HypothesisLog;
   purchases: SimPurchaseRecord[];
   diagnosis: CauseId[];
   allocation: SimAllocationLine[];
@@ -246,11 +273,12 @@ export interface SimScoreResult {
 }
 
 export function scoreSimulation(input: SimScoreInput): SimScoreResult {
-  const { scenario, hypothesis, purchases, diagnosis, allocation, outcome } = input;
+  const { scenario, hypothesis, hypothesisLog, purchases, diagnosis, allocation, outcome } =
+    input;
 
   const scores: SimScores = {
     hypothesis: scoreHypothesis(scenario, hypothesis),
-    investigation: scoreInvestigation(scenario, purchases, hypothesis),
+    investigation: scoreInvestigation(scenario, purchases, hypothesis, hypothesisLog),
     diagnosis: scoreDiagnosisSim(scenario, diagnosis),
     decision: scoreDecision(scenario, allocation, outcome),
     outcome: scoreOutcome(scenario, outcome),
