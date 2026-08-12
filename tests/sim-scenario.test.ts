@@ -12,7 +12,7 @@ import { getScenario, listScenarios, scenarioSlugs } from "@/lib/sim/registry";
 import { validateScenario } from "@/lib/sim/validate";
 import { drilldownById, parCost } from "@/lib/sim/investigate";
 import { resolveDrivers } from "@/lib/sim/drivers";
-import { allocationFits, finalValue, runOutcome } from "@/lib/sim/outcome";
+import { allocationFits, finalValue, runOutcome, runSchedule } from "@/lib/sim/outcome";
 import {
   MAX_BRUTE_FORCE_INTERVENTIONS,
   checkBalance,
@@ -1209,6 +1209,74 @@ describe("metric-drop-food-delivery specifics", () => {
       { interventionId: "iv-checkout-rewrite", sprints: 2, rupees: 2 * 10_000_000 },
     ]);
     expect(outcome.stalled).toContain("iv-checkout-rewrite");
+  });
+
+  /**
+   * The reason the payout correction's conversion effect ramps.
+   *
+   * An effect with no ramp is fully arrived one quarter after it ships and
+   * `finalValue` reads the last quarter, so on a scenario of instant levers
+   * committing in the final period costs nothing on the number and only moves
+   * Adaptation — pinned as a limitation in `tests/sim-schedule.test.ts`. Here
+   * it is meant to cost something real, because customers who were quoted 48
+   * minutes take a couple of quarters to start checking again.
+   */
+  it("makes committing the payout correction late cost real contribution", () => {
+    if (!scenario) throw new Error("scenario missing");
+    const line = { interventionId: "iv-payout", sprints: 2, rupees: 4.5 * 10_000_000 };
+    const early = finalValue(runSchedule(scenario, [[line], [], []]).paths, "contributionMargin");
+    const late = finalValue(runSchedule(scenario, [[], [], [line]]).paths, "contributionMargin");
+    expect(early).toBeGreaterThan(late);
+  });
+
+  it("leaves money in the bank at the ceiling, in every period", () => {
+    // The whole point of the v2 conversion, stated as a property rather than
+    // left to the balance check: the best sequence does not empty the budget,
+    // and the last period is a deliberate hold.
+    if (!scenario) throw new Error("scenario missing");
+    const schedule = scenario.bestSchedule ?? [];
+    const spent = schedule.flat().reduce((sum, l) => sum + l.rupees, 0);
+    expect(spent).toBeLessThan(scenario.budget.rupees);
+    expect(schedule.at(-1)).toEqual([]);
+  });
+
+  /**
+   * The board has to be wide enough that three picks is a commitment.
+   *
+   * With seven leaf causes, naming three hits the right one 43% of the time by
+   * guessing — on the dimension whose whole purpose is to make a candidate
+   * commit. Eleven takes that to 27%.
+   */
+  it("offers enough leaves that hedging three picks does not pay", () => {
+    if (!scenario) throw new Error("scenario missing");
+    const parents = new Set(scenario.causes.map((c) => c.parentId).filter(Boolean));
+    const leaves = scenario.causes.filter((c) => !parents.has(c.id));
+    expect(leaves.length).toBeGreaterThanOrEqual(10);
+  });
+
+  it("cannot be bought out of, and has something cheap on it", () => {
+    // Two properties of a board worth triaging. The budget must not cover it,
+    // or there is nothing to choose; and at least one pull must be cheap
+    // enough that the opening move is a decision rather than a coin flip.
+    if (!scenario) throw new Error("scenario missing");
+    const total = scenario.drilldowns.reduce((sum, d) => sum + d.cost, 0);
+    expect(scenario.drilldowns.length).toBeGreaterThanOrEqual(12);
+    expect(total).toBeGreaterThan(scenario.budget.analystDays * 2);
+    expect(Math.min(...scenario.drilldowns.map((d) => d.cost))).toBe(1);
+  });
+
+  it("carries a redundant route to the answer, priced like the first one", () => {
+    // Buying both is the board's clearest example of paying twice for the same
+    // sentence, and it is only a lesson if the second one genuinely costs.
+    if (!scenario) throw new Error("scenario missing");
+    const routes = scenario.drilldowns.filter(
+      (d) => d.evidenceFor.includes("supply.riders") && d.cost >= 3,
+    );
+    expect(routes.length).toBeGreaterThanOrEqual(2);
+    // …and par uses neither of them, because the call is makeable without.
+    for (const route of routes) {
+      expect(scenario.parInvestigation).not.toContain(route.id);
+    }
   });
 
   it("has a coach answer for every major wrong theory in the room", () => {
