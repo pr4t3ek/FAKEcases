@@ -22,6 +22,7 @@ import { Progress } from "@/components/ui/progress";
 import { simConfig } from "@/lib/config/simulation";
 import { cn, toIndianWords } from "@/lib/utils";
 import type { ClientCause, ClientIntervention, ClientScenario } from "@/lib/sim/types";
+import { formatValue } from "./format";
 import { moneyScaleFor } from "./money";
 import type { SimulationPeriods } from "./types";
 import { SelectionRow } from "./selection-row";
@@ -352,6 +353,43 @@ function FundStep({
             another {periodNoun} of results before you spend it. Committing early buys more
             time for a fix to work; committing late buys more certainty about which fix.
           </p>
+          {periods.observed.length > 1 && (
+            <div className="mt-2 border-t pt-2">
+              <div className="text-[11px] font-medium">
+                {periods.northStar.label}, as it has come in
+              </div>
+              <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+                {periods.observed.map((point, index) => {
+                  // Against the start rather than the previous reading: the
+                  // question a candidate is asking mid-run is whether the metric
+                  // has recovered, and a quarter-on-quarter delta answers a
+                  // different one.
+                  const base = periods.observed[0].value;
+                  const change = base === 0 ? null : (point.value - base) / base;
+                  return (
+                    <div key={point.label} className="text-[11px] tabular-nums">
+                      <span className="text-muted-foreground">{point.label}</span>{" "}
+                      <span className="font-medium">
+                        {formatValue(point.value, periods.northStar.unit)}
+                      </span>
+                      {index > 0 && change !== null && (
+                        <span className="text-muted-foreground">
+                          {" "}
+                          ({change >= 0 ? "+" : ""}
+                          {(change * 100).toFixed(1)}%)
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                What your committed capacity has actually produced, luck included. There is no
+                counterfactual here — whether another call would have done better is the
+                question you are still answering.
+              </p>
+            </div>
+          )}
           {periods.committed.length > 0 && (
             <ul className="mt-2 space-y-1 border-t pt-2 text-[11px] text-muted-foreground">
               {periods.committed.map((lines, index) => (

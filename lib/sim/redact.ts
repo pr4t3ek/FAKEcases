@@ -28,9 +28,13 @@ import { visibleDashboard } from "./investigate";
 import { responseFor, satiationMultiple } from "./response";
 import { simConfig } from "@/lib/config/simulation";
 import { permittedInterventions } from "./gating";
+import { runSchedule } from "./outcome";
+import { decisionPeriodsIn, moneyRemaining, openPeriodIn } from "./schedule";
 import type {
   CauseId,
   ClientCause,
+  ClientPeriods,
+  SimAllocationLine,
   ClientDrilldown,
   ClientIntervention,
   ClientScenario,
@@ -163,6 +167,54 @@ function unactionableNote(scenario: SimScenario, diagnosis: CauseId[]): string |
     .filter((c) => named.has(c.id) && c.unactionable)
     .map((c) => c.unactionable!.why);
   return notes.length ? notes.join(" ") : null;
+}
+
+/**
+ * Where a multi-period run has got to, or nothing on a single commit.
+ *
+ * Every number is derived from the stored schedule, which is the same source
+ * `commitDecision` re-reads to accept or refuse the next period. A client that
+ * accumulated the pool itself would be a second copy of that arithmetic, and
+ * the first time the two disagreed it would offer a commitment the server
+ * rejects.
+ */
+export function toClientPeriods(
+  scenario: SimScenario,
+  schedule: SimAllocationLine[][],
+  seed: string | null,
+): ClientPeriods | undefined {
+  const total = decisionPeriodsIn(scenario);
+  if (total <= 1) return undefined;
+
+  const driver = scenario.drivers.find((d) => d.id === scenario.northStar);
+  const noun = scenario.periodNoun === "month" ? "M" : "Q";
+
+  // Cut to the quarters that have actually been played. Done here rather than
+  // in the component: the tail of this projection is what the allocation will
+  // eventually do, which is the run's own question, and a boundary is the place
+  // to stop that from crossing.
+  const played =
+    schedule.length === 0
+      ? []
+      : (runSchedule(scenario, schedule, { seed }).paths[scenario.northStar] ?? []).slice(
+          0,
+          schedule.length + 1,
+        );
+
+  return {
+    total,
+    // Null once every period is spent, which happens only in the moment before
+    // the run flips to its debrief. Reporting the last one keeps a period index
+    // of -1 off the screen in that gap.
+    open: openPeriodIn(scenario, schedule) ?? total - 1,
+    committed: schedule,
+    moneyRemaining: moneyRemaining(scenario, schedule),
+    observed: played.map((value, index) => ({
+      label: index === 0 ? "Start" : `${noun}+${index}`,
+      value,
+    })),
+    northStar: { label: driver?.label ?? "North star", unit: driver?.unit ?? "count" },
+  };
 }
 
 export function toClientScenario(
