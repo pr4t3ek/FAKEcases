@@ -19,8 +19,10 @@ import type { FeedbackItem } from "@/lib/types";
 import { hypothesisAtPurchase, type HypothesisLog } from "./hypothesis-log";
 import { drilldownById, isEvidenceFor, parCost } from "./investigate";
 import { finalValue, totalsByIntervention } from "./outcome";
+import { meanCommitPeriod } from "./schedule";
 import type {
   CauseId,
+  InterventionId,
   SimAllocationLine,
   SimDrilldown,
   SimOutcomeResult,
@@ -156,6 +158,66 @@ export function scoreInvestigation(
   if (!foundEvidence) score = Math.min(score, simConfig.unevidencedInvestigationCap);
 
   return clamp(score, 0, 100);
+}
+
+/**
+ * Did they commit when it mattered, and stop backing the wrong horse?
+ *
+ * Only meaningful on a multi-period run — a single commit has nothing to adapt,
+ * and this returns a neutral 50 for one rather than a flattering 100. Modelled
+ * on `scoreTurnaround`'s `read` and `adaptation` dimensions rather than
+ * invented, because the two formats have to agree about what "committed early"
+ * means; a run called timely by one and late by the other would be two rubrics
+ * wearing one word.
+ *
+ * Two things are graded, and they pull in opposite directions on purpose.
+ * Committing early is worth something real, because a fix funded in the first
+ * period has every remaining quarter to ramp — but committing early to the
+ * wrong thing, and then again after a quarter's results have already shown what
+ * the levers were doing, is the mistake this format exists to catch. Making the
+ * wrong call once is judgement under uncertainty. Repeating it with the
+ * evidence in front of you is not.
+ */
+export function scoreAdaptation(scenario: SimScenario, schedule: SimAllocationLine[][]): number {
+  const periods = schedule.length;
+  if (periods <= 1) return 50;
+  if (!schedule.flat().length) return 0;
+
+  const onTarget = (id: InterventionId) => {
+    const iv = scenario.interventions.find((i) => i.id === id);
+    return !!iv && scenario.trueCauseIds.includes(iv.addresses);
+  };
+
+  let backed = 0;
+  let total = 0;
+  for (const line of schedule.flat()) {
+    const weight = line.sprints + line.rupees / Math.max(1, scenario.budget.rupees);
+    if (weight <= 0) continue;
+    total += weight;
+    if (onTarget(line.interventionId)) backed += weight;
+  }
+  if (total <= 0) return 0;
+
+  // Multiplicative rather than subtractive, and floored: arriving at the right
+  // answer in the final period is a late read, not a wrong one.
+  const timeliness = clamp(1 - 0.15 * meanCommitPeriod(scenario, schedule), 0.4, 1);
+
+  // Every off-target commitment made after the first period, when the previous
+  // quarter's numbers were already on screen.
+  let lateMistakes = 0;
+  schedule.forEach((lines, period) => {
+    if (period === 0) return;
+    for (const line of lines) {
+      if (line.sprints <= 0 && line.rupees <= 0) continue;
+      if (!onTarget(line.interventionId)) lateMistakes += 1;
+    }
+  });
+
+  return clamp(
+    Math.round(100 * (backed / total) * timeliness - lateMistakes * 35),
+    0,
+    100,
+  );
 }
 
 /**

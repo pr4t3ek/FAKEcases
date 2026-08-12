@@ -276,7 +276,12 @@ function firstFundedPeriod(schedule: SimSchedule, id: InterventionId): number | 
  * Order-independence within a period and compounding drift both survive, which
  * is what keeps this comparable with `pathsForFunding`.
  */
-export function pathsForSchedule(scenario: SimScenario, schedule: SimSchedule): SimPaths {
+export function pathsForSchedule(
+  scenario: SimScenario,
+  schedule: SimSchedule,
+  shocks: RunShocks = NO_SHOCKS,
+): SimPaths {
+  const v2 = scenario.engine === "v2";
   const paths: SimPaths = {};
 
   for (let q = 0; q <= scenario.horizonQuarters; q++) {
@@ -285,30 +290,51 @@ export function pathsForSchedule(scenario: SimScenario, schedule: SimSchedule): 
       multipliers[driver] = (multipliers[driver] ?? 1) * factor;
     };
 
-    // No weather here: the turnaround format is v1 and draws no shocks. When a
-    // v2 scenario needs periods, this loop grows the same two lines
-    // `pathsForFunding` has.
     for (const effect of scenario.drift) {
-      scale(effect.driver, Math.pow(1 + effect.deltaPct, q));
+      scale(effect.driver, Math.pow(1 + effect.deltaPct * driftShockFor(shocks, q), q));
+    }
+
+    for (const driver of Object.keys(shocks.drivers)) {
+      scale(driver, shockFor(shocks, driver, q));
     }
 
     // Everything decided strictly before this period.
     const committed = schedule.slice(0, q).flat();
     const { funding } = fundingFor(scenario, committed);
 
+    // The bill, on the money committed so far rather than on the whole budget:
+    // rupees still in the pool have not been spent and must not be charged.
+    if (v2 && scenario.spend && q > 0) {
+      const spent = committed.reduce((sum, line) => sum + line.rupees, 0);
+      const budget = scenario.budget.rupees;
+      if (budget > 0 && spent > 0) {
+        scale(scenario.spend.driver, 1 + scenario.spend.atFullBudget * (spent / budget));
+      }
+    }
+
     for (const iv of scenario.interventions) {
-      // The turnaround format is v1 only, so the linear ratio is the whole
-      // story here. When a v2 scenario needs periods, this loop grows the same
-      // branch `pathsForFunding` has.
-      const ratio = funding[iv.id]?.ratio ?? 0;
-      if (ratio <= 0) continue;
+      const got = funding[iv.id];
+      if (!got || !got.shipped) continue;
+      if (!v2 && got.ratio <= 0) continue;
+
       const started = firstFundedPeriod(schedule, iv.id);
       if (started === null) continue;
 
       const onTarget = scenario.trueCauseIds.includes(iv.addresses);
       const effects = onTarget ? iv.effects.whenRootCause : iv.effects.otherwise;
       for (const effect of effects) {
-        scale(effect.driver, 1 + effect.deltaPct * ratio * rampFraction(effect, q - started));
+        const response = v2
+          ? evalResponse(
+              responseFor(iv, effect, onTarget, simConfig.responseDefaults),
+              Math.min(got.askMultiple, iv.maxAskMultiple ?? simConfig.maxAskMultiple),
+            )
+          : got.ratio;
+        // Ramped from the first period this was funded, not from the start of
+        // the run — a fix begun in period 3 has not been ramping since period 0.
+        scale(
+          effect.driver,
+          1 + effect.deltaPct * response * rampFraction(effect, q - started),
+        );
       }
     }
 
@@ -339,18 +365,34 @@ export function bestScheduleFor(scenario: SimScenario): SimSchedule {
 export function runSchedule(
   scenario: SimScenario,
   schedule: SimSchedule,
+  opts: { seed?: string | null } = {},
 ): SimOutcomeResult {
   const flat = schedule.flat();
   const mine = fundingFor(scenario, flat);
 
-  return {
-    paths: pathsForSchedule(scenario, schedule),
-    doNothing: pathsForSchedule(scenario, []),
-    best: pathsForSchedule(scenario, bestScheduleFor(scenario)),
+  // Same rule as `runOutcome`: one table, drawn from the seed alone, applied to
+  // all three projections so luck cannot be scheduled around.
+  const shocks = drawShocks(scenario, opts.seed ?? null);
+  const noisy = shocks !== NO_SHOCKS;
+
+  const result: SimOutcomeResult = {
+    paths: pathsForSchedule(scenario, schedule, shocks),
+    doNothing: pathsForSchedule(scenario, [], shocks),
+    best: pathsForSchedule(scenario, bestScheduleFor(scenario), shocks),
     funding: mine.ratios,
     fundingDetail: mine.funding,
     stalled: mine.stalled,
   };
+
+  if (!noisy) return result;
+
+  result.expected = {
+    paths: pathsForSchedule(scenario, schedule),
+    doNothing: pathsForSchedule(scenario, []),
+    best: pathsForSchedule(scenario, bestScheduleFor(scenario)),
+  };
+  if (opts.seed) result.seed = opts.seed;
+  return result;
 }
 
 /** Project a run, its do-nothing counterfactual, and the achievable ceiling. */
