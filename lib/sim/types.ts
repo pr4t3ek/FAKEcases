@@ -740,7 +740,33 @@ export type ClientDrilldown = Omit<SimDrilldown, "reveals" | "evidenceFor" | "re
 
 export type ClientCause = Omit<SimCause, "verdict" | "unactionable">;
 
-export type ClientIntervention = Omit<SimIntervention, "addresses" | "effects" | "debrief">;
+/**
+ * What the funding panel needs to show a curve without showing an effect.
+ *
+ * Every figure here is in rupees or is a ratio of two slopes on the same curve.
+ * Neither can carry `deltaPct`: the marginal ratio `r'(u)/r'(0)` cancels it
+ * algebraically, and the satiation point is a property of `halfAt` alone. So a
+ * student can be told "the next ₹50 L buys about a tenth as much as the first"
+ * — which is the whole reason to have a slider — while learning nothing about
+ * how big the effect is, or whether this lever is the right one.
+ *
+ * Absent on a v1 scenario, which has no curve to describe.
+ */
+export interface SaturationHint {
+  /** Rupees at which half of what this lever can ever do has arrived. */
+  halfAtRupees: number;
+  /** Rupees past which it has effectively stopped. Null when it never does. */
+  satiationRupees: number | null;
+  /** Money this lever will absorb at all. */
+  capRupees: number;
+}
+
+export type ClientIntervention = Omit<
+  SimIntervention,
+  "addresses" | "effects" | "debrief" | "saturation"
+> & {
+  saturationHint?: SaturationHint;
+};
 
 export interface ClientScenario {
   slug: string;

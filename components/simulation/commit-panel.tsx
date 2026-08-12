@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { GlossaryTerm } from "./glossary-term";
+import { MoneyDial } from "./money-dial";
 import { Progress } from "@/components/ui/progress";
 import { simConfig } from "@/lib/config/simulation";
 import { cn, toIndianWords } from "@/lib/utils";
@@ -361,7 +362,7 @@ function FundStep({
                     </div>
                   </div>
 
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <div className="mt-3">
                     <label className="text-xs">
                       <span className="text-muted-foreground">
                         <GlossaryTerm>Sprints</GlossaryTerm>
@@ -380,20 +381,24 @@ function FundStep({
                         className="mt-1 h-9"
                       />
                     </label>
-                    <label className="text-xs">
-                      <span className="text-muted-foreground">{scale.label}</span>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={budgetMoney}
-                        step={scale.step}
-                        value={line.money}
-                        onChange={(e) =>
-                          setLine(iv.id, { money: Math.max(0, +e.target.value || 0) })
-                        }
-                        className="mt-1 h-9"
-                      />
-                    </label>
+                  </div>
+
+                  {/* A number box was right while money was linear — there was
+                      nothing to feel, because the answer was always "as much as
+                      the budget allows". Under a curve the question is where to
+                      stop, and you cannot see a knee in a text field. */}
+                  <div className="mt-3">
+                    <MoneyDial
+                      value={line.money}
+                      // What is left, plus what this line already holds, so
+                      // dragging one line never silently overdraws another.
+                      max={Math.max(0, budgetMoney - used.money + line.money)}
+                      scale={scale}
+                      hint={iv.saturationHint}
+                      ask={iv.cost.rupees / scale.divisor}
+                      label={iv.label}
+                      onChange={(money) => setLine(iv.id, { money })}
+                    />
                   </div>
 
                   {/* Named up front rather than discovered in the debrief: the

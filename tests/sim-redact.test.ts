@@ -10,7 +10,12 @@
 
 import { describe, expect, it } from "vitest";
 import { toClientScenario, type RedactionContext } from "@/lib/sim/redact";
-import { CAUSE_TRUE, CAUSE_WRONG_LEAF, fixtureScenario } from "./sim-fixture";
+import {
+  CAUSE_TRUE,
+  CAUSE_WRONG_LEAF,
+  fixtureScenario,
+  v2FixtureScenario,
+} from "./sim-fixture";
 
 const scenario = fixtureScenario();
 
@@ -227,6 +232,80 @@ describe("toClientScenario", () => {
 
     expect(byId.get("d-city")?.owned).toBe(true);
     expect(byId.get("d-riders")?.owned).toBe(false);
+  });
+
+  /**
+   * The funding slider needs to describe a curve without describing an effect.
+   *
+   * Everything in `saturationHint` is either rupees or derived from `halfAt`,
+   * and the panel's "the next slice buys about a tenth of what the first did"
+   * line is a ratio of two slopes on the same curve — which cancels `deltaPct`
+   * algebraically. These pin that the payload carries the shape and not the
+   * size, because getting it wrong would hand a student the answer key through
+   * the control they use most.
+   */
+  describe("the saturation hint", () => {
+    const v2 = (over: Partial<Parameters<typeof toClientScenario>[0]> = {}) =>
+      toClientScenario(
+        { ...v2FixtureScenario(), ...over },
+        ctx({ diagnosis: [CAUSE_TRUE] }),
+      );
+
+    it("describes the curve in rupees and nothing else", () => {
+      const iv = v2().interventions.find((i) => i.id === "iv-payout");
+      expect(iv?.saturationHint).toBeDefined();
+      expect(Object.keys(iv!.saturationHint!).sort()).toEqual([
+        "capRupees",
+        "halfAtRupees",
+        "satiationRupees",
+      ]);
+    });
+
+    it("never carries the effect size, in any field", () => {
+      const iv = v2().interventions.find((i) => i.id === "iv-payout")!;
+      const serialised = JSON.stringify(iv);
+      // The fixture's on-target effect is +20% on orders. No field may encode
+      // it, and no field may name the driver it moves.
+      expect(serialised).not.toContain("0.2");
+      expect(serialised).not.toContain("orders");
+      expect(serialised).not.toContain("deltaPct");
+      expect(iv).not.toHaveProperty("effects");
+      expect(iv).not.toHaveProperty("addresses");
+      expect(iv).not.toHaveProperty("saturation");
+    });
+
+    it("does not change shape with the effect it is describing", () => {
+      // The same lever made ten times stronger must produce an identical hint —
+      // otherwise the slider's readout is a thermometer for how good the fix is.
+      const base = v2FixtureScenario();
+      const stronger = {
+        ...base,
+        interventions: base.interventions.map((i) =>
+          i.id === "iv-payout"
+            ? {
+                ...i,
+                effects: {
+                  ...i.effects,
+                  whenRootCause: [{ driver: "orders", deltaPct: 2.0 }],
+                },
+              }
+            : i,
+        ),
+      };
+      const hintOf = (s: typeof base) =>
+        toClientScenario(s, ctx({ diagnosis: [CAUSE_TRUE] })).interventions.find(
+          (i) => i.id === "iv-payout",
+        )?.saturationHint;
+
+      expect(hintOf(stronger)).toEqual(hintOf(base));
+    });
+
+    it("says nothing at all on a v1 scenario, which has no curve", () => {
+      const iv = toClientScenario(scenario, ctx({ diagnosis: [CAUSE_TRUE] })).interventions.find(
+        (i) => i.id === "iv-payout",
+      );
+      expect(iv?.saturationHint).toBeUndefined();
+    });
   });
 
   it("ships the related-pull hint without shipping a lock", () => {
