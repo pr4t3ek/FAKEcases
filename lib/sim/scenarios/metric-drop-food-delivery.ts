@@ -296,11 +296,17 @@ export const metricDropFoodDelivery: SimScenario = {
    * Three is also exactly what the checkout rewrite asks for, so the expensive
    * wrong answer stays buildable. A decoy nobody can afford teaches nothing.
    */
-  budget: { analystDays: 8, sprints: 3, rupees: 12 * CRORE },
+  budget: { analystDays: 10, sprints: 3, rupees: 12 * CRORE },
 
   // ── The data you can buy ────────────────────────────────────────────────
-  // Twenty-two days of pulls against an eight-day budget. The scarcity is the
+  // Twenty-eight days of pulls against a ten-day budget. The scarcity is the
   // exercise: you cannot buy your way to the answer, only reason your way there.
+  //
+  // Thirteen pulls rather than ten, and the three additions each do a job the
+  // board was missing — a redundant pair, so buying twice is visible waste; a
+  // pull that contradicts a reasonable opening call, so revising is worth
+  // something; and a one-day pull that retires a branch outright, so the first
+  // move is a decision rather than a coin flip.
   drilldowns: [
     {
       id: "dd-city",
@@ -546,6 +552,102 @@ export const metricDropFoodDelivery: SimScenario = {
         },
       ],
     },
+    /**
+     * The redundant pair, and the reason the board is worth triaging.
+     *
+     * This and `dd-riders` both reach the answer, from opposite ends: one shows
+     * the hours are gone, the other shows the hours that remain are being used
+     * exactly as well as before. Three days each, six of ten if you buy both —
+     * and the second one tells you nothing the first did not. A candidate who
+     * buys both has paid full price for a confirmation, which is the most
+     * common way an investigation budget actually gets wasted.
+     */
+    {
+      id: "dd-dispatch",
+      label: "Dispatch efficiency in tier-2",
+      question: "Are the riders we still have being assigned badly?",
+      cost: 3,
+      dependsOn: ["dd-riders"],
+      evidenceFor: ["supply.dispatch", "supply.riders"],
+      readsAs:
+        "Every efficiency measure is where it was and the hours are not. This is how you tell a routing problem from a supply problem, and it says supply — the same answer the rider-hours pull gives for the same money.",
+      reveals: [
+        {
+          id: "p-dispatch",
+          kind: "segments",
+          title: "Tier-2 dispatch, this week vs six weeks ago",
+          dimension: "Measure",
+          rows: [
+            { label: "Orders per rider-hour", value: 2.14, unit: "count", deltaPct: -0.009 },
+            { label: "Average batch size", value: 1.8, unit: "count", deltaPct: 0.011 },
+            { label: "Seconds to assign a rider", value: 41, unit: "count", deltaPct: 0.02 },
+            { label: "Rider hours offered", value: 9_84_000, unit: "count", deltaPct: -0.221 },
+          ],
+        },
+      ],
+    },
+    /**
+     * The pull that can contradict a reasonable opening call.
+     *
+     * "Customers are ordering less" is the second-most-common hypothesis this
+     * scenario draws, and it is not silly — orders are down and sessions are
+     * flat, which is consistent with a retention story. This is what a
+     * candidate holding that belief should buy, and it says the opposite:
+     * frequency is flat and the loss is at checkout. Revising after it is
+     * exactly the behaviour the format rewards.
+     */
+    {
+      id: "dd-frequency",
+      label: "Order frequency and checkout completion by cohort",
+      question: "Are existing customers ordering less often, or failing to finish?",
+      cost: 2,
+      evidenceFor: ["demand.churn", "supply.riders"],
+      readsAs:
+        "Frequency held and completion collapsed, and only in tier-2. Customers did not lose the habit — they got to the last screen and left. That moves the search from the demand side to the funnel in a single pull.",
+      reveals: [
+        {
+          id: "p-frequency",
+          kind: "segments",
+          title: "Monthly orders per active customer, and checkout completion",
+          dimension: "Cohort",
+          rows: [
+            { label: "Orders / customer — metro", value: 3.5, unit: "count", deltaPct: -0.006 },
+            { label: "Orders / customer — tier 2", value: 3.4, unit: "count", deltaPct: -0.012 },
+            { label: "Checkout completed — metro", value: 0.79, unit: "ratio", deltaPct: -0.011 },
+            { label: "Checkout completed — tier 2", value: 0.61, unit: "ratio", deltaPct: -0.212 },
+          ],
+        },
+      ],
+    },
+    /**
+     * One day to retire a whole branch, like `dd-seasonality` below.
+     *
+     * A board with nothing cheap on it has no triage in it: every pull costs
+     * two or three days, so the first purchase is a coin flip. A one-day pull
+     * that eliminates a plausible theory outright is what makes the opening
+     * move a decision rather than a guess.
+     */
+    {
+      id: "dd-fees",
+      label: "Fee and surge screen, before and after 8.4",
+      question: "Did a fee or surge change land with the release?",
+      cost: 1,
+      evidenceFor: ["product.fees"],
+      readsAs:
+        "Nothing changed and the fee went down. A fee change shipping with a release is a real cause of a drop shaped like this one, so it is worth a day to rule out — and a day is what it costs.",
+      reveals: [
+        {
+          id: "p-fees",
+          kind: "stat",
+          title: "Checkout charges, this week vs six weeks ago",
+          tiles: [
+            { label: "Delivery fee / order", value: 27, unit: "inr", deltaPct: -0.036, goodDirection: "down" },
+            { label: "Orders with surge shown", value: 0.09, unit: "ratio", deltaPct: -0.01, goodDirection: "down" },
+            { label: "Small-order fee / order", value: 12, unit: "inr", deltaPct: 0, goodDirection: "down" },
+          ],
+        },
+      ],
+    },
     {
       id: "dd-seasonality",
       label: "Same six weeks, last year",
@@ -586,6 +688,16 @@ export const metricDropFoodDelivery: SimScenario = {
       verdict: "Sessions, menu views and carts are all flat. Customers kept arriving throughout.",
     },
     {
+      id: "demand.churn",
+      parentId: "demand",
+      label: "Customers ordering less often",
+      verdict:
+        "Order frequency among customers who kept ordering is flat at 3.4 a month. Nobody lost the habit — they reached checkout, saw a 48-minute estimate, and stopped there. That is a conversion event wearing a retention costume.",
+      unactionable: {
+        why: "Win-back campaigns and loyalty spend both assume customers stopped wanting to order. They did not — frequency held, and the loss is at the last screen. There is no retention fix on this board because retention is not what moved.",
+      },
+    },
+    {
       id: "demand.price",
       parentId: "demand",
       label: "Price sensitivity or discount pullback",
@@ -606,6 +718,16 @@ export const metricDropFoodDelivery: SimScenario = {
       label: "Restaurant availability",
       verdict: "Restaurant supply grew in every tier over the period.",
     },
+    {
+      id: "supply.dispatch",
+      parentId: "supply",
+      label: "Dispatch and batching logic",
+      verdict:
+        "The sharpest near-miss on the board, and the one worth getting wrong. Right branch, right cities, wrong mechanism: batch size, assignment time and orders per rider-hour are all within a percent of where they were. The riders who are still working are being used exactly as well as before — there are 22% fewer of them.",
+      unactionable: {
+        why: "There is nothing to re-tune. Every dispatch measure is where it was six weeks ago, so a routing project would spend the quarter making an unbroken system marginally different. The constraint is how many riders are on the road, not how they are assigned.",
+      },
+    },
     { id: "product", parentId: null, label: "App / product", verdict: "Nothing broke." },
     {
       id: "product.release",
@@ -619,6 +741,16 @@ export const metricDropFoodDelivery: SimScenario = {
       parentId: "product",
       label: "Payment failures",
       verdict: "Success rates are flat or up on every gateway.",
+    },
+    {
+      id: "product.fees",
+      parentId: "product",
+      label: "Fees or surge shown at checkout",
+      verdict:
+        "Delivery fee per order fell slightly over the period and the surge screen has not changed since February. Cheap to check, and worth checking — a fee change landing with a release is a genuinely common cause of exactly this shape.",
+      unactionable: {
+        why: "You cannot roll back a change that was never made. Fees went down over the period, not up, so there is nothing here to reverse.",
+      },
     },
     { id: "external", parentId: null, label: "External", verdict: "Real, but not load-bearing." },
     {
@@ -859,7 +991,19 @@ export const metricDropFoodDelivery: SimScenario = {
    */
   decisionPeriods: 3,
 
-  parInvestigation: ["dd-city", "dd-riders"],
+  /**
+   * Four days of the ten: where the drop is, then what checkout was showing
+   * there.
+   *
+   * Deliberately *not* the rider-hours pull. "Orders by city tier" says the
+   * loss is tier-2; "ETA by city tier" says checkout in tier-2 was quoting 48
+   * minutes. That is enough to name rider supply, for four analyst-days. The
+   * three-day pulls that show the hours themselves — `dd-riders` and
+   * `dd-dispatch` — are confirmations of a call you can already make, which is
+   * why par does not include one and why buying both is the board's clearest
+   * example of paying twice for the same sentence.
+   */
+  parInvestigation: ["dd-city", "dd-eta"],
   /**
    * Both derived by `scripts/best-allocation.ts`, neither guessed.
    *

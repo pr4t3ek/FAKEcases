@@ -1240,6 +1240,45 @@ describe("metric-drop-food-delivery specifics", () => {
     expect(schedule.at(-1)).toEqual([]);
   });
 
+  /**
+   * The board has to be wide enough that three picks is a commitment.
+   *
+   * With seven leaf causes, naming three hits the right one 43% of the time by
+   * guessing — on the dimension whose whole purpose is to make a candidate
+   * commit. Eleven takes that to 27%.
+   */
+  it("offers enough leaves that hedging three picks does not pay", () => {
+    if (!scenario) throw new Error("scenario missing");
+    const parents = new Set(scenario.causes.map((c) => c.parentId).filter(Boolean));
+    const leaves = scenario.causes.filter((c) => !parents.has(c.id));
+    expect(leaves.length).toBeGreaterThanOrEqual(10);
+  });
+
+  it("cannot be bought out of, and has something cheap on it", () => {
+    // Two properties of a board worth triaging. The budget must not cover it,
+    // or there is nothing to choose; and at least one pull must be cheap
+    // enough that the opening move is a decision rather than a coin flip.
+    if (!scenario) throw new Error("scenario missing");
+    const total = scenario.drilldowns.reduce((sum, d) => sum + d.cost, 0);
+    expect(scenario.drilldowns.length).toBeGreaterThanOrEqual(12);
+    expect(total).toBeGreaterThan(scenario.budget.analystDays * 2);
+    expect(Math.min(...scenario.drilldowns.map((d) => d.cost))).toBe(1);
+  });
+
+  it("carries a redundant route to the answer, priced like the first one", () => {
+    // Buying both is the board's clearest example of paying twice for the same
+    // sentence, and it is only a lesson if the second one genuinely costs.
+    if (!scenario) throw new Error("scenario missing");
+    const routes = scenario.drilldowns.filter(
+      (d) => d.evidenceFor.includes("supply.riders") && d.cost >= 3,
+    );
+    expect(routes.length).toBeGreaterThanOrEqual(2);
+    // …and par uses neither of them, because the call is makeable without.
+    for (const route of routes) {
+      expect(scenario.parInvestigation).not.toContain(route.id);
+    }
+  });
+
   it("has a coach answer for every major wrong theory in the room", () => {
     if (!scenario) throw new Error("scenario missing");
     const topics = scenario.coachFallback.flatMap((f) => f.topic);
