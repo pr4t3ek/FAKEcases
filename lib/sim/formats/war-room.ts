@@ -26,3 +26,37 @@ export const warRoomFormat: SimFormat = {
   phases: SIM_PHASES.map((id) => ({ id, ...PHASE_HELP[id] })),
   rubric: simRubric,
 };
+
+/**
+ * The same format, played over several periods.
+ *
+ * A separate format rather than a flag on the one above, because the thing that
+ * differs is the **rubric**, and a rubric is what a format is for. A run that
+ * commits three times has something to be graded on that a single commit does
+ * not: whether the capacity went in early, and whether a bet that the first
+ * quarter's results had already discredited was made again anyway.
+ *
+ * Adding Adaptation to `simRubric` itself was the obvious move and is wrong.
+ * Every existing war room would gain a sixth dimension it cannot express,
+ * scoring a neutral 50 on it — which would quietly drag twelve scenarios'
+ * overall scores toward the middle, and change the meaning of every result
+ * already stored. The rubric a run was graded on has to be the rubric its
+ * format declares.
+ *
+ * `SimResult.scoresJson` already carries dimensions the five typed columns
+ * cannot name, so this needs no migration — the same seam the turnaround uses.
+ */
+export const periodicWarRoomFormat: SimFormat = {
+  ...warRoomFormat,
+  slug: "war-room-periodic",
+  tagline: "Diagnose a metric that moved, then spend a budget across three quarters.",
+  rubric: [
+    ...simRubric,
+    {
+      key: "adaptation",
+      label: "Adaptation",
+      hint: "Did you commit when it counted, and stop backing a bet the data had already answered?",
+      weight: 1.0,
+    },
+  ],
+};

@@ -30,12 +30,24 @@ import {
   scoreTurnaround,
 } from "@/lib/sim/turnaround";
 import { scoreSimulation } from "@/lib/sim/score";
-import { parseAllocation, parseDiagnosis, parseHypothesis } from "@/lib/sim/payload";
+import {
+  parseAllocation,
+  parseDiagnosis,
+  parseHypothesis,
+  parsePeriodAllocation,
+} from "@/lib/sim/payload";
+import {
+  decisionPeriodsIn,
+  openPeriodIn,
+  parsePeriodicState,
+  withPeriodicState,
+} from "@/lib/sim/schedule";
 import type { SimScenario } from "@/lib/sim/types";
 import {
   commitDiagnosisToRun,
   commitHypothesisToRun,
   commitRun,
+  commitSchedulePeriod,
   commitSimulatorRun,
   commitTurnaroundPeriod,
   findResumableRun,
@@ -333,6 +345,23 @@ export async function commitDecision(
     return { ok: false, error: "Name the cause first" };
   }
 
+  /**
+   * A war room that commits once and one that commits three times take
+   * different paths from here, and the branch is on the scenario rather than on
+   * anything the client sent.
+   *
+   * The multi-period path stays in the `commit` phase between periods rather
+   * than growing new ones. Which period is open is derived from how much of the
+   * schedule is stored, exactly as the turnaround does it — a cursor in a
+   * column is a second source of truth that can disagree with the thing it
+   * indexes, and a replayed request could then overwrite a quarter after seeing
+   * its result.
+   */
+  const periods = decisionPeriodsIn(scenario);
+  if (periods > 1) {
+    return commitWarRoomPeriod({ owned, state, allocation, periods });
+  }
+
   const parsed = parseAllocation(scenario, state.diagnosis, allocation);
   if (!parsed.ok) return { ok: false, error: parsed.error };
 
@@ -364,6 +393,110 @@ export async function commitDecision(
     score: score.overall,
     effort: score.daysSpent,
     sourceId: runId,
+  });
+
+  const reward = await applySimulationRewards(owned.user.id, {
+    overall: score.overall,
+    diagnosisScore: score.scores.diagnosis,
+    decisionScore: score.scores.decision,
+    causeFound: score.causeFound,
+    underPar: score.daysSpent <= score.daysPar,
+  });
+
+  return {
+    ok: true,
+    reward: {
+      xpGained: reward.xpGained,
+      leveledUp: reward.leveledUp,
+      level: reward.level,
+      streak: reward.streak,
+      newAchievements: reward.newAchievements,
+      overall: score.overall,
+      band: score.band,
+    },
+  };
+}
+
+/**
+ * One period of a war room played over several.
+ *
+ * Not exported: it is reached only through `commitDecision`, so the client has
+ * one action to call whether a scenario commits once or three times and cannot
+ * pick the path itself. Which period is being written is derived from the
+ * stored schedule's length rather than sent — a replayed request then appends
+ * or is refused, and can never overwrite a quarter whose result is already on
+ * screen.
+ *
+ * The run stays in `commit` between periods. Adding phases would put the same
+ * fact in two places: the phase column and the schedule length would both claim
+ * to say which period is open, and a crash between two writes would let them
+ * disagree.
+ */
+async function commitWarRoomPeriod(args: {
+  owned: NonNullable<Awaited<ReturnType<typeof ownedRun>>>;
+  state: ReturnType<typeof toRunState>;
+  allocation: { interventionId: string; sprints: number; rupees: number }[];
+  periods: number;
+}): Promise<CommitResult> {
+  const { owned, state, allocation, periods } = args;
+  const { run, scenario } = owned;
+
+  const stored = parsePeriodicState(run.stateJson);
+  if (openPeriodIn(scenario, stored.schedule) === null) {
+    return { ok: false, error: "Every period has been decided" };
+  }
+
+  // Capacity against this period alone, money against everything committed so
+  // far — the two currencies do not obey the same rule, and the boundary is
+  // where that is enforced rather than in the UI that renders the meters.
+  const parsed = parsePeriodAllocation(scenario, state.diagnosis, stored.schedule, allocation);
+  if (!parsed.ok) return { ok: false, error: parsed.error };
+
+  const schedule = [...stored.schedule, parsed.value];
+
+  if (schedule.length < periods) {
+    await commitSchedulePeriod({
+      runId: run.id,
+      schedule,
+      stateJson: run.stateJson,
+      finished: false,
+    });
+    return { ok: true };
+  }
+
+  // The last period closes the run, and the whole schedule is projected in one
+  // go rather than quarter by quarter: a fix funded in period 0 has been ramping
+  // since period 0, and only the whole sequence knows that.
+  const outcome = runSchedule(scenario, schedule, { seed: run.seed });
+  const score = scoreSimulation({
+    scenario,
+    hypothesis: state.hypothesis,
+    hypothesisLog: state.hypothesisLog,
+    purchases: state.purchases,
+    diagnosis: state.diagnosis,
+    // Flattened for the five dimensions that grade *what* was funded; the
+    // schedule itself is what Adaptation reads to grade *when*.
+    allocation: schedule.flat(),
+    schedule,
+    outcome,
+  });
+
+  await commitRun({
+    runId: run.id,
+    allocation: schedule.flat(),
+    outcome,
+    score,
+    formatSlug: formatFor(scenario).slug,
+    stateJson: withPeriodicState(run.stateJson, { schedule }),
+  });
+
+  await recordFirstResult({
+    userId: owned.user.id,
+    questionId: run.questionId,
+    kind: "simulation",
+    score: score.overall,
+    effort: score.daysSpent,
+    sourceId: run.id,
   });
 
   const reward = await applySimulationRewards(owned.user.id, {

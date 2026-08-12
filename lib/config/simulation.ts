@@ -57,8 +57,18 @@ export const simRubric = [
 
 export type SimRubricKey = (typeof simRubric)[number]["key"];
 
-/** The five scores a completed run carries. Mirrors the `SimResult` columns. */
-export type SimScores = Record<SimRubricKey, number>;
+/**
+ * The five scores a completed run carries. Mirrors the `SimResult` columns.
+ *
+ * Optional sixth: a war room played over several periods declares Adaptation in
+ * its format's rubric, and there is no typed column for it — it rides in
+ * `SimResult.scoresJson` like every other non-war-room dimension. Optional
+ * rather than required so the twelve single-commit scenarios keep scoring
+ * exactly five things.
+ */
+export type SimScores = Record<SimRubricKey, number> & {
+  adaptation?: number;
+};
 
 /**
  * Result bands.
@@ -83,15 +93,33 @@ export function bandForSimScore(overall: number): SimBand {
   return "Reactive";
 }
 
-/** Weighted mean over the five dimensions. No nulls, so no renormalisation. */
-export function weightedSimOverall(scores: SimScores): number {
+/**
+ * Weighted mean over a rubric's dimensions.
+ *
+ * Takes the rubric rather than assuming `simRubric`, because a war room played
+ * over several periods is graded on a sixth dimension its format declares (see
+ * `periodicWarRoomFormat`) and a hard-coded five would silently drop it from the
+ * overall while still showing it on the scorecard.
+ *
+ * A dimension the caller did not score is skipped rather than read as zero, and
+ * the denominator skips it too — so the weights renormalise over what was
+ * actually graded and a missing dimension cannot depress the mean. That is what
+ * keeps a five-dimension run's overall bit-identical to what it was before this
+ * grew a parameter.
+ */
+export function weightedSimOverall(
+  scores: Record<string, number | undefined>,
+  rubric: readonly { key: string; weight: number }[] = simRubric,
+): number {
   let weighted = 0;
   let total = 0;
-  for (const dim of simRubric) {
-    weighted += scores[dim.key] * dim.weight;
+  for (const dim of rubric) {
+    const value = scores[dim.key];
+    if (value === undefined) continue;
+    weighted += value * dim.weight;
     total += dim.weight;
   }
-  return Math.round(weighted / total);
+  return total === 0 ? 0 : Math.round(weighted / total);
 }
 
 export const simConfig = {

@@ -8,7 +8,7 @@
 
 import type { SimScenario } from "../types";
 import type { SimFormat } from "./types";
-import { warRoomFormat } from "./war-room";
+import { warRoomFormat, periodicWarRoomFormat } from "./war-room";
 import { turnaroundFormat } from "./turnaround";
 import { buybackFormat } from "./buyback";
 
@@ -42,7 +42,14 @@ export function getFormat(slug: string): SimFormat | undefined {
 }
 
 /** The format a scenario runs on. Falls back to the war room. */
-export function formatFor(scenario: Pick<SimScenario, "format">): SimFormat {
+export function formatFor(
+  scenario: Pick<SimScenario, "format" | "decisionPeriods">,
+): SimFormat {
+  // A war room that commits more than once is graded on a sixth dimension, and
+  // the rubric a run is scored against has to be the one its format declares —
+  // so the periodic variant is resolved from the scenario rather than switched
+  // on inside the scorer.
+  if (!scenario.format && (scenario.decisionPeriods ?? 1) > 1) return periodicWarRoomFormat;
   return getFormat(scenario.format ?? DEFAULT_FORMAT_SLUG) ?? warRoomFormat;
 }
 

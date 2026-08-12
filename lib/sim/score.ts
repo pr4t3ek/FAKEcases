@@ -16,6 +16,7 @@ import { clamp } from "@/lib/utils";
 import { simConfig, weightedSimOverall, bandForSimScore } from "@/lib/config/simulation";
 import type { SimBand, SimScores } from "@/lib/config/simulation";
 import type { FeedbackItem } from "@/lib/types";
+import { formatFor } from "./formats/registry";
 import { hypothesisAtPurchase, type HypothesisLog } from "./hypothesis-log";
 import { drilldownById, isEvidenceFor, parCost } from "./investigate";
 import { finalValue, totalsByIntervention } from "./outcome";
@@ -333,6 +334,15 @@ export interface SimScoreInput {
   diagnosis: CauseId[];
   allocation: SimAllocationLine[];
   outcome: SimOutcomeResult;
+  /**
+   * The periods the allocation was committed over, on a multi-period war room.
+   *
+   * Absent on a single commit, and that absence is what decides the rubric: a
+   * run with nothing to adapt is graded on five dimensions rather than given a
+   * neutral sixth. `allocation` stays the flattened total, so every dimension
+   * below reads exactly what it always read.
+   */
+  schedule?: SimAllocationLine[][];
 }
 
 export interface SimScoreResult {
@@ -356,8 +366,14 @@ export function scoreSimulation(input: SimScoreInput): SimScoreResult {
     decision: scoreDecision(scenario, allocation, outcome),
     outcome: scoreOutcome(scenario, outcome),
   };
+  if (input.schedule) {
+    scores.adaptation = scoreAdaptation(scenario, input.schedule);
+  }
 
-  const overall = weightedSimOverall(scores);
+  // The rubric the run's own format declares, not a constant — a periodic war
+  // room's sixth dimension has to reach the overall as well as the scorecard,
+  // and a single commit must keep weighting exactly the five it always did.
+  const overall = weightedSimOverall(scores, formatFor(scenario).rubric);
   const daysSpent = purchases.reduce((sum, p) => sum + p.cost, 0);
   const daysPar = parCost(scenario);
   const causeFound = diagnosis.some((d) => scenario.trueCauseIds.includes(d));

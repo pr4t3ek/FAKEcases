@@ -29,6 +29,7 @@ import {
   parseHypothesisLog,
   withHypothesisLog,
 } from "@/lib/sim/hypothesis-log";
+import { withPeriodicState } from "@/lib/sim/schedule";
 import { simStateFromRuns, type SimQuestionState } from "@/lib/sim/replay";
 
 // Re-exported so callers have one import for "simulation data access", while the
@@ -196,6 +197,32 @@ export async function commitHypothesisToRun(args: {
 }
 
 /**
+ * Append one period's allocation to a war room played over several.
+ *
+ * The run stays in `commit` between periods — which period is open is derived
+ * from the stored schedule's length, never from a cursor column that could
+ * disagree with it. `allocation` is also written with the flattened schedule so
+ * anything reading a run's committed capacity generically sees something true
+ * rather than null, matching what `commitTurnaroundPeriod` does.
+ */
+export async function commitSchedulePeriod(args: {
+  runId: string;
+  schedule: SimAllocationLine[][];
+  stateJson: string | null;
+  finished: boolean;
+}): Promise<void> {
+  const { runId, schedule, stateJson, finished } = args;
+  await db.simRun.update({
+    where: { id: runId },
+    data: {
+      stateJson: withPeriodicState(stateJson, { schedule }),
+      allocation: JSON.stringify(schedule.flat()),
+      ...(finished ? {} : { phase: "commit" }),
+    },
+  });
+}
+
+/**
  * Lock the diagnosis, before the board narrows to it.
  *
  * Written *before* the permitted interventions are computed, and never rewritten
@@ -256,13 +283,26 @@ export async function commitRun(args: {
   allocation: SimAllocationLine[];
   outcome: SimOutcomeResult;
   score: SimScoreResult;
+  /**
+   * The format the run was graded on, when it is not the plain war room. A
+   * multi-period war room is scored on a sixth dimension, and the report reads
+   * the rubric this names to know how many to show.
+   */
+  formatSlug?: string;
+  /**
+   * State to write alongside the result — the committed schedule on a
+   * multi-period run. Passed through rather than merged here, because the
+   * caller is the one that knows what else the blob is already carrying.
+   */
+  stateJson?: string;
 }): Promise<void> {
-  const { runId, allocation, outcome, score } = args;
+  const { runId, allocation, outcome, score, formatSlug, stateJson } = args;
 
   await db.$transaction(async (tx) => {
     await tx.simRun.update({
       where: { id: runId },
       data: {
+        ...(stateJson === undefined ? {} : { stateJson }),
         // `diagnosis` is deliberately absent: it was written by
         // `commitDiagnosisToRun` before the interventions were shown, and
         // rewriting it here would let the commit disagree with the slate it
@@ -277,6 +317,12 @@ export async function commitRun(args: {
         runId,
         overall: score.overall,
         band: score.band,
+        ...(formatSlug ? { formatSlug } : {}),
+        // The five typed columns still hold the war room's own dimensions, so
+        // every existing reader keeps working. `scoresJson` carries the whole
+        // set including any the columns cannot name — a periodic run's
+        // Adaptation — and the report prefers it where it is present.
+        scoresJson: JSON.stringify(score.scores),
         hypothesis: score.scores.hypothesis,
         investigation: score.scores.investigation,
         diagnosis: score.scores.diagnosis,

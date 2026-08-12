@@ -19,8 +19,10 @@ import {
   scheduleFits,
 } from "@/lib/sim/schedule";
 import { finalValue, runOutcome, runSchedule } from "@/lib/sim/outcome";
-import { scoreAdaptation } from "@/lib/sim/score";
+import { scoreAdaptation, scoreSimulation } from "@/lib/sim/score";
 import { optimiseSchedule } from "@/lib/sim/optimise";
+import { formatFor } from "@/lib/sim/formats/registry";
+import { weightedSimOverall } from "@/lib/config/simulation";
 import { checkBalance } from "@/lib/sim/balance";
 import { parsePeriodAllocation } from "@/lib/sim/payload";
 import type { SimAllocationLine, SimScenario } from "@/lib/sim/types";
@@ -214,6 +216,64 @@ describe("scoreAdaptation", () => {
 
   it("gives nothing to a schedule that committed nothing at all", () => {
     expect(scoreAdaptation(scenario, [[], [], []])).toBe(0);
+  });
+});
+
+describe("grading a run played over periods", () => {
+  const scenario = periodic();
+  const graded = (schedule: SimAllocationLine[][]) =>
+    scoreSimulation({
+      scenario,
+      hypothesis: [CAUSE_TRUE],
+      purchases: [{ drilldownId: "d-city", cost: 2, seq: 1 }],
+      diagnosis: [CAUSE_TRUE],
+      allocation: schedule.flat(),
+      schedule,
+      outcome: runSchedule(scenario, schedule),
+    });
+
+  it("scores the sixth dimension its format declares", () => {
+    const result = graded([[payout(400)], [], []]);
+    expect(result.scores.adaptation).toBe(scoreAdaptation(scenario, [[payout(400)], [], []]));
+    expect(formatFor(scenario).rubric.map((d) => d.key)).toContain("adaptation");
+  });
+
+  it("leaves a single commit graded on exactly five", () => {
+    // The regression that says periods cost nothing to the twelve scenarios
+    // that do not use them: no schedule, no sixth dimension, and an overall
+    // weighted over the same five as before this took a rubric.
+    const oneShot = v2FixtureScenario();
+    const single = scoreSimulation({
+      scenario: oneShot,
+      hypothesis: [CAUSE_TRUE],
+      purchases: [{ drilldownId: "d-city", cost: 2, seq: 1 }],
+      diagnosis: [CAUSE_TRUE],
+      allocation: BEST_ALLOCATION,
+      outcome: runOutcome(oneShot, BEST_ALLOCATION),
+    });
+    expect(single.scores.adaptation).toBeUndefined();
+    expect(single.overall).toBe(weightedSimOverall(single.scores));
+  });
+
+  it("carries timing into the headline number", () => {
+    // The pointed case. On a scenario of instant levers the projection is
+    // identical whenever the money went in — pinned above — so if Adaptation
+    // did not reach the overall, committing in the last quarter would be free.
+    const early = graded([[payout(400)], [], []]);
+    const late = graded([[], [], [payout(400)]]);
+    expect(late.scores.outcome).toBe(early.scores.outcome);
+    expect(late.overall).toBeLessThan(early.overall);
+  });
+
+  it("weights it rather than averaging it in", () => {
+    const result = graded([[payout(400)], [], []]);
+    const rubric = formatFor(scenario).rubric;
+    const total = rubric.reduce((sum, d) => sum + d.weight, 0);
+    const expected = rubric.reduce(
+      (sum, d) => sum + (result.scores as Record<string, number>)[d.key] * d.weight,
+      0,
+    );
+    expect(result.overall).toBe(Math.round(expected / total));
   });
 });
 
