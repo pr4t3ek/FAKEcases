@@ -70,19 +70,15 @@ export function SimulationScreen({ data }: { data: SimulationData }) {
   function onRevealed(drilldownId: string, revealed: SimPanel[], spent: number) {
     setPanels((prev) => [...prev, ...revealed]);
     setDaysSpent(spent);
-    // The hypothesis locks the moment anything has been bought.
+    // Only drives the copy now — "Revise" once something has been bought,
+    // "Change" before. It stopped gating the hypothesis when the window moved
+    // to the Commit boundary.
     setBoughtCount((n) => n + 1);
+    // Marking it owned is the whole update. There is no lock left to recompute:
+    // a pull's prerequisites no longer decide whether it can be bought, so
+    // buying one cannot open another.
     setDrilldowns((prev) =>
-      prev.map((d) => ({
-        ...d,
-        owned: d.id === drilldownId ? true : d.owned,
-        // A pull can unlock others, so recompute what is open.
-        unlocked:
-          d.unlocked ||
-          (d.dependsOn ?? []).every((dep) =>
-            dep === drilldownId ? true : prev.find((x) => x.id === dep)?.owned,
-          ),
-      })),
+      prev.map((d) => (d.id === drilldownId ? { ...d, owned: true } : d)),
     );
   }
 

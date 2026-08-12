@@ -199,9 +199,8 @@ export interface PurchaseResult extends SimActionResult {
 /**
  * Buy one data pull.
  *
- * The affordability and lock rules are re-checked here against the persisted
- * run, not taken from the client: a disabled card is a courtesy, and this is
- * the control. Only the purchased pull's panels are returned — the rest of the
+ * Affordability is re-checked here against the persisted run, not taken from
+ * the client: a disabled card is a courtesy, and this is the control. Only the purchased pull's panels are returned — the rest of the
  * board never crosses the wire.
  */
 export async function buyDrilldown(
@@ -240,8 +239,6 @@ function refusalMessage(reason: string): string {
       return "No such analysis";
     case "already_owned":
       return "You already have that one";
-    case "locked":
-      return "Run the analysis it depends on first";
     case "insufficient_budget":
       return "Not enough analyst-days left for that";
     default:

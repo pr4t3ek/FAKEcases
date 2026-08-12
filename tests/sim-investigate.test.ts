@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   isEvidenceFor,
-  isUnlocked,
   parCost,
   priceDrilldown,
   remainingDays,
@@ -45,14 +44,14 @@ describe("priceDrilldown", () => {
     expect(decision).toEqual({ ok: false, reason: "already_owned" });
   });
 
-  it("refuses a pull whose prerequisite is unbought", () => {
-    expect(priceDrilldown(fixtureScenario(), run(), "d-riders")).toEqual({
-      ok: false,
-      reason: "locked",
-    });
+  // The inverse of what this used to assert. `d-riders` names `d-city` in its
+  // `dependsOn`, and that used to make it unbuyable until `d-city` was owned.
+  // The relationship survives as a hint on the card; the refusal does not.
+  it("sells a pull whose prerequisite was never bought", () => {
+    expect(priceDrilldown(fixtureScenario(), run(), "d-riders").ok).toBe(true);
   });
 
-  it("sells the same pull once its prerequisite is owned", () => {
+  it("sells it just the same once the related pull is owned", () => {
     const decision = priceDrilldown(
       fixtureScenario(),
       run({ owned: ["d-city"], daysSpent: 2 }),
@@ -70,11 +69,11 @@ describe("priceDrilldown", () => {
     expect(decision).toEqual({ ok: false, reason: "insufficient_budget" });
   });
 
-  // Being locked is the more useful thing to say, so it is checked first: an
-  // unaffordable pull you cannot open yet is not a budgeting problem.
-  it("reports the lock before the price when both apply", () => {
+  // Time is now the only thing that can stop you asking a question, so the
+  // pull that used to be refused as "locked" is refused on price or not at all.
+  it("refuses on price alone when the days are gone", () => {
     const decision = priceDrilldown(fixtureScenario(), run({ daysSpent: 4 }), "d-riders");
-    expect(decision).toEqual({ ok: false, reason: "locked" });
+    expect(decision).toEqual({ ok: false, reason: "insufficient_budget" });
   });
 
   // The UI disables the card; this is the check that actually holds, because a
@@ -82,14 +81,6 @@ describe("priceDrilldown", () => {
   it("refuses a pull that would exactly overrun the budget", () => {
     const decision = priceDrilldown(fixtureScenario(), run({ daysSpent: 2 }), "d-noise");
     expect(decision).toEqual({ ok: false, reason: "insufficient_budget" });
-  });
-});
-
-describe("isUnlocked", () => {
-  it("treats a pull with no prerequisites as open", () => {
-    const scenario = fixtureScenario();
-    const city = scenario.drilldowns.find((d) => d.id === "d-city")!;
-    expect(isUnlocked(city, [])).toBe(true);
   });
 });
 
@@ -143,6 +134,15 @@ describe("isEvidenceFor", () => {
 describe("what gates an analysis", () => {
   const scenario = fixtureScenario();
 
+  it("never consults a prerequisite pull", () => {
+    // The board is open in every order. `d-riders` reads alongside `d-city`,
+    // and a candidate who wants the expensive specific cut before the cheap
+    // general one is making a decision — quite possibly a bad one, since they
+    // may be paying for detail they cannot yet place. That is the exercise.
+    const run = { phase: "investigate" as const, daysSpent: 0, owned: [] };
+    expect(priceDrilldown(scenario, run, "d-riders").ok).toBe(true);
+  });
+
   it("never consults the hypothesis", () => {
     // `d-funnel` is evidence for the price branch. A run that named the rider
     // branch — the opposite corner of the tree — may still buy it.
@@ -170,7 +170,6 @@ describe("what gates an analysis", () => {
     expect([...reasons].sort()).toEqual([
       "already_owned",
       "insufficient_budget",
-      "locked",
       "unknown_drilldown",
       "wrong_phase",
     ]);

@@ -298,6 +298,10 @@ export function validateScenario(scenario: SimScenario): string[] {
   // ── Drilldowns ──────────────────────────────────────────────────────────
   for (const d of scenario.drilldowns) {
     if (d.cost <= 0) errors.push(`Drilldown "${d.id}" must cost at least one analyst-day`);
+    // Still checked, though it no longer gates anything: a dangling id is now
+    // a hint pointing at nothing rather than a pull nobody can reach, and a
+    // card promising to read alongside an analysis that does not exist is
+    // still a bug worth failing the build over.
     for (const dep of d.dependsOn ?? []) {
       if (!drilldownIds.has(dep)) {
         errors.push(`Drilldown "${d.id}" depends on unknown "${dep}"`);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Check, Lock, Search } from "lucide-react";
+import { Check, Search } from "lucide-react";
 import { toast } from "sonner";
 import { buyDrilldown } from "@/app/actions/simulations";
 import { Badge } from "@/components/ui/badge";
@@ -82,33 +82,31 @@ export function DrilldownMarket({
 
       <div className="grid gap-3 sm:grid-cols-2">
         {available.map((d) => {
-          const affordable = d.cost <= remaining;
-          const blocked = !d.unlocked || !affordable;
           /**
-           * Only ever two reasons, and neither is your hypothesis.
+           * One reason, and it is the budget.
            *
-           * Worth saying out loud because the padlock invited the opposite
-           * reading: a candidate who had named demand and found the supply
-           * pull locked concluded the board was restricted to the branch they
-           * had committed to. It never has been — `priceDrilldown` consults the
-           * phase, the dependency chain and the budget, and nothing else. Any
-           * analysis on any branch is buyable at any time, which is what makes
-           * it possible to disprove your own hypothesis.
-           *
-           * Naming the prerequisite rather than gesturing at it: "the analysis
-           * this depends on" is a hunt across nine other cards.
+           * The board is open: any analysis, on any branch, in any order. It
+           * was never gated on the hypothesis, but it *was* gated on
+           * prerequisite pulls, and a padlock does not explain which kind of
+           * lock it is — a candidate who had named demand and found the supply
+           * pull padlocked read it as the board restricting them to their own
+           * branch. Both gates are gone. What is left is analyst-days, which is
+           * the constraint the phase is actually about.
            */
-          const blockedBy = (d.dependsOn ?? [])
-            .filter((dep) => !drilldowns.find((x) => x.id === dep)?.owned)
+          const affordable = d.cost <= remaining;
+          const blocked = !affordable;
+          const reason = !affordable
+            ? `Needs ${d.cost} analyst-days — you have ${remaining}`
+            : undefined;
+
+          /**
+           * The authored relationship, kept as a hint now that it gates
+           * nothing. "These two read together" is worth knowing; "you may not
+           * buy this yet" was not.
+           */
+          const readsWith = (d.dependsOn ?? [])
             .map((dep) => drilldowns.find((x) => x.id === dep)?.label)
             .filter(Boolean);
-          const reason = !d.unlocked
-            ? blockedBy.length
-              ? `Run “${blockedBy.join("” and “")}” first — this one reads off it`
-              : "Run the analysis this depends on first"
-            : !affordable
-              ? `Needs ${d.cost} analyst-days — you have ${remaining}`
-              : undefined;
 
           return (
             <Card
@@ -126,6 +124,11 @@ export function DrilldownMarket({
                 </Badge>
               </div>
               <p className="flex-1 text-xs leading-relaxed text-muted-foreground">{d.question}</p>
+              {readsWith.length > 0 && (
+                <p className="mt-1.5 text-[11px] italic text-muted-foreground">
+                  Reads alongside “{readsWith.join("” and “")}”
+                </p>
+              )}
               <Button
                 size="sm"
                 variant="outline"
@@ -143,20 +146,12 @@ export function DrilldownMarket({
                 }
                 onClick={() => setConfirming(d)}
               >
-                {!d.unlocked ? (
-                  <>
-                    <Lock className="h-3.5 w-3.5" /> Locked
-                  </>
-                ) : buying === d.id ? (
+                {buying === d.id ? (
                   "Running…"
                 ) : (
                   `Run this (${d.cost}d)`
                 )}
               </Button>
-              {/* Shown for a dependency lock too, which it was not before —
-                  the visible reason was gated on `d.unlocked`, so the one card
-                  that says nothing but "Locked" was the only one that never
-                  explained itself. A tooltip is not an explanation on touch. */}
               {reason && (
                 <p className="mt-1.5 text-center text-[11px] text-muted-foreground">{reason}</p>
               )}

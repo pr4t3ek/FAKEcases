@@ -24,7 +24,7 @@
 import type { SimPhase } from "@/lib/types";
 import { resolveDrivers } from "./drivers";
 import { metricMap } from "./metric-map";
-import { isUnlocked, visibleDashboard } from "./investigate";
+import { visibleDashboard } from "./investigate";
 import { permittedInterventions } from "./gating";
 import type {
   CauseId,
@@ -68,9 +68,11 @@ function toClientDrilldown(
     label: d.label,
     question: d.question,
     cost: d.cost,
+    // Shipped so the card can say "reads alongside X". It gates nothing, and
+    // it reveals nothing a student could not read off the two questions
+    // themselves.
     dependsOn: d.dependsOn,
     owned: ctx.owned.includes(d.id),
-    unlocked: isUnlocked(d, ctx.owned),
   };
 }
 

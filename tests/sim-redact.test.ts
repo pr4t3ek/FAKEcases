@@ -221,20 +221,22 @@ describe("toClientScenario", () => {
     expect(client.unactionableNote).toBe("A monsoon.");
   });
 
-  it("marks what is owned and what is still locked", () => {
+  it("marks what is owned, which is the only state a pull now has", () => {
     const client = toClientScenario(scenario, ctx({ owned: ["d-city"] }));
     const byId = new Map(client.drilldowns.map((d) => [d.id, d]));
 
     expect(byId.get("d-city")?.owned).toBe(true);
     expect(byId.get("d-riders")?.owned).toBe(false);
-    // Its prerequisite is bought, so it is open now.
-    expect(byId.get("d-riders")?.unlocked).toBe(true);
   });
 
-  it("locks a dependent pull until its prerequisite is bought", () => {
+  it("ships the related-pull hint without shipping a lock", () => {
+    // `dependsOn` crosses to the browser so a card can say "reads alongside
+    // Orders by city tier". It is a hint about how two analyses relate, not a
+    // gate — there is no `unlocked` flag left for the UI to disable a card on.
     const client = toClientScenario(scenario, ctx());
     const riders = client.drilldowns.find((d) => d.id === "d-riders");
-    expect(riders?.unlocked).toBe(false);
+    expect(riders?.dependsOn).toEqual(["d-city"]);
+    expect(riders).not.toHaveProperty("unlocked");
   });
 });
 
