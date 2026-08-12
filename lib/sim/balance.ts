@@ -275,10 +275,14 @@ function checkBalanceV2(scenario: SimScenario, opts: OptimiseOptions): string[] 
   });
   if (maxedOut.length) {
     const value = finalValue(runOutcome(scenario, maxedOut).paths, scenario.northStar);
-    const margin = Math.abs(declared) * simConfig.interiorityMargin;
+    // A share of what was winnable, not of the metric's absolute level — see
+    // `interiorityMargin`. The gradient is also exactly what `scoreOutcome`
+    // normalises against, so this asks the question in the units the student's
+    // score is denominated in.
+    const margin = Math.abs(declared - nothing) * simConfig.interiorityMargin;
     if (!betterOnNorthStar(scenario, declared, value + margin)) {
       errors.push(
-        `Pouring the whole budget into the same levers reaches ${value} against the declared best of ${declared} — less than ${(simConfig.interiorityMargin * 100).toFixed(0)}% apart, so "spend everything" is still the play and the response curves are not doing any work`,
+        `Pouring the whole budget into the same levers reaches ${value} against the declared best of ${declared}, costing under ${(simConfig.interiorityMargin * 100).toFixed(0)}% of the ${Math.abs(declared - nothing).toFixed(0)} that was winnable — so "spend everything" is still the play and the response curves are not doing any work`,
       );
     }
   }

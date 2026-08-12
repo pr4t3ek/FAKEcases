@@ -164,15 +164,22 @@ export const simConfig = {
   /** Share of the ceiling that counts as "this has stopped paying". */
   satiationFraction: 0.95,
   /**
-   * How far the authored best must beat "fund everything to its cap" before a
-   * v2 scenario is certified.
+   * How much of the *achievable gain* over-spending must cost before a v2
+   * scenario is certified.
    *
-   * Without this a scenario could carry response curves and still have
-   * "spend everything" as its answer, which is the exact play the curves exist
-   * to retire — and it would validate, balance and score perfectly while doing
-   * it. `checkBalance` refuses instead.
+   * Without a check like this a scenario could carry response curves and still
+   * have "spend everything" as its answer — the exact play the curves exist to
+   * retire — while validating, balancing and scoring perfectly.
+   *
+   * Measured against `best − doNothing` rather than against `best` itself, and
+   * the denominator is the whole point. A north star of ₹75 lakh whose entire
+   * achievable range is ₹2.5 lakh cannot be asked to give up 2% of ₹75 lakh to
+   * prove a point — that is 60% of everything available, and demanding it
+   * forces a scenario to price money so punishingly that the optimum banks two
+   * thirds of the budget. As a share of the range it means what it should:
+   * emptying the wallet has to cost you a fifth of what you could have won.
    */
-  interiorityMargin: 0.02,
+  interiorityMargin: 0.2,
   /**
    * How much better spending the leftover money must be before `checkBalance`
    * calls an underspent ceiling an oversight rather than a decision.
