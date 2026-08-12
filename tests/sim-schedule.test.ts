@@ -22,8 +22,14 @@ import { finalValue, runOutcome, runSchedule } from "@/lib/sim/outcome";
 import { scoreAdaptation } from "@/lib/sim/score";
 import { optimiseSchedule } from "@/lib/sim/optimise";
 import { checkBalance } from "@/lib/sim/balance";
+import { parsePeriodAllocation } from "@/lib/sim/payload";
 import type { SimAllocationLine, SimScenario } from "@/lib/sim/types";
-import { BEST_ALLOCATION, v2CostedFixtureScenario, v2FixtureScenario } from "./sim-fixture";
+import {
+  BEST_ALLOCATION,
+  CAUSE_TRUE,
+  v2CostedFixtureScenario,
+  v2FixtureScenario,
+} from "./sim-fixture";
 
 const periodic = (over: Partial<SimScenario> = {}) =>
   v2FixtureScenario({ decisionPeriods: 3, horizonQuarters: 4, ...over });
@@ -245,5 +251,49 @@ describe("certifying a multi-period scenario", () => {
       })),
     };
     expect(checkBalance(flat, { mode: "strict" }).join(" | ")).toMatch(/no gradient/);
+  });
+});
+
+describe("the per-period trust boundary", () => {
+  const scenario = periodic();
+  const diagnosis = [CAUSE_TRUE];
+  const parse = (committed: SimAllocationLine[][], raw: unknown) =>
+    parsePeriodAllocation(scenario, diagnosis, committed, raw);
+
+  it("accepts a period that fits both currencies", () => {
+    expect(parse([], [payout(200)]).ok).toBe(true);
+  });
+
+  it("lets a period commit nothing, because holding is a decision", () => {
+    // The one thing a single-commit format could never express, and half the
+    // reason periods exist.
+    expect(parse([], []).ok).toBe(true);
+  });
+
+  it("checks capacity against this period alone", () => {
+    // The same team working in period 0 and again in period 1 is not an
+    // overspend — a `allocationFits` against the run total would call it one.
+    expect(parse([[payout(100)]], [payout(100)]).ok).toBe(true);
+  });
+
+  it("checks money against everything already committed", () => {
+    const first = parse([], [payout(400)]);
+    expect(first.ok).toBe(true);
+    const second = parse([[payout(400)]], [payout(400)]);
+    expect(second.ok).toBe(false);
+    expect(second.ok ? "" : second.error).toMatch(/one pool for the whole run/);
+  });
+
+  it("still refuses a fix that does not treat the named cause", () => {
+    // The diagnosis gate is not weakened by periods: a wrong call still cannot
+    // be bought out of, in any quarter.
+    const wrong = parse([], [discount(100)]);
+    expect(wrong.ok).toBe(false);
+    expect(wrong.ok ? "" : wrong.error).toMatch(/doesn't address the cause you named/);
+  });
+
+  it("refuses more capacity than a single period has", () => {
+    const over = parse([], [payout(100, 4)]);
+    expect(over.ok).toBe(false);
   });
 });
