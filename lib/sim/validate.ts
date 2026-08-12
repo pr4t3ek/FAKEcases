@@ -481,6 +481,18 @@ export function validateScenario(scenario: SimScenario): string[] {
     if (!parReachesCause) {
       errors.push("parInvestigation contains no drilldown that is evidence for a true cause");
     }
+
+    // A war room that commits several times is certified against a *sequence*,
+    // and `bestScheduleFor` falls back to spending `bestAllocation` in period 0
+    // when there is none. That fallback is right for the degenerate case and
+    // wrong here: it would quietly certify "commit everything immediately" as
+    // the ceiling without anyone having checked that it is, which is the one
+    // claim the format exists to make interesting.
+    if ((scenario.decisionPeriods ?? 1) > 1 && !scenario.bestSchedule?.length) {
+      errors.push(
+        "A war room played over several periods needs a bestSchedule — the ceiling is a sequence, and when to commit is half of it",
+      );
+    }
   }
 
   // ── Best allocation ─────────────────────────────────────────────────────
@@ -502,6 +514,17 @@ export function validateScenario(scenario: SimScenario): string[] {
 
   // ── Misc ────────────────────────────────────────────────────────────────
   if (scenario.horizonQuarters < 1) errors.push("horizonQuarters must be at least 1");
+  // The horizon has to outrun the decisions, on every format that has more than
+  // one. With them equal, whatever is committed last has its consequences land
+  // outside the scoring window and reads as free — the sweep found exactly that
+  // on the turnaround, where cutting marketing in the second-to-last period
+  // scored best because the customers it destroyed had nowhere left to be
+  // missed from. One idle period at the end is what closes it.
+  if ((scenario.decisionPeriods ?? 1) > 1 && scenario.horizonQuarters <= scenario.decisionPeriods!) {
+    errors.push(
+      `${scenario.decisionPeriods} decision periods over a ${scenario.horizonQuarters}-period horizon leaves the last commitment's consequences outside the projection — the horizon must outrun the decisions`,
+    );
+  }
   if (!scenario.dashboard.length) errors.push("The scenario opens with an empty dashboard");
   if (!scenario.debrief.causalChain.length) errors.push("debrief.causalChain is empty");
 
