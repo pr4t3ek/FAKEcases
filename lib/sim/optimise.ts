@@ -38,7 +38,7 @@
  */
 
 import { simConfig } from "@/lib/config/simulation";
-import { finalValue, pathsForFunding, fundingFor } from "./outcome";
+import { finalValue, pathsForFunding, pathsForSchedule, fundingFor } from "./outcome";
 import type { InterventionId, SimAllocationLine, SimScenario } from "./types";
 
 export interface OptimiseOptions {
@@ -338,4 +338,108 @@ export function formatAllocation(candidate: AllocationCandidate): string {
     )
     .join("\n");
   return `bestAllocation: [\n${lines}\n  ],`;
+}
+
+// ─── Schedules: the same search, spread over periods ───────────────────────
+
+export interface ScheduleCandidate {
+  schedule: SimAllocationLine[][];
+  northStar: number;
+  spare: { rupees: number };
+}
+
+export interface OptimiseScheduleResult {
+  best: ScheduleCandidate;
+  evaluations: number;
+  truncated: boolean;
+}
+
+/**
+ * The best sequence this search can find.
+ *
+ * A schedule cannot be optimised the way a single allocation can. The space is
+ * the allocation space raised to the number of periods, and the periods are not
+ * independent: money spent in period 0 is gone in period 2, and a fix funded
+ * early has longer to ramp. So this is a **beam search** — extend every
+ * surviving schedule by one period, keep the strongest handful, repeat.
+ *
+ * That makes the guarantee weaker than the one-shot search, and the comment is
+ * here so nobody mistakes it for the old proof: a beam can miss an optimum
+ * whose first period looks unpromising and whose third redeems it. What it buys
+ * is a certifiable ceiling for a format that would otherwise have none, and the
+ * beam is wide enough that a scenario tuned against it is tuned against
+ * something a student will not casually beat.
+ *
+ * The candidates offered per period are deliberately coarse — full-ask, half,
+ * and nothing, per shippable subset — because the fine money tuning that
+ * matters on a one-shot allocation matters much less here than *when* the money
+ * went in, and a fine grid per period multiplies straight into the beam.
+ */
+export function optimiseSchedule(
+  scenario: SimScenario,
+  opts: OptimiseOptions = {},
+): OptimiseScheduleResult {
+  const tuning = DEFAULTS[opts.mode ?? "fast"];
+  const beam = opts.keep ? opts.keep * 4 : 24;
+  const maxEvaluations = opts.maxEvaluations ?? tuning.maxEvaluations;
+  const periods = scenario.decisionPeriods ?? 1;
+
+  let evaluations = 0;
+  let truncated = false;
+
+  const evaluate = (schedule: SimAllocationLine[][]): ScheduleCandidate => {
+    evaluations++;
+    const spent = schedule.flat().reduce((sum, l) => sum + l.rupees, 0);
+    return {
+      schedule,
+      northStar: finalValue(pathsForSchedule(scenario, schedule), scenario.northStar),
+      spare: { rupees: scenario.budget.rupees - spent },
+    };
+  };
+
+  let frontier: ScheduleCandidate[] = [evaluate([])];
+
+  for (let period = 0; period < periods; period++) {
+    const next: ScheduleCandidate[] = [];
+
+    for (const carried of frontier) {
+      if (truncated) break;
+      const spentSoFar = carried.schedule.flat().reduce((sum, l) => sum + l.rupees, 0);
+      const left = scenario.budget.rupees - spentSoFar;
+
+      for (const subset of shippableSubsets(scenario)) {
+        if (truncated) break;
+        // Nothing, half of each ask, and each ask in full. Enough to express
+        // "commit now", "commit lightly now" and "hold" without exploding the
+        // beam.
+        for (const share of subset.length ? [0, 0.5, 1] : [0]) {
+          const lines = subset
+            .map((id) => {
+              const iv = scenario.interventions.find((i) => i.id === id)!;
+              return {
+                interventionId: id,
+                sprints: requiredSprints(scenario, id),
+                rupees: Math.min(iv.cost.rupees * share, moneyCap(scenario, id)),
+              };
+            })
+            .filter((l) => l.sprints > 0 || l.rupees > 0);
+
+          const cost = lines.reduce((sum, l) => sum + l.rupees, 0);
+          if (cost > left + 1e-6) continue;
+
+          if (evaluations >= maxEvaluations) {
+            truncated = true;
+            break;
+          }
+          next.push(evaluate([...carried.schedule, lines]));
+        }
+      }
+    }
+
+    if (!next.length) break;
+    next.sort((a, b) => (betterOnNorthStar(scenario, a.northStar, b.northStar) ? -1 : 1));
+    frontier = next.slice(0, beam);
+  }
+
+  return { best: frontier[0], evaluations, truncated };
 }

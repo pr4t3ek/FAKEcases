@@ -20,6 +20,8 @@ import {
 } from "@/lib/sim/schedule";
 import { finalValue, runOutcome, runSchedule } from "@/lib/sim/outcome";
 import { scoreAdaptation } from "@/lib/sim/score";
+import { optimiseSchedule } from "@/lib/sim/optimise";
+import { checkBalance } from "@/lib/sim/balance";
 import type { SimAllocationLine, SimScenario } from "@/lib/sim/types";
 import { BEST_ALLOCATION, v2CostedFixtureScenario, v2FixtureScenario } from "./sim-fixture";
 
@@ -206,5 +208,42 @@ describe("scoreAdaptation", () => {
 
   it("gives nothing to a schedule that committed nothing at all", () => {
     expect(scoreAdaptation(scenario, [[], [], []])).toBe(0);
+  });
+});
+
+describe("certifying a multi-period scenario", () => {
+  /** A periodic scenario whose ceiling is whatever the beam search finds. */
+  function balanced(): SimScenario {
+    const draft = v2CostedFixtureScenario({ decisionPeriods: 3, horizonQuarters: 4 });
+    const found = optimiseSchedule(draft, { mode: "strict" });
+    return { ...draft, bestSchedule: found.best.schedule };
+  }
+
+  it("accepts a schedule the search cannot beat", () => {
+    expect(checkBalance(balanced(), { mode: "strict" })).toEqual([]);
+  });
+
+  it("names a better sequence when the declared one is beatable", () => {
+    const scenario = v2CostedFixtureScenario({
+      decisionPeriods: 3,
+      horizonQuarters: 4,
+      // Everything held until the last possible moment, on a fix that ramps.
+      bestSchedule: [[], [], [payout(100)]],
+    });
+    const errors = checkBalance(scenario, { mode: "strict" }).join(" | ");
+    expect(errors).toMatch(/A better schedule exists/);
+    expect(errors).toMatch(/P0:/);
+  });
+
+  it("still refuses a scenario with no gradient to grade", () => {
+    const base = v2CostedFixtureScenario({ decisionPeriods: 3, horizonQuarters: 4 });
+    const flat = {
+      ...base,
+      interventions: base.interventions.map((iv) => ({
+        ...iv,
+        effects: { whenRootCause: [], otherwise: [] },
+      })),
+    };
+    expect(checkBalance(flat, { mode: "strict" }).join(" | ")).toMatch(/no gradient/);
   });
 });
