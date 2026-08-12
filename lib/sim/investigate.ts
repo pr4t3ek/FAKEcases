@@ -33,17 +33,21 @@ export function remainingDays(scenario: SimScenario, daysSpent: number): number 
   return Math.max(0, scenario.budget.analystDays - daysSpent);
 }
 
-/** Whether every prerequisite pull has been bought. */
-export function isUnlocked(drilldown: SimDrilldown, owned: DrilldownId[]): boolean {
-  return (drilldown.dependsOn ?? []).every((dep) => owned.includes(dep));
-}
-
 /**
  * Can this pull be bought right now, and at what price?
  *
  * Every refusal is a distinct reason so the UI can say why rather than just
  * greying a card out. The server calls this again before writing — a disabled
  * button is a courtesy, not a control.
+ *
+ * **The board is open.** Four gates and none of them is the hypothesis, and
+ * none of them is a prerequisite pull either: `dependsOn` used to refuse a
+ * purchase until its parent was owned, and that lock is gone. In a real war
+ * room you can ask an analyst any question you like — what stops you is time,
+ * and time is `analystDays`, which is already the constraint this whole phase
+ * is built on. A candidate who spends three days on the deep cut before the
+ * cheap one has made a decision, quite possibly a bad one, and that decision is
+ * the exercise. A padlock replaced it with an instruction.
  */
 export function priceDrilldown(
   scenario: SimScenario,
@@ -55,7 +59,6 @@ export function priceDrilldown(
   const drilldown = drilldownById(scenario, drilldownId);
   if (!drilldown) return { ok: false, reason: "unknown_drilldown" };
   if (run.owned.includes(drilldownId)) return { ok: false, reason: "already_owned" };
-  if (!isUnlocked(drilldown, run.owned)) return { ok: false, reason: "locked" };
 
   const remaining = remainingDays(scenario, run.daysSpent);
   if (drilldown.cost > remaining) return { ok: false, reason: "insufficient_budget" };

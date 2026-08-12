@@ -292,7 +292,15 @@ export interface SimDrilldown {
   question: string;
   /** Analyst-days. */
   cost: number;
-  /** Pulls that must be owned first, giving the scenario a real second level. */
+  /**
+   * Pulls this one reads alongside — advisory, never a gate.
+   *
+   * It used to be a prerequisite: the pull was unbuyable until its parents were
+   * owned. That lock is gone, because the only thing that should stop a
+   * candidate asking a question is the analyst-day budget. What survives is the
+   * authored knowledge that two pulls belong together, which the card shows as
+   * a hint so a student can see the relationship and still buy either first.
+   */
   dependsOn?: DrilldownId[];
   /** Panels appended to the dashboard once bought. */
   reveals: SimPanel[];
@@ -709,7 +717,6 @@ export interface SimOutcomeResult {
 export type PurchaseRefusal =
   | "unknown_drilldown"
   | "already_owned"
-  | "locked"
   | "insufficient_budget"
   | "wrong_phase";
 
@@ -729,8 +736,6 @@ export type PurchaseDecision =
 export type ClientDrilldown = Omit<SimDrilldown, "reveals" | "evidenceFor" | "readsAs"> & {
   /** Whether the run already owns it, so the UI can show it as bought. */
   owned: boolean;
-  /** Whether `dependsOn` is satisfied. */
-  unlocked: boolean;
 };
 
 export type ClientCause = Omit<SimCause, "verdict" | "unactionable">;
