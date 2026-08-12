@@ -661,6 +661,26 @@ export const abTestReadout: SimScenario = {
    */
   spend: { driver: "programmeCost", atFullBudget: 1.6 },
 
+  /**
+   * The quarter not going exactly to plan.
+   *
+   * Conversion is measured on 1.85 lakh users an arm and moves a little week to
+   * week; returns are noisier still, because a return is a decision a shopper
+   * makes twelve to sixteen days after the order. Neither is drawn wide enough
+   * to drown a decision — a student has to be able to read their own fix out of
+   * the result, and past about 5% a quarter they cannot.
+   *
+   * Effects are never noised, only the weather: the sizing fix works, and the
+   * debrief's account of why the number moved stays true.
+   */
+  noise: {
+    drivers: [
+      { driver: "conversionRate", sigma: 0.02 },
+      { driver: "returnRate", sigma: 0.035 },
+    ],
+    driftSigma: 0.25,
+  },
+
   drift: [
     { driver: "returnRate", deltaPct: 0.04 },
     { driver: "marginRate", deltaPct: -0.01 },

@@ -20,6 +20,7 @@ import { clamp } from "@/lib/utils";
 import { simConfig } from "@/lib/config/simulation";
 import { resolveDrivers } from "./drivers";
 import { evalResponse, responseFor } from "./response";
+import { drawShocks, driftShockFor, shockFor, NO_SHOCKS, type RunShocks } from "./noise";
 import type {
   DriverId,
   InterventionFunding,
@@ -165,6 +166,7 @@ function rampFraction(effect: SimEffect, q: number): number {
 export function pathsForFunding(
   scenario: SimScenario,
   rawFunding: FundingInput,
+  shocks: RunShocks = NO_SHOCKS,
 ): SimPaths {
   const funding = normaliseFunding(rawFunding);
   const v2 = scenario.engine === "v2";
@@ -177,7 +179,13 @@ export function pathsForFunding(
     };
 
     for (const effect of scenario.drift) {
-      scale(effect.driver, Math.pow(1 + effect.deltaPct, q));
+      // The bleed is the least reliable number in a scenario — it is an
+      // extrapolation of a trend — so it is what the weather moves first.
+      scale(effect.driver, Math.pow(1 + effect.deltaPct * driftShockFor(shocks, q), q));
+    }
+
+    for (const driver of Object.keys(shocks.drivers)) {
+      scale(driver, shockFor(shocks, driver, q));
     }
 
     /**
@@ -277,6 +285,9 @@ export function pathsForSchedule(scenario: SimScenario, schedule: SimSchedule): 
       multipliers[driver] = (multipliers[driver] ?? 1) * factor;
     };
 
+    // No weather here: the turnaround format is v1 and draws no shocks. When a
+    // v2 scenario needs periods, this loop grows the same two lines
+    // `pathsForFunding` has.
     for (const effect of scenario.drift) {
       scale(effect.driver, Math.pow(1 + effect.deltaPct, q));
     }
@@ -346,18 +357,42 @@ export function runSchedule(
 export function runOutcome(
   scenario: SimScenario,
   allocation: SimAllocationLine[],
+  opts: { seed?: string | null } = {},
 ): SimOutcomeResult {
   const mine = fundingFor(scenario, allocation);
   const best = fundingFor(scenario, scenario.bestAllocation);
 
-  return {
-    paths: pathsForFunding(scenario, mine.funding),
-    doNothing: pathsForFunding(scenario, {}),
-    best: pathsForFunding(scenario, best.funding),
+  // Drawn from the seed and the scenario alone — never from the allocation.
+  // That is what lets one table hit all three projections, so luck moves the
+  // run, its counterfactual and its ceiling together and cannot be gamed by
+  // choosing differently. See `lib/sim/noise.ts`.
+  const shocks = drawShocks(scenario, opts.seed ?? null);
+  const noisy = shocks !== NO_SHOCKS;
+
+  const project = (funding: FundingInput, weather: RunShocks) =>
+    pathsForFunding(scenario, funding, weather);
+
+  const result: SimOutcomeResult = {
+    paths: project(mine.funding, shocks),
+    doNothing: project({}, shocks),
+    best: project(best.funding, shocks),
     funding: mine.ratios,
     fundingDetail: mine.funding,
     stalled: mine.stalled,
   };
+
+  if (!noisy) return result;
+
+  // The same run with the weather taken out. This is what `scoreOutcome`
+  // grades, so two candidates who played identically score identically however
+  // their luck ran; the realised paths above are what the report shows.
+  result.expected = {
+    paths: project(mine.funding, NO_SHOCKS),
+    doNothing: project({}, NO_SHOCKS),
+    best: project(best.funding, NO_SHOCKS),
+  };
+  if (opts.seed) result.seed = opts.seed;
+  return result;
 }
 
 /** The last projected value of a driver — what the outcome report leads with. */

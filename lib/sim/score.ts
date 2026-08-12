@@ -235,10 +235,18 @@ export function scoreDecision(
  * same ratio still reads correctly.
  */
 export function scoreOutcome(scenario: SimScenario, outcome: SimOutcomeResult): number {
+  // The weather is taken out before grading. A run's luck moved its own path,
+  // its counterfactual and its ceiling together — see `lib/sim/noise.ts` — but
+  // the honest thing to grade is the decision, so two candidates who played
+  // identically score identically however their quarters happened to land.
+  // Absent on a scenario with no noise, where the realised paths *are* the
+  // expectation.
+  const src = outcome.expected ?? outcome;
+
   const ns = scenario.northStar;
-  const mine = finalValue(outcome.paths, ns);
-  const floor = finalValue(outcome.doNothing, ns);
-  const ceiling = finalValue(outcome.best, ns);
+  const mine = finalValue(src.paths, ns);
+  const floor = finalValue(src.doNothing, ns);
+  const ceiling = finalValue(src.best, ns);
 
   const span = ceiling - floor;
   // A scenario whose best allocation changes nothing has no gradient to grade
