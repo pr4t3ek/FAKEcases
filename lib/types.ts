@@ -174,22 +174,33 @@ export function canAdvanceSimPhase(from: SimPhase, to: SimPhase): boolean {
 /**
  * What may still be done to the hypothesis.
  *
- * The Observe screen promises "you can't change this once you start pulling
- * data", and this makes that literally true rather than approximately true.
- * Locking on the button press instead — which is what it used to do — meant a
- * misclick set a score the candidate could never influence again, before they
- * had spent a single analyst-day.
+ * The window used to close at the **first purchase**, on the argument that a
+ * hypothesis revised in the light of evidence is not a hypothesis. That
+ * argument is half right and the half it got wrong is the important half: a
+ * *prediction* you may not revise when the data contradicts it is not a
+ * hypothesis either, it is a guess you are stuck with. Updating a belief on
+ * evidence is the thing this format should be teaching, and the lock punished
+ * it — a candidate who bought the pull that proved them wrong had no way to say
+ * so, and watched the run continue under a belief they no longer held.
  *
- * The integrity rule is unchanged and is the reason the amend window closes at
- * the *first purchase* rather than at the phase boundary: a hypothesis revised
- * in the light of evidence is not a hypothesis. Until evidence has been bought,
- * changing your mind costs nothing and hides nothing.
+ * So it now closes at the **Commit boundary** instead, which keeps the two
+ * cause-naming steps measuring different things:
+ *
+ *   - **Hypothesis** — your best read given the data you chose to buy.
+ *   - **Diagnosis** — your final answer, with the whole board and the fixes in
+ *     view, and irreversible once named.
+ *
+ * The integrity the old rule was protecting has not been given up, it has moved
+ * where it belongs. Every revision is logged with the purchase count it was
+ * made at (`lib/sim/hypothesis-log.ts`), and `scoreInvestigation` judges each
+ * pull against the belief that was standing when it was bought — so rewriting
+ * the hypothesis to match whatever you happened to buy earns nothing.
  */
 export type HypothesisEdit = "advance" | "amend" | "locked";
 
-export function hypothesisEditFor(phase: SimPhase, purchaseCount: number): HypothesisEdit {
+export function hypothesisEditFor(phase: SimPhase): HypothesisEdit {
   if (phase === "observe") return "advance";
-  if (phase === "investigate" && purchaseCount === 0) return "amend";
+  if (phase === "investigate") return "amend";
   return "locked";
 }
 

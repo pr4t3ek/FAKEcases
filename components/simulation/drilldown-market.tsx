@@ -84,8 +84,28 @@ export function DrilldownMarket({
         {available.map((d) => {
           const affordable = d.cost <= remaining;
           const blocked = !d.unlocked || !affordable;
+          /**
+           * Only ever two reasons, and neither is your hypothesis.
+           *
+           * Worth saying out loud because the padlock invited the opposite
+           * reading: a candidate who had named demand and found the supply
+           * pull locked concluded the board was restricted to the branch they
+           * had committed to. It never has been — `priceDrilldown` consults the
+           * phase, the dependency chain and the budget, and nothing else. Any
+           * analysis on any branch is buyable at any time, which is what makes
+           * it possible to disprove your own hypothesis.
+           *
+           * Naming the prerequisite rather than gesturing at it: "the analysis
+           * this depends on" is a hunt across nine other cards.
+           */
+          const blockedBy = (d.dependsOn ?? [])
+            .filter((dep) => !drilldowns.find((x) => x.id === dep)?.owned)
+            .map((dep) => drilldowns.find((x) => x.id === dep)?.label)
+            .filter(Boolean);
           const reason = !d.unlocked
-            ? "Run the analysis this depends on first"
+            ? blockedBy.length
+              ? `Run “${blockedBy.join("” and “")}” first — this one reads off it`
+              : "Run the analysis this depends on first"
             : !affordable
               ? `Needs ${d.cost} analyst-days — you have ${remaining}`
               : undefined;
@@ -133,7 +153,11 @@ export function DrilldownMarket({
                   `Run this (${d.cost}d)`
                 )}
               </Button>
-              {reason && d.unlocked && (
+              {/* Shown for a dependency lock too, which it was not before —
+                  the visible reason was gated on `d.unlocked`, so the one card
+                  that says nothing but "Locked" was the only one that never
+                  explained itself. A tooltip is not an explanation on touch. */}
+              {reason && (
                 <p className="mt-1.5 text-center text-[11px] text-muted-foreground">{reason}</p>
               )}
             </Card>

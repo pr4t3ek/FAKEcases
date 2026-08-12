@@ -143,13 +143,18 @@ export async function startSimulation(questionId: string): Promise<void> {
 }
 
 /**
- * Set the opening hypothesis — first time, or a change of mind before any data
- * has been bought.
+ * Set the hypothesis — the opening call, or a revision made once the data
+ * started saying something else.
  *
- * `hypothesisEditFor` is the rule: freely changeable until it has cost you
- * something, final afterwards. Re-opening it after seeing evidence would make
- * the hypothesis score theatre, which is why the window closes at the first
- * purchase rather than at the phase boundary.
+ * `hypothesisEditFor` is the rule, and it now closes at the Commit boundary
+ * rather than at the first purchase. Buying the pull that disproves your
+ * opening call is exactly when you should be able to change your mind; the old
+ * rule made that the moment you no longer could.
+ *
+ * What stops that from being a free rewrite is not a refusal here — it is that
+ * every revision is recorded with the purchase count it was made at, and
+ * `scoreInvestigation` rates each pull against the belief standing when it was
+ * bought. Naming whatever the data turned out to support earns nothing.
  */
 export async function commitHypothesis(
   runId: string,
@@ -159,17 +164,28 @@ export async function commitHypothesis(
   const owned = await ownedRun(runId);
   if (!owned) return { ok: false, error: "Not found" };
 
-  const edit = hypothesisEditFor(owned.run.phase as SimPhase, owned.run.purchases.length);
+  const edit = hypothesisEditFor(owned.run.phase as SimPhase);
   if (edit === "locked") {
-    return { ok: false, error: "You've started pulling data, so the hypothesis is locked" };
+    return {
+      ok: false,
+      error: "You've moved on to the decision, so the hypothesis is settled",
+    };
   }
 
   const parsed = parseHypothesis(owned.scenario, suspects);
   if (!parsed.ok) return { ok: false, error: parsed.error };
 
-  // Writing `phase: "investigate"` is a no-op when amending, since that is
-  // already the phase — so one path serves both.
-  await commitHypothesisToRun(runId, parsed.value, note);
+  await commitHypothesisToRun({
+    runId,
+    suspects: parsed.value,
+    note,
+    // Read off the run rather than taken from the request: the count is what
+    // dates the revision, and a client that could set it could date its way
+    // out of the relevance check.
+    purchaseCount: owned.run.purchases.length,
+    daysSpent: owned.run.daysSpent,
+    stateJson: owned.run.stateJson,
+  });
   return { ok: true };
 }
 
@@ -322,6 +338,7 @@ export async function commitDecision(
   const score = scoreSimulation({
     scenario,
     hypothesis: state.hypothesis,
+    hypothesisLog: state.hypothesisLog,
     purchases: state.purchases,
     diagnosis: state.diagnosis,
     allocation: parsed.value,

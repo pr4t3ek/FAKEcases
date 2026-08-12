@@ -25,13 +25,15 @@ export interface SimulationData {
   phase: SimPhase;
   scenario: ClientScenario;
   daysSpent: number;
-  /** Suspects already named, once the hypothesis is locked. */
+  /** The suspects currently named. Revisable until Commit opens. */
   hypothesis: string[];
   hypothesisNote: string | null;
   /**
-   * How many pulls have been bought. Zero means the hypothesis is still
-   * changeable — the client mirrors `hypothesisEditFor`, and the server
-   * re-checks it on every write.
+   * How many pulls have been bought.
+   *
+   * No longer gates the hypothesis — that closes at the Commit boundary now —
+   * but it still shapes the copy, which says "Revise" once something has been
+   * bought and "Change" before.
    */
   purchaseCount: number;
   /**
@@ -80,6 +82,14 @@ export interface SimulationReportData {
   allocation: AllocationComparisonRow[];
   trail: TrailStep[];
   missed: TrailStep[];
+  /**
+   * How the candidate's thinking moved, oldest first.
+   *
+   * Empty when they never revised, and on every run played before the log
+   * existed — the debrief simply omits the section rather than asserting a
+   * certainty nobody recorded.
+   */
+  hypothesisTrail: { causes: string[]; note: string | null; afterPurchases: number }[];
   yourDiagnosis: string[];
   trueCauses: string[];
   /** "month" or "quarter" — a monthly campaign reported in Q+1 reads as wrong. */

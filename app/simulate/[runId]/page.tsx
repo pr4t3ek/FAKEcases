@@ -5,6 +5,7 @@ import { getAdapter } from "@/lib/llm";
 import { loadScenario } from "@/lib/scenario-store";
 import { toClientScenario } from "@/lib/sim/redact";
 import { metricMap } from "@/lib/sim/metric-map";
+import { wasRevised } from "@/lib/sim/hypothesis-log";
 import { resolveDrivers } from "@/lib/sim/drivers";
 import {
   allocationComparison,
@@ -257,6 +258,18 @@ export default async function SimulatePage({
       allocation: allocationComparison(scenario, state.allocation, outcome),
       trail: investigationTrail(scenario, state.purchases),
       missed: missedEvidence(scenario, state.purchases),
+      // Only worth showing when there is a change of mind to show. One entry is
+      // the opening call, which the report already states twice.
+      hypothesisTrail: wasRevised(state.hypothesisLog)
+        ? state.hypothesisLog.revisions.map((r) => ({
+            causes: r.causeIds.flatMap((id) => {
+              const cause = scenario.causes.find((c) => c.id === id);
+              return cause ? [cause.label] : [];
+            }),
+            note: r.note,
+            afterPurchases: r.afterPurchases,
+          }))
+        : [],
       yourDiagnosis: state.diagnosis.flatMap((id) => {
         const cause = scenario.causes.find((c) => c.id === id);
         return cause ? [cause.label] : [];

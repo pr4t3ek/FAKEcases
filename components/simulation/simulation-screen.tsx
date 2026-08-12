@@ -53,14 +53,12 @@ export function SimulationScreen({ data }: { data: SimulationData }) {
   // behind the header button.
   const [primerOpen, setPrimerOpen] = useState(!!teaching && data.phase === "observe");
 
-  // "Freely changeable until it has cost you something." The window closes on
-  // the first purchase, not at the phase boundary — see `hypothesisEditFor`.
-  //
-  // Counted locally as well as from the server, because buying a pull updates
-  // this screen without a refetch: without the local half the UI kept offering
-  // "Change" after a purchase and the server answered with an error toast.
+  // Revisable for as long as the investigation is open — see
+  // `hypothesisEditFor`. Buying the pull that contradicts your opening call is
+  // precisely when you should be able to say so, and until this changed it was
+  // the moment you no longer could.
   const [boughtCount, setBoughtCount] = useState(data.purchaseCount);
-  const canAmend = data.phase === "investigate" && boughtCount === 0;
+  const canAmend = data.phase === "investigate";
   const [editing, setEditing] = useState(false);
   const picking = data.phase === "observe" || (editing && canAmend);
 
@@ -178,13 +176,25 @@ export function SimulationScreen({ data }: { data: SimulationData }) {
                   <Lightbulb className="h-4 w-4 text-primary" />{" "}
                   {editing ? "Change your hypothesis" : "Where do you think it is?"}
                 </h2>
-                {/* Before any data is bought, deliberately. A hypothesis formed
-                    after the evidence is not a hypothesis, and this is the
-                    habit interviewers are actually listening for. */}
+                {/* Committing first is still the habit being built — the
+                    difference is that the commitment is now revisable, which is
+                    what a hypothesis is for. What keeps it honest is that each
+                    pull is judged against what you believed when you bought it,
+                    so renaming your suspect afterwards buys nothing. */}
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  Commit to at most {simConfig.maxSuspects} before you spend a single analyst-day.
-                  You can keep changing this until you run your first analysis — after that it&apos;s
-                  locked, and that&apos;s the point.
+                  {editing ? (
+                    <>
+                      Changing your mind on the evidence is the point of buying it. Your earlier
+                      call stays on the record, and the pulls you already ran are judged against
+                      what you believed when you ran them.
+                    </>
+                  ) : (
+                    <>
+                      Commit to at most {simConfig.maxSuspects} before you spend a single
+                      analyst-day. You can revise this as the data comes in — what you can&apos;t
+                      do is un-buy a pull.
+                    </>
+                  )}
                 </p>
 
                 {/* States what is registered instead of leaving it to be
@@ -275,11 +285,11 @@ export function SimulationScreen({ data }: { data: SimulationData }) {
                         onClick={() => setEditing(true)}
                         className="flex items-center gap-1 text-xs text-primary hover:underline"
                       >
-                        <Pencil className="h-3 w-3" /> Change
+                        <Pencil className="h-3 w-3" /> {boughtCount > 0 ? "Revise" : "Change"}
                       </button>
                     ) : (
                       <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                        <Lock className="h-3 w-3" /> locked
+                        <Lock className="h-3 w-3" /> settled
                       </span>
                     )}
                   </div>
@@ -295,10 +305,15 @@ export function SimulationScreen({ data }: { data: SimulationData }) {
                       &ldquo;{data.hypothesisNote}&rdquo;
                     </p>
                   )}
+                  {/* The line a stuck candidate actually reads. It used to say
+                      only what had happened ("locked when you ran your first
+                      analysis") and never what to do about it — and there was
+                      nothing to do. Now it says the thing that is true and
+                      useful: the data is allowed to change your mind. */}
                   <p className="mt-2 text-[11px] text-muted-foreground">
-                    {canAmend
-                      ? "You can still change this — nothing has been spent yet."
-                      : "Locked when you ran your first analysis."}
+                    {boughtCount > 0
+                      ? "If the data points somewhere else, revise it — that's what buying it was for."
+                      : "You can still change this — nothing has been spent yet."}
                   </p>
                 </Card>
 
@@ -346,9 +361,9 @@ export function SimulationScreen({ data }: { data: SimulationData }) {
                   .filter(Boolean)
                   .join(" and ")}
               </strong>
-              . You can still change this until you run your first analysis — after that it&apos;s
-              locked, because a hypothesis revised in the light of the evidence isn&apos;t a
-              hypothesis.
+              . Committing before you spend anything is the habit being built, but this is not
+              your final answer — revise it as the data comes in, and name the cause properly at
+              the decision. What you can&apos;t undo is the analyst-days.
             </DialogDescription>
             <DialogFooter>
               <Button variant="secondary" onClick={() => setConfirmLock(false)} disabled={pending}>
