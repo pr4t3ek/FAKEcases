@@ -15,6 +15,7 @@ import { z } from "zod";
 import { simConfig } from "@/lib/config/simulation";
 import { allocationFits } from "./outcome";
 import { permittedInterventionIds } from "./gating";
+import { scheduleFits } from "./schedule";
 import type { CauseId, InterventionId, SimAllocationLine, SimScenario } from "./types";
 
 /** Sprints are whole units of team time; a third of a sprint is not a thing. */
@@ -159,6 +160,59 @@ export function parseDiagnosis(
  * one cause and fund the fix for another and still be internally consistent —
  * which is precisely the run this change exists to make impossible.
  */
+/**
+ * One period's allocation, checked against the two currencies' own rules.
+ *
+ * Not `allocationSchema` with a different budget: the rules genuinely differ.
+ * Capacity is checked against **this period alone**, because people-weeks
+ * refresh and cannot be saved up; money is checked against **everything already
+ * committed**, because the rupee budget is one pool for the whole run. A single
+ * `allocationFits` cannot express both, and using it here would either let a
+ * schedule spend the money budget once per period or forbid the same team from
+ * working twice.
+ *
+ * The schedule is read from stored state and never from the request — the same
+ * posture as the diagnosis in `parseAllocation`. A client that could supply the
+ * history could rewrite what it had already spent.
+ *
+ * Committing nothing is legal and is not the same as committing nothing at all:
+ * holding capacity while you wait for a quarter's results is one of the two
+ * decisions the format exists to make possible.
+ */
+export function parsePeriodAllocation(
+  scenario: SimScenario,
+  diagnosis: CauseId[],
+  committed: SimAllocationLine[][],
+  raw: unknown,
+): ParseResult<SimAllocationLine[]> {
+  const permitted = permittedInterventionIds(scenario, diagnosis);
+  const known = new Set(scenario.interventions.map((i) => i.id));
+
+  const schema = z
+    .array(allocationLineSchema)
+    .refine((lines) => lines.every((l) => known.has(l.interventionId)), "Unknown intervention")
+    .refine(
+      (lines) => lines.every((l) => permitted.has(l.interventionId)),
+      "That fix doesn't address the cause you named",
+    )
+    .refine(
+      (lines) => new Set(lines.map((l) => l.interventionId)).size === lines.length,
+      "Duplicate intervention",
+    )
+    .refine(
+      (lines) => lines.every((l) => l.sprints > 0 || l.rupees > 0),
+      "An intervention funded with nothing should be left out instead",
+    );
+
+  const result = schema.safeParse(raw);
+  if (!result.success) return { ok: false, error: firstIssue(result.error) };
+
+  const fit = scheduleFits(scenario, [...committed, result.data]);
+  if (!fit.ok) return { ok: false, error: fit.error ?? "That does not fit the budget" };
+
+  return { ok: true, value: result.data };
+}
+
 export function parseAllocation(
   scenario: SimScenario,
   diagnosis: CauseId[],
