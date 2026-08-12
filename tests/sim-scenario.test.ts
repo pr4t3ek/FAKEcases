@@ -12,7 +12,7 @@ import { getScenario, listScenarios, scenarioSlugs } from "@/lib/sim/registry";
 import { validateScenario } from "@/lib/sim/validate";
 import { drilldownById, parCost } from "@/lib/sim/investigate";
 import { resolveDrivers } from "@/lib/sim/drivers";
-import { allocationFits, finalValue, runOutcome } from "@/lib/sim/outcome";
+import { allocationFits, finalValue, runOutcome, runSchedule } from "@/lib/sim/outcome";
 import {
   MAX_BRUTE_FORCE_INTERVENTIONS,
   checkBalance,
@@ -1209,6 +1209,35 @@ describe("metric-drop-food-delivery specifics", () => {
       { interventionId: "iv-checkout-rewrite", sprints: 2, rupees: 2 * 10_000_000 },
     ]);
     expect(outcome.stalled).toContain("iv-checkout-rewrite");
+  });
+
+  /**
+   * The reason the payout correction's conversion effect ramps.
+   *
+   * An effect with no ramp is fully arrived one quarter after it ships and
+   * `finalValue` reads the last quarter, so on a scenario of instant levers
+   * committing in the final period costs nothing on the number and only moves
+   * Adaptation — pinned as a limitation in `tests/sim-schedule.test.ts`. Here
+   * it is meant to cost something real, because customers who were quoted 48
+   * minutes take a couple of quarters to start checking again.
+   */
+  it("makes committing the payout correction late cost real contribution", () => {
+    if (!scenario) throw new Error("scenario missing");
+    const line = { interventionId: "iv-payout", sprints: 2, rupees: 4.5 * 10_000_000 };
+    const early = finalValue(runSchedule(scenario, [[line], [], []]).paths, "contributionMargin");
+    const late = finalValue(runSchedule(scenario, [[], [], [line]]).paths, "contributionMargin");
+    expect(early).toBeGreaterThan(late);
+  });
+
+  it("leaves money in the bank at the ceiling, in every period", () => {
+    // The whole point of the v2 conversion, stated as a property rather than
+    // left to the balance check: the best sequence does not empty the budget,
+    // and the last period is a deliberate hold.
+    if (!scenario) throw new Error("scenario missing");
+    const schedule = scenario.bestSchedule ?? [];
+    const spent = schedule.flat().reduce((sum, l) => sum + l.rupees, 0);
+    expect(spent).toBeLessThan(scenario.budget.rupees);
+    expect(schedule.at(-1)).toEqual([]);
   });
 
   it("has a coach answer for every major wrong theory in the room", () => {

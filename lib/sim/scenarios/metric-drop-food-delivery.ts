@@ -283,7 +283,20 @@ export const metricDropFoodDelivery: SimScenario = {
     },
   ],
 
-  budget: { analystDays: 8, sprints: 4, rupees: 12 * CRORE },
+  /**
+   * Capacity is per period and money is for the whole run.
+   *
+   * Three people-weeks a quarter rather than four, because four made the
+   * sequence a formality: the three fixes that treat rider supply cost 2 + 1 +
+   * 1, so a single period covered all of them and there was nothing left to
+   * decide in the second or the third. At three, backing the payout correction
+   * and the referral drive together uses the whole quarter, and the honest-ETA
+   * fix has to wait — which is the trade the format exists to pose.
+   *
+   * Three is also exactly what the checkout rewrite asks for, so the expensive
+   * wrong answer stays buildable. A decoy nobody can afford teaches nothing.
+   */
+  budget: { analystDays: 8, sprints: 3, rupees: 12 * CRORE },
 
   // ── The data you can buy ────────────────────────────────────────────────
   // Twenty-two days of pulls against an eight-day budget. The scarcity is the
@@ -646,14 +659,28 @@ export const metricDropFoodDelivery: SimScenario = {
         // P&L. Modelling it in both places would bill the same rupee twice, and
         // on a business whose unit contribution is ₹11.80 against a ₹96 cost
         // that double-charge is enough to make the correct answer lose.
+        // ETA moves as fast as the riders do; conversion does not. Ops are
+        // right that the payout brings riders back inside three weeks, and the
+        // delivery estimate at checkout improves with them — but ordering
+        // dinner is a habit, and the customers who were quoted 48 minutes twice
+        // in a row take the better part of a year to fully come back. So the
+        // recovery in conversion ramps where the recovery in ETA does not.
+        //
+        // **Three quarters, and the number is load-bearing.** An effect is
+        // fully arrived `rampQuarters` after the period that funds it, and
+        // `finalValue` reads the last quarter — so on a four-quarter horizon a
+        // two-quarter ramp committed in the final period has still fully landed
+        // by the end, and committing late costs nothing but Adaptation. At
+        // three it does not, which is what makes *when* you commit move the
+        // contribution line. See the paired tests in `tests/sim-schedule.test.ts`.
         whenRootCause: [
-          { driver: "conversion", deltaPct: 0.09 },
+          { driver: "conversion", deltaPct: 0.09, rampQuarters: 3 },
           { driver: "avgEta", deltaPct: -0.22 },
         ],
         otherwise: [{ driver: "conversion", deltaPct: 0.01 }],
       },
       debrief:
-        "The bet that addressed the cause. It costs real money per order — delivery cost rises 6% — and still pays for itself, because it recovers orders that were being lost at checkout rather than buying new ones.",
+        "The bet that addressed the cause, and the reason it pays is that it recovers orders that were being lost at checkout rather than buying new ones. It is not fast: riders come back inside three weeks, but the customers who were quoted 48 minutes take a couple of quarters to start checking again — so committing it early is worth real money, not just a better Adaptation score.",
     },
     {
       id: "iv-referral",
@@ -816,25 +843,58 @@ export const metricDropFoodDelivery: SimScenario = {
     { driver: "conversion", deltaPct: -0.04 },
     { driver: "avgEta", deltaPct: 0.05 },
   ],
-  horizonQuarters: 2,
+  horizonQuarters: 4,
+  /**
+   * Three decisions, four quarters.
+   *
+   * The horizon has to outrun the decisions — `validateScenario` refuses
+   * otherwise — because whatever is committed in the last period would
+   * otherwise have its consequences land outside the window it is scored on,
+   * and holding everything to the end would read as free.
+   *
+   * Three is enough to make the sequence a judgement and few enough that a
+   * candidate is not filling in a spreadsheet. Between each one they see the
+   * quarter that actually happened, weather included, which is the information
+   * a single commit cannot deliver.
+   */
+  decisionPeriods: 3,
 
   parInvestigation: ["dd-city", "dd-riders"],
   /**
-   * Derived by `scripts/best-allocation.ts`, not by hand — and it leaves ₹5.38
-   * crore of ₹12 crore in the bank.
+   * Both derived by `scripts/best-allocation.ts`, neither guessed.
    *
-   * That is the whole point of the conversion and it is not guessable. Every
-   * capacity slot goes to a fix that treats rider supply, and each is funded
-   * well below what it asked for: past about 44% of its ask the payout
-   * correction is buying rider hours it does not need, while the programme cost
-   * of the money keeps coming off contribution every week. The optimiser
-   * searched 12,517 allocations to find it and spending the remainder scores
-   * strictly worse.
+   * The sequence is the interesting one and it is not what anybody would write
+   * by hand. Fill the first quarter with the payout correction and a
+   * half-funded honest-ETA fix; in the second, add the referral drive and top
+   * the ETA fix up to its full ask — funding accumulates across periods, so a
+   * lever can be started cheaply and finished later. Then **hold the third
+   * period entirely**, banking ₹4.25 crore of ₹12.
+   *
+   * Two things make it come out that way. The payout correction's conversion
+   * effect ramps over two quarters, so a crore committed in P0 has time the
+   * same crore in P2 does not — and every rupee committed keeps coming off
+   * contribution weekly through `spend`, so the last quarter's money buys a
+   * fraction of a ramp and pays full price for it.
+   *
+   * `bestAllocation` is the first period of that sequence. On a multi-period
+   * scenario the run is projected through `bestScheduleFor`, so this is what
+   * the validator checks against the budget rather than what the score
+   * normalises on.
    */
   bestAllocation: [
-    { interventionId: "iv-payout", sprints: 2, rupees: 4 * CRORE },
-    { interventionId: "iv-referral", sprints: 1, rupees: 1.875 * CRORE },
-    { interventionId: "iv-eta-honesty", sprints: 1, rupees: 0.75 * CRORE },
+    { interventionId: "iv-payout", sprints: 2, rupees: 4.5 * CRORE },
+    { interventionId: "iv-eta-honesty", sprints: 1, rupees: 0.25 * CRORE },
+  ],
+  bestSchedule: [
+    [
+      { interventionId: "iv-payout", sprints: 2, rupees: 4.5 * CRORE },
+      { interventionId: "iv-eta-honesty", sprints: 1, rupees: 0.25 * CRORE },
+    ],
+    [
+      { interventionId: "iv-referral", sprints: 1, rupees: 2.5 * CRORE },
+      { interventionId: "iv-eta-honesty", sprints: 1, rupees: 0.5 * CRORE },
+    ],
+    [],
   ],
 
   debrief: {

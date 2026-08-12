@@ -340,6 +340,29 @@ export function formatAllocation(candidate: AllocationCandidate): string {
   return `bestAllocation: [\n${lines}\n  ],`;
 }
 
+/**
+ * The same, for a scenario that commits more than once.
+ *
+ * Emits every period including the empty ones. A schedule whose blank quarters
+ * were dropped would silently become a shorter schedule, and holding a period
+ * is a decision the author may well have meant.
+ */
+export function formatSchedule(candidate: ScheduleCandidate): string {
+  const periods = candidate.schedule
+    .map((lines) => {
+      if (!lines.length) return "    [],";
+      const inner = lines
+        .map(
+          (l) =>
+            `      { interventionId: "${l.interventionId}", sprints: ${l.sprints}, rupees: ${Math.round(l.rupees)} },`,
+        )
+        .join("\n");
+      return `    [\n${inner}\n    ],`;
+    })
+    .join("\n");
+  return `bestSchedule: [\n${periods}\n  ],`;
+}
+
 // ─── Schedules: the same search, spread over periods ───────────────────────
 
 export interface ScheduleCandidate {
