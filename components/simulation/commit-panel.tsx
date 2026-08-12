@@ -23,6 +23,7 @@ import { simConfig } from "@/lib/config/simulation";
 import { cn, toIndianWords } from "@/lib/utils";
 import type { ClientCause, ClientIntervention, ClientScenario } from "@/lib/sim/types";
 import { moneyScaleFor } from "./money";
+import type { SimulationPeriods } from "./types";
 import { SelectionRow } from "./selection-row";
 
 interface Draft {
@@ -51,15 +52,18 @@ export function CommitPanel({
   runId,
   scenario,
   diagnosis,
+  periods,
 }: {
   runId: string;
   scenario: ClientScenario;
   /** Causes already locked. Empty means step one. */
   diagnosis: string[];
+  /** Absent on a war room that commits once — see `SimulationPeriods`. */
+  periods?: SimulationPeriods;
 }) {
   const locked = diagnosis.length > 0;
   return locked ? (
-    <FundStep runId={runId} scenario={scenario} diagnosis={diagnosis} />
+    <FundStep runId={runId} scenario={scenario} diagnosis={diagnosis} periods={periods} />
   ) : (
     <NameStep runId={runId} scenario={scenario} />
   );
@@ -67,6 +71,39 @@ export function CommitPanel({
 
 const labelFor = (scenario: ClientScenario, id: string) =>
   scenario.causes.find((c) => c.id === id)?.label ?? id;
+
+/**
+ * What the commit button says, which has to name what actually happens.
+ *
+ * Four different actions wear this one control: running the quarters out,
+ * settling one period of several, deliberately holding a period, and holding
+ * because the named cause has no fix on the board. Calling them all "Commit the
+ * quarter" would make the mid-run ones read as final, which is the misreading
+ * that matters — a student who thinks the run ends here will empty the pool.
+ */
+function commitLabel(args: {
+  nothingToFund: boolean;
+  fundedCount: number;
+  periods?: SimulationPeriods;
+  periodNoun: string;
+  lastPeriod: boolean;
+}): string {
+  const { nothingToFund, fundedCount, periods, periodNoun, lastPeriod } = args;
+  if (nothingToFund) return "Hold the capacity and run the quarter";
+  if (!periods) return "Commit the quarter";
+  if (fundedCount === 0) return `Hold this ${periodNoun}`;
+  return lastPeriod
+    ? `Commit the last ${periodNoun} and run it out`
+    : `Commit ${periodNoun} ${periods.open + 1}`;
+}
+
+/**
+ * The name of something already funded. Falls back to the id rather than
+ * dropping the line: a committed rupee the summary cannot name is still a
+ * committed rupee, and hiding it would make the pool arithmetic look wrong.
+ */
+const interventionLabel = (scenario: ClientScenario, id: string) =>
+  scenario.interventions.find((iv) => iv.id === id)?.label ?? id;
 
 // ── Step one: name the cause ─────────────────────────────────────────────────
 
@@ -201,10 +238,12 @@ function FundStep({
   runId,
   scenario,
   diagnosis,
+  periods,
 }: {
   runId: string;
   scenario: ClientScenario;
   diagnosis: string[];
+  periods?: SimulationPeriods;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -214,7 +253,14 @@ function FundStep({
   // Follows the scenario: a ₹6 lakh budget is worked in lakh, a ₹12 crore one
   // in crore. Hardcoding either makes the other unusable.
   const scale = moneyScaleFor(scenario.budget.rupees);
-  const budgetMoney = scenario.budget.rupees / scale.divisor;
+  /**
+   * What can still be committed, which on a multi-period run is the pool rather
+   * than the budget. Capacity has no equivalent: it refreshes every period, so
+   * the meter below is against the whole team every time.
+   */
+  const budgetMoney = (periods?.moneyRemaining ?? scenario.budget.rupees) / scale.divisor;
+  const lastPeriod = !periods || periods.open === periods.total - 1;
+  const periodNoun = scenario.periodNoun;
 
   const used = useMemo(() => {
     let sprints = 0;
@@ -240,7 +286,14 @@ function FundStep({
    * happens to a quarter nobody could act on.
    */
   const nothingToFund = scenario.interventions.length === 0;
-  const canCommit = (nothingToFund || fundedCount > 0) && !overSprints && !overBudget;
+  /**
+   * Committing nothing this period is a real answer when there is another
+   * period to spend in — waiting for a quarter's results before backing
+   * something is half of what the format is asking. On a single commit it is
+   * still refused, because there it means abandoning the run.
+   */
+  const mayHold = nothingToFund || Boolean(periods && !lastPeriod);
+  const canCommit = (mayHold || fundedCount > 0) && !overSprints && !overBudget;
 
   function setLine(id: string, patch: Partial<Draft>) {
     setDraft((prev) => ({
@@ -289,9 +342,47 @@ function FundStep({
         </div>
       </Card>
 
+      {periods && (
+        <Card className="p-3">
+          <div className="text-xs font-medium">
+            The money is one pool; the team comes back every {periodNoun}.
+          </div>
+          <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+            Whatever you hold back stays available next {periodNoun}, and you will have seen
+            another {periodNoun} of results before you spend it. Committing early buys more
+            time for a fix to work; committing late buys more certainty about which fix.
+          </p>
+          {periods.committed.length > 0 && (
+            <ul className="mt-2 space-y-1 border-t pt-2 text-[11px] text-muted-foreground">
+              {periods.committed.map((lines, index) => (
+                <li key={index} className="tabular-nums">
+                  <span className="font-medium text-foreground">
+                    {periodNoun} {index + 1}:
+                  </span>{" "}
+                  {lines.length === 0
+                    ? "held everything"
+                    : lines
+                        .map(
+                          (l) =>
+                            `${interventionLabel(scenario, l.interventionId)} — ${l.sprints} sprint${
+                              l.sprints === 1 ? "" : "s"
+                            }, ₹${(l.rupees / scale.divisor).toFixed(1)} ${scale.short}`,
+                        )
+                        .join(" · ")}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      )}
+
       <section>
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-sm font-semibold">Commit the quarter</h2>
+          <h2 className="text-sm font-semibold">
+            {periods
+              ? `Commit ${periodNoun} ${periods.open + 1} of ${periods.total}`
+              : "Commit the quarter"}
+          </h2>
           <div className="flex gap-4 text-xs tabular-nums">
             <span className={cn(overSprints && "font-medium text-destructive")}>
               {used.sprints}/{scenario.budget.sprints} sprints
@@ -299,6 +390,7 @@ function FundStep({
             <span className={cn(overBudget && "font-medium text-destructive")}>
               ₹{used.money.toFixed(1)}/{budgetMoney.toFixed(budgetMoney % 1 === 0 ? 0 : 1)}{" "}
               {scale.short}
+              {periods && " left"}
             </span>
           </div>
         </div>
@@ -436,7 +528,7 @@ function FundStep({
 
       <div className="flex flex-wrap items-center gap-3">
         <Button disabled={!canCommit || pending} onClick={() => setConfirming(true)}>
-          {nothingToFund ? "Hold the capacity and run the quarter" : "Commit the quarter"}
+          {commitLabel({ nothingToFund, fundedCount, periods, periodNoun, lastPeriod })}
         </Button>
         {!canCommit && (
           <span className="text-xs text-muted-foreground">
@@ -447,12 +539,30 @@ function FundStep({
 
       <Dialog open={confirming} onOpenChange={(open) => !pending && setConfirming(open)}>
         <DialogContent className="sm:max-w-md">
-          <DialogTitle>Commit and run the quarter?</DialogTitle>
+          <DialogTitle>
+            {lastPeriod
+              ? `Commit and run ${periods ? "it out" : "the quarter"}?`
+              : `Commit ${periodNoun} ${(periods?.open ?? 0) + 1}?`}
+          </DialogTitle>
           <DialogDescription>
-            This is final — the quarters play out and you see what happened, not whether you were
-            right.{" "}
+            {lastPeriod ? (
+              <>
+                This is final — the {periodNoun}s play out and you see what happened, not whether
+                you were right.{" "}
+              </>
+            ) : (
+              <>
+                This {periodNoun} is settled once you commit it — you will see how it went before
+                deciding the next one, and anything you held back is still yours to spend.{" "}
+              </>
+            )}
             {nothingToFund ? (
               <>You are spending nothing, having named a cause this board cannot act on.</>
+            ) : fundedCount === 0 ? (
+              <>
+                You are committing nothing this {periodNoun} and keeping the whole pool for the
+                next one.
+              </>
             ) : (
               <>
                 You are committing {used.sprints} sprint{used.sprints === 1 ? "" : "s"} and ₹

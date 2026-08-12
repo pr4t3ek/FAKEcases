@@ -44,6 +44,35 @@ export interface SimulationData {
    * and afterwards only the ones that treat it.
    */
   diagnosis: string[];
+  /**
+   * Present only on a war room that commits more than once.
+   *
+   * Absent is the ordinary single commit, which is why the field is optional
+   * rather than a `total: 1` every existing scenario would have to carry.
+   */
+  periods?: SimulationPeriods;
+}
+
+/**
+ * Where a multi-period run has got to, as far as the commit panel needs to know.
+ *
+ * Derived on the server from the stored schedule, never accumulated in the
+ * browser: the same numbers are what the payload boundary re-derives to accept
+ * or refuse the next period, and two copies of an arithmetic that must agree is
+ * exactly how a panel comes to offer a commitment the server then rejects.
+ */
+export interface SimulationPeriods {
+  /** How many commitments this scenario allows. */
+  total: number;
+  /** The one being decided, 0-based. */
+  open: number;
+  /** Everything committed so far, oldest first. */
+  committed: { interventionId: string; sprints: number; rupees: number }[][];
+  /**
+   * Rupees still in the pool. Capacity has no equivalent here because it is a
+   * rate: every period gets the whole team back, so the budget is the budget.
+   */
+  moneyRemaining: number;
 }
 
 /** A panel added to the board by a purchase, after the fact. */

@@ -33,22 +33,56 @@ import { SimulationReport } from "@/components/simulation/simulation-report";
 import type {
   BuybackData,
   SimulationData,
+  SimulationPeriods,
   SimulationReportData,
   TurnaroundData,
 } from "@/components/simulation/types";
 import { formatFor, isTurnaround } from "@/lib/sim/formats/registry";
+import type { SimScenario } from "@/lib/sim/types";
 import { finalValue, pathsForSchedule } from "@/lib/sim/outcome";
 import {
   decisionPeriodsFor,
   openPeriod,
   parseTurnaroundState,
 } from "@/lib/sim/turnaround";
+import {
+  decisionPeriodsIn,
+  moneyRemaining,
+  openPeriodIn,
+  parsePeriodicState,
+} from "@/lib/sim/schedule";
 
 export const dynamic = "force-dynamic";
 
 /** Prefer the catalogue's title, which is what the student clicked on. */
 function scenarioTitleFor(fallback: string, questionTitle?: string): string {
   return questionTitle?.trim() || fallback;
+}
+
+/**
+ * Where a multi-period war room has got to, or nothing on a single commit.
+ *
+ * Every number here is re-derived from the stored schedule on each render,
+ * which is the same source `commitDecision` reads to decide what it will
+ * accept. A panel that tracked the pool itself would be a second copy of that
+ * arithmetic, and the first time the two disagreed the student would be offered
+ * a commitment the server refuses.
+ */
+function periodsFor(scenario: SimScenario, stateJson: string | null): SimulationPeriods | undefined {
+  const total = decisionPeriodsIn(scenario);
+  if (total <= 1) return undefined;
+
+  const { schedule } = parsePeriodicState(stateJson);
+  const open = openPeriodIn(scenario, schedule);
+  return {
+    total,
+    // Null once every period is spent, which only happens in the moment before
+    // the run flips to its debrief. Reporting the last one keeps the panel from
+    // rendering a period index of -1 in that gap.
+    open: open ?? total - 1,
+    committed: schedule,
+    moneyRemaining: moneyRemaining(scenario, schedule),
+  };
 }
 
 export default async function SimulatePage({
@@ -421,6 +455,7 @@ export default async function SimulatePage({
     hypothesisNote: run.hypothesisNote,
     purchaseCount: run.purchases.length,
     diagnosis: state.diagnosis,
+    periods: periodsFor(scenario, run.stateJson),
   };
 
   return <SimulationScreen data={data} />;
