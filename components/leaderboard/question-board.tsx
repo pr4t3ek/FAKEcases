@@ -2,6 +2,7 @@ import { Trophy } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import {
   LeaderboardTable,
+  NotScoredNotice,
   UnrankedNotice,
   YourStanding,
   type BoardRow,
@@ -32,12 +33,16 @@ export function QuestionBoard({
     effort: number;
     isThisAttempt: boolean;
   } | null;
-  /** The score just earned, for the replay comparison. */
-  thisScore: number;
+  /** The score just earned, for the replay comparison. Null when the attempt
+   *  wasn't scored at all — nothing was recorded and nothing can be ranked. */
+  thisScore: number | null;
 }) {
   // Off the board entirely: a guest, whose result is scored but never ranked.
   const inTop = rows.some((r) => r.userId === userId);
-  const replay = standing != null && !standing.isThisAttempt;
+  // Unscored takes precedence over the replay wording: a walked-through attempt
+  // was never a candidate for the slot, whether or not one was already taken.
+  const notScored = thisScore == null;
+  const replay = !notScored && standing != null && !standing.isThisAttempt;
 
   return (
     <Card className="mt-5 p-6">
@@ -49,6 +54,12 @@ export function QuestionBoard({
         First attempts only — {kind === "simulation" ? "fewer analyst-days" : "less time"} breaks a
         tie.
       </p>
+
+      {notScored && (
+        <div className="mb-3">
+          <NotScoredNotice />
+        </div>
+      )}
 
       {replay && standing && (
         <div className="mb-3">

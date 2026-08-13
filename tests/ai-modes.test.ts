@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AI_MODES, aiModes, selectableMode } from "@/lib/config";
+import { AI_MODES, aiModes, selectableMode, transcriptFor } from "@/lib/config";
 
 /**
  * Which conversation modes are offered, and which merely exist.
@@ -52,6 +52,55 @@ describe("selectableMode", () => {
     const offered = aiModes.map((m) => m.key);
     for (const stored of [...AI_MODES, "", "nonsense", null, undefined]) {
       expect(offered).toContain(selectableMode(stored as string));
+    }
+  });
+});
+
+/**
+ * Which transcript a turn belongs in.
+ *
+ * The two modes are two conversations. Asking the Teacher used to drop its
+ * answer into the interview as well, so switching back showed the solution you
+ * had just been handed — the interview reading as though it had spoiled itself.
+ */
+describe("transcriptFor", () => {
+  it("files a teacher turn under teacher", () => {
+    expect(transcriptFor("teacher")).toBe("teacher");
+  });
+
+  it("files an interview turn under the interview", () => {
+    expect(transcriptFor("interviewer")).toBe("interviewer");
+  });
+
+  it("files a hint under the interview, not the teacher", () => {
+    // `/api/hint` stamps `coach`, but a hint is asked for and answered inside
+    // the interview — showing it in the Teacher box would be filing it by its
+    // implementation rather than by where it was said.
+    expect(transcriptFor("coach")).toBe("interviewer");
+  });
+
+  it("files a legacy evaluator turn under the interview", () => {
+    expect(transcriptFor("evaluator")).toBe("interviewer");
+  });
+
+  it("files an unstamped turn under the interview", () => {
+    // Rows written before the split carry no mode. They were said in the
+    // interview, which is the only conversation that existed.
+    expect(transcriptFor(null)).toBe("interviewer");
+    expect(transcriptFor(undefined)).toBe("interviewer");
+    expect(transcriptFor("")).toBe("interviewer");
+  });
+
+  it("puts every storable mode in exactly one transcript", () => {
+    const offered = aiModes.map((m) => m.key);
+    for (const m of AI_MODES) expect(offered).toContain(transcriptFor(m));
+  });
+
+  it("keeps teacher out of the interview for every other mode", () => {
+    // The property that matters: nothing except `teacher` reaches the teacher
+    // box, so the solution cannot leak into the interview through a new mode.
+    for (const m of AI_MODES) {
+      if (m !== "teacher") expect(transcriptFor(m)).toBe("interviewer");
     }
   });
 });

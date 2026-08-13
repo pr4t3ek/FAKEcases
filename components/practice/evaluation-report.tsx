@@ -25,8 +25,11 @@ import { QuestionBoard } from "@/components/leaderboard/question-board";
 import type { BoardRow } from "@/components/leaderboard/leaderboard-table";
 
 interface EvaluationRow {
-  overall: number;
-  readiness: string;
+  /** Null means the attempt was not scored at all — Teacher mode stated the
+   *  answer. Distinct from the per-category nulls below, which mean "this
+   *  category never applied". See the Evaluation model. */
+  overall: number | null;
+  readiness: string | null;
   /** Null means "not applicable to this attempt" — see the Evaluation model. */
   structuring: number | null;
   logic: number;
@@ -123,6 +126,10 @@ export function EvaluationReport({
     }
   })();
 
+  // Whether a number was ever put on this attempt. Null overall means Teacher
+  // mode stated the answer, so nothing was measured — see `lib/evaluation.ts`.
+  const scored = evaluation.overall != null;
+
   // Both args bound so the retry form action takes no parameters.
   // Retry names no tree mode, so `startAttempt` can never return a conflict here
   // — it always redirects. The wrapper just drops the union so this stays a
@@ -154,13 +161,36 @@ export function EvaluationReport({
           transition={{ duration: 0.4 }}
         >
           <Card className="mt-5 flex flex-col items-center gap-2 p-8 text-center">
-            <Trophy className="h-8 w-8 text-primary" />
-            <div className="text-5xl font-bold tabular-nums">{evaluation.overall}
-              <span className="text-2xl text-muted-foreground">/100</span>
-            </div>
-            <div className={cn("text-lg font-semibold", readinessTone[evaluation.readiness])}>
-              {evaluation.readiness}
-            </div>
+            {scored ? (
+              <>
+                <Trophy className="h-8 w-8 text-primary" />
+                <div className="text-5xl font-bold tabular-nums">{evaluation.overall}
+                  <span className="text-2xl text-muted-foreground">/100</span>
+                </div>
+                <div
+                  className={cn(
+                    "text-lg font-semibold",
+                    evaluation.readiness ? readinessTone[evaluation.readiness] : undefined,
+                  )}
+                >
+                  {evaluation.readiness}
+                </div>
+              </>
+            ) : (
+              /* Not a zero and not a low band — no measurement was taken. The
+                 report below is still worth reading, which is what the second
+                 line is for. */
+              <>
+                <GraduationCap className="h-8 w-8 text-warning" />
+                <div className="text-3xl font-bold">Not scored</div>
+                <p className="max-w-md text-sm text-muted-foreground">
+                  Teacher mode walked you through this one, so there is no
+                  performance to score. It counts towards nothing — not your
+                  readiness, your rank, or the leaderboard. The feedback below
+                  still stands; retry it cold for a real score.
+                </p>
+              </>
+            )}
             {/* A case has no range to land in, so it shows the recommendation
                 rather than a number and an accuracy badge that can't apply. */}
             {answerMode === "qualitative"
@@ -173,11 +203,15 @@ export function EvaluationReport({
                   <div className="text-sm text-muted-foreground">
                     Your estimate: {formatIndianNumber(finalEstimate)} ·{" "}
                     {toIndianWords(finalEstimate)} {question.unit ?? ""}{" "}
-                    {evaluation.accuracyHit ? (
-                      <Badge variant="success" className="ml-1">within range</Badge>
-                    ) : (
-                      <Badge variant="muted" className="ml-1">outside ideal range</Badge>
-                    )}
+                    {/* The verdict is withheld on an unscored attempt: landing
+                        in a range you were shown is not a hit. The estimate
+                        itself stays — it is still what the candidate said. */}
+                    {scored &&
+                      (evaluation.accuracyHit ? (
+                        <Badge variant="success" className="ml-1">within range</Badge>
+                      ) : (
+                        <Badge variant="muted" className="ml-1">outside ideal range</Badge>
+                      ))}
                   </div>
                 )}
           </Card>
@@ -225,14 +259,17 @@ export function EvaluationReport({
               </p>
             );
           })()}
-          {/* Say what the score reflects. A Confidence number the candidate can't
-              account for reads as noise; one they can is a reason to retry. */}
+          {/* The headline above already says the attempt wasn't scored. What is
+              left to explain is why these bars are still here: they are the
+              diagnosis, and they are worth reading even though nothing sums
+              them. */}
           {solutionRevealed && (
             <p className="mt-3 flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 p-2.5 text-xs">
               <GraduationCap className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
               <span>
-                Teacher mode walked you through this one, so Confidence is scored
-                accordingly. Retry it cold for an untouched score.
+                These are for your reading only — they feed no average and no
+                rank, because Teacher mode worked this one with you. Confidence
+                is scored low for the same reason.
               </span>
             </p>
           )}

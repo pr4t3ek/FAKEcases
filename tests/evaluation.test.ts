@@ -47,7 +47,7 @@ describe("evaluate", () => {
       userMessageText: ["um I think a lot"],
       hintsUsed: 3,
     });
-    expect(poor.overall).toBeLessThan(good.overall);
+    expect(poor.overall!).toBeLessThan(good.overall!);
     expect(poor.accuracyHit).toBe(false);
     expect(poor.scores.segmentation).toBeLessThan(60);
   });
@@ -128,19 +128,44 @@ describe("assumption quality from derived figures", () => {
     expect(none.feedback.some((f) => /never committed to a number/i.test(f.text))).toBe(true);
   });
 
-  // Teacher mode states the answer. Identical work either side of it must not
-  // score the same, or "never reveal the answer early" is only true of the chat.
-  it("charges for a solution that was walked through", () => {
+  // Teacher mode states the answer, so there is no performance left to measure.
+  // Not a lower score — no score, because a number here would travel into
+  // readiness, rank and the leaderboard as though it had been earned.
+  it("does not score a solution that was walked through", () => {
     const cold = evaluate(base);
     const told = evaluate({ ...base, solutionRevealed: true });
-    expect(told.scores.confidence).toBeLessThan(cold.scores.confidence);
-    expect(told.overall).toBeLessThan(cold.overall);
+    expect(cold.overall).toBeTypeOf("number");
+    expect(told.overall).toBeNull();
+    expect(told.readiness).toBeNull();
     expect(told.feedback.some((f) => /Teacher mode/i.test(f.text))).toBe(true);
   });
 
-  it("costs at least as much as exhausting the hint ladder", () => {
+  // The feedback item sits directly under a headline that says "Not scored", so
+  // it cannot go on claiming the cost was a Confidence adjustment.
+  it("tells the candidate the attempt does not count, not that Confidence dipped", () => {
+    const told = evaluate({ ...base, solutionRevealed: true });
+    const item = told.feedback.find((f) => /Teacher mode/i.test(f.text))!;
+    expect(item.text).toMatch(/isn't scored|not scored|counts towards nothing/i);
+    expect(item.text).not.toMatch(/Confidence is scored accordingly/i);
+  });
+
+  // The categories are the teaching, and the report still shows them. Only the
+  // total goes.
+  it("still scores the categories it can no longer total", () => {
+    const told = evaluate({ ...base, solutionRevealed: true });
+    expect(told.scores.logic).toBeTypeOf("number");
+    expect(told.scores.assumptions).toBeTypeOf("number");
+    expect(told.scores.confidence).toBeTypeOf("number");
+    expect(told.scores.confidence).toBeLessThan(evaluate(base).scores.confidence);
+  });
+
+  // The rule the whole hint ladder rests on: hints escalate but never state the
+  // answer, so exhausting them is still an attempt. Being told is not.
+  it("costs strictly more than exhausting the hint ladder", () => {
     const allHints = evaluate({ ...base, hintsUsed: hintConfig.levels });
     const told = evaluate({ ...base, solutionRevealed: true });
+    expect(allHints.overall).toBeTypeOf("number");
+    expect(told.overall).toBeNull();
     expect(told.scores.confidence).toBeLessThanOrEqual(allHints.scores.confidence);
   });
 

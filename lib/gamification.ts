@@ -10,14 +10,22 @@ function startOfDay(d: Date): number {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Pure XP calculation for a completed attempt. */
+/**
+ * Pure XP calculation for a completed attempt.
+ *
+ * A null `overall` is an attempt that was not scored — Teacher mode walked the
+ * candidate through it. The score-proportional slice is all that goes: the base,
+ * the daily-first bonus and the streak behind it survive, because the candidate
+ * did turn up and work the problem. XP measures showing up; the score measures
+ * how it went, and there is no score to be proportional to.
+ */
 export function computeAttemptXp(args: {
-  overall: number;
+  overall: number | null;
   hintsUsed: number;
   isFirstToday: boolean;
 }): number {
   let xp = xpRules.attemptComplete;
-  xp += Math.floor(args.overall * xpRules.scoreFactor);
+  if (args.overall != null) xp += Math.floor(args.overall * xpRules.scoreFactor);
   if (args.hintsUsed === 0) xp += xpRules.fewHintsBonus;
   if (args.isFirstToday) xp += xpRules.dailyFirstAttempt;
   return xp;
@@ -142,7 +150,9 @@ async function awardAll(userId: string, slugs: string[]): Promise<string[]> {
 export async function applyAttemptRewards(
   userId: string,
   ctx: {
-    overall: number;
+    /** Null when the attempt wasn't scored at all — Teacher mode stated the
+     *  answer, so none of the performance achievements can be earned from it. */
+    overall: number | null;
     accuracyHit: boolean;
     hintsUsed: number;
     /** Null when the attempt wasn't scored on structure — a guided tree builds
@@ -155,12 +165,18 @@ export async function applyAttemptRewards(
     computeAttemptXp({ overall: ctx.overall, hintsUsed: ctx.hintsUsed, isFirstToday }),
   );
 
+  // An unscored attempt earns the ones about turning up, and none of the ones
+  // that claim something about the candidate's performance. `no-hints` is the
+  // sharpest case: skipping the hint ladder in order to be handed the answer
+  // outright used to earn the badge for working unaided.
+  const scored = ctx.overall != null;
+
   const earned = [
     "first-attempt",
-    ...((ctx.segmentationScore ?? 0) >= 85 ? ["mece-master"] : []),
-    ...(ctx.accuracyHit ? ["sharp-shooter"] : []),
-    ...(ctx.hintsUsed === 0 ? ["no-hints"] : []),
-    ...(ctx.overall >= 85 ? ["interview-ready"] : []),
+    ...(scored && (ctx.segmentationScore ?? 0) >= 85 ? ["mece-master"] : []),
+    ...(scored && ctx.accuracyHit ? ["sharp-shooter"] : []),
+    ...(scored && ctx.hintsUsed === 0 ? ["no-hints"] : []),
+    ...(scored && ctx.overall! >= 85 ? ["interview-ready"] : []),
     ...(ctx.totalSolved >= 10 ? ["ten-solved"] : []),
     ...(core.streakDays >= 3 ? ["streak-3"] : []),
     ...(core.streakDays >= 7 ? ["streak-7"] : []),

@@ -45,6 +45,24 @@ describe("recomputeRank population", () => {
     );
   });
 
+  /**
+   * An attempt Teacher mode walked through has an evaluation and no overall. It
+   * must reach neither the skill rating nor the placement counter, and the
+   * filter has to be in the query rather than at the submit call site: this
+   * recomputes over the whole history, so a later cold attempt would otherwise
+   * pull the revealed one back in.
+   */
+  it("counts only attempts that were actually scored", async () => {
+    await recomputeRank("me");
+    expect(attemptFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          evaluation: { is: { overall: { not: null } } },
+        }),
+      }),
+    );
+  });
+
   it("excludes the user being ranked from their own population", async () => {
     await recomputeRank("me");
     expect(userFindMany).toHaveBeenCalledWith(

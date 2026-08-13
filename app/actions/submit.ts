@@ -23,8 +23,9 @@ export interface SubmitResult {
     level: number;
     streak: number;
     newAchievements: string[];
-    overall: number;
-    readiness: string;
+    /** Null when the attempt wasn't scored — see `lib/evaluation.ts`. */
+    overall: number | null;
+    readiness: string | null;
   };
 }
 
@@ -124,14 +125,22 @@ export async function submitAttempt(attemptId: string): Promise<SubmitResult> {
   // The ranked result, if this is their first attempt at this question. A
   // replay returns false and changes nothing — see lib/leaderboard.ts for why
   // a warm retry must not move a standing.
-  await recordFirstResult({
-    userId: user.id,
-    questionId: attempt.questionId,
-    kind: "attempt",
-    score: result.overall,
-    effort: attempt.timeSpentSec,
-    sourceId: attempt.id,
-  });
+  //
+  // An unscored attempt is skipped outright: there is no score to rank. A call-
+  // site skip is the whole fix here, unlike the rollups below, because this
+  // writes one row for this attempt and never revisits it — and skipping it
+  // leaves the slot open, so a later cold attempt at the same question becomes
+  // the ranked one instead of being turned away as a replay.
+  if (result.overall != null) {
+    await recordFirstResult({
+      userId: user.id,
+      questionId: attempt.questionId,
+      kind: "attempt",
+      score: result.overall,
+      effort: attempt.timeSpentSec,
+      sourceId: attempt.id,
+    });
+  }
 
   // Progress rollup + rewards + rank (guests get rewards too; harmless).
   const progress = await updateProgress(user.id);

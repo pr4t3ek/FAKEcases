@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowDown, Lightbulb, Loader2, Pause, Play, SendHorizontal, WifiOff } from "lucide-react";
 import { toast } from "sonner";
-import { aiModes, hintConfig, type AiMode } from "@/lib/config";
+import { aiModes, hintConfig, transcriptFor, type AiMode } from "@/lib/config";
 import { readNdjson } from "@/lib/llm/stream";
 import { setMode as persistMode } from "@/app/actions/practice";
 import { Button } from "@/components/ui/button";
@@ -72,6 +72,56 @@ export function ChatPanel({
   const streamingIdRef = useRef<string | null>(null);
 
   /**
+   * Interrupting an answer to ask something else.
+   *
+   * Paused, the composer opens: reading half an answer and realising you wanted
+   * to ask a different thing is exactly when you want to type. Sending then
+   * abandons the turn in flight — the question you just asked is the one you
+   * want answered, and letting the old reply carry on would leave the panel
+   * writing about something nobody is waiting for any more.
+   *
+   * `busyRef` shadows `busy` because the replacement send happens in the same
+   * tick as the abort, before React has re-rendered — a guard reading state
+   * would still see the cancelled turn as running and refuse the new one.
+   * `runRef` is what stops the cancelled turn's `finally` from clearing flags
+   * the replacement has already set.
+   */
+  const abortRef = useRef<AbortController | null>(null);
+  const busyRef = useRef(false);
+  const runRef = useRef(0);
+
+  function setBusyNow(value: boolean) {
+    busyRef.current = value;
+    setBusy(value);
+  }
+
+  function cancelStream() {
+    if (!busyRef.current) return;
+    // Cleared before the abort so the aborted turn's `finally` flush is a no-op:
+    // text held back and never shown, for a question that has been withdrawn,
+    // should not surface underneath the new answer.
+    bufferRef.current = "";
+
+    // Mark the abandoned turn here rather than leaving it to the aborted fetch's
+    // rejection. That rejection does arrive, but it races the replacement turn
+    // this function exists to make room for, and a half-answer left without its
+    // "cut off" note reads as though it simply stopped mid-sentence.
+    const abandoned = streamingIdRef.current;
+    if (abandoned) {
+      patch(abandoned, (m) =>
+        m.content.trim() ? { ...m, streaming: false, interrupted: true } : m,
+      );
+    }
+
+    abortRef.current?.abort();
+    abortRef.current = null;
+    streamingIdRef.current = null;
+    pausedRef.current = false;
+    setPaused(false);
+    setBusyNow(false);
+  }
+
+  /**
    * Whether the transcript is following the newest text.
    *
    * The autoscroll used to fire on every token unconditionally, so scrolling up
@@ -135,13 +185,22 @@ export function ChatPanel({
   async function stream(
     url: string,
     payload: Record<string, unknown>,
-    { seed = "", hintLevel = null }: { seed?: string; hintLevel?: number | null } = {},
-  ): Promise<{ hintsUsed?: number } | null> {
+    {
+      seed = "",
+      hintLevel = null,
+      turnMode,
+    }: { seed?: string; hintLevel?: number | null; turnMode: string },
+    // `superseded` is how a turn says "I was replaced on purpose" — distinct
+    // from null, which means it genuinely failed and the student should be told.
+  ): Promise<{ hintsUsed?: number; superseded?: boolean } | null> {
     const id = `a-${Date.now()}`;
+    const run = ++runRef.current;
+    const controller = new AbortController();
     let received = false;
 
+    abortRef.current = controller;
     streamingIdRef.current = id;
-    setBusy(true);
+    setBusyNow(true);
     setAwaitingFirstToken(true);
 
     try {
@@ -149,6 +208,7 @@ export function ChatPanel({
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
+        signal: controller.signal,
       });
 
       // Pre-stream rejections (auth, validation, ownership) are still plain JSON.
@@ -159,7 +219,7 @@ export function ChatPanel({
 
       onMessages((all) => [
         ...all,
-        { id, role: "assistant", content: seed, hintLevel, streaming: true },
+        { id, role: "assistant", content: seed, hintLevel, mode: turnMode, streaming: true },
       ]);
 
       let result: { hintsUsed?: number } | null = null;
@@ -193,8 +253,11 @@ export function ChatPanel({
         throw new Error("Empty response");
       }
 
+      if (runRef.current !== run) return { superseded: true };
       return result;
     } catch {
+      // Aborted to make room for a newer question, not broken.
+      if (runRef.current !== run) return { superseded: true };
       if (received) {
         patch(id, (m) => ({ ...m, streaming: false, interrupted: true }));
       } else {
@@ -202,28 +265,42 @@ export function ChatPanel({
       }
       return null;
     } finally {
-      // Whatever the outcome, anything held back belongs on screen: the answer
-      // is finished, so there is nothing left for a pause to protect.
-      flushBuffer();
-      pausedRef.current = false;
-      setPaused(false);
-      streamingIdRef.current = null;
-      setBusy(false);
-      setAwaitingFirstToken(false);
+      // Only if this is still the turn in flight. A cancelled one finishes AFTER
+      // its replacement has started, and would otherwise clear the new turn's
+      // flags and leave the panel looking idle while text is still arriving.
+      if (runRef.current === run) {
+        // Whatever the outcome, anything held back belongs on screen: the answer
+        // is finished, so there is nothing left for a pause to protect.
+        flushBuffer();
+        pausedRef.current = false;
+        setPaused(false);
+        streamingIdRef.current = null;
+        setBusyNow(false);
+        setAwaitingFirstToken(false);
+        abortRef.current = null;
+      }
     }
   }
 
   async function send(content: string, useMode: AiMode) {
-    if (!content.trim() || busy) return;
-    onMessages((m) => [...m, { id: `u-${Date.now()}`, role: "user", content }]);
+    if (!content.trim() || busyRef.current) return;
+    onMessages((m) => [...m, { id: `u-${Date.now()}`, role: "user", content, mode: useMode }]);
 
-    const result = await stream("/api/chat", { attemptId, content, mode: useMode });
+    const result = await stream(
+      "/api/chat",
+      { attemptId, content, mode: useMode },
+      { turnMode: useMode },
+    );
+    // Null means it failed; a superseded turn returns a marker instead, so
+    // replacing your own question never reports an error.
     if (!result) toast.error("The interviewer couldn't respond. Try again.");
   }
 
   async function onSubmit() {
     const content = input.trim();
     if (!content) return;
+    // Asking while it is still writing replaces the answer in flight.
+    cancelStream();
     setInput("");
     await send(content, mode);
   }
@@ -257,7 +334,9 @@ export function ChatPanel({
     const result = await stream(
       "/api/hint",
       { attemptId, level },
-      { seed: `💡 Hint ${level}: `, hintLevel: level },
+      // `coach` is what /api/hint stores, and `transcriptFor` files it under the
+      // interview — which is where it was asked for.
+      { seed: `💡 Hint ${level}: `, hintLevel: level, turnMode: "coach" },
     );
 
     if (!result) {
@@ -268,6 +347,16 @@ export function ChatPanel({
   }
 
   const hintsExhausted = hintsUsed >= hintConfig.levels;
+
+  /**
+   * Only this mode's conversation. Asking the Teacher used to drop its answer
+   * into the interview as well, so switching back showed the solution you had
+   * just been handed. See `transcriptFor` for why a hint counts as interview.
+   */
+  const visible = messages.filter((m) => transcriptFor(m.mode) === transcriptFor(mode));
+
+  /** Paused, the composer opens — see `cancelStream`. */
+  const composerLocked = disabled || (busy && !paused);
 
   return (
     <div className="flex h-full flex-col">
@@ -296,12 +385,12 @@ export function ChatPanel({
         onScroll={onScroll}
         className="scrollbar-thin scroll-gutter relative flex-1 space-y-3 overflow-y-auto p-4"
       >
-        {messages.length === 0 && (
+        {visible.length === 0 && (
           <p className="mt-8 text-center text-sm text-muted-foreground">
             The interviewer is ready. Share how you&apos;d approach this.
           </p>
         )}
-        {messages.map((m) => (
+        {visible.map((m) => (
           <div key={m.id} className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}>
             <div
               className={cn(
@@ -401,30 +490,53 @@ export function ChatPanel({
                 onSubmit();
               }
             }}
-            placeholder={disabled ? "This attempt is submitted." : "Think aloud… (Enter to send)"}
+            placeholder={
+              disabled
+                ? "This attempt is submitted."
+                : paused
+                  ? "Ask something else — this replaces the answer above"
+                  : "Think aloud… (Enter to send)"
+            }
             className="max-h-32 min-h-[44px] resize-none"
-            disabled={busy || disabled}
+            disabled={composerLocked}
           />
-          <DictationButton onValueChange={setInput} disabled={busy || disabled} />
+          <DictationButton onValueChange={setInput} disabled={composerLocked} />
           {/* While it is writing, the send button has nothing to do — you cannot
               send anyway — so its place goes to the one control you might
               actually want mid-answer. */}
-          {busy ? (
+          {/* Paused offers both: carry on with this answer, or replace it with a
+              new question. Anything else would make one of the two a guess about
+              which the student meant. */}
+          {busy && !paused && (
             <Button
               size="icon"
-              variant={paused ? "default" : "secondary"}
+              variant="secondary"
               onClick={togglePause}
-              aria-label={paused ? "Resume the answer" : "Pause the answer"}
-              title={
-                paused
-                  ? "Resume — the text held back appears at once"
-                  : "Pause the text so you can read it. The answer keeps being written."
-              }
+              aria-label="Pause the answer"
+              title="Pause the text so you can read it. The answer keeps being written."
             >
-              {paused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+              <Pause className="h-4 w-4" />
             </Button>
-          ) : (
-            <Button size="icon" onClick={onSubmit} disabled={disabled || !input.trim()}>
+          )}
+          {busy && paused && (
+            <Button
+              size="icon"
+              variant="secondary"
+              onClick={togglePause}
+              aria-label="Resume the answer"
+              title="Resume — the text held back appears at once"
+            >
+              <Play className="h-4 w-4" />
+            </Button>
+          )}
+          {(!busy || paused) && (
+            <Button
+              size="icon"
+              onClick={onSubmit}
+              disabled={disabled || !input.trim()}
+              aria-label={paused ? "Ask this instead" : "Send"}
+              title={paused ? "Ask this instead — the answer above is abandoned" : "Send"}
+            >
               <SendHorizontal className="h-4 w-4" />
             </Button>
           )}
