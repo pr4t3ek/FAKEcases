@@ -45,6 +45,13 @@ export const warRoomFormat: SimFormat = {
  *
  * `SimResult.scoresJson` already carries dimensions the five typed columns
  * cannot name, so this needs no migration — the same seam the turnaround uses.
+ *
+ * **Currently reached by no authored scenario.** `formatFor` returns this only
+ * when a scenario sets `decisionPeriods > 1`, and no war room does — periods
+ * without an amendable diagnosis punish a wrong call with no recourse. The full
+ * account, and the two things that have to land before one may set it again,
+ * are on `SimScenario.decisionPeriods` in ../types.ts. Kept rather than deleted
+ * because the work is done and correct; the missing piece is elsewhere.
  */
 export const periodicWarRoomFormat: SimFormat = {
   ...warRoomFormat,
