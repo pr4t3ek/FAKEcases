@@ -278,8 +278,9 @@ describe("evaluateQualitative", () => {
   });
 
   // The case counterpart of the guesstimate rule: Teacher mode names the root
-  // cause, so an attempt that used it cannot score as one that found it.
-  it("charges for a case that was walked through", () => {
+  // cause, so an attempt that used it is not scored at all — finding the answer
+  // and being handed it are not the same exercise.
+  it("does not score a case that was walked through", () => {
     const worked = baseInput({
       framework: [node("c", null, "Cost"), node("d", "c", "Delivery cost")],
       finalAnswer: "Delivery cost per order is the problem.",
@@ -287,9 +288,20 @@ describe("evaluateQualitative", () => {
     });
     const cold = evaluateQualitative(worked);
     const told = evaluateQualitative({ ...worked, solutionRevealed: true });
+    expect(cold.overall).toBeTypeOf("number");
+    expect(told.overall).toBeNull();
+    expect(told.readiness).toBeNull();
+    // The diagnosis category still scores — it is feedback, not a measurement.
+    expect(told.scores.diagnosis).toBeTypeOf("number");
     expect(told.scores.confidence).toBeLessThan(cold.scores.confidence);
-    expect(told.overall).toBeLessThan(cold.overall);
     expect(told.feedback.some((f) => /Teacher mode/i.test(f.text))).toBe(true);
+  });
+
+  it("tells the candidate the case does not count, not that Confidence dipped", () => {
+    const told = evaluateQualitative(baseInput({ solutionRevealed: true }));
+    const item = told.feedback.find((f) => /Teacher mode/i.test(f.text))!;
+    expect(item.text).toMatch(/isn't scored|not scored|counts towards nothing/i);
+    expect(item.text).not.toMatch(/Confidence is scored accordingly/i);
   });
 
   it("withholds the independence praise once the case was handed over", () => {

@@ -70,6 +70,12 @@ export function solutionWasRevealed(
  * more: the hints escalate but never state the answer, while Teacher mode is the
  * answer. Charging less would leave "exhaust the hints, then ask Teacher" as the
  * cheapest route through the app, which is precisely backwards.
+ *
+ * This is no longer what enforces that rule — a revealed attempt has no overall
+ * at all now, so there is no total for a penalty to be diluted into. It survives
+ * because Confidence is still shown per-category on the report, and an attempt
+ * that was walked through genuinely did not demonstrate any. Diagnostic, not a
+ * price.
  */
 const HINT_PENALTY = 12;
 const SOLUTION_REVEAL_PENALTY = 36;
@@ -93,9 +99,22 @@ export interface EvaluationScores {
   confidence: number;
 }
 
+/**
+ * A null `overall` means the attempt was not scored at all.
+ *
+ * Teacher mode states the answer, so an attempt that used it has no performance
+ * left to measure — there is nothing to put a number on, and a number put on it
+ * anyway would travel into interview readiness, percentile rank and the
+ * leaderboard as though it had been earned. Distinct from a low score, and the
+ * reason every aggregate downstream filters on `overall != null`.
+ *
+ * The per-category `scores` are still computed and still shown: they are the
+ * teaching, and the report is where the candidate reads it. What they are not is
+ * a measurement, so nothing aggregates them either.
+ */
 export interface EvaluationResult {
-  overall: number;
-  readiness: ReadinessBand;
+  overall: number | null;
+  readiness: ReadinessBand | null;
   scores: EvaluationScores;
   accuracyHit: boolean;
   feedback: FeedbackItem[];
@@ -381,7 +400,8 @@ export function evaluate(input: EvaluationInput): EvaluationResult {
     confidence,
   };
 
-  const overall = weightedOverall(scores, "numeric");
+  // Being told the answer leaves nothing to measure — see `EvaluationResult`.
+  const overall = solutionRevealed ? null : weightedOverall(scores, "numeric");
 
   const feedback = buildFeedback({
     hasSegmentation,
@@ -399,7 +419,7 @@ export function evaluate(input: EvaluationInput): EvaluationResult {
 
   return {
     overall,
-    readiness: readinessForScore(overall),
+    readiness: overall == null ? null : readinessForScore(overall),
     scores,
     accuracyHit: accuracy === "hit",
     feedback,
@@ -668,9 +688,12 @@ export function evaluateQualitative(input: QualitativeEvaluationInput): Evaluati
     confidence,
   };
 
+  // Being told the answer leaves nothing to measure — see `EvaluationResult`.
+  const overall = solutionRevealed ? null : weightedOverall(scores, "qualitative");
+
   return {
-    overall: weightedOverall(scores, "qualitative"),
-    readiness: readinessForScore(weightedOverall(scores, "qualitative")),
+    overall,
+    readiness: overall == null ? null : readinessForScore(overall),
     scores,
     // Reserved for a numeric estimate landing in range; a case has no range.
     accuracyHit: false,
@@ -795,7 +818,7 @@ function buildQualitativeFeedback(args: {
   }
   // "Without help" has to mean without any of it, or the praise is hollow.
   if (args.solutionRevealed) {
-    items.push({ tone: "warning", text: "You had Teacher mode work the case through, so Confidence is scored accordingly. Retry it cold — following a diagnosis and reaching one are different skills, and only the second one gets tested in the room." });
+    items.push({ tone: "warning", text: "You had Teacher mode work the case through, so this attempt isn't scored at all — it counts towards nothing. Retry it cold — following a diagnosis and reaching one are different skills, and only the second one gets tested in the room." });
   } else if (args.hintsUsed === 0) {
     items.push({ tone: "positive", text: "You worked through it without hints — great independence." });
   }
@@ -862,7 +885,7 @@ function buildFeedback(args: {
   }
   // "Without help" has to mean without any of it, or the praise is hollow.
   if (args.solutionRevealed) {
-    items.push({ tone: "warning", text: "You had Teacher mode work the problem through, so Confidence is scored accordingly. Retry it cold — reading a solution and producing one are different skills, and only the second one gets tested in the room." });
+    items.push({ tone: "warning", text: "You had Teacher mode work the problem through, so this attempt isn't scored at all — it counts towards nothing. Retry it cold — reading a solution and producing one are different skills, and only the second one gets tested in the room." });
   } else if (args.hintsUsed === 0) {
     items.push({ tone: "positive", text: "You worked through it without hints — great independence." });
   }

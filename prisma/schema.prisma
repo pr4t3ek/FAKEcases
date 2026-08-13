@@ -401,8 +401,15 @@ model Evaluation {
   attemptId     String   @unique
   attempt       Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
 
-  overall       Int
-  readiness     String
+  /// Null means the attempt was not scored at all, which is a different claim
+  /// from a low score. Teacher mode states the answer, so an attempt that used
+  /// it has no performance left to measure — and a number invented for it would
+  /// travel into interview readiness, percentile rank and the leaderboard as
+  /// though it had been earned. Every aggregate filters on `overall != null`;
+  /// the per-category scores below are still written, because they are feedback
+  /// the report shows rather than a measurement anything sums.
+  overall       Int?
+  readiness     String?
 
   /// Nullable categories are "not applicable to this attempt", not "scored zero".
   /// A null is skipped by the weighted mean, which renormalises over what remains,

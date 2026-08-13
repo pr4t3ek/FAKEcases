@@ -105,9 +105,12 @@ export default async function DashboardPage() {
     streak: user.streak,
   };
 
+  // Only scored attempts plot. One walked through by Teacher mode has an
+  // evaluation and no overall, and a gap in the trend line is the honest shape:
+  // there is no point to draw, not a point at zero.
   const scoreTrend = submitted
-    .filter((a) => a.evaluation)
-    .map((a, i) => ({ label: `#${i + 1}`, score: a.evaluation!.overall }));
+    .filter((a) => a.evaluation?.overall != null)
+    .map((a, i) => ({ label: `#${i + 1}`, score: a.evaluation!.overall! }));
 
   const bySkill: Record<string, { avg: number; count: number }> = (() => {
     try {
@@ -342,12 +345,15 @@ export default async function DashboardPage() {
                     <div className="truncate font-medium">{a.question.title}</div>
                     <div className="text-xs text-muted-foreground">{a.question.difficulty}</div>
                   </div>
-                  {a.evaluation && (
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary">{a.evaluation.readiness}</Badge>
-                      <span className="font-semibold tabular-nums">{a.evaluation.overall}</span>
-                    </div>
-                  )}
+                  {a.evaluation &&
+                    (a.evaluation.overall == null ? (
+                      <Badge variant="muted">Not scored</Badge>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">{a.evaluation.readiness}</Badge>
+                        <span className="font-semibold tabular-nums">{a.evaluation.overall}</span>
+                      </div>
+                    ))}
                 </Link>
               ))}
             </Card>

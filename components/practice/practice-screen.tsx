@@ -137,9 +137,15 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
   function handleSubmitted(result: SubmitResult) {
     if (result.reward) {
       const r = result.reward;
+      // A null overall is an attempt Teacher mode walked through: it earns XP
+      // for the work but carries no score, so announcing one would be a lie
+      // ("null/100" would be a worse one).
+      const headline =
+        r.overall == null
+          ? "Submitted — not scored, you were shown the answer"
+          : `Evaluated: ${r.overall}/100 · ${r.readiness}`;
       toast.success(
-        `Evaluated: ${r.overall}/100 · ${r.readiness}. +${r.xpGained} XP` +
-          (r.leveledUp ? ` · Level ${r.level}!` : ""),
+        `${headline}. +${r.xpGained} XP` + (r.leveledUp ? ` · Level ${r.level}!` : ""),
       );
       r.newAchievements.forEach((a) => toast(`🏅 Achievement unlocked: ${a}`));
     }

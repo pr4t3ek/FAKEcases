@@ -141,7 +141,8 @@ export function UnrankedNotice({
   thisScore,
 }: {
   rankedScore: number;
-  thisScore: number;
+  /** Null when this attempt wasn't scored — nothing to compare against. */
+  thisScore: number | null;
 }) {
   return (
     <div className="rounded-md border border-dashed border-warning/40 bg-warning/5 px-3 py-2.5 text-sm">
@@ -151,7 +152,29 @@ export function UnrankedNotice({
       <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
         Only a first attempt is ranked, because a retry is easier once you know roughly where the
         answer lands. Your ranked score stays <strong className="text-foreground">{rankedScore}</strong>
-        {thisScore !== rankedScore && <> — you scored {thisScore} this time.</>}
+        {thisScore != null && thisScore !== rankedScore && <> — you scored {thisScore} this time.</>}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The badge an unscored attempt gets instead of a rank.
+ *
+ * A sibling of `UnrankedNotice` rather than a branch inside it: that one's whole
+ * body is a comparison between two scores, and here there is no second score to
+ * compare — being walked through the answer produced no number at all. Same
+ * dashed treatment, because both are saying "this one does not count".
+ */
+export function NotScoredNotice() {
+  return (
+    <div className="rounded-md border border-dashed border-warning/40 bg-warning/5 px-3 py-2.5 text-sm">
+      <div className="flex items-center gap-1.5 font-medium">
+        <Trophy className="h-3.5 w-3.5 text-warning" /> Unranked — you were shown the answer
+      </div>
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+        Teacher mode worked this one through with you, so there is no score to rank. The board slot
+        is still open: attempt this question cold and that result takes it.
       </p>
     </div>
   );

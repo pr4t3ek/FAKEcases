@@ -28,6 +28,27 @@ describe("computeAttemptXp", () => {
     const high = computeAttemptXp({ overall: 90, hintsUsed: 0, isFirstToday: false });
     expect(high).toBeGreaterThan(low);
   });
+
+  /**
+   * An unscored attempt — Teacher mode stated the answer — still earns the XP
+   * for doing it. XP measures showing up, and the candidate did; the score
+   * measures how it went, and there is no score to be proportional to.
+   */
+  it("still pays for an attempt that was not scored", () => {
+    const unscored = computeAttemptXp({ overall: null, hintsUsed: 3, isFirstToday: false });
+    expect(unscored).toBeGreaterThan(0);
+  });
+
+  it("drops only the score-proportional slice when there is no score", () => {
+    const unscored = computeAttemptXp({ overall: null, hintsUsed: 3, isFirstToday: true });
+    const zero = computeAttemptXp({ overall: 0, hintsUsed: 3, isFirstToday: true });
+    // A null overall pays exactly what a zero would: base plus the daily bonus,
+    // and nothing for a score. It must never pay *more* than a real attempt.
+    expect(unscored).toBe(zero);
+    expect(unscored).toBeLessThan(
+      computeAttemptXp({ overall: 90, hintsUsed: 3, isFirstToday: true }),
+    );
+  });
 });
 
 describe("computeSimulationXp", () => {

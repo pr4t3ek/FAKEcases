@@ -20,10 +20,15 @@ export async function updateProgress(userId: string): Promise<{
     orderBy: { submittedAt: "asc" },
   });
 
+  // Two lists, because "did it" and "was measured on it" stopped being the same
+  // question. An attempt that Teacher mode walked through has an evaluation and
+  // no overall: it happened, it belongs in the count and in history, and it
+  // contributes no number to anything that averages.
   const evaluated = attempts.filter((a) => a.evaluation);
+  const scored = evaluated.filter((a) => a.evaluation!.overall != null);
   const totalSolved = evaluated.length;
 
-  const scores = evaluated.map((a) => a.evaluation!.overall);
+  const scores = scored.map((a) => a.evaluation!.overall!);
   const avgScore = scores.length
     ? Math.round((scores.reduce((s, v) => s + v, 0) / scores.length) * 10) / 10
     : 0;
@@ -32,7 +37,7 @@ export async function updateProgress(userId: string): Promise<{
   // numeric question has. Dividing by every attempt would let a run of cases
   // silently drag this stat toward zero for something they were never measured
   // on.
-  const numericAttempts = evaluated.filter(
+  const numericAttempts = scored.filter(
     (a) => answerModeFor(a.question.type) === "numeric",
   );
   const hits = numericAttempts.filter((a) => a.evaluation!.accuracyHit).length;
@@ -53,10 +58,10 @@ export async function updateProgress(userId: string): Promise<{
 
   // Per-category averages (by categoryId).
   const byCategory: Record<string, { name: string; avg: number; count: number }> = {};
-  for (const a of evaluated) {
+  for (const a of scored) {
     const key = a.question.categoryId;
     const entry = byCategory[key] ?? { name: "", avg: 0, count: 0 };
-    entry.avg = (entry.avg * entry.count + a.evaluation!.overall) / (entry.count + 1);
+    entry.avg = (entry.avg * entry.count + a.evaluation!.overall!) / (entry.count + 1);
     entry.count += 1;
     byCategory[key] = entry;
   }
@@ -67,7 +72,7 @@ export async function updateProgress(userId: string): Promise<{
   // zero, and a category nobody has been scored on simply doesn't appear.
   const bySkill: Record<string, { avg: number; count: number }> = {};
   for (const cat of evaluationCategories) {
-    const vals = evaluated
+    const vals = scored
       .map((a) => a.evaluation![cat.key as keyof typeof a.evaluation] as number | null)
       .filter((v): v is number => typeof v === "number");
     if (vals.length) {
@@ -116,12 +121,22 @@ export async function recomputeRank(userId: string): Promise<{
   percentile: number | null;
   skillRating: number | null;
 }> {
+  // `overall: { not: null }` rather than merely "has an evaluation": an attempt
+  // walked through by Teacher mode is not scored, and must reach neither the
+  // skill rating nor the placement counter. Filtered in the query rather than at
+  // the call site because this recomputes over the whole history — skipping the
+  // call on the revealed submission would only let the next cold one pull it
+  // back in.
   const evals = await db.attempt.findMany({
-    where: { userId, status: "submitted", evaluation: { isNot: null } },
+    where: {
+      userId,
+      status: "submitted",
+      evaluation: { is: { overall: { not: null } } },
+    },
     include: { evaluation: true },
     orderBy: { submittedAt: "asc" },
   });
-  const scores = evals.map((a) => a.evaluation!.overall);
+  const scores = evals.map((a) => a.evaluation!.overall!);
   const gradedAttempts = scores.length;
   const skillRating = computeSkillRating(scores);
 

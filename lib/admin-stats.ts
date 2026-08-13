@@ -130,6 +130,10 @@ export async function loadUserAdminStats(now: Date = new Date()): Promise<AdminU
     db.user.count(),
     db.attempt.count(),
     db.attempt.count({ where: { status: "submitted" } }),
+    // Needs no "was it scored" filter: `_avg` is SQL AVG, which skips NULLs, so
+    // attempts Teacher mode walked through drop out of the platform mean on
+    // their own. Adding a where-clause here would be belt and braces; removing
+    // the reliance on it would silently start counting them as zeroes.
     db.evaluation.aggregate({ _avg: { overall: true } }),
   ]);
 
