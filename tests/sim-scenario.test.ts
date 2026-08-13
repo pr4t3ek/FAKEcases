@@ -1212,32 +1212,41 @@ describe("metric-drop-food-delivery specifics", () => {
   });
 
   /**
-   * The reason the payout correction's conversion effect ramps.
+   * The reason the payout correction's conversion effect ramps over three
+   * quarters while its ETA effect is instant.
    *
-   * An effect with no ramp is fully arrived one quarter after it ships and
-   * `finalValue` reads the last quarter, so on a scenario of instant levers
-   * committing in the final period costs nothing on the number and only moves
-   * Adaptation — pinned as a limitation in `tests/sim-schedule.test.ts`. Here
-   * it is meant to cost something real, because customers who were quoted 48
-   * minutes take a couple of quarters to start checking again.
+   * Riders come back inside three weeks and the estimate at checkout improves
+   * with them; the customers who were quoted 48 minutes twice take far longer.
+   * The horizon is four quarters so the ramp finishes inside the window — a
+   * two-quarter horizon would score the fix before it had arrived.
    */
-  it("makes committing the payout correction late cost real contribution", () => {
+  it("makes the payout correction pay more the longer it has been running", () => {
     if (!scenario) throw new Error("scenario missing");
-    const line = { interventionId: "iv-payout", sprints: 2, rupees: 4.5 * 10_000_000 };
-    const early = finalValue(runSchedule(scenario, [[line], [], []]).paths, "contributionMargin");
-    const late = finalValue(runSchedule(scenario, [[], [], [line]]).paths, "contributionMargin");
-    expect(early).toBeGreaterThan(late);
+    const outcome = runOutcome(scenario, scenario.bestAllocation);
+    const mine = outcome.paths.conversion ?? [];
+    const nothing = outcome.doNothing.conversion ?? [];
+    expect(mine.length).toBe(scenario.horizonQuarters + 1);
+
+    // Measured against doing nothing, not in absolute terms. Riders leaving is
+    // a compounding bleed and four quarters of it outruns what one quarter's
+    // capacity can buy back — conversion still ends below where it started,
+    // which is the honest answer and the reason the debrief talks about what
+    // was recovered rather than about a return to normal. What the ramp does is
+    // widen the gap between acting and not acting, quarter after quarter.
+    const gapAt = (q: number) => mine[q] / nothing[q];
+    expect(gapAt(3)).toBeGreaterThan(gapAt(1));
+    expect(gapAt(scenario.horizonQuarters)).toBeGreaterThan(gapAt(3));
   });
 
-  it("leaves money in the bank at the ceiling, in every period", () => {
+  it("leaves money in the bank at the ceiling", () => {
     // The whole point of the v2 conversion, stated as a property rather than
-    // left to the balance check: the best sequence does not empty the budget,
-    // and the last period is a deliberate hold.
+    // left to the balance check: the best play does not empty the budget, and
+    // capacity is what binds instead.
     if (!scenario) throw new Error("scenario missing");
-    const schedule = scenario.bestSchedule ?? [];
-    const spent = schedule.flat().reduce((sum, l) => sum + l.rupees, 0);
-    expect(spent).toBeLessThan(scenario.budget.rupees);
-    expect(schedule.at(-1)).toEqual([]);
+    const spent = scenario.bestAllocation.reduce((sum, l) => sum + l.rupees, 0);
+    const weeks = scenario.bestAllocation.reduce((sum, l) => sum + l.sprints, 0);
+    expect(spent).toBeLessThan(scenario.budget.rupees * 0.6);
+    expect(weeks).toBe(scenario.budget.sprints);
   });
 
   /**

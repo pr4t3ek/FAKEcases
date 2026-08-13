@@ -617,6 +617,41 @@ export interface SimScenario {
    * missed from. Deciding for four quarters and being judged on eight puts the
    * consequences back inside the picture, which is the entire point of a format
    * built on stocks.
+   *
+   * ── No war room sets this, and that is deliberate ────────────────────────
+   *
+   * The multi-period path works for war rooms — `periodicWarRoomFormat`,
+   * `commitWarRoomPeriod`, `parsePeriodAllocation`, `toClientPeriods` and
+   * `scoreAdaptation` are all built and tested — and one scenario shipped with
+   * it before it was taken back out. **Do not turn it on again without reading
+   * this.**
+   *
+   * Play-testing found that periods give a candidate who named the wrong cause
+   * nothing to do about it. Once `commit` opens, `priceDrilldown` refuses every
+   * purchase, `hypothesisEditFor` returns `"locked"`, and `parsePeriodAllocation`
+   * permits only fixes treating the diagnosis already on the run. So the whole
+   * loop is half-built: each period shows the quarter that actually happened,
+   * and there is no lever that responds to it differently. Periods therefore
+   * reward the candidate who was already right and are pure punishment for the
+   * one who was wrong — which is backwards, because reflection is *for* the
+   * candidate who is wrong.
+   *
+   * Two things have to land before a war room may set this again:
+   *
+   *   1. The analysis market reopens during `commit` — holding analyst-days
+   *      back to spend after seeing a quarter is the option that makes a wide
+   *      board worth having. The pull data is static, but the *reason* to buy
+   *      it is not.
+   *   2. The diagnosis may be re-named, once, at a price in analyst-days.
+   *
+   * The second is cheaper than it sounds: `pathsForSchedule` never reads the
+   * diagnosis — on-target versus off-target is decided from `trueCauseIds`, and
+   * the diagnosis only gates what may be funded. So money already committed to
+   * the wrong branch stays in the schedule and keeps under-delivering by
+   * itself. The stranding needs no machinery; it is what already happens.
+   *
+   * The turnaround format is unaffected and still uses this: it has no
+   * hypothesis and no diagnosis to lock, so the defect cannot arise there.
    */
   decisionPeriods?: number;
   /**

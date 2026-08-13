@@ -284,19 +284,17 @@ export const metricDropFoodDelivery: SimScenario = {
   ],
 
   /**
-   * Capacity is per period and money is for the whole run.
+   * Capacity binds; money does not. That inversion is the whole conversion.
    *
-   * Three people-weeks a quarter rather than four, because four made the
-   * sequence a formality: the three fixes that treat rider supply cost 2 + 1 +
-   * 1, so a single period covered all of them and there was nothing left to
-   * decide in the second or the third. At three, backing the payout correction
-   * and the referral drive together uses the whole quarter, and the honest-ETA
-   * fix has to wait — which is the trade the format exists to pose.
-   *
-   * Three is also exactly what the checkout rewrite asks for, so the expensive
-   * wrong answer stays buildable. A decoy nobody can afford teaches nothing.
+   * Four people-weeks is exactly what the three fixes treating rider supply
+   * cost together — 2 + 1 + 1 — so the capacity budget is consumed to the last
+   * slot and there is no room to bolt a discount push on beside the correct
+   * answer. The money budget is the opposite: the ceiling deliberately leaves
+   * crores of it in the bank, because response curves make the fourth crore
+   * behind the right fix nearly worthless and `spend` charges every committed
+   * rupee to contribution every week.
    */
-  budget: { analystDays: 10, sprints: 3, rupees: 12 * CRORE },
+  budget: { analystDays: 10, sprints: 4, rupees: 12 * CRORE },
 
   // ── The data you can buy ────────────────────────────────────────────────
   // Twenty-eight days of pulls against a ten-day budget. The scarcity is the
@@ -975,70 +973,40 @@ export const metricDropFoodDelivery: SimScenario = {
     { driver: "conversion", deltaPct: -0.04 },
     { driver: "avgEta", deltaPct: 0.05 },
   ],
+  /**
+   * Four quarters for a decision taken once.
+   *
+   * Longer than the two it used to be, because the payout correction's effect
+   * on conversion ramps over three quarters and a two-quarter horizon would
+   * score it before it had finished arriving. Everything is committed at the
+   * start, so the ramp delays the player's payoff and the `best` ceiling by
+   * exactly the same amount and cannot distort the score — what it does is give
+   * the drift four quarters to show that doing nothing is expensive.
+   */
   horizonQuarters: 4,
-  /**
-   * Three decisions, four quarters.
-   *
-   * The horizon has to outrun the decisions — `validateScenario` refuses
-   * otherwise — because whatever is committed in the last period would
-   * otherwise have its consequences land outside the window it is scored on,
-   * and holding everything to the end would read as free.
-   *
-   * Three is enough to make the sequence a judgement and few enough that a
-   * candidate is not filling in a spreadsheet. Between each one they see the
-   * quarter that actually happened, weather included, which is the information
-   * a single commit cannot deliver.
-   */
-  decisionPeriods: 3,
 
-  /**
-   * Four days of the ten: where the drop is, then what checkout was showing
-   * there.
-   *
-   * Deliberately *not* the rider-hours pull. "Orders by city tier" says the
-   * loss is tier-2; "ETA by city tier" says checkout in tier-2 was quoting 48
-   * minutes. That is enough to name rider supply, for four analyst-days. The
-   * three-day pulls that show the hours themselves — `dd-riders` and
-   * `dd-dispatch` — are confirmations of a call you can already make, which is
-   * why par does not include one and why buying both is the board's clearest
-   * example of paying twice for the same sentence.
-   */
   parInvestigation: ["dd-city", "dd-eta"],
   /**
-   * Both derived by `scripts/best-allocation.ts`, neither guessed.
+   * Derived by `scripts/best-allocation.ts` over 12,517 allocations, not guessed
+   * — and it banks ₹5.75 crore of ₹12.
    *
-   * The sequence is the interesting one and it is not what anybody would write
-   * by hand. Fill the first quarter with the payout correction and a
-   * half-funded honest-ETA fix; in the second, add the referral drive and top
-   * the ETA fix up to its full ask — funding accumulates across periods, so a
-   * lever can be started cheaply and finished later. Then **hold the third
-   * period entirely**, banking ₹4.25 crore of ₹12.
+   * That is the point of the v2 conversion and it is not something anyone would
+   * write by hand. Every people-week goes to a fix that treats rider supply, and
+   * the two expensive ones are funded at 42% and 70% of what they asked for:
+   * past roughly there the payout correction is buying rider hours the cities do
+   * not need, while the programme cost of the money keeps coming off
+   * contribution every week. The one lever funded *above* its ask is the
+   * cheapest on the board — honest ETAs cost ₹50 lakh and absorb a little more
+   * usefully than that.
    *
-   * Two things make it come out that way. The payout correction's conversion
-   * effect ramps over two quarters, so a crore committed in P0 has time the
-   * same crore in P2 does not — and every rupee committed keeps coming off
-   * contribution weekly through `spend`, so the last quarter's money buys a
-   * fraction of a ramp and pays full price for it.
-   *
-   * `bestAllocation` is the first period of that sequence. On a multi-period
-   * scenario the run is projected through `bestScheduleFor`, so this is what
-   * the validator checks against the budget rather than what the score
-   * normalises on.
+   * The old `bestAllocation` spent all ₹12 crore, because under a linear model
+   * with free money that was always weakly optimal. Re-derive with the script
+   * after any retune; do not adjust these numbers by hand.
    */
   bestAllocation: [
-    { interventionId: "iv-payout", sprints: 2, rupees: 4.5 * CRORE },
-    { interventionId: "iv-eta-honesty", sprints: 1, rupees: 0.25 * CRORE },
-  ],
-  bestSchedule: [
-    [
-      { interventionId: "iv-payout", sprints: 2, rupees: 4.5 * CRORE },
-      { interventionId: "iv-eta-honesty", sprints: 1, rupees: 0.25 * CRORE },
-    ],
-    [
-      { interventionId: "iv-referral", sprints: 1, rupees: 2.5 * CRORE },
-      { interventionId: "iv-eta-honesty", sprints: 1, rupees: 0.5 * CRORE },
-    ],
-    [],
+    { interventionId: "iv-payout", sprints: 2, rupees: 3.75 * CRORE },
+    { interventionId: "iv-referral", sprints: 1, rupees: 1.75 * CRORE },
+    { interventionId: "iv-eta-honesty", sprints: 1, rupees: 0.75 * CRORE },
   ],
 
   debrief: {
