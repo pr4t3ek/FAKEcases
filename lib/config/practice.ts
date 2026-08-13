@@ -127,3 +127,21 @@ export type SelectableMode = (typeof aiModes)[number]["key"];
 export function selectableMode(mode: string | null | undefined): SelectableMode {
   return aiModes.some((m) => m.key === mode) ? (mode as SelectableMode) : "interviewer";
 }
+
+/**
+ * Which transcript a turn belongs in.
+ *
+ * The two modes are two conversations, not one conversation with a switch on
+ * top. Asking the Teacher to work the whole problem used to drop that wall of
+ * text into the interview as well, so going back to Interviewer showed the
+ * answer you had just been given — the interview reading as though it had
+ * spoiled itself.
+ *
+ * Everything that is not Teacher files under Interviewer, and that is the point
+ * rather than a default: a hint is stamped `coach` by `/api/hint` but is asked
+ * for and answered inside the interview, and a legacy `evaluator` turn was too.
+ * Teacher is the only mode whose turns are a different conversation.
+ */
+export function transcriptFor(mode: string | null | undefined): SelectableMode {
+  return mode === "teacher" ? "teacher" : "interviewer";
+}

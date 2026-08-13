@@ -131,6 +131,8 @@ export default async function PracticePage({
         role: m.role as "user" | "assistant",
         content: m.content,
         hintLevel: m.hintLevel,
+        // Carried so the panel can file each turn into its own transcript.
+        mode: m.mode,
         provider: m.provider,
       })),
     calculations: attempt.calculations.map((c) => ({

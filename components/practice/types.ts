@@ -6,6 +6,12 @@ export interface UiMessage {
   role: "user" | "assistant";
   content: string;
   hintLevel?: number | null;
+  /**
+   * Which conversation this turn belongs to — see `transcriptFor`. Absent on
+   * rows written before the two were split; those read as the interview, which
+   * is where they were said.
+   */
+  mode?: string | null;
   /** Engine that produced an assistant turn. Any "mock*" value is badged in the UI. */
   provider?: string | null;
   /** True while deltas are still arriving for this message. */
