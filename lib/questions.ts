@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { attemptStateFromRows, type AttemptQuestionState } from "@/lib/attempt-state";
 import { tierAccess, type AccessTier } from "@/lib/config";
 import { targetLevelsFor } from "@/lib/profile";
 import {
@@ -334,4 +335,28 @@ export async function importQuestions(
   }
 
   return { created, updated, errors, validCount: valid.length };
+}
+
+/**
+ * Per-question attempt state for one user, for the library cards.
+ *
+ * The thin DB half of `lib/attempt-state.ts` — one query for the whole grid
+ * rather than one per card, which is why it returns a map keyed by question id.
+ * `evaluation` is selected because the badge shows the best score, and because
+ * an attempt with a null overall must not contribute one.
+ */
+export async function attemptStateByQuestion(
+  userId: string,
+): Promise<Record<string, AttemptQuestionState>> {
+  const rows = await db.attempt.findMany({
+    where: { userId },
+    select: {
+      id: true,
+      questionId: true,
+      status: true,
+      createdAt: true,
+      evaluation: { select: { overall: true } },
+    },
+  });
+  return attemptStateFromRows(rows);
 }

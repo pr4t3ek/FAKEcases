@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Lock, Siren } from "lucide-react";
+import { ArrowRight, Lock, RotateCcw, Siren } from "lucide-react";
 import { startAttempt } from "@/app/actions/attempts";
 import type { UpgradePath } from "@/lib/config";
 import { startSimulation } from "@/app/actions/simulations";
@@ -29,6 +29,8 @@ import { QuestionIcon } from "@/components/library/question-icon";
 import { ReplayButton } from "@/components/simulation/replay-button";
 // From the pure module rather than `lib/simulations`, which reaches `server-only`.
 import type { SimQuestionState } from "@/lib/sim/replay";
+// Likewise: the rule is in `lib/attempt-state`, the query is in `lib/questions`.
+import type { AttemptQuestionState } from "@/lib/attempt-state";
 
 interface QuestionCardData {
   id: string;
@@ -52,6 +54,7 @@ export function QuestionCard({
   locked = false,
   upgrade = null,
   simState = null,
+  attemptState = null,
 }: {
   question: QuestionCardData;
   /**
@@ -68,6 +71,13 @@ export function QuestionCard({
    * way in", which is what the card did for everyone before this existed.
    */
   simState?: SimQuestionState | null;
+  /**
+   * Whether this question has been started or submitted, from
+   * `attemptStateByQuestion`. Null for a simulation, for a signed-out visitor,
+   * and for one never touched — all three mean "offer the way in", which is what
+   * the card did for everyone before this existed.
+   */
+  attemptState?: AttemptQuestionState | null;
 }) {
   // Checked BEFORE answerModeFor, which is meaningful only for the interview
   // types and would report a simulation as qualitative (see lib/types.ts).
@@ -99,6 +109,28 @@ export function QuestionCard({
       }
     });
   }
+
+  // Submitted at least once, and nothing half-finished ahead of it. Only ever
+  // true for a question, never a simulation — that card has its own three
+  // branches and its own replay dialog.
+  const attempted = !simulation && attemptState?.state === "attempted";
+
+  /**
+   * The quiet way back to what they already earned, matching the war-room card.
+   * Worth a link rather than a second button: re-reading a report is a smaller
+   * intent than sitting the question again, and the primary action should stay
+   * unambiguous.
+   */
+  const reportLink = attempted && attemptState?.attemptId && (
+    <div className="text-center">
+      <Link
+        href={`/practice/${attemptState.attemptId}`}
+        className="text-[11px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
+      >
+        or read your evaluation again
+      </Link>
+    </div>
+  );
 
   return (
     <Card
@@ -133,6 +165,17 @@ export function QuestionCard({
         {simulation && !locked && simState?.state === "played" && (
           <Badge variant="success">
             Played{simState.bestOverall !== null && ` · ${simState.bestOverall}`}
+          </Badge>
+        )}
+        {/* The same two badges for a question, for the same reason. No score
+            shown when every attempt was walked through by Teacher mode — there
+            isn't one, and a 0 here would be an invention. */}
+        {!simulation && !locked && attemptState?.state === "in_progress" && (
+          <Badge variant="warning">In progress</Badge>
+        )}
+        {!simulation && !locked && attemptState?.state === "attempted" && (
+          <Badge variant="success">
+            Attempted{attemptState.bestOverall !== null && ` · ${attemptState.bestOverall}`}
           </Badge>
         )}
       </div>
@@ -196,6 +239,20 @@ export function QuestionCard({
             Enter the war room <ArrowRight />
           </Button>
         )
+      ) : attemptState?.state === "in_progress" && attemptState.attemptId ? (
+        // A link, not the server action — the same reasoning as the locked and
+        // war-room branches above. It is one fewer round-trip, and `startAttempt`
+        // resumes the newest in-progress attempt anyway, so this is where the
+        // button was always going to land.
+        //
+        // No mode choice offered here even on a case: the tree mode is fixed at
+        // creation, so the only thing a second choice could do is raise the
+        // conflict dialog against the attempt being resumed.
+        <Button asChild className="mt-4 w-full">
+          <Link href={`/practice/${attemptState.attemptId}`}>
+            <RotateCcw /> Resume this <ArrowRight />
+          </Link>
+        </Button>
       ) : qualitative ? (
         // Chosen here and fixed for the attempt. Offering it mid-attempt would
         // make "solo" meaningless — switch to guided, take the structure, switch
@@ -206,7 +263,15 @@ export function QuestionCard({
               card, and an outline button next to a solid one reads as the
               lesser of the two. */}
           <Button onClick={() => begin("solo")} disabled={pending} className="w-full">
-            Practise this <ArrowRight />
+            {attempted ? (
+              <>
+                <RotateCcw /> Practise again
+              </>
+            ) : (
+              <>
+                Practise this <ArrowRight />
+              </>
+            )}
           </Button>
           <div className="text-center">
             <button
@@ -218,6 +283,14 @@ export function QuestionCard({
               or try it guided — structure suggested, and not scored
             </button>
           </div>
+          {reportLink}
+        </div>
+      ) : attempted ? (
+        <div className="mt-4 space-y-2">
+          <Button onClick={() => begin()} disabled={pending} className="w-full">
+            <RotateCcw /> Practise again
+          </Button>
+          {reportLink}
         </div>
       ) : (
         <Button onClick={() => begin()} disabled={pending} className="mt-4 w-full">

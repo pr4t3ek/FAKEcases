@@ -3,7 +3,7 @@ import { Sparkles } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { isLocked, tierFor, upgradeFor, WALL_LOCKED, WALL_PARAM } from "@/lib/entitlements";
 import { prefillLevel, targetLevelsFor } from "@/lib/profile";
-import { listCategories, listQuestions, listSectors } from "@/lib/questions";
+import { attemptStateByQuestion, listCategories, listQuestions, listSectors } from "@/lib/questions";
 import { answerModeFor, type InterviewLevel } from "@/lib/types";
 import { AppHeader } from "@/components/app/app-header";
 import { FilterBar } from "@/components/library/filter-bar";
@@ -65,6 +65,11 @@ export default async function LibraryPage({
       : null;
   const openCount = questions.filter((q) => !isLocked(tier, q)).length;
   const lockedCount = questions.length - openCount;
+
+  // One query for the whole grid. Empty for a visitor who has not started
+  // anything yet — `getSessionUser` returns null until they click, and there is
+  // nothing to have attempted before a user row exists.
+  const attemptState = user ? await attemptStateByQuestion(user.id) : {};
 
   return (
     <div className="min-h-screen">
@@ -129,6 +134,7 @@ export default async function LibraryPage({
                 question={q}
                 locked={isLocked(tier, q)}
                 upgrade={upgrade}
+                attemptState={attemptState[q.id] ?? null}
               />
             ))}
           </div>
