@@ -121,31 +121,23 @@ export function BuybackScreen({ data }: { data: BuybackData }) {
                     </span>
                   </div>
 
-                  {/* A range for the quantity, a box for the price: one is a
-                      feel for scale, the other is a figure you have in mind. */}
-                  {d.kind === "integer" ? (
-                    <input
-                      type="range"
-                      min={d.min}
-                      max={d.max}
-                      step={d.step}
-                      value={values[d.key] ?? d.value}
-                      onChange={(e) => setValues((v) => ({ ...v, [d.key]: +e.target.value }))}
-                      className="mt-2 w-full accent-primary"
-                      disabled={pending || !!branchOpen}
-                    />
-                  ) : (
-                    <Input
-                      type="number"
-                      min={d.min}
-                      max={d.max}
-                      step={d.step}
-                      value={values[d.key] ?? d.value}
-                      onChange={(e) => setValues((v) => ({ ...v, [d.key]: +e.target.value }))}
-                      className="mt-2 h-9"
-                      disabled={pending || !!branchOpen}
-                    />
-                  )}
+                  {/* A typed figure for both, quantity and price alike. The
+                      quantity used to be a range — a feel for scale — and that
+                      is precisely the affordance worth removing: an order you
+                      dragged to is an order you never had to name. */}
+                  <Input
+                    type="number"
+                    min={d.min}
+                    max={d.max}
+                    step={d.step}
+                    value={values[d.key] ?? d.value}
+                    onChange={(e) => setValues((v) => ({ ...v, [d.key]: +e.target.value }))}
+                    className="mt-2 h-9"
+                    disabled={pending || !!branchOpen}
+                  />
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {d.kind === "currency" ? "Any figure" : "Whole units"} from {d.min} to {d.max}.
+                  </p>
                   <p className="mt-1 text-[11px] leading-snug text-muted-foreground">{d.help}</p>
                 </label>
               ))}

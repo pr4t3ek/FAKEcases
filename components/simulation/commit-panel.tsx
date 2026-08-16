@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { GlossaryTerm } from "./glossary-term";
-import { MoneyDial } from "./money-dial";
+import { MoneyEntry } from "./money-entry";
 import { Progress } from "@/components/ui/progress";
 import { simConfig } from "@/lib/config/simulation";
 import { cn, toIndianWords } from "@/lib/utils";
@@ -513,15 +513,14 @@ function FundStep({
                     </label>
                   </div>
 
-                  {/* A number box was right while money was linear — there was
-                      nothing to feel, because the answer was always "as much as
-                      the budget allows". Under a curve the question is where to
-                      stop, and you cannot see a knee in a text field. */}
+                  {/* A typed number, like every other commitment on this board.
+                      Where the curve stops paying is said in words underneath
+                      rather than shown as a tick on a track — see MoneyEntry. */}
                   <div className="mt-3">
-                    <MoneyDial
+                    <MoneyEntry
                       value={line.money}
                       // What is left, plus what this line already holds, so
-                      // dragging one line never silently overdraws another.
+                      // funding one line never silently overdraws another.
                       max={Math.max(0, budgetMoney - used.money + line.money)}
                       scale={scale}
                       hint={iv.saturationHint}

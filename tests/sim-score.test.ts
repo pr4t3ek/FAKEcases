@@ -9,6 +9,7 @@ import {
   scoreInvestigation,
   scoreOutcome,
   scoreSimulation,
+  overspendPenaltyFor,
 } from "@/lib/sim/score";
 import { simConfig } from "@/lib/config/simulation";
 import type { SimPurchaseRecord } from "@/lib/sim/types";
@@ -124,6 +125,35 @@ describe("scoreHypothesis", () => {
   });
 });
 
+/**
+ * What a wasted analyst-day costs.
+ *
+ * Two separate bites, and the test pins the shape rather than the constants —
+ * `overspendExponent` and `overspendOverallPenalty` live in `simConfig` so they
+ * can be retuned, and a test asserting "8" would make retuning a test edit.
+ */
+describe("overspendPenaltyFor", () => {
+  it("costs nothing at or under par", () => {
+    expect(overspendPenaltyFor(4, 6)).toBe(0);
+    expect(overspendPenaltyFor(6, 6)).toBe(0);
+  });
+
+  it("charges in proportion to the overage", () => {
+    const twice = overspendPenaltyFor(12, 6);
+    const thrice = overspendPenaltyFor(18, 6);
+
+    expect(twice).toBeGreaterThan(0);
+    // Linear: two multiples over costs twice what one multiple over costs.
+    expect(thrice).toBeCloseTo(twice * 2, 5);
+  });
+
+  // A scenario with no par — a turnaround, or a board whose parInvestigation is
+  // empty — has no waste to price, and dividing by it would be a NaN.
+  it("is inert when there is no par to beat", () => {
+    expect(overspendPenaltyFor(10, 0)).toBe(0);
+  });
+});
+
 describe("scoreInvestigation", () => {
   it("gives nothing when no data was bought", () => {
     expect(scoreInvestigation(scenario, [], [CAUSE_TRUE])).toBe(0);
@@ -163,20 +193,28 @@ describe("scoreInvestigation", () => {
   });
 
   /**
-   * The hindsight exploit, and its fix.
+   * Revision, and what crediting both beliefs does and does not buy.
    *
-   * The hypothesis is revisable throughout Investigate now, which opens an
-   * obvious cheat: buy whatever, then rewrite the hypothesis to name whatever
-   * those pulls turned out to be evidence for, and collect full relevance for
-   * a search you never conducted. Relevance is judged against the belief
-   * standing at each purchase instead, so the cheat pays nothing.
+   * A pull counts if it spoke to the belief standing when it was bought **or**
+   * to the one finally committed to. That is a deliberate relaxation of an
+   * earlier rule which judged relevance at purchase only: the stricter rule
+   * closed a hindsight cheat, and in closing it also punished the candidate who
+   * bought the pull that changed their mind — the exact behaviour the phase is
+   * meant to teach.
+   *
+   * So the cheat is no longer priced by this dimension's relevance term, and is
+   * held instead by the `foundEvidence` gate: retro-fitting a hypothesis to
+   * your purchases still caps the score unless one of those purchases actually
+   * bore on the real cause. What the tests below pin is that boundary — not
+   * that revision is free, but that it is bounded.
    */
   describe("with a revised hypothesis", () => {
     const purchases = [buy("d-city", 2, 1), buy("d-funnel", 2, 2)];
 
-    it("does not reward rewriting the hypothesis to match what was bought", () => {
+    it("no longer punishes a belief formed after the pulls were in hand", () => {
       // Both runs end holding the same belief and hold the same two pulls. The
-      // difference is only when the belief was formed.
+      // difference is only when the belief was formed, and under credit-both
+      // that difference stops being a deduction.
       const hindsight = scoreInvestigation(scenario, purchases, [CAUSE_WRONG_LEAF], {
         revisions: [
           // Opened somewhere the funnel pull says nothing about…
@@ -204,7 +242,27 @@ describe("scoreInvestigation", () => {
         ],
       });
 
-      expect(hindsight).toBeLessThan(genuine);
+      expect(hindsight).toBe(genuine);
+    });
+
+    // The gate is what the relevance term stopped carrying. A run that revises
+    // to fit its purchases still cannot score well on purchases that never
+    // touched the real cause.
+    it("still caps a retro-fitted hypothesis that never bought real evidence", () => {
+      const retrofitted = scoreInvestigation(scenario, [buy("d-noise", 4, 1)], [CAUSE_WRONG_LEAF], {
+        revisions: [
+          { causeIds: [CAUSE_TRUE], note: null, afterPurchases: 0, afterDays: 0, at: "t0" },
+          {
+            causeIds: [CAUSE_WRONG_LEAF],
+            note: null,
+            afterPurchases: 1,
+            afterDays: 4,
+            at: "t1",
+          },
+        ],
+      });
+
+      expect(retrofitted).toBeLessThanOrEqual(45);
     });
 
     it("still credits a pull bought under the belief it was testing", () => {
@@ -340,6 +398,34 @@ describe("scoreSimulation", () => {
     expect(result.causeFound).toBe(true);
     expect(result.daysSpent).toBe(2);
     expect(result.daysPar).toBe(2);
+  });
+
+  /**
+   * Wasted days reach the composite, not just Investigation.
+   *
+   * The point of putting the penalty on the overall is that it can move the
+   * band — a dimension weighted 1.2 of 6.0 can only ever express a fifth of an
+   * opinion about a run that bought the whole board.
+   */
+  it("takes points off the overall for buying past par, and says so", () => {
+    const overspent = scoreSimulation({
+      scenario,
+      hypothesis: [CAUSE_TRUE],
+      purchases: [buy("d-city", 2, 1), buy("d-funnel", 2, 2), buy("d-noise", 4, 3)],
+      diagnosis: [CAUSE_TRUE],
+      allocation: BEST_ALLOCATION,
+      outcome: runOutcome(scenario, BEST_ALLOCATION),
+    });
+
+    expect(overspent.daysSpent).toBeGreaterThan(overspent.daysPar);
+
+    // Below the same run's weighted rubric, because the deduction happens after
+    // weighting — and below the clean run, which spent par.
+    expect(overspent.overall).toBeLessThan(idealRun().overall);
+
+    // Disclosed rather than deducted silently.
+    const note = overspent.feedback.find((f) => f.text.includes("analyst-days"));
+    expect(note?.text).toMatch(/points overall/);
   });
 
   // The headline invariant: every way of doing it worse scores worse.
