@@ -126,6 +126,10 @@ const EXPECTED: Record<string, string> = {
   // A retail chain whose subject is medicine: "pharmacy" in the tags reaches
   // the healthcare rule before the Retail category fallback can be used.
   "Sehat Plus: 87% availability on 24% more stock": "Stethoscope",
+  // "revenue" (in "net revenue retention") outranks "logistics" in the rule
+  // order, and that is the right call here: the subject is retained ARR, not
+  // freight. The software happens to be sold to hauliers.
+  "Setu: three quarters of shipping the most-requested features, and NRR at 94%": "IndianRupee",
   "Kirti Apparel: revenue is up 22% and profit is down 62%": "Shirt",
   "Nirmal Pipes: a record profit and no money for payroll": "Factory",
   // "ceramic" beats "bank" — the bank is in the sentence, not in the subject.

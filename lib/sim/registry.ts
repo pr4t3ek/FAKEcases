@@ -23,6 +23,7 @@ import { marketSizingGtm } from "./scenarios/market-sizing-gtm";
 import { marketplaceLiquidity } from "./scenarios/marketplace-liquidity";
 import { b2bDealTco } from "./scenarios/b2b-deal-tco";
 import { sehatPlusServiceLevel } from "./scenarios/sehat-plus-service-level";
+import { setuRoadmapValue } from "./scenarios/setu-roadmap-value";
 import { pnlProfitSqueeze } from "./scenarios/pnl-profit-squeeze";
 import { cashConversionCycle } from "./scenarios/cash-conversion-cycle";
 import { balanceSheetLeverage } from "./scenarios/balance-sheet-leverage";
@@ -50,6 +51,7 @@ const ALL: SimScenario[] = [
   marketSizingGtm,
   marketplaceLiquidity,
   sehatPlusServiceLevel,
+  setuRoadmapValue,
   b2bDealTco,
   metricDropFoodDelivery,
   // Last: the only turnaround in the catalogue, and a different exercise from

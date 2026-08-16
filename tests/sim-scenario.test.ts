@@ -1124,6 +1124,143 @@ describe("b2b-deal-tco: the numbers the primer promises", () => {
  * teaching *is* the arithmetic: a primer that says gross margin fell 1.4 points
  * beside a model that says something else is worse than no primer at all.
  */
+describe("setu-roadmap-value: the numbers the primer promises", () => {
+  const scenario = getScenario("setu-roadmap-value");
+  if (!scenario) throw new Error("scenario missing");
+  const v = resolveDrivers(scenario.drivers);
+  const CRORE = 10_000_000;
+
+  /**
+   * The inversion, stated as arithmetic. Everything else in the scenario is a
+   * consequence of these two numbers pointing in opposite directions.
+   */
+  it("gives 46% of the revenue 0.5% of the requests", () => {
+    expect(v.totalArr).toBeCloseTo(96 * CRORE, -4);
+    expect(v.enterpriseArrShare).toBeCloseTo(0.46, 4);
+    expect(v.totalRequests).toBeCloseTo(20_978, 0);
+    expect(v.enterpriseRequestShare).toBeLessThan(0.006);
+
+    // Requests per crore of ARR: the same fact in the unit that makes it obvious.
+    const enterprisePerCrore = v.enterpriseRequests / (v.enterpriseArr / CRORE);
+    const tailPerCrore = v.tailRequests / (v.tailArr / CRORE);
+    expect(enterprisePerCrore).toBeCloseTo(2.4, 1);
+    expect(tailPerCrore).toBeCloseTo(985, -1);
+    // Four hundred times louder per rupee, which is what a "fair" ranking by
+    // request count is actually ranking on.
+    expect(tailPerCrore / enterprisePerCrore).toBeGreaterThan(400);
+  });
+
+  /**
+   * Churn responds to roadmap coverage very differently by tier, and that
+   * asymmetry is the reason the misallocation is expensive rather than merely
+   * unfair. The tail is nearly at its floor; the enterprise tier is nowhere near.
+   */
+  it("leaves the tail near its churn floor and the enterprise tier nowhere near", () => {
+    expect(v.tailChurn).toBeCloseTo(0.046, 3);
+    expect(v.tailChurn - v.tailChurnFloor).toBeLessThan(0.005);
+
+    expect(v.enterpriseChurn).toBeCloseTo(0.0614, 4);
+    expect(v.enterpriseChurn / v.enterpriseChurnFloor).toBeGreaterThan(7);
+  });
+
+  it("loses ₹4.76 crore a quarter and retains 94% annualised", () => {
+    expect(v.churnedArr).toBeCloseTo(4.763 * CRORE, -4);
+    expect(v.expansionArr).toBeCloseTo(3.312 * CRORE, -4);
+    expect(v.retainedArr).toBeCloseTo(94.549 * CRORE, -4);
+    expect(v.nrr).toBeCloseTo(0.9849, 4);
+    // The 94% the situation quotes is the annualised figure the company reports.
+    expect(Math.pow(v.nrr, 4)).toBeCloseTo(0.941, 3);
+  });
+
+  it("takes retention back above 100% by re-ranking, not by building more", () => {
+    const outcome = runOutcome(scenario, scenario.bestAllocation);
+    expect(finalValue(outcome.paths, "enterpriseCovered")).toBeGreaterThan(0.8);
+    expect(finalValue(outcome.paths, "enterpriseChurn")).toBeLessThan(0.02);
+    expect(finalValue(outcome.paths, "nrr")).toBeGreaterThan(1);
+    // The opportunity cost is real and is paid by the tail — modelled, not just
+    // mentioned in the debrief.
+    expect(finalValue(outcome.paths, "tailCovered")).toBeLessThan(
+      finalValue(outcome.doNothing, "tailCovered"),
+    );
+  });
+
+  /**
+   * The sharpest trap, and the only one in the catalogue that makes the north
+   * star worse by working exactly as designed. A voting portal genuinely
+   * collects votes; the votes are the problem.
+   */
+  it("makes the voting portal amplify the bias rather than reveal it", () => {
+    const outcome = runOutcome(scenario, [
+      { interventionId: "iv-voting-portal", sprints: 1, rupees: 1.2 * CRORE },
+    ]);
+    // It works: the tail is heard even better than before.
+    expect(finalValue(outcome.paths, "tailCovered")).toBeGreaterThan(
+      finalValue(outcome.doNothing, "tailCovered"),
+    );
+    // And the accounts that are 46% of ARR lose what little they had.
+    expect(finalValue(outcome.paths, "enterpriseCovered")).toBeLessThan(
+      finalValue(outcome.doNothing, "enterpriseCovered"),
+    );
+    expect(finalValue(outcome.paths, "enterpriseChurn")).toBeGreaterThan(
+      finalValue(outcome.doNothing, "enterpriseChurn"),
+    );
+    expect(finalValue(outcome.paths, "netRetainedArr")).toBeLessThan(
+      finalValue(outcome.doNothing, "netRetainedArr"),
+    );
+  });
+
+  /**
+   * The second trap. Hiring works — coverage rises on every tier — and it is
+   * still much worse than doing nothing, because 22% more of 11% is nothing and
+   * the salaries are permanent.
+   */
+  it("lets hiring lift every tier's coverage and still lose the quarter", () => {
+    const outcome = runOutcome(scenario, [
+      { interventionId: "iv-hire-six", sprints: 1, rupees: 2.8 * CRORE },
+    ]);
+    for (const tier of ["enterpriseCovered", "midCovered", "tailCovered"]) {
+      expect(finalValue(outcome.paths, tier)).toBeGreaterThan(
+        finalValue(outcome.doNothing, tier),
+      );
+    }
+    expect(finalValue(outcome.paths, "churnedArr")).toBeLessThan(
+      finalValue(outcome.doNothing, "churnedArr"),
+    );
+    // Two points of enterprise coverage, bought with permanent salary.
+    expect(finalValue(outcome.paths, "netRetainedArr")).toBeLessThan(
+      finalValue(outcome.doNothing, "netRetainedArr"),
+    );
+  });
+
+  /**
+   * The map is withheld on purpose here, exactly as on `b2b-deal-tco`: that
+   * coverage and churn are connected at all is the discovery.
+   */
+  it("teaches the vocabulary and withholds the model", () => {
+    const primer = scenario.teaching?.primer;
+    expect(primer).toBeDefined();
+    expect(scenario.teaching?.showMetricMap).toBe(false);
+    const terms = primer!.terms.map((t) => t.term);
+    for (const expected of [
+      "ARR",
+      "Revenue concentration",
+      "NRR",
+      "Value at risk",
+      "Roadmap coverage",
+      "Opportunity cost",
+      "Selection bias",
+    ]) {
+      expect(terms).toContain(expected);
+    }
+    for (const t of primer!.terms) expect(t.matters.length).toBeGreaterThan(20);
+
+    const driverIds = new Set(scenario.drivers.map((d) => d.id));
+    for (const t of primer!.terms) {
+      if (t.driver) expect(driverIds).toContain(t.driver);
+    }
+  });
+});
+
 describe("pnl-profit-squeeze: the numbers the primer promises", () => {
   const scenario = getScenario("pnl-profit-squeeze");
   if (!scenario) throw new Error("scenario missing");

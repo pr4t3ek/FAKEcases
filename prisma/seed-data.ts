@@ -729,6 +729,22 @@ export const questions: SeedQuestion[] = [
     tags: "product management,marketplace,liquidity,match rate,utilisation,take rate,home services,simulation",
   },
   {
+    externalId: "setu-roadmap-value",
+    title: "Setu: three quarters of shipping the most-requested features, and NRR at 94%",
+    prompt:
+      "A logistics software company ranked its roadmap by how many accounts asked for each item, shipped down that list with 91% on-time delivery for three quarters, and watched net revenue retention fall from 103% to 94%. The CEO wants a public feature-voting portal; engineering wants six more people. Work out what the request queue was actually measuring, then spend a quarter acting on it.",
+    category: "product-management",
+    sector: "technology",
+    difficulty: "Medium",
+    interviewLevel: "Product",
+    type: "simulation",
+    betterApproach:
+      "Rank work by the revenue at risk behind a request rather than by how many people made it — the two only agree when every customer is the same size. Before trusting any demand signal, ask who is structurally able to appear in it: a signal can be precise, well instrumented and unrepresentative at once. Then check whether the metric you are trying to move even responds in the segment you are serving, because effort spent on customers already near their retention floor buys nothing however well it is executed.",
+    sampleSolution:
+      "Request count runs inversely to account size: 12 enterprise accounts are 46% of ARR and 0.5% of requests (2.4 per crore) while 610 long-tail accounts are 20% of ARR and 90% of requests (985 per crore). The cause is two good decisions colliding — named CSMs for big accounts, so only 4% of their asks become tickets, and a roadmap process built on the ticket system because that is where the data was. Coverage is 11% enterprise against 72% tail; long-tail churn is 4.6% against a 4.2% floor no feature moves, while enterprise churn is 6.1% against a floor of 0.8%, so nearly all recoverable churn sits in the tier being ignored. A voting portal amplifies the bias — the twelve accounts will not vote either — and six engineers add 22% coverage on every tier for ₹1.5 crore a quarter. Re-ranking on ARR at risk and putting a squad on the enterprise commitment list takes coverage past 84%, enterprise churn to 1.9%, and quarterly NRR back above 100%.",
+    tags: "product management,prioritisation,roadmap,net revenue retention,revenue concentration,opportunity cost,selection bias,b2b saas,logistics,simulation",
+  },
+  {
     externalId: "sehat-plus-service-level",
     title: "Sehat Plus: 87% availability on 24% more stock",
     prompt:
