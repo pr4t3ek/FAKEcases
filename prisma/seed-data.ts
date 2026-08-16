@@ -16,6 +16,14 @@ export const categories = [
   { slug: "energy", name: "Energy", icon: "Zap", order: 13 },
   { slug: "startups", name: "Startups", icon: "Rocket", order: 14 },
   { slug: "product-management", name: "Product Management", icon: "LineChart", order: 15 },
+  // The analytics track. Its own category rather than more rows under Product
+  // Management, for the reason Finance is its own: these scenarios are a
+  // sequence teaching one discipline, and a candidate preparing for a data
+  // interview should be able to find them as a set rather than pick them out of
+  // sixteen. `listCategories(surface)` derives visibility from what a category
+  // actually holds, so this appears on /simulations and stays off /library
+  // without any further wiring.
+  { slug: "data-analytics", name: "Data & Analytics", icon: "Sigma", order: 16 },
 ];
 
 export interface SeedQuestion {
@@ -621,7 +629,11 @@ export const questions: SeedQuestion[] = [
     title: "Rangoli: the test says +6%, and the room wants it live on Monday",
     prompt:
       "An A/B test on the product page came back at +6% conversion, properly powered and signed off by data science. Design wants it live on Monday. Work out what the test actually measured before you ship it, then spend a month acting on what you find.",
-    category: "product-management",
+    // The analytics track's first rung. Filed here rather than under Product
+    // Management because reading an experiment is the discipline the rest of
+    // the track builds on, and it was the only statistical scenario in the
+    // catalogue before the track existed.
+    category: "data-analytics",
     sector: "retail",
     difficulty: "Easy",
     interviewLevel: "PM",
@@ -631,6 +643,38 @@ export const questions: SeedQuestion[] = [
     sampleSolution:
       "The variant bundled a redesigned page with a pre-ticked 'send me two sizes' box. The page alone was worth +1.4%; the pre-tick carried the rest of the +6% and drove returns from 6.1% to 9.8%. A return takes 12 to 16 days to come back and the test ran six, so the readout measured everything the change earned and none of what it cost. Shipped whole, conversion, orders and revenue all rise 6% and net contribution falls 6.7%.",
     tags: "product management,experimentation,ab testing,statistical significance,returns,fashion,e-commerce,simulation",
+  },
+  {
+    externalId: "sahyog-agency-recovery",
+    title: "Sahyog Finance: the best agency got 60% of the book, and recovery fell",
+    prompt:
+      "One of four collections agencies recovers eight points better than the others, so ops moved 60% of the overdue book to it. Blended recovery went down. Work out what the league table was actually measuring, then spend a month acting on it.",
+    category: "data-analytics",
+    sector: "financial-services",
+    difficulty: "Easy",
+    interviewLevel: "PM",
+    type: "simulation",
+    betterApproach:
+      "Before acting on a difference between group averages, ask whether the groups were comparable. Find the variable that most strongly predicts the outcome, check whether it is distributed evenly across the groups, and if it is not, redo the comparison holding it fixed. Then set the gap you find against how much a single group bounces on its own — a difference smaller than the noise inside one group is not a difference you can act on, which is the comparison an ANOVA formalises.",
+    sampleSolution:
+      "Recovery is decided by how old the arrear is: 60.9% at 0–30 days against 11.1% at 90-plus, a 49.8-point spread that belongs to the bucket rather than the collector. Fresh arrears had been routed to Shreeji since 2022 under a rule nobody revisited, so 42% of its book sat in the 0–30 bucket against 24–27% for the other three. Rebuilding each agency's blended rate from the pooled bucket rates and its own mix reproduces the league table exactly — 33.2%, 35.1%, 41.4%, 33.5% — with every agency performing identically. Held inside one bucket the four land within 1.6 points and do not rank consistently, while one agency's own month-to-month swing in that bucket is 2.8 points, so between-group variation is smaller than within-group. Moving 60% of the book therefore moved a mix rather than a skill: Shreeji's mix reverted to the portfolio's, accounts per officer rose 68%, contact rate fell 59.4% → 51.8%, and blended recovery went 35.6% → 33.8%. The fix is a like-for-like allocation plus working the 0–30 bucket before it rolls; consolidating the rest of the book is the worst option on the board.",
+    tags: "data analytics,anova,variance,confounding,segmentation,collections,nbfc,lending,statistics,simulation",
+  },
+  {
+    externalId: "chalo-multiple-comparisons",
+    title: "Chalo Fitness: fourteen ways to read one test, and the one that said yes",
+    prompt:
+      "A home-screen redesign shipped on a +11.3% booking-rate win in one segment. Three months on, churn is up and contribution is down ₹9 lakh a month. Work out what that readout was actually worth, then spend a month acting on it.",
+    category: "data-analytics",
+    sector: "technology",
+    difficulty: "Easy",
+    interviewLevel: "PM",
+    type: "simulation",
+    betterApproach:
+      "Ask how many comparisons produced the number before you ask whether the number is significant. A p-value's guarantee holds for one pre-specified question and decays fast as you add more, so divide the threshold by the count and see whether the result survives. Check whether the duration was fixed in advance or fixed by the result. Then ask the mirror question nobody asks: on the metric that came back flat, did the test have the power to have found anything? 'Not significant' and 'no effect' are different statements, and the second is a claim the data usually cannot support.",
+    sampleSolution:
+      "The experiment was clean — one change, randomised, correctly instrumented. The reading was not. The pre-registered primary metric came back flat, so the team cut the data fourteen ways and reported the one cell that crossed: +11.3% booking rate among 25–34s on Android in metros, p = 0.032. Fourteen comparisons at a 5% threshold carry a 51% chance of at least one false positive (1 − 0.95¹⁴), and a corrected bar would be 0.05 ÷ 14 = 0.0036. The test was also stopped on day 9 against a written 21-day plan, the afternoon it first crossed, with daily dashboard checks — and the cell was back above 0.05 by day 12. A pre-registered replication returned +0.4%, CI −3.1% to +3.9%. The mirror error is the expensive one: 30-day retention came back −1.8% at p = 0.19 and was filed as 'no effect' when the test could only detect 3%; the same design clears significance at 45 days. The mechanism was the streak widget taking the top slot and pushing the class browser two taps down — week-1 booking fell 51% → 46%, and week-1 bookers reach day 90 at 68% against 31%. Churn went 5.6% → 6.2%, so the base fell 8.9% through joiners ÷ churn. Building more of the widget is the worst option on the board, because an attended class costs ₹96 and buys no renewal.",
+    tags: "data analytics,experimentation,multiple comparisons,p-hacking,bonferroni,statistical power,optional stopping,churn,subscription,fitness,simulation",
   },
   {
     externalId: "vyapar-mitra-activation",

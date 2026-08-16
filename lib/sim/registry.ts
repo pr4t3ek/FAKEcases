@@ -15,6 +15,8 @@ import type { SimScenario } from "./types";
 import { metricDropFoodDelivery } from "./scenarios/metric-drop-food-delivery";
 import { adFunnelRoas } from "./scenarios/ad-funnel-roas";
 import { abTestReadout } from "./scenarios/ab-test-readout";
+import { sahyogAgencyRecovery } from "./scenarios/sahyog-agency-recovery";
+import { chaloMultipleComparisons } from "./scenarios/chalo-multiple-comparisons";
 import { vyaparMitraActivation } from "./scenarios/vyapar-mitra-activation";
 import { subscriptionLtvCac } from "./scenarios/subscription-ltv-cac";
 import { channelTradeSpend } from "./scenarios/channel-trade-spend";
@@ -40,7 +42,14 @@ import { cashRunwayTurnaround } from "./scenarios/cash-runway-turnaround";
 // difficulty order — Easy, Easy, Medium, ahead of the Medium block.
 const ALL: SimScenario[] = [
   adFunnelRoas,
+  // The analytics track, kept contiguous for the same reason the finance three
+  // are: it is a sequence rather than three scenarios that happen to share a
+  // subject. The A/B test teaches a student to read one comparison, and the
+  // agency league table shows them that a comparison between groups they did
+  // not choose is not a comparison at all.
   abTestReadout,
+  sahyogAgencyRecovery,
+  chaloMultipleComparisons,
   vyaparMitraActivation,
   subscriptionLtvCac,
   channelTradeSpend,

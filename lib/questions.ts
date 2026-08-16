@@ -58,12 +58,13 @@ function typeFilterFor(surface: QuestionSurface = "practice") {
  * The categories worth offering on a surface.
  *
  * Surface-aware because the vocabulary is shared but the catalogues are not.
- * Every war room is filed under `product-management` and no practice question
- * is, so a surface-blind list offered "Product Management" on `/library` — a
- * filter that could only ever render "No questions match your filters", since
+ * `product-management` and `data-analytics` hold war rooms and no practice
+ * question, so a surface-blind list offered "Product Management" on `/library` —
+ * a filter that could only ever render "No questions match your filters", since
  * the type constraint excludes the only rows in it. Asking the database which
  * categories actually have something to show is both the fix and the guarantee
- * it stays fixed as content moves.
+ * it stays fixed as content moves: the analytics track added a second
+ * simulation-only category later and needed no change here.
  */
 export async function listCategories(surface: QuestionSurface = "practice") {
   return db.category.findMany({

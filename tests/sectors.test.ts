@@ -114,12 +114,16 @@ describe("SECTORS", () => {
 
 describe("the categories a surface can actually show", () => {
   it("has at least one category holding only war rooms", () => {
-    // This is the bug `listCategories(surface)` exists for: every war room is
-    // filed under `product-management` and no practice question is, so a
-    // surface-blind list offered it on /library as a filter that could only
-    // ever return nothing. If this stops being true the guard is still correct,
-    // but the regression it was written against is gone — and the test should
-    // be re-read rather than deleted.
+    // This is the bug `listCategories(surface)` exists for: `product-management`
+    // holds war rooms and no practice question, so a surface-blind list offered
+    // it on /library as a filter that could only ever return nothing.
+    //
+    // War rooms are no longer all filed there — the analytics track carries its
+    // own `data-analytics` category, which is simulation-only for the same
+    // reason and would fail the same way. The guard names `product-management`
+    // because that is the category the regression was found on; what it is
+    // really asserting is that at least one simulation-only category exists for
+    // the surface filter to have to handle.
     const simulationOnly = seedCategories.filter((c) => {
       const inCategory = seedQuestions.filter((q) => q.category === c.slug);
       return (
