@@ -160,9 +160,9 @@ export function fixtureScenario(overrides: Partial<SimScenario> = {}): SimScenar
     debrief: {
       causalChain: ["Payouts were cut", "Riders left tier-2", "Orders fell"],
       whereTheLeverageWas: "Rider supply in tier-2.",
-      strongAnswer: "Localise the drop, then check supply before demand.",
+      strongAnswer: ["Localise the drop.", "Then check supply before demand."],
     },
-    coachFallback: [{ topic: ["rider", "supply"], answer: "Rider supply was the constraint." }],
+    coachFallback: [{ topic: ["rider", "supply"], answer: ["Rider supply was the constraint."] }],
   };
 
   return { ...base, ...overrides };

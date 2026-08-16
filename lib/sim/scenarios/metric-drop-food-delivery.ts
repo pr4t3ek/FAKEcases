@@ -1020,49 +1020,81 @@ export const metricDropFoodDelivery: SimScenario = {
     ],
     whereTheLeverageWas:
       "Rider supply in 46 tier-2 cities. Everything else in the dashboard — the funnel, the ETAs, the margin — is downstream of it, so a fix anywhere else buys a symptom back at full price.",
-    strongAnswer:
-      "Start by splitting orders into sessions and conversion. Sessions are flat, so this is not a demand problem and every national explanation — competitor spend, brand, seasonality — is already weak, because a national cause cannot produce a drop four times worse in tier-2 than in the metros. That leaves conversion, and the funnel localises it to checkout. The question then becomes: what changed about the offer at the moment of committing? ETA is the obvious candidate, and ETA is set by rider supply. From there, one pull confirms it. The trap is that discounting genuinely raises orders — so if you are measured on orders alone you can hit your number and hand back the entire contribution margin doing it, which is exactly what the previous six weeks of quiet discount increases had already started.",
+    strongAnswer: [
+      "Break orders into two parts: how many people visited, and what share of them ordered.",
+      "Visits are flat. So this is not a demand problem — people are still showing up.",
+      "That already weakens every national explanation, competitor spend and seasonality included: a national cause cannot make the drop four times worse in small cities than in the metros.",
+      "So it is the share who ordered. Walk the funnel and it breaks at checkout.",
+      "Then ask the right question: what changed about the offer at the moment someone commits?",
+      "Delivery time is the obvious candidate — and delivery time is set by how many riders we have.",
+      "One data pull confirms it, so there is no need to buy the whole board.",
+      "Name the trap too: discounting genuinely does raise orders.",
+      "So if you are measured on orders alone, you can hit your number and hand back all of the profit doing it — which is exactly what six weeks of quiet discount increases had already started.",
+    ],
   },
 
   coachFallback: [
     {
       topic: ["rider", "supply", "payout", "churn"],
-      answer:
-        "Rider supply was the constraint. A competitor's tier-2 payout hike pulled 22% of rider hours out of the affected cities, and monthly rider churn went from 6% to 19%. Everything else you saw was downstream of that.",
+      answer: [
+        "Rider supply was the real constraint.",
+        "A competitor raised rider pay in small cities, which pulled 22% of rider hours out of the affected ones. Monthly rider churn went from 6% to 19%.",
+        "Everything else you saw on the dashboard followed from that.",
+      ],
     },
     {
       topic: ["eta", "delivery time", "late"],
-      answer:
-        "Median tier-2 ETAs went from 31 to 48 minutes. That is the mechanism: customers reached checkout, saw a much worse offer than they were used to, and left.",
+      answer: [
+        "Typical delivery time in the small cities went from 31 minutes to 48.",
+        "That is the mechanism.",
+        "Customers got all the way to checkout, saw a much worse offer than they were used to, and left.",
+      ],
     },
     {
       topic: ["discount", "margin", "profit", "contribution"],
-      answer:
-        "Discount per order was already up 19% before you arrived, which is why contribution margin fell about four times faster than orders. Deepening discounts further does raise orders — it just pays for them out of the margin, so you hit the number and lose the business case.",
+      answer: [
+        "Discount per order was already up 19% before you arrived — which is why profit fell about four times faster than orders.",
+        "Discounting further does raise orders.",
+        "It just pays for them out of the money you keep, so you hit the number and lose the business case.",
+      ],
     },
     {
       topic: ["brand", "campaign", "marketing", "sessions", "traffic"],
-      answer:
-        "Orders are sessions times conversion. Sessions never fell, so buying more traffic adds volume to the top of a funnel that is breaking at the bottom — about 5% more sessions for almost no additional orders, and slightly worse conversion because the incremental traffic is lower-intent.",
+      answer: [
+        "Orders are visits multiplied by the share of visitors who order.",
+        "Visits never fell — so buying more traffic pours people into the top of a funnel that is breaking at the bottom.",
+        "About 5% more visits for almost no extra orders, and slightly worse conversion, because bought traffic wants it less.",
+      ],
     },
     {
       topic: ["release", "8.4", "engineering", "crash", "latency"],
-      answer:
-        "The 8.4 release was a coincidence of timing. Crash-free sessions and checkout latency were effectively unchanged, and the release went out nationally while the drop was regional.",
+      answer: [
+        "The 8.4 release was a coincidence of timing.",
+        "Crashes and checkout speed were effectively unchanged.",
+        "And the release went out nationally, while the drop was regional — so it cannot be the cause.",
+      ],
     },
     {
       topic: ["competitor", "promo", "external"],
-      answer:
-        "Competitor promo intensity did rise, but evenly across tiers, so it cannot explain a drop four times worse in tier-2. It is the reason the riders left, not the reason the customers did.",
+      answer: [
+        "Competitor promotions did rise — but evenly across big and small cities.",
+        "So they cannot explain a drop four times worse in the small ones.",
+        "That competitor is why the riders left, not why the customers did.",
+      ],
     },
     {
       topic: ["seasonality", "festival", "calendar"],
-      answer: "The same six weeks last year were flat, so seasonality does not explain this.",
+      answer: [
+        "The same six weeks last year were flat.",
+        "So the calendar does not explain this.",
+      ],
     },
     {
       topic: ["restaurant", "selection", "supply of restaurants"],
-      answer:
-        "Restaurant supply grew in every tier over the period. Customers were not short of places to order from.",
+      answer: [
+        "The number of restaurants grew in every tier over the period.",
+        "Customers were not short of places to order from.",
+      ],
     },
   ],
 };

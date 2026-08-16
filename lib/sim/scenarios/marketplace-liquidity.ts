@@ -687,55 +687,93 @@ export const marketplaceLiquidity: SimScenario = {
     ],
     whereTheLeverageWas:
       "Three zones in a three-hour window. Every lever that works here is pointed at them and nothing else: guaranteed earnings for a Whitefield morning, a heat map that lets a professional choose to be there, and an honest slot picker that stops promising hours the platform never had. Everything that was proposed at platform level — more demand, more professionals, better retention, higher prices — spends real money across a marketplace that is already working at 91% everywhere the failures are not.",
-    strongAnswer:
-      "The first thing I would say is that 79% is not a number, it is an average of 92% and 44%, and the two have nothing to do with each other. Cut match rate by zone and hour and three suburbs in the commute windows are 31% of requests and 78% of failures; take them out and the platform matches at 91%, better than last year. So this is not a shortage. 71% of the professionals we added signed up in the central zones, where utilisation is 31% — people sitting online waiting — while 44% of the new demand landed in suburbs running at 84% at peak. We grew both sides and grew them in different places. What makes it urgent rather than annoying is what a failure costs: a customer whose first booking goes unfilled comes back 21% of the time against 68%, so at ₹185 a failure we are burning ₹2.41 crore a month against a ₹33.6 lakh loss. That rules out the demand push immediately — 20% more requests into these zones is 20% more failures. I would put the money into the three zone-hours specifically: earnings guarantees at commute time, a demand heat map so professionals can self-select into the gap, and an honest slot picker that stops selling hours we cannot deliver. And I would change the dashboard, because a platform-level match rate is a number that can only ever hide this.",
+    strongAnswer: [
+      "Start by refusing the headline number. 79% is not a fact about the platform — it is an average of 92% and 44%, and those two have nothing to do with each other.",
+      "Cut the fill rate by area and by hour: three suburbs in the commute windows are 31% of requests and 78% of all failures.",
+      "Take those out and the platform fills 91% of jobs — better than last year.",
+      "So this is not a shortage of professionals. 71% of the ones we added signed up in the central areas, where they are busy only 31% of the time.",
+      "Meanwhile 44% of the new demand landed in suburbs already running at 84% at peak.",
+      "We grew both sides of the marketplace, and grew them in different places.",
+      "What makes it urgent is the cost of a failure: a customer whose first booking goes unfilled comes back 21% of the time, against 68%.",
+      "At ₹185 a failure that is ₹2.41 crore a month, against a reported loss of ₹33.6 lakh. The failures are not a symptom of the problem — they are most of it.",
+      "That rules out the demand campaign immediately. 20% more requests into those areas is 20% more failures.",
+      "Put the money into the three area-hours instead: guaranteed earnings at commute time, a demand map so professionals can choose to be there, and a slot picker that stops selling hours we cannot deliver.",
+      "And change the dashboard. A platform-wide fill rate is a number that can only ever hide this.",
+    ],
   },
 
   coachFallback: [
     {
       topic: ["zone", "hour", "density", "where", "whitefield", "suburb"],
-      answer:
-        "The failures are concentrated: three suburbs in the 8–11am and 6–9pm windows are 31% of requests and 78% of failures, matching at 41% to 52%. Everywhere else the platform runs at about 91%. A city-level match rate averages markets that have nothing to do with each other.",
+      answer: [
+        "The failures are concentrated, not spread out.",
+        "Three suburbs in the 8–11am and 6–9pm windows are 31% of requests and 78% of the failures, filling only 41% to 52% of jobs.",
+        "Everywhere else runs at about 91%. A city-wide average blends markets that have nothing to do with each other.",
+      ],
     },
     {
       topic: ["utilisation", "idle", "waiting", "31%", "84%"],
-      answer:
-        "Utilisation is 31% in the central zones and 84% at peak in the deficit suburbs. Idle and short at the same time on the same platform is the signature of a distribution problem, not a shortage.",
+      answer: [
+        "Professionals in the central areas are busy 31% of the time. In the short suburbs it is 84% at peak.",
+        "Being idle and short at the same time, on the same platform, is the signature of a distribution problem.",
+        "If it were a real shortage, nobody would be sitting waiting.",
+      ],
     },
     {
       topic: ["demand", "growth", "marketing", "push", "gmv"],
-      answer:
-        "Pushing demand 20% raises GMV about 12% and roughly triples the loss, because the extra requests land in the zones that already cannot fill them. Every one of those failures costs ₹185 and a customer who repeats at 21% instead of 68%.",
+      answer: [
+        "Pushing demand up 20% raises the money flowing through the platform about 12% and roughly triples the loss.",
+        "The extra requests land in the areas that already cannot fill the ones they have.",
+        "Every failure costs ₹185, and turns a customer who would have come back 68% of the time into one who comes back 21%.",
+      ],
     },
     {
       topic: ["recruit", "6000", "more professionals", "supply count", "hire"],
-      answer:
-        "Signing 6,000 professionals nationally does help — some of them land in the deficit zones by accident. You pay onboarding and incentives on all of them to move the four thousand that mattered, and utilisation falls further as the rest queue in zones already at 31%.",
+      answer: [
+        "Signing 6,000 professionals nationally does help a bit — some land in the short areas by accident.",
+        "But you pay to sign up and incentivise all six thousand to move the four thousand that mattered.",
+        "And the rest queue in areas already busy only 31% of the time, so the idle problem gets worse.",
+      ],
     },
     {
       topic: ["match rate", "liquidity", "average", "79"],
-      answer:
-        "Match rate is jobs filled ÷ bookings requested, and it is only meaningful at the level a match actually happens — a zone, in an hour, for a service. 79% platform-wide is 92% in most of the market and 44% in the part that broke.",
+      answer: [
+        "The fill rate is jobs filled divided by jobs requested.",
+        "It only means something at the level where a match actually happens: one area, in one hour, for one service.",
+        "79% across the platform is 92% in most of the market and 44% in the part that broke.",
+      ],
     },
     {
       topic: ["failure", "failed booking", "185", "repeat", "cost"],
-      answer:
-        "A failed booking costs ₹41 of support, ₹90 of credit in 62% of cases and ₹54 of lost repeat value — ₹185, and 1.3 lakh of them a month is ₹2.41 crore. The loss is ₹33.6 lakh, so the failures are not a symptom of the problem, they are most of it.",
+      answer: [
+        "A failed booking costs ₹41 in support, ₹90 in credits about 62% of the time, and ₹54 in the repeat business you lose — ₹185 in all.",
+        "There are 1.3 lakh of them a month, which is ₹2.41 crore.",
+        "The reported loss is ₹33.6 lakh. So the failures are not a symptom of the problem — they are most of it.",
+      ],
     },
     {
       topic: ["algorithm", "matching", "rewrite", "engine", "latency"],
-      answer:
-        "The rewrite improved things: latency 71 seconds to 40, first-offer acceptance 76% to 81%, and 94% match where a professional is free within 4 km. The engine fails only when it has nobody to offer the job to.",
+      answer: [
+        "The rewrite worked: time to match fell from 71 seconds to 40, and first-offer acceptance rose from 76% to 81%.",
+        "Where a professional is free within 4 km, it fills 94% of jobs.",
+        "The engine only fails when there is nobody nearby to offer the job to.",
+      ],
     },
     {
       topic: ["churn", "retention", "professional retention"],
-      answer:
-        "Professional retention is 62% against 63% a year ago and earnings per active hour are up ₹3. Nothing changed there, and holding more professionals in zones running at 31% utilisation adds cost without adding matches.",
+      answer: [
+        "Professional retention is 62%, against 63% a year ago — essentially unchanged.",
+        "And earnings per working hour are actually up ₹3.",
+        "Holding on to more professionals in areas that are busy 31% of the time adds cost without adding a single match.",
+      ],
     },
     {
       topic: ["price", "ticket", "raise price", "take rate"],
-      answer:
-        "₹840 sits between the comparable platforms at ₹805 and ₹890, so nothing in pricing explains the collapse. Raising it lifts match rate arithmetically by removing demand — you have bought the improvement with the customers who left, and the deficit zones are still unserved.",
+      answer: [
+        "₹840 sits between the comparable platforms at ₹805 and ₹890, so price explains nothing here.",
+        "Raising it does lift the fill rate — but only by driving away requests.",
+        "You would have bought the improvement with the customers who left, and the short areas are still unserved.",
+      ],
     },
   ],
 };

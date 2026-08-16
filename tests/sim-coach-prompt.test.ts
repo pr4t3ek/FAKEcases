@@ -39,7 +39,7 @@ function simContext(mentor?: SimCoachContext["mentor"]): InterviewerContext {
       trueCauseLabels: ["We collect late and pay early"],
       causalChain: ["DSO went from 52 to 118."],
       whereTheLeverageWas: "The days, not the deals.",
-      strongAnswer: "Bridge profit to cash first.",
+      strongAnswer: ["Bridge profit to cash first."],
       studentDiagnosis: ["We are carrying too much stock"],
       studentAllocation: [],
       scores: [{ label: "Diagnosis accuracy", value: 40 }],
@@ -70,6 +70,22 @@ describe("simCoachRules", () => {
     for (const rules of [simCoachRules(), simCoachRules({ persona: "a CFO", audience: "analyst" })]) {
       expect(rules).toContain("Never invent a number");
       expect(rules).toContain("The run is FINISHED and scored");
+    }
+  });
+
+  /**
+   * The debrief is read by someone who has just been told they were wrong,
+   * which is the worst moment to hand anyone a dense paragraph. Bullets and
+   * plain words are the format, and the prompt has to ask for both — it used to
+   * ask for the opposite ("no bullet lists").
+   */
+  it("asks for short bullets in plain words, whoever is speaking", () => {
+    for (const rules of [simCoachRules(), simCoachRules({ persona: "a CFO", audience: "analyst" })]) {
+      expect(rules).toMatch(/bullets/);
+      expect(rules).not.toMatch(/no bullet lists/);
+      // The gloss rule is what keeps a CFO persona from burying a student in
+      // vocabulary it never explains.
+      expect(rules).toContain("gloss it");
     }
   });
 });

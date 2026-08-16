@@ -629,50 +629,85 @@ export const pnlProfitSqueeze: SimScenario = {
     ],
     whereTheLeverageWas:
       "The fourteen stores, on both sides of their own P&L: pull their revenue up the ramp curve faster, and stop their rent behaving like a mature store's while they are not one. Everything the room proposed was aimed at the 46 stores that were already having a good year — and the advertising cut would have taken the launch campaigns away from exactly the fourteen that needed them.",
-    strongAnswer:
-      "Do not diagnose a consolidated P&L. Revenue rose 22% because the store count rose 30%, so the first thing to establish is whether the shops got worse or whether there are simply more of them — which means splitting the statement into stores that traded in both years and stores that did not. Done that way, the 46 mature stores contributed ₹15.64 crore against ₹14.48 crore: a better year. The 14 new ones contributed minus ₹1.09 crore, and carried ₹0.90 crore of depreciation, ₹0.55 crore of interest and ₹1.20 crore of launch marketing besides. That is essentially the whole ₹2.90 crore fall in net profit. It is also not a problem in the sense the board means: every store this chain has opened reached 36% of mature revenue in year one and 61% in year two, so these are on curve, and the plan simply budgeted as though they would not be. So the answer is not to cut — it is to shorten the ramp and to stop paying mature rent on immature stores, which is what a revenue-share lease does. The margin story is real and small: 1.4 points, about ₹1 crore, and the price trial showed 3.5 points of margin on 11% fewer units is worth under 1% of gross profit. The advertising cut is the expensive one, because ₹1.20 crore of that budget is the only thing pulling the fourteen up the curve.",
+    strongAnswer: [
+      "Never diagnose a combined P&L. Revenue rose 22% because we opened 30% more stores.",
+      "So the first question is whether the shops got worse, or whether there are simply more of them.",
+      "Split the statement: stores that traded in both years, and stores that did not.",
+      "The 46 older stores contributed ₹15.64 crore against ₹14.48 crore last year. They had a better year.",
+      "The 14 new ones contributed minus ₹1.09 crore, and carried ₹0.90 crore of depreciation, ₹0.55 crore of interest and ₹1.20 crore of launch marketing on top.",
+      "That is essentially the entire ₹2.90 crore fall in profit.",
+      "And it is not a problem in the way the board means. Every store this chain has ever opened reached about 36% of a mature store's revenue in year one; these are at 38%.",
+      "The stores are on curve. The budget was not.",
+      "So the answer is not to cut. It is to pull the new stores up the curve faster, and to stop paying mature rent on immature stores — which is what a revenue-share lease does.",
+      "The margin story is real but small: 1.4 points, about ₹1 crore of a ₹2.90 crore fall.",
+      "And the advertising cut is the expensive one. ₹1.20 crore of that budget is the only thing pulling the fourteen up the curve.",
+    ],
   },
 
   coachFallback: [
     {
       topic: ["like for like", "like-for-like", "lfl", "same store", "mature", "split", "new stores"],
-      answer:
-        "Splitting the P&L was the whole exercise. The 46 mature stores contributed ₹15.64 crore against ₹14.48 crore last year — up ₹1.16 crore like-for-like. The 14 new stores contributed minus ₹1.09 crore. Consolidated, those average into a company that looks like it is falling apart.",
+      answer: [
+        "Splitting the P&L was the whole exercise — comparing only the stores that traded in both years.",
+        "The 46 older stores contributed ₹15.64 crore against ₹14.48 crore: up ₹1.16 crore.",
+        "The 14 new stores contributed minus ₹1.09 crore. Averaged together, those look like a company falling apart.",
+      ],
     },
     {
       topic: ["ramp", "curve", "first year", "immature", "38%", "new store revenue"],
-      answer:
-        "Every one of the 31 stores this chain has opened since FY18 reached about 36% of mature revenue in year one, 61% in year two and 89% in year three. The fourteen are at 38%. They are on curve — the plan was not.",
+      answer: [
+        "A new store takes years to reach the sales of an established one.",
+        "All 31 stores this chain has opened since FY18 hit about 36% of mature revenue in year one, 61% in year two and 89% in year three.",
+        "The fourteen are at 38%. They are on curve — the plan was not.",
+      ],
     },
     {
       topic: ["gross margin", "1.4 points", "discount", "discounting", "cogs", "fabric", "input cost"],
-      answer:
-        "Gross margin fell 1.4 points: half a point of fabric cost, half a point of end-of-season discounting and 0.4 points of mix as new stores sell more basics. That is about ₹1 crore against a ₹2.90 crore fall in net profit — real, and a third of the story at most.",
+      answer: [
+        "The money kept on each rupee of sales fell 1.4 points: half a point of fabric cost, half a point of end-of-season discounting, 0.4 points because new stores sell more basics.",
+        "That is about ₹1 crore against a ₹2.90 crore fall in profit.",
+        "Real, and at most a third of the story.",
+      ],
     },
     {
       topic: ["advertising", "ad spend", "4.6", "cut ads", "founder", "marketing"],
-      answer:
-        "Cutting advertising to ₹2.9 crore saves ₹1.70 crore and gives back about ₹1.65 crore of gross profit, so it is very nearly self-cancelling. Worse, ₹1.20 crore of that budget is launch marketing in the 14 new catchments — the FY23 openings that got no campaign ran 22% lower footfall and took seven extra months to ramp.",
+      answer: [
+        "Cutting advertising to ₹2.9 crore saves ₹1.70 crore and gives back about ₹1.65 crore of gross profit — very nearly self-cancelling.",
+        "Worse, ₹1.20 crore of that budget is launch marketing in the 14 new areas.",
+        "The FY23 openings that got no campaign ran 22% lower footfall and took seven extra months to find their feet.",
+      ],
     },
     {
       topic: ["overhead", "opex", "corporate", "cfo", "cost base", "rent"],
-      answer:
-        "Store costs grew 41% on a store count up 30%; the gap is that the new leases cost ₹30 lakh a year against ₹24.5 lakh for a mature one. Corporate overhead is the only line genuinely outgrowing the business, and it is ₹0.80 crore of a ₹2.90 crore problem.",
+      answer: [
+        "Store costs grew 41% while store count grew 30%.",
+        "The gap is rent: a new lease costs ₹30 lakh a year against ₹24.5 lakh for an established one.",
+        "Head-office cost is the only line genuinely outgrowing the business, and it is ₹0.80 crore of a ₹2.90 crore problem.",
+      ],
     },
     {
       topic: ["price", "price rise", "6%", "trial", "charge more"],
-      answer:
-        "The nine-store trial is the answer to that: 6% on tickets lifted gross margin 3.5 points and cost 11% of units, moving gross profit less than 1%. And it lands hardest on the new stores, which are still buying their catchment.",
+      answer: [
+        "The nine-store trial already answered this.",
+        "Charging 6% more lifted the margin 3.5 points and cost 11% of units, which moved gross profit less than 1%.",
+        "And it lands hardest on the new stores, which are still winning their neighbourhood.",
+      ],
     },
     {
       topic: ["lease", "revenue share", "renegotiate", "landlord"],
-      answer:
-        "The revenue-share lease is the cost half of the answer. A first-year store's problem is that its rent does not know it is a first-year store — moving to a percentage of turnover makes the biggest fixed cost variable for exactly as long as the store needs it to be.",
+      answer: [
+        "This is the cost half of the answer.",
+        "A first-year store's problem is that its rent does not know it is a first-year store.",
+        "Paying a percentage of sales instead makes the biggest fixed cost flex for exactly as long as the store needs it to.",
+      ],
     },
     {
       topic: ["depreciation", "interest", "below the line", "ebitda"],
-      answer:
-        "Depreciation rose ₹0.90 crore and interest ₹0.55 crore, and both are the fourteen stores: their fit-outs are being written down over eight years and the debt that paid for them is being serviced. That is ₹1.45 crore of the ₹2.90 crore fall sitting below EBITDA, which is why EBITDA alone under-reports what the expansion cost.",
+      answer: [
+        "Depreciation rose ₹0.90 crore and interest ₹0.55 crore — both are the fourteen new stores.",
+        "Their fit-outs are being written off over eight years, and the loans that paid for them are being repaid.",
+        "That is ₹1.45 crore of the ₹2.90 crore fall sitting below EBITDA, which is why EBITDA alone understates what the expansion cost.",
+      ],
     },
   ],
 };

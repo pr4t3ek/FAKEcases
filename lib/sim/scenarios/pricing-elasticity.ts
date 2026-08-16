@@ -504,40 +504,68 @@ export const pricingElasticity: SimScenario = {
     ],
     whereTheLeverageWas:
       "The promotion line that was cut to save ₹12.5 lakh a quarter, and has cost far more than that in lost volume. Restoring visibility in modern trade recovers the units without touching price — and price, once cut, is extremely hard to put back.",
-    strongAnswer:
-      "Answer the CFO's question first, because it settles the argument: at ₹499 with ₹312 of variable cost, contribution is ₹187, and a 15% cut takes it to ₹112. That is a 40% fall in margin from a 15% fall in price, so break-even needs about 67% more volume. Historical elasticity is 1.2, which offers 18%. The cut is arithmetically a loser before you know anything else. Then find where the volume actually went: modern trade is down 31% and general trade down 2%, and no national price move produces a fifteen-fold difference between channels. What did change in that channel was our own promotion spend, cut 64% two quarters earlier — the volume followed one quarter later and the competitor's price cut arrived in time to take the blame. Worth adding that the same elasticity means a 5% price *rise* improves profit here, which is a useful check on the instinct that share is always defended with price.",
+    strongAnswer: [
+      "Answer the CFO's question first, because the arithmetic settles the argument.",
+      "We sell at ₹499 and it costs ₹312 to make, so each unit leaves ₹187 behind.",
+      "Cut the price 15% and the unit leaves ₹112 — a 15% price cut takes 40% of the profit per unit.",
+      "To stand still we would need about 67% more units. Past behaviour says a 15% cut buys about 18%.",
+      "So the price cut loses on the numbers, before we know anything else about the market.",
+      "Then find where the volume actually went. Supermarkets are down 31%; local shops are down 2%.",
+      "No national price cut by a competitor produces a fifteen-fold gap between two channels — so something channel-specific did this.",
+      "What changed there was ours: we cut promotion spend in supermarkets by 64% two quarters ago, and the volume followed a quarter later.",
+      "The competitor's price cut simply arrived in time to take the blame.",
+      "Worth adding: at this sensitivity a 5% price *rise* actually improves profit — a useful check on the instinct to defend share with price.",
+    ],
   },
 
   coachFallback: [
     {
       topic: ["break even", "break-even", "volume", "67", "price cut"],
-      answer:
-        "Contribution is ₹499 − ₹312 = ₹187. At a 15% cut the price is ₹424 and contribution is ₹112, so you need 187 ÷ 112 − 1 ≈ 67% more volume just to stand still. Elasticity of 1.2 buys about 18%. The cut loses by arithmetic.",
+      answer: [
+        "Each unit leaves behind ₹499 − ₹312 = ₹187.",
+        "Cut the price 15% and it sells for ₹424, leaving ₹112 — so you need 187 ÷ 112 − 1 ≈ 67% more units just to stand still.",
+        "Customers only give you about 18% more at that price. The cut loses by arithmetic.",
+      ],
     },
     {
       topic: ["elasticity", "price sensitivity", "1.2"],
-      answer:
-        "Measured elasticity is about 1.2 — a 1% price move shifts volume 1.2%. Compare that with the break-even requirement before any price decision; here 18% of achievable volume against a 67% requirement settles it.",
+      answer: [
+        "Price sensitivity here is about 1.2 — drop the price 1% and you sell about 1.2% more.",
+        "Always compare that against how much more you would need to sell to break even.",
+        "Here it is 18% available against 67% needed, which settles it.",
+      ],
     },
     {
       topic: ["promotion", "trade promotion", "display", "facings", "visibility"],
-      answer:
-        "That was the cause. Modern-trade promotion was cut 64% two quarters ago to protect margin, facings went from 4.1 to 1.6, and volume in that channel fell 31% a quarter later while general trade fell 2%.",
+      answer: [
+        "This was the cause.",
+        "Promotion spend in supermarkets was cut 64% two quarters ago to protect margin, and our shelf displays went from 4.1 to 1.6 per store.",
+        "Volume in that channel fell 31% a quarter later, while local shops fell 2%.",
+      ],
     },
     {
       topic: ["channel", "modern trade", "general trade"],
-      answer:
-        "Modern trade −31%, general trade −2%, e-commerce +4%. A national price cut by a competitor cannot produce a fifteen-fold difference between channels — that pattern points at something channel-specific, and it was our own promotion spend.",
+      answer: [
+        "Supermarkets −31%, local shops −2%, online +4%.",
+        "A competitor's national price cut hits every channel, so it cannot produce a fifteen-fold gap between them.",
+        "That pattern points at something happening in one channel only — and it was our own promotion spend.",
+      ],
     },
     {
       topic: ["raise price", "price up", "increase price", "5%"],
-      answer:
-        "Counter-intuitively it improves profit. Contribution goes from ₹187 to ₹212 and the volume you lose is worth less than the margin you gain, because demand is inelastic. It does not fix the channel problem, but it does show that matching a price cut is a reflex rather than a calculation.",
+      answer: [
+        "Against the instinct, raising the price improves profit here.",
+        "Each unit goes from leaving ₹187 to leaving ₹212, and the few customers you lose are worth less than that gain.",
+        "It does not fix the shelf problem — but it shows that matching a price cut was a reflex, not a calculation.",
+      ],
     },
     {
       topic: ["competitor", "match", "share"],
-      answer:
-        "They gained 1.1 points of share, and so did modern-trade private label — both in the channel where our display vanished. The price cut found an opening that our promotion cut had already made.",
+      answer: [
+        "They gained 1.1 points of share, and so did the supermarkets' own-label brand.",
+        "Both gains came in the channel where our display had vanished.",
+        "Their price cut found an opening that our promotion cut had already made.",
+      ],
     },
   ],
 };

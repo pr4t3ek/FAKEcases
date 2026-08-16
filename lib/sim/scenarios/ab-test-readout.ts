@@ -713,50 +713,83 @@ export const abTestReadout: SimScenario = {
     ],
     whereTheLeverageWas:
       "Unbundling. The +6% was real, significant, durable and correctly measured, and about a quarter of it was worth having. Splitting the arm let you keep the +1.4% from the page and refuse the returns that came with the rest — and the pre-tick's success pointed straight at the fix worth funding, because shoppers only wanted two sizes sent because they could not tell which one would fit.",
-    strongAnswer:
-      "I would not ship it, and my reason is not that I doubt the number. The conversion result is real: 1.85 lakh per arm, p = 0.004, flat across the test, still holding three weeks later. The problem is that it is a result about conversion in a business whose economics run on returns. The variant bundled two changes, and the change carrying the lift was a pre-ticked box inviting the shopper to order two sizes and send one back — which they did, at 9.8% against 6.1%. That was invisible on day six only because reverse pickup takes a fortnight, so a six-day test measures everything a change earns and nothing of what it costs. Netted out, a returned order loses its margin and costs ₹210 to process, so the ship is worth minus 6.7% on contribution. So: ship the page alone for the +1.4% it genuinely earns, and treat the pre-tick's success as the actual finding — shoppers ordered two sizes because they could not tell what would fit, which is a sizing-data problem worth solving properly. And I would change the default: from now on the ship bar is contribution measured to 30 days, not conversion measured to the end of the test.",
+    strongAnswer: [
+      "I would not ship it — and not because I doubt the number.",
+      "The conversion result is real: 1.85 lakh shoppers per arm, p = 0.004, steady across the test, still holding three weeks later.",
+      "The problem is that it measures conversion, in a business whose profit turns on returns.",
+      "The variant changed two things at once, and the one carrying the lift was a pre-ticked box inviting shoppers to order two sizes and send one back. They did: 9.8% sent something back, against 6.1%.",
+      "That was invisible on day six because a return takes about a fortnight to come back. A six-day test sees everything a change earns and none of what it costs.",
+      "Netted out: a returned order loses its margin and costs ₹210 to handle, so shipping the whole thing is worth minus 6.7% on profit.",
+      "So ship the redesigned page on its own for the +1.4% it genuinely earns, and leave the box behind.",
+      "Treat the box's success as the real finding: shoppers ordered two sizes because they could not tell what would fit. That is a sizing problem worth solving properly.",
+      "And change the bar. From now on we ship on profit measured to 30 days, not conversion measured to the end of the test.",
+    ],
   },
 
   coachFallback: [
     {
       topic: ["confound", "two changes", "bundle", "variant", "pre-tick", "checkbox"],
-      answer:
-        "The variant was two changes in one arm — a redesigned page and a pre-ticked \"send me two sizes\" box. The page was worth +1.4%; the box was worth the rest of the +6% and a 60% rise in returns. A test can only tell you which change worked if the arm contains one change.",
+      answer: [
+        "The variant changed two things at once: a redesigned page, and a pre-ticked \"send me two sizes\" box.",
+        "The page was worth +1.4%. The box was worth the rest of the +6% — and a 60% rise in returns.",
+        "A test can only tell you which change worked if the arm holds one change.",
+      ],
     },
     {
       topic: ["return", "returns", "reverse", "refund", "9.8"],
-      answer:
-        "Returns went from 6.1% to 9.8% in the variant — but only visibly so once orders were followed to 30 days. Reverse pickup takes 12 to 16 days, so on day six, when the test was read, both arms sat at about 2% and looked identical.",
+      answer: [
+        "Returns went from 6.1% to 9.8% — but you could only see it by following orders out to 30 days.",
+        "A return takes 12 to 16 days to come back through pickup.",
+        "So on day six, when the test was read, both arms sat at about 2% and looked identical.",
+      ],
     },
     {
       topic: ["significance", "p-value", "sample", "power", "confidence", "real"],
-      answer:
-        "The result was solid: 1.85 lakh users per arm, p = 0.004, a 95% interval of +3.7% to +8.3%. Significance tells you the number is real. It says nothing about whether it is the number you should be deciding on, and here it wasn't.",
+      answer: [
+        "The result was solid: 1.85 lakh users per arm, p = 0.004, and a range of +3.7% to +8.3%.",
+        "Significance tells you a number is real — that you did not get it by luck.",
+        "It says nothing about whether it is the number you should be deciding on. Here it wasn't.",
+      ],
     },
     {
       topic: ["novelty", "fade", "decay", "wear off"],
-      answer:
-        "Not novelty. The daily lift was flat across all six days and the day-one cohort was still +5.7% three weeks after the test closed. The behaviour change is durable — which makes the returns durable too.",
+      answer: [
+        "Not novelty — this was not people reacting to something just because it was new.",
+        "The daily lift was flat across all six days, and the first day's shoppers were still +5.7% three weeks after the test closed.",
+        "The behaviour change is durable, which makes the returns durable too.",
+      ],
     },
     {
       topic: ["seasonal", "festive", "season", "diwali"],
-      answer:
-        "Seasonality was in the test and it cancelled out. Both arms ran on the same six days on randomly split traffic, so the festive lift landed on both — sitewide conversion rose from 3.9% to 4.3% across the window, in the control as well as the variant.",
+      answer: [
+        "The festive season was in the test, and it cancelled out.",
+        "Both arms ran on the same six days with traffic split at random, so the festive lift landed on both.",
+        "Sitewide conversion rose from 3.9% to 4.3% across the window — in the control as much as the variant.",
+      ],
     },
     {
       topic: ["ship", "launch", "monday", "decision"],
-      answer:
-        "Shipping the whole variant does exactly what the test promised — conversion, orders and revenue all up 6% — and takes net contribution down 6.7%, because a returned order loses its 19% margin and costs ₹210 to handle. Shipping the page alone keeps the +1.4% and none of that.",
+      answer: [
+        "Shipping the whole variant does exactly what the test promised: conversion, orders and revenue all up 6%.",
+        "It also takes profit down 6.7%, because a returned order loses its 19% margin and costs ₹210 to handle.",
+        "Shipping the page on its own keeps the +1.4% and none of that.",
+      ],
     },
     {
       topic: ["sizing", "size guide", "fit", "measurements"],
-      answer:
-        "The pre-tick worked because shoppers cannot tell what will fit. Publishing real garment measurements and fit data from past orders answers the same need directly: it converts on its own merits and takes returns down 16% instead of up 60%.",
+      answer: [
+        "The box worked because shoppers cannot tell what will fit.",
+        "Publishing real garment measurements, plus fit data from past orders, answers that need directly.",
+        "It converts on its own merits and takes returns down 16% instead of up 60%.",
+      ],
     },
     {
       topic: ["contribution", "margin", "profit", "north star", "metric"],
-      answer:
-        "Net contribution is margin on the orders people kept, minus the cost of handling the ones they sent back. Conversion, orders and revenue are all upstream of it — and this scenario exists because a change can move every one of them up while moving contribution down.",
+      answer: [
+        "Net contribution is the money left on the orders people kept, minus the cost of handling the ones they sent back.",
+        "Conversion, orders and revenue all sit above it in the chain.",
+        "This scenario exists because a change can push every one of those up while pushing contribution down.",
+      ],
     },
   ],
 };

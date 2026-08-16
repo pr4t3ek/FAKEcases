@@ -537,45 +537,74 @@ export const subscriptionLtvCac: SimScenario = {
     ],
     whereTheLeverageWas:
       "The divisor. Because the steady-state base is joiners divided by churn, cutting churn from 11% to 6.6% grows the business 67% without one extra rupee of acquisition — while a 50% increase in acquisition spend buys about a quarter as much base and has to be paid again every nine months.",
-    strongAnswer:
-      "The ratio that looks healthiest is the one causing the confusion. LTV:CAC of 4.6 is a per-subscriber test, and it was true — each subscriber really did return 4.6 times what they cost. It just says nothing about whether the base is big enough to cover ₹2.6 crore of fixed costs. So the question is not 'is a subscriber worth acquiring' but 'how big does this base get', and that is joiners ÷ churn. At 18,000 and 11%, it caps out around 1.64 lakh — structurally too small, no matter how efficient acquisition becomes. From there the diagnosis is a retention question, and the cohort data localises it hard: 62% of leavers never finished a single practice test, and the ones who did retained four times better. That is an onboarding problem, not a content problem, and the fix is in the denominator rather than the numerator.",
+    strongAnswer: [
+      "The healthiest-looking number is the one causing the confusion.",
+      "LTV:CAC of 4.6 was true — each subscriber really did return 4.6 times what they cost to win.",
+      "But it is a test on one subscriber. It says nothing about whether we have enough of them to cover ₹2.6 crore of fixed costs.",
+      "So the question is not \"is a subscriber worth buying\" but \"how big does this base ever get\".",
+      "That number is joiners ÷ churn. At 18,000 joining and 11% leaving each month, it settles around 1.64 lakh — too small, however cheap acquisition gets.",
+      "From there it is a retention question, and the cohort data points hard: 62% of the people who left never finished a single practice test.",
+      "The ones who did finish one stayed about four times as well.",
+      "So this is an onboarding problem, not a content problem — and the fix is in what we divide by, not what we multiply.",
+    ],
   },
 
   coachFallback: [
     {
       topic: ["churn", "retention", "leave", "cancel"],
-      answer:
-        "Churn was the cause. At 11% a month a subscriber lasts about nine months and the base settles at joiners ÷ churn ≈ 1.64 lakh. 62% of the people who cancelled never completed a practice test in week one — they left because they never started.",
+      answer: [
+        "Churn — the share of subscribers leaving each month — was the cause.",
+        "At 11% a month a subscriber stays about nine months, and the base settles at joiners ÷ churn, roughly 1.64 lakh.",
+        "62% of the people who cancelled never completed a practice test in their first week. They left because they never really started.",
+      ],
     },
     {
       topic: ["ltv", "cac", "ratio", "4.6", "payback"],
-      answer:
-        "LTV:CAC of 4.6 was genuinely true and genuinely irrelevant. It is a per-subscriber test: it tells you a subscriber is worth acquiring, not whether the base ever gets big enough to cover ₹2.6 crore of fixed costs. It didn't.",
+      answer: [
+        "LTV:CAC of 4.6 was genuinely true and genuinely beside the point.",
+        "It compares what one subscriber is worth against what one costs — so it tells you a subscriber is worth buying.",
+        "It does not tell you whether the base ever gets big enough to cover ₹2.6 crore of fixed costs. It didn't.",
+      ],
     },
     {
       topic: ["steady state", "base", "subscribers", "formula", "bucket"],
-      answer:
-        "The base settles at new subscribers ÷ churn rate — 18,000 ÷ 0.11 ≈ 1.64 lakh. That formula is the whole scenario: acquisition moves the numerator and retention moves the divisor, and the divisor is worth about four times as much.",
+      answer: [
+        "A subscriber base settles at new subscribers ÷ churn rate: 18,000 ÷ 0.11 ≈ 1.64 lakh.",
+        "Think of a bucket with a hole — the level stops rising when what pours in matches what leaks out.",
+        "Acquisition changes what pours in; retention changes the size of the hole. The hole was worth about four times as much here.",
+      ],
     },
     {
       topic: ["acquisition", "more ads", "spend", "growth"],
-      answer:
-        "Spending 50% more on acquisition really does grow the base — it is the numerator. But you pay for those subscribers again every nine months, and the same money spent on churn buys roughly four times as much base permanently.",
+      answer: [
+        "Spending 50% more on acquisition really does grow the base — more people pouring in.",
+        "But you pay for those subscribers again every nine months, because that is how long they stay.",
+        "The same money spent on keeping people buys roughly four times as much base, and you only pay once.",
+      ],
     },
     {
       topic: ["price", "arpu", "299", "raise"],
-      answer:
-        "The price rise gave 20% more ARPU, 12% more churn and 15% fewer sign-ups. Because the base is joiners over churn, that hits the numerator and the divisor at once — it earns less than it costs.",
+      answer: [
+        "The price rise brought 20% more revenue per subscriber — and 12% more of them leaving, plus 15% fewer signing up.",
+        "Since the base is joiners divided by churn, that hurts both halves of the sum at once.",
+        "It earns less than it costs.",
+      ],
     },
     {
       topic: ["onboarding", "week one", "practice test", "activation"],
-      answer:
-        "Students who finished a practice test in week one retained at 79% to month three; those who didn't retained at 19%, and they were 62% of joiners. Getting people to finish something early was the highest-leverage thing available.",
+      answer: [
+        "Students who finished a practice test in week one were still there at month three 79% of the time.",
+        "Those who didn't: 19% — and they were 62% of everyone who joined.",
+        "Getting people to finish something early was the biggest lever on the board.",
+      ],
     },
     {
       topic: ["content", "nps", "product quality"],
-      answer:
-        "The content was fine — NPS 61 among students who actually used it. The problem was never quality, it was how many people never got far enough to encounter it.",
+      answer: [
+        "The content was fine. Students who actually used it rated it 61 on NPS, which is strong.",
+        "The problem was never quality.",
+        "It was how many people never got far enough in to see it.",
+      ],
     },
   ],
 };

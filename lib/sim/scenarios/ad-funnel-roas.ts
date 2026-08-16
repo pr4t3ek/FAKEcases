@@ -554,45 +554,74 @@ export const adFunnelRoas: SimScenario = {
     ],
     whereTheLeverageWas:
       "The product the ads sell, not the ads. A campaign breaks even when ROAS clears 1 ÷ gross margin — 4.55 for the starter pack, 2.44 for the subscription bundle. Pointing the same budget at the bundle turns the same ROAS from a loss into a profit without changing a single thing about the advertising.",
-    strongAnswer:
-      "Start by asking what a rupee of sales is actually worth, because ROAS treats all of them the same and the business does not. At 22% gross margin, break-even ROAS is 1 ÷ 0.22 = 4.55, so a ROAS of 4.0 is below water — the CMO and Finance are both reading correct numbers and only one of them is reading a profit number. Then check what the ads sell: 91% of ad-driven orders are the lowest-margin product we make, while organic customers pick the bundle a third of the time. So this is a mix problem wearing a marketing problem's clothes. The trap is that the efficiency fixes are real — click-through is below benchmark, CPM is above it — and fixing both still leaves CAC roughly level with contribution, because you cannot optimise your way out of a margin that is too thin. And scaling spend, which is what the ROAS chart argues for, multiplies the loss rather than the profit.",
+    strongAnswer: [
+      "Ask what a rupee of sales is actually worth. ROAS treats every rupee the same; the business does not.",
+      "Work out the break-even ROAS: 1 ÷ gross margin. At 22% margin that is 4.55, so a ROAS of 4.0 is losing money.",
+      "That settles the argument. The CMO and Finance are both reading correct numbers — only one of them is reading a profit number.",
+      "Then ask what the ads actually sell. 91% of ad-driven orders are our lowest-margin product; organic customers pick the bundle a third of the time.",
+      "So this is a product-mix problem dressed up as a marketing problem.",
+      "Name the trap: the efficiency fixes are real (clicks are below benchmark, CPM above it) and fixing both still leaves us losing money. You cannot optimise your way out of a margin that is too thin.",
+      "Name the bigger trap: the ROAS chart argues for spending more, and spending more multiplies the loss instead of the profit.",
+      "Recommend pointing the same budget at the bundle. The advertising does not change; what it sells does.",
+    ],
   },
 
   coachFallback: [
     {
       topic: ["roas", "return on ad spend", "4.0", "why was roas wrong"],
-      answer:
-        "ROAS is measured on sales, not profit, so it never sees your margin. A campaign only breaks even when ROAS clears 1 ÷ gross margin. At 22% that is 4.55, so the 4.0 everyone was celebrating was a loss the whole time.",
+      answer: [
+        "ROAS counts sales, not profit — so it never sees what a sale costs you to make.",
+        "A campaign only breaks even once ROAS passes 1 ÷ gross margin. At 22% margin that is 4.55.",
+        "So the 4.0 everyone was celebrating had been a loss the whole time.",
+      ],
     },
     {
       topic: ["margin", "mix", "product", "bundle", "starter pack"],
-      answer:
-        "91% of ad-driven orders were the ₹1,450 starter pack at 22% margin, while the ₹2,900 subscription bundle carries 41%. The ads were pointed at the worst thing you sell — that was the cause, and the fix was to point them somewhere else.",
+      answer: [
+        "91% of the orders the ads brought in were the ₹1,450 starter pack, which keeps 22% of its price as margin.",
+        "The ₹2,900 subscription bundle keeps 41%.",
+        "The ads were pointed at the worst thing you sell. That was the cause, and the fix was to point them somewhere else.",
+      ],
     },
     {
       topic: ["cac", "acquisition cost", "per order", "contribution"],
-      answer:
-        "CAC was ₹10,00,000 ÷ 2,750 orders = ₹364. Each order contributed ₹1,450 × 22% = ₹319. Paying ₹364 for ₹319 loses ₹45 a customer, and you did it 2,750 times a month.",
+      answer: [
+        "What you paid in ads per order: ₹10,00,000 ÷ 2,750 orders = ₹364.",
+        "What one order left behind: ₹1,450 × 22% = ₹319.",
+        "Paying ₹364 to earn ₹319 loses ₹45 each time — and you did it 2,750 times a month.",
+      ],
     },
     {
       topic: ["budget", "spend more", "scale", "double"],
-      answer:
-        "Orders scale with budget, so scaling spend scales the loss on each one — 50% more budget took the monthly loss from ₹1.2 lakh to about ₹1.8 lakh. When CAC is above contribution per order, spending more is always worse, however good the ROAS chart looks.",
+      answer: [
+        "Orders go up with budget, so a bigger budget just buys more of the same losing order.",
+        "50% more budget took the monthly loss from about ₹1.2 lakh to about ₹1.8 lakh.",
+        "When each customer costs more than they leave behind, spending more is always worse — however good the ROAS chart looks.",
+      ],
     },
     {
       topic: ["creative", "ctr", "click", "agency"],
-      answer:
-        "Click-through was 1.1% against a 1.25% benchmark, so the agency was right that there was room. Closing it takes CAC from ₹364 to about ₹325 — still above the ₹319 an order contributes. It narrows the loss and never closes it, because the problem is the margin, not the clicks.",
+      answer: [
+        "The agency was right that there was room: 1.1% of viewers clicked, against a 1.25% benchmark.",
+        "Closing that gap takes the cost per order from ₹364 down to about ₹325.",
+        "An order still only leaves behind ₹319, so it narrows the loss and never closes it. The problem is the margin, not the clicks.",
+      ],
     },
     {
       topic: ["cpm", "audience", "targeting", "platform"],
-      answer:
-        "CPM was ₹180 against a ₹165 benchmark and rising about 4% a month. Narrowing the audience buys more impressions for the same money, but every extra order still carries only ₹319 — same verdict as the creative work.",
+      answer: [
+        "It cost ₹180 to show the ad a thousand times, against a ₹165 benchmark, and it was rising about 4% a month.",
+        "A narrower audience buys more views for the same money.",
+        "But every extra order still leaves behind only ₹319 — same verdict as the creative work.",
+      ],
     },
     {
       topic: ["repeat", "cohort", "second order", "ltv", "lifetime"],
-      answer:
-        "Only 14% of starter-pack buyers reorder within 90 days, against 44% of bundle buyers. There was no second purchase quietly rescuing the first — which is exactly why the first order had to pay for itself.",
+      answer: [
+        "Only 14% of starter-pack buyers came back within 90 days, against 44% of bundle buyers.",
+        "So there was no second purchase quietly rescuing the first.",
+        "That is exactly why the first order had to pay for itself.",
+      ],
     },
   ],
 };

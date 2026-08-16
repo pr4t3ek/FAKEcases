@@ -13,7 +13,7 @@ import { db } from "@/lib/db";
 import { simRubric } from "@/lib/config/simulation";
 import { loadScenario } from "@/lib/scenario-store";
 import { totalsByIntervention } from "@/lib/sim/outcome";
-import { outcomeRows, trueCauseLabels } from "@/lib/sim/debrief";
+import { asBulletText, outcomeRows, trueCauseLabels } from "@/lib/sim/debrief";
 import type { InterviewerContext, ConvMessage, SimCoachContext } from "@/lib/llm";
 import { loadRun, outcomeFromResult, toRunState } from "@/lib/simulations";
 import { formatOutcomeSummary } from "@/lib/sim/summary";
@@ -64,7 +64,10 @@ export async function loadSimCoachContext(
     outcomeSummary: formatOutcomeSummary(outcomeRows(scenario, outcome)),
     // Same shape and contract as Question.dataPack, so the mock's proven
     // longest-topic-wins matcher answers offline exactly as it does for a case.
-    facts: scenario.coachFallback.map((f) => ({ topic: f.topic, fact: f.answer })),
+    facts: scenario.coachFallback.map((f) => ({
+      topic: f.topic,
+      fact: asBulletText(f.answer),
+    })),
   };
 
   const ctx: InterviewerContext = {
@@ -81,7 +84,7 @@ export async function loadSimCoachContext(
       idealHigh: null,
       unit: null,
       betterApproach: scenario.debrief.whereTheLeverageWas,
-      sampleSolution: scenario.debrief.strongAnswer,
+      sampleSolution: asBulletText(scenario.debrief.strongAnswer),
     },
     mode: "teacher",
     answerMode: "qualitative",

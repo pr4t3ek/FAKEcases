@@ -480,45 +480,76 @@ export const marketSizingGtm: SimScenario = {
     ],
     whereTheLeverageWas:
       "The qualifying constraint that was left out of the SAM. Correcting the plan resizes a cost base built for a market that does not exist, and the clamp-on variant grows the market by removing the constraint rather than fighting for share inside it. Everything in the go-to-market column is an answer to a question nobody asked.",
-    strongAnswer:
-      "Test whether this is an execution miss before accepting that it is one. The shortfall is 58–62% in every state, including the best-covered ones, and dealer appointments came in ahead of target — uniform misses are the signature of a wrong plan, because execution varies by region and arithmetic does not. So go back to the sizing. TAM to SAM is where sizing usually breaks, and the question to ask of any SAM is what has to be true for a household to buy: here they need power cuts, ₹1,899, and a roof. The plan tested the first two. Only 34% pass the third, so the real SAM was 1.84 crore and the team actually beat a correctly sized target. From there the answer is not to sell harder — it is to resize the cost base to the real market and, if you want the original number, to remove the constraint by building for the 57% who rent. The channel margin is a genuine ₹29 crore and a distraction: replacing a distribution network you get for free costs most of it back in fulfilment and fixed cost.",
+    strongAnswer: [
+      "Before accepting that the team missed, test whether the plan was right.",
+      "The shortfall is 58–62% in every single state, including the best-covered ones, and we appointed more dealers than we promised.",
+      "That uniformity is the tell. Execution varies by region; arithmetic does not. A miss this even comes from the plan.",
+      "So go back to the sizing. The break is almost always between the whole category and the slice we can actually sell to.",
+      "Ask what has to be true for a household to buy: power cuts, ₹1,899 to spend, and a roof to mount it on.",
+      "The plan checked the first two and skipped the third. Only 34% of those households have a roof.",
+      "So the real reachable market was 1.84 crore, not 5.4 crore — and against that, the team beat their share target.",
+      "The answer is therefore not to sell harder. Resize the cost base to the market that exists.",
+      "And if we want the original number, remove the constraint rather than fight inside it: build the clamp-on version for the 57% who rent.",
+      "Set aside the dealer-margin idea. The ₹29 crore is real, but going direct spends most of it back — we would be replacing a distribution network we currently get for free.",
+    ],
   },
 
   coachFallback: [
     {
       topic: ["sam", "serviceable", "sizing", "roof", "install"],
-      answer:
-        "The SAM was the problem. It counted households with power cuts who could afford the price and never asked whether they had a roof — only 34% did. The real serviceable market was 1.84 crore, not 5.4 crore, and 2% of that is about what you sold.",
+      answer: [
+        "The reachable market was the problem — the slice of the category we could actually sell to.",
+        "It counted households that had power cuts and could afford the price, but never asked whether they had a roof to mount it on. Only 34% did.",
+        "The real number was 1.84 crore, not 5.4 crore. Two percent of that is about what you sold.",
+      ],
     },
     {
       topic: ["tam", "total addressable", "30 crore"],
-      answer:
-        "TAM was fine at 30 crore households — it is meant to be a category question, not a plan. The error was between TAM and SAM, which is where sizing almost always breaks.",
+      answer: [
+        "The 30 crore figure for the whole category was fine — it is meant to answer \"how big is this category\", not \"what will we sell\".",
+        "The error came in the step after it, narrowing that down to who we can actually reach.",
+        "That step is where sizing almost always breaks.",
+      ],
     },
     {
       topic: ["som", "share", "2%", "ambitious"],
-      answer:
-        "The 2% target was reasonable. Against the corrected SAM the team achieved roughly 2.3% in year one, so they beat the share assumption while missing the unit number.",
+      answer: [
+        "The 2% share target was reasonable.",
+        "Measured against the corrected market, the team hit roughly 2.3% in year one.",
+        "So they beat the share assumption while missing the unit number — which tells you the unit number was wrong.",
+      ],
     },
     {
       topic: ["channel", "margin", "35%", "d2c", "direct"],
-      answer:
-        "The 35% channel margin is ₹29 crore of real money, and going direct spends most of it back — ₹176 a unit of fulfilment plus about ₹10 crore of new fixed cost for logistics, service and acquisition. You are replacing a distribution network you currently get for free.",
+      answer: [
+        "The 35% we give dealers is ₹29 crore of real money, so the instinct to keep it is sound.",
+        "But selling direct spends most of it back: about ₹176 a unit to pack and ship, plus roughly ₹10 crore of new fixed cost for logistics, service and finding customers.",
+        "You would be paying to rebuild a distribution network you currently get for free.",
+      ],
     },
     {
       topic: ["dealer", "reach", "distribution", "execution"],
-      answer:
-        "Distribution delivered: 6,400 dealers against a 6,000 target, and the miss was 58–62% in every state including the best-covered ones. Uniform shortfalls come from plans, not from execution.",
+      answer: [
+        "Distribution actually delivered: 6,400 dealers signed against a target of 6,000.",
+        "And the miss was 58–62% everywhere, including the states with the best coverage.",
+        "Shortfalls that even come from plans, not from people.",
+      ],
     },
     {
       topic: ["price", "1599", "cut", "too expensive"],
-      answer:
-        "Among households that can actually install, intent goes from 31% at ₹1,899 to 37% at ₹1,599 — a lot of margin for a little volume, on a product whose contribution after channel margin is already thin. Price was not the barrier; a roof was.",
+      answer: [
+        "Among households that can actually install it, interest goes from 31% at ₹1,899 to 37% at ₹1,599.",
+        "That is a lot of margin given away for a little volume, on a product whose margin after the dealer's cut is already thin.",
+        "Price was not the barrier. A roof was.",
+      ],
     },
     {
       topic: ["renter", "clamp", "balcony", "grow the market"],
-      answer:
-        "The clamp-on variant is the growth half of the answer: it removes the constraint that made the market small rather than fighting for share inside it, opening the 57% who rent or live in multi-storey buildings.",
+      answer: [
+        "The clamp-on version is the growth half of the answer.",
+        "Instead of fighting for a bigger share of a small market, it removes the thing that made the market small.",
+        "That opens up the 57% who rent or live in flats.",
+      ],
     },
   ],
 };

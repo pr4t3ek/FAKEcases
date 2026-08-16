@@ -142,7 +142,7 @@ export interface SimulationReportData {
   teaching: SimTeaching | null;
   causalChain: string[];
   whereTheLeverageWas: string;
-  strongAnswer: string;
+  strongAnswer: string[];
   /** Whether an LLM debrief coach is reachable at all. */
   coachAvailable: boolean;
   /** Top first-run scores on this scenario. Empty until somebody ranks. */
