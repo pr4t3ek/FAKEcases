@@ -48,17 +48,67 @@ export function tierFor(
 
 /** The minimum needed to gate a question. */
 export interface GatedQuestion {
+  /**
+   * Required, and required for a reason: a grant is scoped to question ids, so a
+   * caller that omitted one would silently lose its grant and lock a question it
+   * meant to open. Failing closed is the safe direction; failing *silently* is
+   * not. Making it required turns that into a type error instead.
+   */
+  id: string;
   freeTier: boolean;
 }
 
+/**
+ * Questions opened to one visitor regardless of their tier.
+ *
+ * **Not an extension of `tierAccess`, and that is the load-bearing decision.**
+ * The tier table answers "what does this TIER reach?", and its whole value is
+ * that the answer does not depend on which row is asking. A classroom
+ * membership is the opposite kind of fact: it is about one person and one
+ * question. Expressing it in the table would mean either a fourth tier (a
+ * student sitting in a room is still a guest, and `upgradeFor` still owes them
+ * the signup path) or a per-user column on it — and either one ends the sentence
+ * `lib/config/access.ts` is built on.
+ *
+ * So it is a third argument instead: independent of the tier, additive to it,
+ * and empty by default, so `canOpen(tier, q)` means exactly what it always did.
+ *
+ * **The "one function, both callers" invariant survives** because the grant is
+ * derived per surface, and both sides of a surface derive it the same way:
+ *
+ *   - `/simulations` and `startSimulation` both pass no grant. The card is
+ *     locked and the action refuses. They agree.
+ *   - `/room/[code]` and `startRoomRun` both pass `roomGrantFor(user.id)`. The
+ *     button is offered and the action allows. They agree.
+ *
+ * What must never happen is one side of a *single* surface passing a grant the
+ * other does not — which is why the derivation is one exported function in
+ * `lib/rooms.ts` and is never inlined at a call site.
+ */
+export interface AccessGrant {
+  readonly questionIds: readonly string[];
+}
+
+/** No grant at all — the default, and what every pre-classroom caller means. */
+export const NO_GRANT: AccessGrant = { questionIds: [] };
+
 /** Whether this tier may start work on this question. */
-export function canOpen(tier: AccessTier, question: GatedQuestion): boolean {
-  return tierAccess[tier].content === "all" || question.freeTier;
+export function canOpen(
+  tier: AccessTier,
+  question: GatedQuestion,
+  grant: AccessGrant = NO_GRANT,
+): boolean {
+  if (tierAccess[tier].content === "all" || question.freeTier) return true;
+  return grant.questionIds.includes(question.id);
 }
 
 /** The inverse, for UI that reads better as a lock than as a permission. */
-export function isLocked(tier: AccessTier, question: GatedQuestion): boolean {
-  return !canOpen(tier, question);
+export function isLocked(
+  tier: AccessTier,
+  question: GatedQuestion,
+  grant: AccessGrant = NO_GRANT,
+): boolean {
+  return !canOpen(tier, question, grant);
 }
 
 /** What to offer a blocked user, or null for a tier that is never blocked. */

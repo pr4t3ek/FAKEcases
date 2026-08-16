@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { env } from "@/lib/config";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { mergeGuestEntries } from "@/lib/leaderboard";
+import { canHostRooms } from "@/lib/types";
 import type { User } from "@prisma/client";
 
 const COOKIE_NAME = "eq_session";
@@ -82,6 +83,24 @@ export async function requireUser(): Promise<User> {
 export async function requireAdmin(): Promise<User> {
   const user = await getSessionUser();
   if (!user || user.role !== "admin") redirect("/login");
+  return user;
+}
+
+/**
+ * Guard the classroom host surfaces.
+ *
+ * Named for the capability rather than the role, because admins pass it too — a
+ * `requireProfessor` that let admins through would read as a bug at every call
+ * site. The role list itself lives in `lib/types.ts` so the nav can ask the same
+ * question without importing `server-only`.
+ *
+ * Note what this deliberately is NOT: a widening of `requireAdmin`. A professor
+ * reaches `/host` and nothing else; every `role !== "admin"` check in the app
+ * stays exactly as narrow as it was.
+ */
+export async function requireHost(): Promise<User> {
+  const user = await getSessionUser();
+  if (!user || !canHostRooms(user.role)) redirect("/login");
   return user;
 }
 

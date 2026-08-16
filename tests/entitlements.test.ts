@@ -6,6 +6,7 @@ import {
   tierFor,
   upgradeFor,
   wallRedirect,
+  NO_GRANT,
   WALL_LOCKED,
   WALL_PARAM,
 } from "@/lib/entitlements";
@@ -19,8 +20,10 @@ import {
   PRACTISABLE_TYPES,
 } from "@/lib/types";
 
-const free = { freeTier: true };
-const paid = { freeTier: false };
+const free = { id: "q-free", freeTier: true };
+const paid = { id: "q-paid", freeTier: false };
+/** A second locked question, for proving a grant opens one thing and not the rest. */
+const otherPaid = { id: "q-other", freeTier: false };
 
 const NOW = new Date("2026-08-06T12:00:00.000Z");
 const DAY = 24 * 60 * 60 * 1000;
@@ -106,6 +109,76 @@ describe("canOpen", () => {
         expect(isLocked(tier, q)).toBe(!canOpen(tier, q));
       }
     }
+  });
+});
+
+/**
+ * The classroom escape hatch.
+ *
+ * A grant is what lets a professor put a locked war room in front of sixty
+ * students who have no pass between them, WITHOUT handing them the catalogue.
+ * That second half is the part worth testing: the failure mode this feature
+ * could have had is a membership quietly becoming a Pro pass.
+ */
+describe("canOpen with an access grant", () => {
+  const grant = { questionIds: [paid.id] };
+
+  it("opens the granted question to a guest — the whole point of the feature", () => {
+    expect(canOpen("guest", paid)).toBe(false);
+    expect(canOpen("guest", paid, grant)).toBe(true);
+  });
+
+  it("opens it to a free account too", () => {
+    expect(canOpen("free", paid, grant)).toBe(true);
+  });
+
+  it("opens the granted question and NOTHING else", () => {
+    // The containment property. If this ever fails, a room has become a Pro
+    // pass and the paid catalogue is being given away one class at a time.
+    expect(canOpen("guest", otherPaid, grant)).toBe(false);
+    expect(canOpen("free", otherPaid, grant)).toBe(false);
+  });
+
+  it("leaves the tier alone", () => {
+    // A grant is not an upgrade. The student is still a guest, so the signup
+    // path they are owed everywhere else in the app is unchanged.
+    const student = { isGuest: true, proUntil: null };
+    expect(tierFor(student, NOW)).toBe("guest");
+    expect(upgradeFor(tierFor(student, NOW))?.href).toBe("/signup");
+  });
+
+  it("an empty grant is exactly today's behaviour, for every tier", () => {
+    for (const tier of ACCESS_TIERS) {
+      for (const q of [free, paid, otherPaid]) {
+        expect(canOpen(tier, q, NO_GRANT)).toBe(canOpen(tier, q));
+        expect(canOpen(tier, q, { questionIds: [] })).toBe(canOpen(tier, q));
+      }
+    }
+  });
+
+  it("is a no-op on a question that was already free", () => {
+    expect(canOpen("guest", free, { questionIds: [free.id] })).toBe(true);
+    expect(canOpen("guest", free)).toBe(true);
+  });
+
+  it("changes nothing for Pro, who already had everything", () => {
+    expect(canOpen("pro", paid, grant)).toBe(true);
+    expect(canOpen("pro", otherPaid, grant)).toBe(true);
+  });
+
+  it("isLocked stays the exact inverse with a grant in play", () => {
+    for (const tier of ACCESS_TIERS) {
+      for (const q of [free, paid, otherPaid]) {
+        expect(isLocked(tier, q, grant)).toBe(!canOpen(tier, q, grant));
+      }
+    }
+  });
+
+  it("matches on the id, not on the object", () => {
+    // The grant crosses a serialisation boundary — it is derived on the server
+    // from membership rows and compared against a question read separately —
+    // so identity matching would work in a test and fail in the app.
+    expect(canOpen("guest", { id: paid.id, freeTier: false }, grant)).toBe(true);
   });
 });
 
