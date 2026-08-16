@@ -78,26 +78,34 @@ describe("priceDrilldown", () => {
 
   // The UI disables the card; this is the check that actually holds, because a
   // client can call the server action directly.
+  //
+  // Every pull costs 2 against a 5-day budget, so two are affordable and the
+  // third is one day short. The odd budget is deliberate: under uniform pricing
+  // it is the only way to leave a stranded day, which is exactly the boundary
+  // this test exists to sit on.
   it("refuses a pull that would exactly overrun the budget", () => {
-    const decision = priceDrilldown(fixtureScenario(), run({ daysSpent: 2 }), "d-noise");
+    const decision = priceDrilldown(fixtureScenario(), run({ daysSpent: 4 }), "d-noise");
     expect(decision).toEqual({ ok: false, reason: "insufficient_budget" });
   });
 });
 
 describe("visibleDashboard", () => {
+  /** The fixture's opening board, in order. Bought panels append after these. */
+  const BASE = ["p-orders", "p-headline", "p-unit", "p-mix", "p-steps", "p-room-note"];
+
   it("shows only the base panels before anything is bought", () => {
     const panels = visibleDashboard(fixtureScenario(), []);
-    expect(panels.map((p) => p.id)).toEqual(["p-orders"]);
+    expect(panels.map((p) => p.id)).toEqual(BASE);
   });
 
   it("appends bought panels in purchase order, so the board reads as a narrative", () => {
     const panels = visibleDashboard(fixtureScenario(), ["d-funnel", "d-city"]);
-    expect(panels.map((p) => p.id)).toEqual(["p-orders", "p-funnel", "p-city"]);
+    expect(panels.map((p) => p.id)).toEqual([...BASE, "p-funnel", "p-city"]);
   });
 
   it("skips an id that no longer exists rather than throwing", () => {
     const panels = visibleDashboard(fixtureScenario(), ["ghost", "d-city"]);
-    expect(panels.map((p) => p.id)).toEqual(["p-orders", "p-city"]);
+    expect(panels.map((p) => p.id)).toEqual([...BASE, "p-city"]);
   });
 });
 

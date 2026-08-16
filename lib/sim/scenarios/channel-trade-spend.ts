@@ -303,6 +303,37 @@ export const channelTradeSpend: SimScenario = {
         },
       ],
     },
+    // ── Decoys ──────────────────────────────────────────────────────────
+    //
+    // Real instrumentation that answers a question nobody asked here. Brand
+    // health being intact and wastage being flat are both worth knowing and
+    // neither localises anything — which is the point: the candidate has to
+    // rule them out rather than never meet them.
+    {
+      id: "p-ch-brand",
+      kind: "stat",
+      title: "Brand health tracker",
+      caption: "The quarterly consumer panel, against the same quarter last year.",
+      tiles: [
+        { label: "Unprompted awareness", value: 0.41, unit: "ratio", goodDirection: "up" },
+        { label: "Household penetration", value: 0.186, unit: "ratio", goodDirection: "up" },
+        { label: "Would buy again", value: 0.78, unit: "ratio", goodDirection: "up" },
+        { label: "Wastage as share of despatch", value: 0.012, unit: "ratio", goodDirection: "down" },
+      ],
+    },
+    {
+      id: "p-ch-supply",
+      kind: "segments",
+      title: "Despatch and fill rate by region",
+      caption: "Whether we are simply failing to get stock onto shelves.",
+      dimension: "Region",
+      rows: [
+        { label: "North", value: 0.972, unit: "ratio", deltaPct: 0.4 },
+        { label: "West", value: 0.968, unit: "ratio", deltaPct: -0.3 },
+        { label: "South", value: 0.981, unit: "ratio", deltaPct: 1.1 },
+        { label: "East", value: 0.964, unit: "ratio", deltaPct: 0.2 },
+      ],
+    },
     {
       id: "p-ch-room",
       kind: "note",
@@ -322,7 +353,7 @@ export const channelTradeSpend: SimScenario = {
       id: "dd-source",
       label: "Where the quick-commerce buyers came from",
       question: "Is this new demand, or the same shoppers arriving by a different route?",
-      cost: 3,
+      cost: 2,
       evidenceFor: ["channel.cannibal"],
       readsAs:
         "Two-thirds of quick-commerce buyers already bought the pack from a kirana. And where quick commerce went live first, our general-trade offtake fell 21% over the same period; in pincodes it has not reached, general trade is flat. This is not new demand — it is the same demand, moved to a channel that keeps more of it.",
@@ -505,6 +536,28 @@ export const channelTradeSpend: SimScenario = {
       label: "We have not raised MRP while everything else got dearer",
       verdict:
         "Not supported as the cause. Elasticity of about 1.7 means a ₹5 rise nets roughly ₹4 lakh a month — real money, and about a tenth of what the channel mix is costing.",
+    },
+    {
+      id: "value.wastage",
+      parentId: "value",
+      label: "Returns and near-expiry stock are eating the margin",
+      verdict:
+        "No. Wastage runs at 1.2% of despatch, flat for six quarters, and quick commerce actually returns less than general trade because the stock moves faster. A steady line cannot explain a change.",
+    },
+    { id: "demand", parentId: null, label: "Whether people still want the product", verdict: "They do. Every branch here comes back clean, which is what leaves the channel." },
+    {
+      id: "demand.competitor",
+      parentId: "demand",
+      label: "A competitor is taking our customers",
+      verdict:
+        "Not in the way it looks. Our nearest competitor grew 6% in general trade — in the same channel we shrank 21%. Somebody taking share from us everywhere would not spare the channel where we still have display.",
+    },
+    {
+      id: "demand.brand",
+      parentId: "demand",
+      label: "The brand has weakened with shoppers",
+      verdict:
+        "No. Unprompted awareness is 41% against 40% last year and household penetration is flat. People still ask for us — they are just being sold to us somewhere that keeps less of the money.",
     },
   ],
   trueCauseIds: ["channel.cannibal"],

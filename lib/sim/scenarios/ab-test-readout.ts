@@ -283,6 +283,37 @@ export const abTestReadout: SimScenario = {
         },
       ],
     },
+    // ── Decoys ──────────────────────────────────────────────────────────
+    //
+    // Both true, both correctly measured, and neither is evidence for any
+    // cause. They are here so the board takes reading: a candidate has to
+    // decide that a clean segment split and a healthy delivery panel are not
+    // where a returns problem hides, which is a judgement rather than a fact.
+    {
+      id: "p-ab-segments",
+      kind: "segments",
+      title: "Conversion lift by segment",
+      caption: "The +6% is broad, not one pocket of traffic.",
+      dimension: "Segment",
+      rows: [
+        { label: "New visitors", value: 0.062, unit: "ratio", deltaPct: 6.2 },
+        { label: "Returning visitors", value: 0.058, unit: "ratio", deltaPct: 5.8 },
+        { label: "App", value: 0.069, unit: "ratio", deltaPct: 6.9 },
+        { label: "Web", value: 0.052, unit: "ratio", deltaPct: 5.2 },
+      ],
+    },
+    {
+      id: "p-ab-ops",
+      kind: "stat",
+      title: "Fulfilment during the test window",
+      caption: "Whether anything else about the six days was unusual.",
+      tiles: [
+        { label: "Orders shipped in 24 hours", value: 0.91, unit: "ratio", goodDirection: "up" },
+        { label: "Out of stock at checkout", value: 0.017, unit: "ratio", goodDirection: "down" },
+        { label: "Average order value", value: 1890, unit: "inr", goodDirection: "up" },
+        { label: "Cross-arm session leakage", value: 0.003, unit: "ratio", goodDirection: "down" },
+      ],
+    },
     {
       id: "p-ab-room",
       kind: "note",
@@ -302,7 +333,7 @@ export const abTestReadout: SimScenario = {
       id: "dd-split",
       label: "What the variant actually changed",
       question: "Is the variant one change or several, and which one moved the number?",
-      cost: 3,
+      cost: 2,
       evidenceFor: ["test.confound"],
       readsAs:
         "The variant is two changes in one arm. Among the 29% who un-ticked the two-sizes box, conversion was 4.18% — the redesign on its own is worth about +1.4%. Among the 71% who left it ticked it was 4.44%. Nearly the whole +6% is the pre-tick, not the page.",
@@ -536,6 +567,33 @@ export const abTestReadout: SimScenario = {
       label: "It is the festive run-up, not the variant",
       verdict:
         "Not supported. Both arms ran concurrently on randomly split traffic, so the festive lift is in both and cancels out of the difference. This is exactly what concurrent randomisation is for.",
+    },
+    {
+      id: "impact.mix",
+      parentId: "impact",
+      label: "The variant sells a cheaper basket, so the lift is worth less",
+      verdict:
+        "Not supported, and worth checking: average order value is ₹1,890 against ₹1,874, within noise. The extra orders are the same size as the old ones. What is different about them is how often they come back.",
+    },
+    {
+      id: "execution",
+      parentId: null,
+      label: "Something about how it was run",
+      verdict: "Both branches clean. The test was competently executed — that is what makes it dangerous.",
+    },
+    {
+      id: "execution.leak",
+      parentId: "execution",
+      label: "Users are being seen by both arms",
+      verdict:
+        "No. Assignment is by hashed customer id and held across devices; 0.3% of sessions crossed arms, which is the logged-out tail and far too small to move a six-point result.",
+    },
+    {
+      id: "execution.segment",
+      parentId: "execution",
+      label: "The lift is one segment, not the whole base",
+      verdict:
+        "No. The lift runs +5.2% to +6.9% across new, returning, app and web. It is broad — which is exactly why the returns it brings are broad too.",
     },
   ],
   trueCauseIds: ["test.confound"],

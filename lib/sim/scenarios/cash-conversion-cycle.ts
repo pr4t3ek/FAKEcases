@@ -257,6 +257,47 @@ export const cashConversionCycle: SimScenario = {
         { label: "Payables", value: 6.44 * CRORE, unit: "inr", deltaPct: -0.258, goodDirection: "up" },
       ],
     },
+    // ── Decoys ──────────────────────────────────────────────────────────
+    //
+    // Three more panels of true, correctly stated fact, none of it evidence
+    // for a cause. The collections panel is the most useful kind of decoy: it
+    // shows a team working hard and hitting its targets, which is precisely
+    // what makes "nobody is chasing hard enough" so tempting and so wrong.
+    {
+      id: "p-ccc-collections",
+      kind: "stat",
+      title: "The collections desk",
+      caption: "What the two people chasing the money are actually doing.",
+      tiles: [
+        { label: "Invoices raised on time", value: 0.98, unit: "ratio", goodDirection: "up" },
+        { label: "Reminders sent per overdue invoice", value: 4.2, unit: "count", goodDirection: "up" },
+        { label: "Value in dispute", value: 0.6, unit: "inr_crore", goodDirection: "down" },
+        { label: "Bad debt written off", value: 0.04, unit: "inr_crore", goodDirection: "down" },
+      ],
+    },
+    {
+      id: "p-ccc-capex",
+      kind: "stat",
+      title: "Capital spending and plant",
+      caption: "What was bought this year, and whether it is running.",
+      tiles: [
+        { label: "Capex", value: 3.1, unit: "inr_crore", goodDirection: "down" },
+        { label: "Extrusion line utilisation", value: 0.87, unit: "ratio", goodDirection: "up" },
+        { label: "Maintenance downtime", value: 0.031, unit: "ratio", goodDirection: "down" },
+      ],
+    },
+    {
+      id: "p-ccc-orderbook",
+      kind: "segments",
+      title: "Order book by segment",
+      caption: "What is contracted but not yet despatched.",
+      dimension: "Segment",
+      rows: [
+        { label: "Infrastructure", value: 48.2, unit: "inr_crore", deltaPct: 61.4 },
+        { label: "Trade distributors", value: 19.6, unit: "inr_crore", deltaPct: 7.2 },
+        { label: "Institutional", value: 6.4, unit: "inr_crore", deltaPct: 12.8 },
+      ],
+    },
     {
       id: "p-ccc-room",
       kind: "note",
@@ -276,7 +317,7 @@ export const cashConversionCycle: SimScenario = {
       id: "dd-cash-bridge",
       label: "Reconcile the profit to the cash",
       question: "₹4.19 crore of profit, ₹41 lakh in the bank. Where did the difference go?",
-      cost: 3,
+      cost: 2,
       evidenceFor: ["cycle.terms", "cycle.inventory"],
       readsAs:
         "₹31.4 crore was absorbed by working capital against ₹9.48 crore of EBITDA, so operations consumed ₹21.9 crore rather than producing anything. Receivables alone account for ₹20.9 crore of it. Nothing here is an error — this is what the growth cost.",
@@ -479,6 +520,28 @@ export const cashConversionCycle: SimScenario = {
       label: "We grew faster than the balance sheet can fund",
       verdict:
         "True as a description and useless as a diagnosis, because it points at the growth rather than at the terms. The same ₹25 crore of extra revenue on the old 61-day cycle would have absorbed about ₹4 crore, not ₹31 crore. Growth did not empty the account; the days did.",
+    },
+    {
+      id: "pnl.capex",
+      parentId: "pnl",
+      label: "We spent the cash on plant rather than losing it",
+      verdict:
+        "No. Capex was ₹3.1 crore against a ₹31.4 crore swing in working capital. It is on the cash flow statement, it is a tenth of the problem, and the extrusion line it bought is running.",
+    },
+    { id: "collection", parentId: null, label: "How we bill and chase", verdict: "One branch here is the cause wearing an operational costume. Read both carefully." },
+    {
+      id: "collection.effort",
+      parentId: "collection",
+      label: "Nobody is chasing the money hard enough",
+      verdict:
+        "The tempting misread. Two people work collections full time and dealers still pay in 38 days on the same effort. What changed is not the chasing — it is that infra payment falls due 60 days after a sign-off that runs 55 to 80 days late. You cannot chase an invoice that is not yet due.",
+    },
+    {
+      id: "collection.disputes",
+      parentId: "collection",
+      label: "Customers are disputing what we invoice",
+      verdict:
+        "No. ₹0.6 crore is in dispute out of a ₹31 crore ledger, and the ageing is the same with or without it. The money is not contested — it is simply not payable yet.",
     },
   ],
   trueCauseIds: ["cycle.terms"],

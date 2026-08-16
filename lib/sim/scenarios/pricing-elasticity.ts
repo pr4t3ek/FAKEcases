@@ -185,6 +185,41 @@ export const pricingElasticity: SimScenario = {
       ],
     },
     {
+      id: "p-price-ops",
+      kind: "stat",
+      title: "Supply and service",
+      caption: "Whether we are simply failing to get product to shelf.",
+      tiles: [
+        { label: "Order fill rate", value: 0.976, unit: "ratio", goodDirection: "up" },
+        { label: "Stock cover, weeks", value: 5.2, unit: "count", goodDirection: "up" },
+        { label: "Returns and damages", value: 0.009, unit: "ratio", goodDirection: "down" },
+        { label: "Cost per unit", value: 312, unit: "inr", goodDirection: "down" },
+      ],
+    },
+    {
+      id: "p-price-brand",
+      kind: "segments",
+      title: "Brand tracker, against last year",
+      caption: "The consumer panel, unchanged in every measure that matters.",
+      dimension: "Measure",
+      rows: [
+        { label: "Unprompted awareness", value: 0.44, unit: "ratio", deltaPct: 1.2 },
+        { label: "Considered at purchase", value: 0.37, unit: "ratio", deltaPct: -0.8 },
+        { label: "Rated better than alternatives", value: 0.52, unit: "ratio", deltaPct: 0.4 },
+      ],
+    },
+    {
+      id: "p-price-online",
+      kind: "stat",
+      title: "E-commerce, the one channel that grew",
+      caption: "Small, healthy, and no help with the other two.",
+      tiles: [
+        { label: "Share of volume", value: 0.08, unit: "ratio", goodDirection: "up" },
+        { label: "Volume growth", value: 0.04, unit: "ratio", goodDirection: "up" },
+        { label: "Average selling price", value: 486, unit: "inr", goodDirection: "up" },
+      ],
+    },
+    {
       id: "p-price-room",
       kind: "note",
       title: "What the room is saying",
@@ -202,7 +237,7 @@ export const pricingElasticity: SimScenario = {
       id: "dd-channel",
       label: "Volume by channel",
       question: "Is the drop everywhere, or somewhere?",
-      cost: 3,
+      cost: 2,
       evidenceFor: ["distribution.promo", "distribution.reach"],
       readsAs:
         "Modern trade is down 31%, general trade down 2%. A competitor's national price cut cannot produce a drop that is fifteen times worse in one channel.",
@@ -259,7 +294,7 @@ export const pricingElasticity: SimScenario = {
       id: "dd-elasticity",
       label: "Historical price/volume elasticity",
       question: "How much volume would a price cut actually buy?",
-      cost: 3,
+      cost: 2,
       evidenceFor: ["demand.price"],
       readsAs:
         "Elasticity is about 1.2, so a 15% cut buys roughly 18% more volume against a break-even requirement of 67%. The cut loses money by arithmetic, not by bad luck.",
@@ -340,6 +375,34 @@ export const pricingElasticity: SimScenario = {
           title: "Quality",
           body:
             "Return rate is 1.4%, unchanged for six quarters. Complaint volume per thousand units is flat. Nothing here.",
+        },
+      ],
+    },
+    // A seventh pull, so six analyst-days cannot cover half the board. It is a
+    // real question a category PM would ask and it rules out the answer people
+    // reach for when a competitor cuts price — that the shopper simply traded
+    // down. Evidence for the price branch, and it points away from it.
+    {
+      id: "dd-shopper",
+      label: "Shopper panel: who stopped buying",
+      question: "Did our buyers trade down to a cheaper brand, or just stop appearing?",
+      cost: 2,
+      evidenceFor: ["demand.price", "demand.competitor"],
+      readsAs:
+        "The households that stopped buying did not switch brand — they stopped buying the category in that store. That is a shelf problem, not a price problem.",
+      reveals: [
+        {
+          id: "p-shopper",
+          kind: "segments",
+          title: "Where our lapsed buyers went",
+          caption: "Panel households that bought us last year and not this quarter.",
+          dimension: "What they did instead",
+          rows: [
+            { label: "Bought a cheaper brand", value: 0.14, unit: "ratio" },
+            { label: "Bought us in another store", value: 0.31, unit: "ratio" },
+            { label: "Stopped buying the category here", value: 0.48, unit: "ratio" },
+            { label: "Bought the retailer's own label", value: 0.07, unit: "ratio" },
+          ],
         },
       ],
     },

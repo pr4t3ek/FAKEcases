@@ -282,6 +282,38 @@ export const adFunnelRoas: SimScenario = {
         },
       ],
     },
+    // ── Decoys ──────────────────────────────────────────────────────────
+    //
+    // Both panels below are true, correctly derived, and answer a question
+    // nobody needed answered. That is the job: the board should take reading,
+    // and a candidate should have to decide what to ignore. Neither adds a
+    // concept — a CAC per platform and a return rate are numbers this scenario
+    // has already taught — and neither is evidence for any cause, so the
+    // investigation cannot be short-circuited by staring at the dashboard.
+    {
+      id: "p-platform-cac",
+      kind: "segments",
+      title: "Cost per order by ad platform",
+      caption: "Where the ₹10 lakh is placed, and what each placement brings back.",
+      dimension: "Platform",
+      rows: [
+        { label: "Meta", value: 351, unit: "inr", deltaPct: 3.1 },
+        { label: "Google", value: 372, unit: "inr", deltaPct: 4.4 },
+        { label: "Instagram creators", value: 379, unit: "inr", deltaPct: 6.2 },
+      ],
+    },
+    {
+      id: "p-ops",
+      kind: "stat",
+      title: "Fulfilment and after-sales",
+      caption: "The operations side of the same orders.",
+      tiles: [
+        { label: "Return rate", value: 0.021, unit: "ratio", goodDirection: "down" },
+        { label: "Delivery in 48 hours", value: 0.94, unit: "ratio", goodDirection: "up" },
+        { label: "Repeat within 90 days", value: 0.19, unit: "ratio", goodDirection: "up" },
+        { label: "Support tickets per 100 orders", value: 3.4, unit: "count", goodDirection: "down" },
+      ],
+    },
     {
       id: "p-room",
       kind: "note",
@@ -301,7 +333,7 @@ export const adFunnelRoas: SimScenario = {
       id: "dd-margin",
       label: "Gross margin by product",
       question: "Do all our products make the same money?",
-      cost: 3,
+      cost: 2,
       evidenceFor: ["economics.mix"],
       readsAs:
         "The starter pack the ads sell carries 22% margin. The subscription bundle carries 41%. The campaign is not a marketing problem, it is a product-mix problem.",
@@ -460,6 +492,28 @@ export const adFunnelRoas: SimScenario = {
       label: "The audience is too broad, so CPM is too high",
       verdict:
         "CPM is ₹180 against ₹165 benchmark and rising about 4% a month. Same verdict: it makes the loss bigger over time, it did not cause it.",
+    },
+    {
+      id: "efficiency.platform",
+      parentId: "efficiency",
+      label: "One ad platform is much worse than the others",
+      verdict:
+        "It isn't. CAC lands between ₹351 and ₹379 across all three platforms, and every one of them is above the ₹319 an order contributes. A problem that appears everywhere you look was never about where you were looking.",
+    },
+    { id: "delivery", parentId: null, label: "The experience after the order", verdict: "Healthy on every measure, and downstream of the money anyway." },
+    {
+      id: "delivery.repeat",
+      parentId: "delivery",
+      label: "Buyers aren't coming back to pay for the first order",
+      verdict:
+        "True, and it is the mix again wearing another hat: only 14% of starter-pack buyers reorder within 90 days against 44% of bundle buyers. There is no second order rescuing the first, which is why the first one had to pay for itself.",
+    },
+    {
+      id: "delivery.fulfilment",
+      parentId: "delivery",
+      label: "Delivery and returns are eating the margin",
+      verdict:
+        "No. Returns run at 2.1% and shipping is already inside the ₹319 contribution figure. Both are the best numbers on the board, which is exactly why neither can explain a loss.",
     },
   ],
   trueCauseIds: ["economics.mix"],

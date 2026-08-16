@@ -276,6 +276,49 @@ export const pnlProfitSqueeze: SimScenario = {
         { label: "EBITDA", value: 6.56 * CRORE, unit: "inr", deltaPct: -0.27, goodDirection: "up" },
       ],
     },
+    // ── Decoys ──────────────────────────────────────────────────────────
+    //
+    // Both true and both irrelevant, which on this scenario does extra work:
+    // the whole lesson is that a consolidated number is an average, and a
+    // chain-wide footfall figure is exactly that trap in miniature. A candidate
+    // who reads the average here learns nothing; one who asks to see it split
+    // has already understood the case.
+    {
+      id: "p-pnl-traffic",
+      kind: "stat",
+      title: "Store traffic and conversion",
+      caption: "Averaged across all 60 stores, against last year.",
+      tiles: [
+        { label: "Footfall per store per day", value: 214, unit: "count", goodDirection: "up" },
+        { label: "Walk-in to purchase", value: 0.24, unit: "ratio", goodDirection: "up" },
+        { label: "Average bill", value: 2340, unit: "inr", goodDirection: "up" },
+        { label: "Items per bill", value: 1.9, unit: "count", goodDirection: "up" },
+      ],
+    },
+    {
+      id: "p-pnl-channels",
+      kind: "segments",
+      title: "Revenue by channel",
+      caption: "Where the ₹96 crore came from.",
+      dimension: "Channel",
+      rows: [
+        { label: "Own stores", value: 88.4, unit: "inr_crore", deltaPct: 21.4 },
+        { label: "Own website and app", value: 5.8, unit: "inr_crore", deltaPct: 28.9 },
+        { label: "Marketplaces", value: 1.8, unit: "inr_crore", deltaPct: 19.2 },
+      ],
+    },
+    {
+      id: "p-pnl-inventory",
+      kind: "stat",
+      title: "Stock and shrinkage",
+      caption: "How well the merchandise itself is being run.",
+      tiles: [
+        { label: "Stock turns per year", value: 3.8, unit: "count", goodDirection: "up" },
+        { label: "Shrinkage, share of retail value", value: 0.007, unit: "ratio", goodDirection: "down" },
+        { label: "Sold at full price", value: 0.68, unit: "ratio", goodDirection: "up" },
+        { label: "End-of-season markdown", value: 0.31, unit: "ratio", goodDirection: "down" },
+      ],
+    },
     {
       id: "p-pnl-room",
       kind: "note",
@@ -295,7 +338,7 @@ export const pnlProfitSqueeze: SimScenario = {
       id: "dd-like-for-like",
       label: "Split the P&L by store maturity",
       question: "What do the 46 old stores and the 14 new ones each look like on their own?",
-      cost: 3,
+      cost: 2,
       evidenceFor: ["growth.newstores"],
       readsAs:
         "The mature 46 contributed ₹15.64 crore against ₹14.48 crore last year — a better year, not a worse one. The 14 new stores contributed minus ₹1.09 crore. The consolidated statement averaged a healthy business with a loss-making one and reported neither.",
@@ -510,6 +553,28 @@ export const pnlProfitSqueeze: SimScenario = {
       label: "Input costs ate the gross margin",
       verdict:
         "Half a point of the 1.4, or about ₹0.36 crore. A supplier renegotiation is worth having and would not have made this year's board pack read differently.",
+    },
+    {
+      id: "costs.shrink",
+      parentId: "costs",
+      label: "Stock is going missing faster than it used to",
+      verdict:
+        "No. Shrinkage is 0.7% of retail value, unchanged for three years and better than the sector. A line that has not moved cannot explain a profit that has.",
+    },
+    { id: "demand", parentId: null, label: "Whether the shops are still working", verdict: "They are. Every branch here comes back clean — which is what leaves the new stores." },
+    {
+      id: "demand.footfall",
+      parentId: "demand",
+      label: "Fewer people are walking in",
+      verdict:
+        "Not in the mature stores: footfall per store is up 3%, and conversion held at 24%. The average across all 60 falls only because fourteen of them are new and still filling up.",
+    },
+    {
+      id: "demand.online",
+      parentId: "demand",
+      label: "Our own online channel is cannibalising the stores",
+      verdict:
+        "No. Online is 6% of revenue and grew in catchments with and without a new store alike. It is too small and too evenly spread to be doing this.",
     },
   ],
   trueCauseIds: ["growth.newstores"],

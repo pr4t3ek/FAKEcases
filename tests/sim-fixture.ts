@@ -9,6 +9,13 @@
  * Small but not degenerate — it has a derived-driver chain, a two-level cause
  * tree, a locked drilldown, an on-target and an off-target intervention, and one
  * that can stall. Vitest only collects `*.test.ts`, so this file is a helper.
+ *
+ * "Small" is bounded by `validateScenario` now, and deliberately: the board
+ * floors (`CAUSE_BOARD`, `DASHBOARD_FLOOR`) and the uniform drilldown price
+ * apply to this fixture exactly as they apply to shipped content, so the suite
+ * cannot certify a scenario shape the app would refuse to load. The padding
+ * below is therefore not ceremony — it is the fixture agreeing to the same
+ * contract everything else signs.
  */
 
 import type { SimScenario } from "@/lib/sim/types";
@@ -27,7 +34,7 @@ export function fixtureScenario(overrides: Partial<SimScenario> = {}): SimScenar
     difficulty: "Medium",
 
     northStar: "orders",
-    reported: ["revenue", "margin"],
+    reported: ["revenue", "margin", "totalCost", "aov"],
     drivers: [
       { id: "orders", kind: "input", label: "Orders", unit: "count", goodDirection: "up", baseline: 1000 },
       { id: "aov", kind: "input", label: "AOV", unit: "inr", goodDirection: "up", baseline: 500 },
@@ -53,6 +60,50 @@ export function fixtureScenario(overrides: Partial<SimScenario> = {}): SimScenar
         series: [
           { label: "Orders", unit: "count", points: [{ period: "W-3", value: 1100 }, { period: "W-0", value: 1000 }] },
         ],
+      },
+      {
+        id: "p-headline",
+        kind: "stat",
+        title: "This week",
+        tiles: [
+          { label: "Orders", value: 1000, unit: "count" },
+          { label: "Revenue", value: 500_000, unit: "inr" },
+        ],
+      },
+      {
+        id: "p-unit",
+        kind: "stat",
+        title: "Per order",
+        tiles: [
+          { label: "AOV", value: 500, unit: "inr" },
+          { label: "Cost per order", value: 300, unit: "inr" },
+        ],
+      },
+      {
+        id: "p-mix",
+        kind: "segments",
+        title: "Orders by tier",
+        dimension: "Tier",
+        rows: [
+          { label: "Metro", value: 600, unit: "count" },
+          { label: "Tier-2", value: 400, unit: "count" },
+        ],
+      },
+      {
+        id: "p-steps",
+        kind: "funnel",
+        title: "Sessions to orders",
+        steps: [
+          { label: "Sessions", value: 8000 },
+          { label: "Carts", value: 2400 },
+          { label: "Orders", value: 1000 },
+        ],
+      },
+      {
+        id: "p-room-note",
+        kind: "note",
+        title: "What the room is saying",
+        body: "Growth wants a discount. Ops thinks it is riders.",
       },
     ],
 
@@ -81,7 +132,7 @@ export function fixtureScenario(overrides: Partial<SimScenario> = {}): SimScenar
         id: "d-riders",
         label: "Rider supply by city",
         question: "Do we have enough riders in the affected cities?",
-        cost: 3,
+        cost: 2,
         dependsOn: ["d-city"],
         reveals: [{ id: "p-riders", kind: "note", title: "Riders", body: "Tier-2 riders down 22%." }],
         evidenceFor: [CAUSE_TRUE],
@@ -91,18 +142,25 @@ export function fixtureScenario(overrides: Partial<SimScenario> = {}): SimScenar
         id: "d-noise",
         label: "Brand tracker",
         question: "Has brand consideration moved?",
-        cost: 4,
+        cost: 2,
         reveals: [{ id: "p-noise", kind: "note", title: "Brand", body: "Unchanged." }],
         evidenceFor: [],
         readsAs: "Nothing here.",
       },
     ],
 
+    // Eight, which is `CAUSE_BOARD.min`. The first four are the ones the tests
+    // name and reason about; the rest are ballast that keeps the fixture legal
+    // without giving any test a new leaf to trip over.
     causes: [
       { id: "supply", parentId: null, label: "Supply", verdict: "The region to look in." },
       { id: CAUSE_TRUE, parentId: "supply", label: "Rider supply", verdict: "This was it." },
       { id: "demand", parentId: null, label: "Demand", verdict: "Held up." },
       { id: CAUSE_WRONG_LEAF, parentId: "demand", label: "Price", verdict: "Unchanged." },
+      { id: "supply.restaurants", parentId: "supply", label: "Restaurant supply", verdict: "Grew." },
+      { id: "demand.interest", parentId: "demand", label: "Traffic", verdict: "Flat." },
+      { id: "product", parentId: null, label: "Product", verdict: "Nothing broke." },
+      { id: "product.app", parentId: "product", label: "App reliability", verdict: "Unchanged." },
     ],
     trueCauseIds: [CAUSE_TRUE],
 
@@ -223,7 +281,7 @@ export function v2CostedFixtureScenario(overrides: Partial<SimScenario> = {}): S
   return {
     ...base,
     northStar: "margin",
-    reported: ["orders", "revenue"],
+    reported: ["orders", "revenue", "totalCost", "aov"],
     // Spending the whole budget puts 18% on cost per order. Every lever is
     // paid for, not just the ones an author remembered to charge for — which
     // is the failure this scenario-level field exists to prevent.

@@ -239,6 +239,30 @@ export const cashRunwayTurnaround: SimScenario = {
       ],
     },
     {
+      id: "p-customers",
+      kind: "stat",
+      title: "The customer base",
+      caption: "Who is paying, and how that has moved this quarter.",
+      tiles: [
+        { label: "Paying customers", value: 2000, unit: "count", goodDirection: "up" },
+        { label: "Revenue per customer, per quarter", value: 36_000, unit: "inr", goodDirection: "up" },
+        { label: "New customers this quarter", value: 200, unit: "count", goodDirection: "up" },
+        { label: "Customers lost this quarter", value: 180, unit: "count", goodDirection: "down" },
+      ],
+    },
+    {
+      id: "p-product",
+      kind: "stat",
+      title: "Product and service",
+      caption: "How the thing itself is doing — healthy, and not what the deadline is about.",
+      tiles: [
+        { label: "Uptime", value: 0.9987, unit: "ratio", goodDirection: "up" },
+        { label: "Support tickets per customer", value: 1.4, unit: "count", goodDirection: "down" },
+        { label: "Satisfaction score", value: 4.2, unit: "count", goodDirection: "up" },
+        { label: "Shipments processed per week", value: 412_000, unit: "count", goodDirection: "up" },
+      ],
+    },
+    {
       id: "p-room",
       kind: "note",
       title: "What the room is saying",

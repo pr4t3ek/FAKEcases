@@ -54,7 +54,7 @@ export const b2bDealTco: SimScenario = {
     "Your largest customer — 900 seats, ₹2.7 crore of ARR, on the deck at 78% gross margin — is up for renewal and has asked for 18% off to commit to three years. " +
     "Sales wants to take it today. Customer success says this one account absorbs more of their team than the next four combined. " +
     "Finance ran a fully loaded cost-to-serve for the first time last week and has asked you to look at it before anything is signed. " +
-    "You have 7 analyst-days, then 3 sprints and ₹60 lakh to decide what you are actually offering them.",
+    "You have 6 analyst-days, then 3 sprints and ₹60 lakh to decide what you are actually offering them.",
   difficulty: "Medium",
   periodNoun: "quarter",
 
@@ -244,6 +244,32 @@ export const b2bDealTco: SimScenario = {
       ],
     },
     {
+      id: "p-b2b-usage",
+      kind: "stat",
+      title: "How the account uses the product",
+      caption: "Engagement is excellent. That is not the same as the account being good.",
+      tiles: [
+        { label: "Weekly active seats", value: 641, unit: "count", goodDirection: "up" },
+        { label: "Documents processed per quarter", value: 184_000, unit: "count", goodDirection: "up" },
+        { label: "Satisfaction score", value: 4.3, unit: "count", goodDirection: "up" },
+        { label: "Uptime", value: 0.9993, unit: "ratio", goodDirection: "up" },
+      ],
+    },
+    {
+      id: "p-b2b-portfolio",
+      kind: "segments",
+      title: "Our five largest accounts, by revenue",
+      caption: "Where this one sits in the book — on the measure the deck reports.",
+      dimension: "Account",
+      rows: [
+        { label: "This account", value: 270, unit: "inr_lakh", deltaPct: 8.4 },
+        { label: "Account B", value: 186, unit: "inr_lakh", deltaPct: 12.1 },
+        { label: "Account C", value: 154, unit: "inr_lakh", deltaPct: 4.6 },
+        { label: "Account D", value: 132, unit: "inr_lakh", deltaPct: 19.2 },
+        { label: "Account E", value: 118, unit: "inr_lakh", deltaPct: -2.4 },
+      ],
+    },
+    {
       id: "p-b2b-room",
       kind: "note",
       title: "What the room is saying",
@@ -255,14 +281,14 @@ export const b2bDealTco: SimScenario = {
     },
   ],
 
-  budget: { analystDays: 7, sprints: 3, rupees: 60 * LAKH },
+  budget: { analystDays: 6, sprints: 3, rupees: 60 * LAKH },
 
   drilldowns: [
     {
       id: "dd-cost-to-serve",
       label: "Fully loaded cost to serve this account",
       question: "What does this contract actually cost us to deliver?",
-      cost: 3,
+      cost: 2,
       evidenceFor: ["economics.usage"],
       readsAs:
         "₹54.3 lakh a quarter against ₹67.5 lakh of revenue — a 19.5% gross margin, not 78%. The reported number counts hosting and nothing else. ₹17 lakh a quarter is one line: engineering on a connector that exists only for this customer.",
@@ -325,7 +351,7 @@ export const b2bDealTco: SimScenario = {
       id: "dd-customer-tco",
       label: "What the software costs them",
       question: "The CFO said it costs them a fortune. Costs them what, exactly?",
-      cost: 3,
+      cost: 2,
       dependsOn: ["dd-usage"],
       evidenceFor: ["economics.usage"],
       readsAs:

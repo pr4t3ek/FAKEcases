@@ -63,7 +63,7 @@ export const balanceSheetLeverage: SimScenario = {
     "You are the financial analyst at Deccan Ceramics, a Morbi tile manufacturer that commissioned a third kiln last year on a ₹120 crore term loan. FY25 EBITDA came in at ₹40.5 crore, up 31% and the best in the company's history. " +
     "In the same week, the auditor attached an emphasis-of-matter paragraph on going concern, and the lender's relationship manager asked for a meeting about the interest-cover covenant. " +
     "The managing director wants to announce the EBITDA. The finance director wants to refinance. Nobody has explained why both of them can be right. " +
-    "You have 7 analyst-days, then 4 sprints and ₹16 crore.",
+    "You have 6 analyst-days, then 4 sprints and ₹16 crore.",
   difficulty: "Medium",
 
   mentor: {
@@ -295,6 +295,48 @@ export const balanceSheetLeverage: SimScenario = {
         },
       ],
     },
+    // ── Decoys ──────────────────────────────────────────────────────────
+    //
+    // Three panels of true, correctly derived fact that point nowhere. On this
+    // scenario they earn their place twice over: the whole lesson is that a
+    // company can look excellent on every operating measure while destroying
+    // capital, so a board full of good operating measures is not padding —
+    // it is the trap, rendered.
+    {
+      id: "p-bs-operations",
+      kind: "stat",
+      title: "Plant and operations",
+      caption: "How the factory itself is running, across all three kilns.",
+      tiles: [
+        { label: "Output, million sq m", value: 27.4, unit: "count", goodDirection: "up" },
+        { label: "Energy cost per sq m", value: 21.4, unit: "inr", goodDirection: "down" },
+        { label: "First-pass yield", value: 0.943, unit: "ratio", goodDirection: "up" },
+        { label: "Unplanned downtime", value: 0.026, unit: "ratio", goodDirection: "down" },
+      ],
+    },
+    {
+      id: "p-bs-market",
+      kind: "segments",
+      title: "Revenue by channel",
+      caption: "Where the ₹238 crore was sold.",
+      dimension: "Channel",
+      rows: [
+        { label: "Dealer network", value: 151.2, unit: "inr_crore", deltaPct: 11.4 },
+        { label: "Projects and institutional", value: 54.8, unit: "inr_crore", deltaPct: 18.2 },
+        { label: "Exports", value: 32.0, unit: "inr_crore", deltaPct: -4.1 },
+      ],
+    },
+    {
+      id: "p-bs-people",
+      kind: "stat",
+      title: "People and overheads",
+      caption: "The cost lines a cost-cutting exercise would reach for first.",
+      tiles: [
+        { label: "Headcount", value: 612, unit: "count", goodDirection: "down" },
+        { label: "Revenue per employee", value: 38.9, unit: "inr_lakh", goodDirection: "up" },
+        { label: "Admin overhead, share of revenue", value: 0.041, unit: "ratio", goodDirection: "down" },
+      ],
+    },
     {
       id: "p-bs-room",
       kind: "note",
@@ -308,14 +350,14 @@ export const balanceSheetLeverage: SimScenario = {
     },
   ],
 
-  budget: { analystDays: 7, sprints: 4, rupees: 16 * CRORE },
+  budget: { analystDays: 6, sprints: 4, rupees: 16 * CRORE },
 
   drilldowns: [
     {
       id: "dd-dupont",
       label: "Decompose the return into margin and turnover",
       question: "ROCE halved. Was that the profit or the capital?",
-      cost: 3,
+      cost: 2,
       evidenceFor: ["capital.idle", "trading.margin"],
       readsAs:
         "EBIT margin went from 11.4% to 10.6% and capital turnover from 1.30 to 0.76. Almost the entire fall is the denominator: the company put ₹162 crore of new capital in and earned ₹3 crore more operating profit on it.",
@@ -347,7 +389,7 @@ export const balanceSheetLeverage: SimScenario = {
       id: "dd-kiln-util",
       label: "Capacity and utilisation, kiln by kiln",
       question: "Is the new capacity being used?",
-      cost: 3,
+      cost: 2,
       evidenceFor: ["capital.idle", "trading.demand"],
       readsAs:
         "Kilns one and two run at 91% and 88%. The new kiln runs at 46% and is 58% of the net book value. More than half the capital added last year is producing nothing for more than half the time.",
@@ -378,7 +420,7 @@ export const balanceSheetLeverage: SimScenario = {
       id: "dd-ratios",
       label: "Run the standard ratio pack",
       question: "Which ratios actually broke, and by how much?",
-      cost: 3,
+      cost: 2,
       evidenceFor: ["capital.idle", "funding.maturity", "funding.leverage"],
       readsAs:
         "Every liquidity and return ratio deteriorated and every trading ratio held. That pattern — trading flat, balance sheet ratios collapsing — points at the capital side before a single further pull is bought.",
@@ -407,7 +449,7 @@ export const balanceSheetLeverage: SimScenario = {
       label: "The repayment schedule and the covenant pack",
       question: "What actually falls due, and what has been promised to the bank?",
       cost: 2,
-      evidenceFor: ["funding.maturity", "funding.leverage", "funding.cost"],
+      evidenceFor: ["funding.maturity", "funding.leverage"],
       readsAs:
         "A 15-year kiln was funded with a 5-year loan on a 2-year moratorium that has just ended. Nothing was borrowed this year — ₹64 crore reclassified as current on a date, and that alone took the current ratio from 2.11 to 0.93.",
       reveals: [
@@ -550,13 +592,6 @@ export const balanceSheetLeverage: SimScenario = {
       label: "We simply borrowed too much",
       verdict:
         "Debt to equity of 0.92× is inside the 1.25× covenant and unremarkable for the sector. Leverage decided how quickly this became urgent; it did not decide that the capital would earn 1.9%. Swapping ₹40 crore of debt for ₹40 crore of equity leaves capital employed — and therefore ROCE — exactly where it was.",
-    },
-    {
-      id: "funding.cost",
-      parentId: "funding",
-      label: "We are paying too much for the debt",
-      verdict:
-        "9.9% blended is the market rate for this leverage and this sector, and the lender's own refinance offer is 80 basis points *more*, not less. What capital costs is never the question on its own — the question is the gap between that and what it earns, and here it earns 1.9%.",
     },
     { id: "trading", parentId: null, label: "The trading performance", verdict: "Is the best it has ever been." },
     {

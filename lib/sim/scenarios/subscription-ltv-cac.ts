@@ -272,6 +272,37 @@ export const subscriptionLtvCac: SimScenario = {
         { label: "Cancelled", value: 18_000 },
       ],
     },
+    // ── Decoys ──────────────────────────────────────────────────────────
+    //
+    // True, correct, and evidence for nothing. A candidate has to notice that
+    // an even channel split and a falling cost to serve are both good news
+    // about a business that is losing money — and that neither tells them
+    // where the losing happens.
+    {
+      id: "p-sub-channels",
+      kind: "segments",
+      title: "Where subscribers come from",
+      caption: "Share of the 18,000 who joined last month, and what each costs.",
+      dimension: "Channel",
+      rows: [
+        { label: "Paid search", value: 7400, unit: "count", deltaPct: 4.1 },
+        { label: "Referral", value: 4900, unit: "count", deltaPct: 2.6 },
+        { label: "Campus partnerships", value: 3300, unit: "count", deltaPct: -1.2 },
+        { label: "Organic", value: 2400, unit: "count", deltaPct: 0.8 },
+      ],
+    },
+    {
+      id: "p-sub-costs",
+      kind: "stat",
+      title: "What it costs to run",
+      caption: "The cost side of the same subscriber.",
+      tiles: [
+        { label: "Cost to serve, per month", value: 41, unit: "inr", goodDirection: "down" },
+        { label: "Fixed cost base, per month", value: 2_60_00_000, unit: "inr", goodDirection: "down" },
+        { label: "Support tickets per 100 students", value: 2.8, unit: "count", goodDirection: "down" },
+        { label: "Content NPS", value: 61, unit: "count", goodDirection: "up" },
+      ],
+    },
     {
       id: "p-sub-room",
       kind: "note",
@@ -290,7 +321,7 @@ export const subscriptionLtvCac: SimScenario = {
       id: "dd-retention-curve",
       label: "Retention curve by monthly cohort",
       question: "How long do subscribers actually stay?",
-      cost: 3,
+      cost: 2,
       evidenceFor: ["retention.churn"],
       readsAs:
         "Half of every cohort is gone by month four. At 11% a month the base replaces itself roughly every nine months, so acquisition spend never compounds — it only refills.",
@@ -442,6 +473,28 @@ export const subscriptionLtvCac: SimScenario = {
       label: "We charge too little",
       verdict:
         "A 20% rise held ARPU and pushed cancellations up about a sixth. Because the base is joiners divided by churn, a churn increase costs more than the price rise earns.",
+    },
+    {
+      id: "economics.mix",
+      parentId: "economics",
+      label: "We are winning the wrong kind of student",
+      verdict:
+        "No. Students from paid search, referral and campus channels all retain within four points of each other. Where they come from is not what decides whether they stay — what they do in week one is.",
+    },
+    { id: "cost", parentId: null, label: "What it costs to run", verdict: "Real numbers, and none of them is what the ₹2.6 crore is waiting on." },
+    {
+      id: "cost.fixed",
+      parentId: "cost",
+      label: "The fixed cost base is simply too big",
+      verdict:
+        "It is ₹2.6 crore and it is the reason the base has to be large. But it has not moved in two years, so it cannot explain a business that got worse — it is the bar, not the fall.",
+    },
+    {
+      id: "cost.serve",
+      parentId: "cost",
+      label: "Serving each student costs more than we think",
+      verdict:
+        "No. Cost to serve is ₹41 a month against ₹299 of revenue, and it has fallen as the base grew. This is the healthiest line in the whole model.",
     },
   ],
   trueCauseIds: ["retention.churn"],

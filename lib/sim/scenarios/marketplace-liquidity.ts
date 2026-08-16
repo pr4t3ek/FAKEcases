@@ -53,7 +53,7 @@ export const marketplaceLiquidity: SimScenario = {
     "You are the PM for marketplace operations at Ghar Sewa, a home-services platform — salon at home, appliance repair, deep cleaning — across eight Indian cities. " +
     "Last quarter you added 22% more booking requests and 19% more professionals. Match rate fell from 88% to 79%, the average wait for a slot went from 3.1 hours to 6.8, and professionals are complaining they sit idle. " +
     "Growth wants ₹4 crore to push demand harder; the supply team wants to sign 6,000 more professionals. The marketplace lost ₹33.6 lakh last month. " +
-    "You have 7 analyst-days to work out what is actually happening, then 4 sprints and ₹9 crore to fix it.",
+    "You have 6 analyst-days to work out what is actually happening, then 4 sprints and ₹9 crore to fix it.",
   difficulty: "Medium",
   periodNoun: "month",
 
@@ -256,6 +256,31 @@ export const marketplaceLiquidity: SimScenario = {
       ],
     },
     {
+      id: "p-mk-quality",
+      kind: "stat",
+      title: "Service quality, on the jobs that did happen",
+      caption: "Nothing here is broken, which is what makes it a distraction.",
+      tiles: [
+        { label: "Customer rating", value: 4.6, unit: "count", goodDirection: "up" },
+        { label: "Jobs completed as booked", value: 0.967, unit: "ratio", goodDirection: "up" },
+        { label: "Complaints per 1,000 jobs", value: 7.2, unit: "count", goodDirection: "down" },
+        { label: "Professional retention", value: 0.62, unit: "ratio", goodDirection: "up" },
+      ],
+    },
+    {
+      id: "p-mk-service-mix",
+      kind: "segments",
+      title: "Bookings by service",
+      caption: "What people are asking for, across the whole city.",
+      dimension: "Service",
+      rows: [
+        { label: "Cleaning", value: 214_000, unit: "count", deltaPct: 12.4 },
+        { label: "Appliance repair", value: 148_000, unit: "count", deltaPct: 9.8 },
+        { label: "Plumbing and electrical", value: 121_000, unit: "count", deltaPct: 14.1 },
+        { label: "Beauty at home", value: 97_000, unit: "count", deltaPct: 18.6 },
+      ],
+    },
+    {
       id: "p-mk-room",
       kind: "note",
       title: "What the room is saying",
@@ -267,14 +292,14 @@ export const marketplaceLiquidity: SimScenario = {
     },
   ],
 
-  budget: { analystDays: 7, sprints: 4, rupees: 9 * CRORE },
+  budget: { analystDays: 6, sprints: 4, rupees: 9 * CRORE },
 
   drilldowns: [
     {
       id: "dd-zone-hour",
       label: "Match rate by zone and by hour",
       question: "Is the failure spread across the platform or concentrated somewhere?",
-      cost: 3,
+      cost: 2,
       evidenceFor: ["supply.density"],
       readsAs:
         "79% is an average of 92% and 44%. Three suburbs in the 8–11am and 6–9pm windows are 31% of requests and 78% of every failure. Everywhere else the marketplace works exactly as well as it did a year ago.",
@@ -337,7 +362,7 @@ export const marketplaceLiquidity: SimScenario = {
       id: "dd-cohort",
       label: "What a failed booking does to a customer",
       question: "Does a failure cost us anything beyond the booking?",
-      cost: 3,
+      cost: 2,
       dependsOn: ["dd-zone-hour"],
       evidenceFor: ["supply.density"],
       readsAs:

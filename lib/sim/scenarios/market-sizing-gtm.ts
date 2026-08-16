@@ -180,6 +180,43 @@ export const marketSizingGtm: SimScenario = {
       ],
     },
     {
+      id: "p-gtm-product",
+      kind: "stat",
+      title: "The product, in the hands of people who have one",
+      caption: "Owner research, 4,300 responses.",
+      tiles: [
+        { label: "Owner rating", value: 4.4, unit: "count", goodDirection: "up" },
+        { label: "Would recommend", value: 0.71, unit: "ratio", goodDirection: "up" },
+        { label: "Installation succeeds first time", value: 0.89, unit: "ratio", goodDirection: "up" },
+        { label: "Warranty claims", value: 0.024, unit: "ratio", goodDirection: "down" },
+      ],
+    },
+    {
+      id: "p-gtm-awareness",
+      kind: "segments",
+      title: "Aided awareness by launch state",
+      caption: "Against a 30% plan. The campaign did what it said it would.",
+      dimension: "State",
+      rows: [
+        { label: "Uttar Pradesh", value: 0.41, unit: "ratio", deltaPct: 36.7 },
+        { label: "Bihar", value: 0.34, unit: "ratio", deltaPct: 13.3 },
+        { label: "Madhya Pradesh", value: 0.31, unit: "ratio", deltaPct: 3.3 },
+        { label: "Rajasthan", value: 0.29, unit: "ratio", deltaPct: -3.3 },
+      ],
+    },
+    {
+      id: "p-gtm-unit",
+      kind: "stat",
+      title: "What one unit earns",
+      caption: "Per unit sold, after the dealer's margin.",
+      tiles: [
+        { label: "Retail price", value: 1899, unit: "inr", goodDirection: "up" },
+        { label: "Dealer margin", value: 0.35, unit: "ratio", goodDirection: "down" },
+        { label: "Cost to make", value: 742, unit: "inr", goodDirection: "down" },
+        { label: "Contribution per unit", value: 492, unit: "inr", goodDirection: "up" },
+      ],
+    },
+    {
       id: "p-gtm-room",
       kind: "note",
       title: "What the room is saying",
@@ -197,7 +234,7 @@ export const marketSizingGtm: SimScenario = {
       id: "dd-installability",
       label: "Can the target households actually install it?",
       question: "Does every household in our SAM have somewhere to put a panel?",
-      cost: 3,
+      cost: 2,
       evidenceFor: ["sizing.sam"],
       readsAs:
         "Only 34% of the SAM own an unshaded roof. The other two thirds rent, live in multi-storey buildings, or have no usable roof — they were never customers, and they were two thirds of the plan.",
@@ -251,7 +288,7 @@ export const marketSizingGtm: SimScenario = {
       id: "dd-channel-econ",
       label: "Contribution by route to market",
       question: "What would a different channel actually be worth?",
-      cost: 3,
+      cost: 2,
       evidenceFor: ["gtm.margin"],
       readsAs:
         "General trade keeps 35% but costs us nothing to run. Direct keeps 8% and costs a fulfilment network and a marketing budget — the saving is real and most of it gets spent somewhere else.",
@@ -337,6 +374,32 @@ export const marketSizingGtm: SimScenario = {
         },
       ],
     },
+    // A seventh pull, so six analyst-days cannot cover half the board. It also
+    // closes the branch a candidate reaches for when a launch misses and the
+    // dealers are in place: that the product itself disappointed. It did not,
+    // which leaves only the plan.
+    {
+      id: "dd-owners",
+      label: "What owners say",
+      question: "Is the product itself letting us down?",
+      cost: 2,
+      evidenceFor: ["product.quality", "product.install"],
+      readsAs:
+        "Owners rate it 4.4 and 89% of installations succeed first time. The people who could fit one are happy with it — there were simply far fewer of them than the plan assumed.",
+      reveals: [
+        {
+          id: "p-gtm-owners",
+          kind: "stat",
+          title: "Owner research, 4,300 responses",
+          tiles: [
+            { label: "Owner rating", value: 4.4, unit: "count", goodDirection: "up" },
+            { label: "Installed successfully first time", value: 0.89, unit: "ratio", goodDirection: "up" },
+            { label: "Would recommend", value: 0.71, unit: "ratio", goodDirection: "up" },
+            { label: "Warranty claims", value: 0.024, unit: "ratio", goodDirection: "down" },
+          ],
+        },
+      ],
+    },
   ],
 
   causes: [
@@ -376,6 +439,21 @@ export const marketSizingGtm: SimScenario = {
       label: "₹1,899 is too expensive",
       verdict:
         "Among households that can install, intent at ₹1,899 is 31% and only reaches 44% at ₹1,299 — a lot of margin for a little volume. Price was not the barrier.",
+    },
+    { id: "product", parentId: null, label: "The product itself", verdict: "Both branches clean. What was built works; it was sized for a market that does not exist." },
+    {
+      id: "product.quality",
+      parentId: "product",
+      label: "It does not work well enough to recommend",
+      verdict:
+        "No. Installed units run at 4.4 out of 5 and 71% of owners would recommend it. The people who bought one are happy — there were simply far fewer of them than planned.",
+    },
+    {
+      id: "product.install",
+      parentId: "product",
+      label: "Installation is too hard, so people give up",
+      verdict:
+        "Close to the real answer and pointed the wrong way. 89% of attempted installations succeed. The problem is not that installation fails — it is that 66% of households have nowhere to attempt it.",
     },
   ],
   trueCauseIds: ["sizing.sam"],
