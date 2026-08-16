@@ -27,6 +27,7 @@ import {
 import { iconNameForQuestion } from "@/lib/question-icon";
 import { QuestionIcon } from "@/components/library/question-icon";
 import { ReplayButton } from "@/components/simulation/replay-button";
+import { HostRoomDialog } from "@/components/rooms/host-room-dialog";
 // From the pure module rather than `lib/simulations`, which reaches `server-only`.
 import type { SimQuestionState } from "@/lib/sim/replay";
 // Likewise: the rule is in `lib/attempt-state`, the query is in `lib/questions`.
@@ -55,6 +56,7 @@ export function QuestionCard({
   upgrade = null,
   simState = null,
   attemptState = null,
+  canHost = false,
 }: {
   question: QuestionCardData;
   /**
@@ -78,6 +80,17 @@ export function QuestionCard({
    * the card did for everyone before this existed.
    */
   attemptState?: AttemptQuestionState | null;
+  /**
+   * Whether to offer "host this in class". True only for a professor or admin,
+   * and only on a simulation.
+   *
+   * Note it is read alongside `locked` below, never instead of it: a host can
+   * only open a room on a war room their own account can play, which is what
+   * `createRoom` enforces. Offering the control on a locked card would be an
+   * offer the action then refuses — the exact failure `lib/entitlements.ts`
+   * exists to prevent.
+   */
+  canHost?: boolean;
 }) {
   // Checked BEFORE answerModeFor, which is meaningful only for the interview
   // types and would report a simulation as qualitative (see lib/types.ts).
@@ -296,6 +309,17 @@ export function QuestionCard({
         <Button onClick={() => begin()} disabled={pending} className="mt-4 w-full">
           Practise this <ArrowRight />
         </Button>
+      )}
+
+      {/* The professor's way in, and the literal "pick the war room from the
+          library" step. It sits under whichever of the three war-room actions
+          rendered above rather than inside each, because hosting is orthogonal
+          to whether this host has played it themselves. Gated on `!locked` for
+          the reason given on the prop. */}
+      {simulation && !locked && canHost && (
+        <div className="mt-2 text-center">
+          <HostRoomDialog questionId={question.id} questionTitle={question.title} />
+        </div>
       )}
 
       <Dialog open={!!conflict} onOpenChange={(open) => !open && setConflict(null)}>
