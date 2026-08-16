@@ -468,6 +468,199 @@ describe("ab-test-readout: the numbers the primer promises", () => {
   });
 });
 
+describe("vyapar-mitra-activation: the numbers the primer promises", () => {
+  const scenario = getScenario("vyapar-mitra-activation");
+  if (!scenario) throw new Error("scenario missing");
+  const v = resolveDrivers(scenario.drivers);
+  const LAKH = 100_000;
+
+  /**
+   * The shape the whole scenario turns on: activation is a MINIMUM, not a rate.
+   * 6,300 shops submit and a four-person team approves 4,200, so the ceiling is
+   * what decides the output and the 24% "activation rate" is a consequence of it
+   * rather than a property of the funnel.
+   */
+  it("caps activation at what the review team can approve, not at what arrives", () => {
+    expect(v.attempts).toBeCloseTo(6_300, 0);
+    expect(v.reviewCapacity).toBeCloseTo(4_200, 0);
+    expect(v.fastActivators).toBeCloseTo(4_200, 0);
+    // The binding one is capacity, which is the entire finding.
+    expect(v.reviewCapacity).toBeLessThan(v.attempts);
+    expect(v.fastActivationRate).toBeCloseTo(0.24, 4);
+    expect(v.slowUsers).toBeCloseTo(13_300, 0);
+  });
+
+  /** The other split, and the reason the ceiling matters so much. */
+  it("converts approved shops twenty-seven times better than everyone else", () => {
+    expect(v.fastConversion / v.slowConversion).toBeCloseTo(27.5, 1);
+    expect(v.fastPaid).toBeCloseTo(924, 0);
+    expect(v.slowPaid).toBeCloseTo(106.4, 1);
+    // 24% of the installs, 90% of the paying customers.
+    expect(v.fastPaid / v.newPaid).toBeGreaterThan(0.89);
+  });
+
+  it("settles the base at joiners ÷ churn, which is the 11,000 nobody could move", () => {
+    expect(v.newPaid).toBeCloseTo(1_030.4, 1);
+    expect(v.subscribers).toBeCloseTo(1_030.4 / 0.0937, 0);
+    expect(v.subscribers).toBeCloseTo(11_000, -2);
+    expect(v.lifetimeMonths).toBeCloseTo(10.67, 2);
+  });
+
+  it("earns ₹32.88 lakh of revenue and ₹6.66 lakh of contribution", () => {
+    expect(v.subscriptionRevenue).toBeCloseTo(32.88 * LAKH, -3);
+    expect(v.grossProfit).toBeCloseTo(26.96 * LAKH, -3);
+    expect(v.marketingSpend).toBeCloseTo(16.8 * LAKH, -2);
+    expect(v.contribution).toBeCloseTo(6.66 * LAKH, -3);
+  });
+
+  /**
+   * Cost per install held steady through the whole campaign, which is why nobody
+   * worried. The number that moved is the one nobody was reading.
+   */
+  it("pays ₹1,630 for a paying customer that contributes ₹245 a month", () => {
+    expect(v.cacPerPaid).toBeCloseTo(1_630, 0);
+    expect(v.marginPerSub).toBeCloseTo(245.18, 1);
+    expect(v.paybackMonths).toBeCloseTo(6.65, 2);
+    // A seven-month payback on an eleven-month customer: it works, barely.
+    expect(v.paybackMonths).toBeLessThan(v.lifetimeMonths);
+    expect(v.ltv).toBeGreaterThan(v.cacPerPaid);
+  });
+
+  it("roughly doubles the paying base once the gate comes off", () => {
+    const outcome = runOutcome(scenario, scenario.bestAllocation);
+    expect(finalValue(outcome.paths, "subscribers")).toBeGreaterThan(
+      1.9 * finalValue(outcome.doNothing, "subscribers"),
+    );
+    // Activation stops being capped: it more than doubles as a share of installs.
+    expect(finalValue(outcome.paths, "fastActivationRate")).toBeGreaterThan(0.55);
+    expect(finalValue(outcome.paths, "contribution")).toBeGreaterThan(20 * LAKH);
+  });
+
+  /**
+   * The sharpest trap, and the reason it is sharp: everything in its pitch is
+   * true. It buys customers and sells revenue, and the second is the bigger
+   * number — so the subscriber count goes UP while the north star goes DOWN.
+   */
+  it("makes the price cut win customers and lose money at the same time", () => {
+    const outcome = runOutcome(scenario, [
+      { interventionId: "iv-price-cut", sprints: 1, rupees: 5 * LAKH },
+    ]);
+    expect(finalValue(outcome.paths, "subscribers")).toBeGreaterThan(
+      finalValue(outcome.doNothing, "subscribers"),
+    );
+    expect(finalValue(outcome.paths, "subscriptionRevenue")).toBeLessThan(
+      finalValue(outcome.doNothing, "subscriptionRevenue"),
+    );
+    expect(finalValue(outcome.paths, "contribution")).toBeLessThan(
+      finalValue(outcome.doNothing, "contribution"),
+    );
+  });
+
+  /**
+   * A price is a switch, not a dial: ₹299 becomes ₹199 or it does not. Tripling
+   * the money behind the rollout must not buy a deeper cut than the one the card
+   * describes, or the arithmetic on the card stops being the arithmetic in the
+   * model.
+   */
+  it("does not let over-funding the price cut buy a bigger price cut", () => {
+    const asked = runOutcome(scenario, [
+      { interventionId: "iv-price-cut", sprints: 1, rupees: 5 * LAKH },
+    ]);
+    const tripled = runOutcome(scenario, [
+      { interventionId: "iv-price-cut", sprints: 1, rupees: 15 * LAKH },
+    ]);
+    expect(finalValue(tripled.paths, "arpu")).toBeCloseTo(
+      finalValue(asked.paths, "arpu"),
+      6,
+    );
+    expect(finalValue(asked.paths, "arpu")).toBeCloseTo(299 * (1 - 0.334), 2);
+  });
+
+  /**
+   * The second trap, and the signature of a bottleneck.
+   *
+   * Installs are exactly as buyable as the media plan says — the campaign is not
+   * badly run — and approvals do not move at all, because the step that decides
+   * the output is full. The tell is the activation *rate* falling while nothing
+   * about the funnel got worse: the denominator grew and the numerator could not.
+   */
+  it("buys the campaign the installs it promises, and no more approvals at all", () => {
+    const outcome = runOutcome(scenario, [
+      { interventionId: "iv-scale-campaign", sprints: 2, rupees: 10 * LAKH },
+    ]);
+    const installsUp =
+      finalValue(outcome.paths, "installs") / finalValue(outcome.doNothing, "installs");
+    const paidUp =
+      finalValue(outcome.paths, "newPaid") / finalValue(outcome.doNothing, "newPaid");
+    expect(installsUp).toBeGreaterThan(1.3);
+    expect(paidUp).toBeLessThan(1.1);
+    // Approvals are pinned to the ceiling however many people arrive.
+    expect(finalValue(outcome.paths, "fastActivators")).toBeCloseTo(
+      finalValue(outcome.doNothing, "fastActivators"),
+      6,
+    );
+    expect(finalValue(outcome.paths, "fastActivationRate")).toBeLessThan(
+      finalValue(outcome.doNothing, "fastActivationRate"),
+    );
+    // And the bill lands in full, so contribution goes backwards.
+    expect(finalValue(outcome.paths, "contribution")).toBeLessThan(
+      finalValue(outcome.doNothing, "contribution"),
+    );
+  });
+
+  /**
+   * The quietest trap: it works exactly as advertised on a step that was never
+   * the constraint, so it moves activation by precisely nothing while costing a
+   * sprint and ₹7 lakh. Adding demand at a full step is the classic wrong answer
+   * to a bottleneck, and it has to be available to get wrong.
+   */
+  it("lets the setup walkthrough change activations by nothing at all", () => {
+    const outcome = runOutcome(scenario, [
+      { interventionId: "iv-guided-setup", sprints: 1, rupees: 7 * LAKH },
+    ]);
+    expect(finalValue(outcome.paths, "fastActivators")).toBeCloseTo(
+      finalValue(outcome.doNothing, "fastActivators"),
+      6,
+    );
+    expect(finalValue(outcome.paths, "subscribers")).toBeCloseTo(
+      finalValue(outcome.doNothing, "subscribers"),
+      6,
+    );
+    // Everything it costs still lands.
+    expect(finalValue(outcome.paths, "contribution")).toBeLessThan(
+      finalValue(outcome.doNothing, "contribution"),
+    );
+  });
+
+  it("defines the funnel vocabulary before using it, and links it to the map", () => {
+    const primer = scenario.teaching?.primer;
+    expect(primer).toBeDefined();
+    expect(scenario.teaching?.showMetricMap).toBe(true);
+    const terms = primer!.terms.map((t) => t.term);
+    for (const expected of [
+      "Install",
+      "Activation",
+      "Activation rate",
+      "Bottleneck",
+      "Paid conversion",
+      "Churn",
+      "Subscriber base",
+      "ARPU",
+      "CAC",
+      "Payback period",
+      "Contribution",
+    ]) {
+      expect(terms).toContain(expected);
+    }
+    for (const t of primer!.terms) expect(t.matters.length).toBeGreaterThan(20);
+
+    const driverIds = new Set(scenario.drivers.map((d) => d.id));
+    for (const t of primer!.terms) {
+      if (t.driver) expect(driverIds).toContain(t.driver);
+    }
+  });
+});
+
 describe("channel-trade-spend: the numbers the primer promises", () => {
   const scenario = getScenario("channel-trade-spend");
   if (!scenario) throw new Error("scenario missing");
@@ -667,6 +860,160 @@ describe("marketplace-liquidity: the numbers the primer promises", () => {
   });
 });
 
+describe("sehat-plus-service-level: the numbers the primer promises", () => {
+  const scenario = getScenario("sehat-plus-service-level");
+  if (!scenario) throw new Error("scenario missing");
+  const v = resolveDrivers(scenario.drivers);
+  const CRORE = 10_000_000;
+
+  /**
+   * The finding, stated as arithmetic: 87.4% is not a fill rate, it is the
+   * average of two of them that have nothing to do with each other.
+   */
+  it("averages 98.2% and 71.2% into a blended 87.4%", () => {
+    expect(v.chronicFillRate).toBeCloseTo(0.982, 4);
+    expect(v.acuteFillRate).toBeCloseTo(0.712, 4);
+    expect(v.blendedFillRate).toBeCloseTo(0.874, 4);
+    // And the blend sits nowhere near either of the things it is made of.
+    expect(v.blendedFillRate).toBeLessThan(v.chronicFillRate);
+    expect(v.blendedFillRate).toBeGreaterThan(v.acuteFillRate);
+  });
+
+  it("loses ₹13.61 crore of demand a quarter, almost all of it acute", () => {
+    expect(v.totalDemandValue).toBeCloseTo(108 * CRORE, -4);
+    expect(v.totalSales).toBeCloseTo(94.392 * CRORE, -4);
+    expect(v.lostSalesValue).toBeCloseTo(13.608 * CRORE, -4);
+
+    const chronicLost = v.chronicDemandValue - v.chronicSales;
+    const acuteLost = v.acuteDemandValue - v.acuteSales;
+    // 91% of the shortfall is the 40% of demand nobody was looking at.
+    expect(acuteLost / v.lostSalesValue).toBeGreaterThan(0.9);
+    expect(chronicLost / v.lostSalesValue).toBeLessThan(0.1);
+  });
+
+  /**
+   * Both halves carry the identical national rule — 14 days of safety stock plus
+   * 12 of cycle — and that is exactly the problem: the same number of days is a
+   * completely different promise on the two of them.
+   */
+  it("holds both halves of the range to the same 26 days of cover", () => {
+    expect(v.chronicCoverDays).toBeCloseTo(26, 6);
+    expect(v.acuteCoverDays).toBeCloseTo(26, 6);
+    expect(v.chronicSafetyDays).toBe(v.acuteSafetyDays);
+    // Five times the variability, and not one extra day behind it.
+    expect(v.acuteCv / v.chronicCv).toBeCloseTo(5.07, 1);
+  });
+
+  it("carries ₹31.2 crore of stock turning 9.5 times a year", () => {
+    expect(v.chronicStock).toBeCloseTo(18.72 * CRORE, -4);
+    expect(v.acuteStock).toBeCloseTo(12.48 * CRORE, -4);
+    expect(v.inventoryValue).toBeCloseTo(31.2 * CRORE, -4);
+    expect(v.holdingCost).toBeCloseTo(2.184 * CRORE, -4);
+    // The aggregate that looks entirely healthy while half the range is wrong.
+    expect(v.inventoryTurns).toBeCloseTo(9.53, 1);
+  });
+
+  it("earns ₹20.09 crore of gross profit and ₹1.70 crore of contribution", () => {
+    expect(v.grossProfit).toBeCloseTo(20.0876 * CRORE, -4);
+    expect(v.contribution).toBeCloseTo(1.7036 * CRORE, -4);
+  });
+
+  /**
+   * The shape of a good inventory decision, and the one the CFO can also sign:
+   * availability goes up and the stock goes DOWN, because the chain was holding
+   * roughly the right amount against the wrong risks.
+   */
+  it("buys availability while releasing stock rather than consuming it", () => {
+    const outcome = runOutcome(scenario, scenario.bestAllocation);
+    const acute = finalValue(outcome.paths, "acuteFillRate");
+    const chronic = finalValue(outcome.paths, "chronicFillRate");
+
+    expect(acute).toBeGreaterThan(finalValue(outcome.doNothing, "acuteFillRate") + 0.2);
+    expect(finalValue(outcome.paths, "blendedFillRate")).toBeGreaterThan(0.96);
+    // Chronic gives up almost nothing: five of its six standard deviations of
+    // cover were never doing any work.
+    expect(chronic).toBeGreaterThan(0.975);
+    // And it costs negative working capital.
+    expect(finalValue(outcome.paths, "inventoryValue")).toBeLessThan(
+      finalValue(outcome.doNothing, "inventoryValue"),
+    );
+  });
+
+  /**
+   * The sharpest trap, and the reason it is sharp: it genuinely moves the metric
+   * the whole chain is measured on, and still loses money once the stock it
+   * bought has to be carried.
+   */
+  it("lets blanket safety stock lift the fill rate and lose the quarter", () => {
+    const outcome = runOutcome(scenario, [
+      { interventionId: "iv-blanket-safety", sprints: 1, rupees: 1 * CRORE },
+    ]);
+    expect(finalValue(outcome.paths, "blendedFillRate")).toBeGreaterThan(
+      finalValue(outcome.doNothing, "blendedFillRate"),
+    );
+    expect(finalValue(outcome.paths, "acuteFillRate")).toBeGreaterThan(
+      finalValue(outcome.doNothing, "acuteFillRate"),
+    );
+    // Bought with the balance sheet the CFO has been told to shrink…
+    expect(finalValue(outcome.paths, "inventoryValue")).toBeGreaterThan(
+      finalValue(outcome.doNothing, "inventoryValue") + 5 * CRORE,
+    );
+    // …and it does not pay for itself.
+    expect(finalValue(outcome.paths, "contribution")).toBeLessThan(
+      finalValue(outcome.doNothing, "contribution"),
+    );
+  });
+
+  /**
+   * The second trap. The fact is true — lead time really did go 6 → 8 — and the
+   * data acquits it: it moved identically on both halves of the split, so it
+   * cannot be what created the split.
+   */
+  it("moves lead time equally across the two classes that behave differently", () => {
+    const pull = scenario.drilldowns.find((d) => d.id === "dd-leadtime");
+    expect(pull).toBeDefined();
+    const panel = pull!.reveals.find((p) => p.id === "p-sp-leadtime");
+    expect(panel?.kind).toBe("timeseries");
+    if (panel?.kind !== "timeseries") throw new Error("expected a timeseries");
+
+    const [chronic, acute] = panel.series;
+    expect(chronic.points).toHaveLength(acute.points.length);
+    for (const [i, point] of chronic.points.entries()) {
+      // Never more than a fifth of a day apart, at any point in two years.
+      expect(Math.abs(point.value - acute.points[i].value)).toBeLessThanOrEqual(0.2);
+    }
+    // Both roughly a third longer than they were.
+    expect(acute.points.at(-1)!.value / acute.points[0].value).toBeGreaterThan(1.3);
+  });
+
+  it("defines the inventory vocabulary before using it, and links it to the map", () => {
+    const primer = scenario.teaching?.primer;
+    expect(primer).toBeDefined();
+    expect(scenario.teaching?.showMetricMap).toBe(true);
+    const terms = primer!.terms.map((t) => t.term);
+    for (const expected of [
+      "Fill rate",
+      "Service level",
+      "Safety stock",
+      "Cycle stock",
+      "Coefficient of variation",
+      "Lead time",
+      "Inventory turns",
+      "Stockout cost",
+      "Holding cost",
+      "Contribution",
+    ]) {
+      expect(terms).toContain(expected);
+    }
+    for (const t of primer!.terms) expect(t.matters.length).toBeGreaterThan(20);
+
+    const driverIds = new Set(scenario.drivers.map((d) => d.id));
+    for (const t of primer!.terms) {
+      if (t.driver) expect(driverIds).toContain(t.driver);
+    }
+  });
+});
+
 describe("b2b-deal-tco: the numbers the primer promises", () => {
   const scenario = getScenario("b2b-deal-tco");
   if (!scenario) throw new Error("scenario missing");
@@ -777,6 +1124,143 @@ describe("b2b-deal-tco: the numbers the primer promises", () => {
  * teaching *is* the arithmetic: a primer that says gross margin fell 1.4 points
  * beside a model that says something else is worse than no primer at all.
  */
+describe("setu-roadmap-value: the numbers the primer promises", () => {
+  const scenario = getScenario("setu-roadmap-value");
+  if (!scenario) throw new Error("scenario missing");
+  const v = resolveDrivers(scenario.drivers);
+  const CRORE = 10_000_000;
+
+  /**
+   * The inversion, stated as arithmetic. Everything else in the scenario is a
+   * consequence of these two numbers pointing in opposite directions.
+   */
+  it("gives 46% of the revenue 0.5% of the requests", () => {
+    expect(v.totalArr).toBeCloseTo(96 * CRORE, -4);
+    expect(v.enterpriseArrShare).toBeCloseTo(0.46, 4);
+    expect(v.totalRequests).toBeCloseTo(20_978, 0);
+    expect(v.enterpriseRequestShare).toBeLessThan(0.006);
+
+    // Requests per crore of ARR: the same fact in the unit that makes it obvious.
+    const enterprisePerCrore = v.enterpriseRequests / (v.enterpriseArr / CRORE);
+    const tailPerCrore = v.tailRequests / (v.tailArr / CRORE);
+    expect(enterprisePerCrore).toBeCloseTo(2.4, 1);
+    expect(tailPerCrore).toBeCloseTo(985, -1);
+    // Four hundred times louder per rupee, which is what a "fair" ranking by
+    // request count is actually ranking on.
+    expect(tailPerCrore / enterprisePerCrore).toBeGreaterThan(400);
+  });
+
+  /**
+   * Churn responds to roadmap coverage very differently by tier, and that
+   * asymmetry is the reason the misallocation is expensive rather than merely
+   * unfair. The tail is nearly at its floor; the enterprise tier is nowhere near.
+   */
+  it("leaves the tail near its churn floor and the enterprise tier nowhere near", () => {
+    expect(v.tailChurn).toBeCloseTo(0.046, 3);
+    expect(v.tailChurn - v.tailChurnFloor).toBeLessThan(0.005);
+
+    expect(v.enterpriseChurn).toBeCloseTo(0.0614, 4);
+    expect(v.enterpriseChurn / v.enterpriseChurnFloor).toBeGreaterThan(7);
+  });
+
+  it("loses ₹4.76 crore a quarter and retains 94% annualised", () => {
+    expect(v.churnedArr).toBeCloseTo(4.763 * CRORE, -4);
+    expect(v.expansionArr).toBeCloseTo(3.312 * CRORE, -4);
+    expect(v.retainedArr).toBeCloseTo(94.549 * CRORE, -4);
+    expect(v.nrr).toBeCloseTo(0.9849, 4);
+    // The 94% the situation quotes is the annualised figure the company reports.
+    expect(Math.pow(v.nrr, 4)).toBeCloseTo(0.941, 3);
+  });
+
+  it("takes retention back above 100% by re-ranking, not by building more", () => {
+    const outcome = runOutcome(scenario, scenario.bestAllocation);
+    expect(finalValue(outcome.paths, "enterpriseCovered")).toBeGreaterThan(0.8);
+    expect(finalValue(outcome.paths, "enterpriseChurn")).toBeLessThan(0.02);
+    expect(finalValue(outcome.paths, "nrr")).toBeGreaterThan(1);
+    // The opportunity cost is real and is paid by the tail — modelled, not just
+    // mentioned in the debrief.
+    expect(finalValue(outcome.paths, "tailCovered")).toBeLessThan(
+      finalValue(outcome.doNothing, "tailCovered"),
+    );
+  });
+
+  /**
+   * The sharpest trap, and the only one in the catalogue that makes the north
+   * star worse by working exactly as designed. A voting portal genuinely
+   * collects votes; the votes are the problem.
+   */
+  it("makes the voting portal amplify the bias rather than reveal it", () => {
+    const outcome = runOutcome(scenario, [
+      { interventionId: "iv-voting-portal", sprints: 1, rupees: 1.2 * CRORE },
+    ]);
+    // It works: the tail is heard even better than before.
+    expect(finalValue(outcome.paths, "tailCovered")).toBeGreaterThan(
+      finalValue(outcome.doNothing, "tailCovered"),
+    );
+    // And the accounts that are 46% of ARR lose what little they had.
+    expect(finalValue(outcome.paths, "enterpriseCovered")).toBeLessThan(
+      finalValue(outcome.doNothing, "enterpriseCovered"),
+    );
+    expect(finalValue(outcome.paths, "enterpriseChurn")).toBeGreaterThan(
+      finalValue(outcome.doNothing, "enterpriseChurn"),
+    );
+    expect(finalValue(outcome.paths, "netRetainedArr")).toBeLessThan(
+      finalValue(outcome.doNothing, "netRetainedArr"),
+    );
+  });
+
+  /**
+   * The second trap. Hiring works — coverage rises on every tier — and it is
+   * still much worse than doing nothing, because 22% more of 11% is nothing and
+   * the salaries are permanent.
+   */
+  it("lets hiring lift every tier's coverage and still lose the quarter", () => {
+    const outcome = runOutcome(scenario, [
+      { interventionId: "iv-hire-six", sprints: 1, rupees: 2.8 * CRORE },
+    ]);
+    for (const tier of ["enterpriseCovered", "midCovered", "tailCovered"]) {
+      expect(finalValue(outcome.paths, tier)).toBeGreaterThan(
+        finalValue(outcome.doNothing, tier),
+      );
+    }
+    expect(finalValue(outcome.paths, "churnedArr")).toBeLessThan(
+      finalValue(outcome.doNothing, "churnedArr"),
+    );
+    // Two points of enterprise coverage, bought with permanent salary.
+    expect(finalValue(outcome.paths, "netRetainedArr")).toBeLessThan(
+      finalValue(outcome.doNothing, "netRetainedArr"),
+    );
+  });
+
+  /**
+   * The map is withheld on purpose here, exactly as on `b2b-deal-tco`: that
+   * coverage and churn are connected at all is the discovery.
+   */
+  it("teaches the vocabulary and withholds the model", () => {
+    const primer = scenario.teaching?.primer;
+    expect(primer).toBeDefined();
+    expect(scenario.teaching?.showMetricMap).toBe(false);
+    const terms = primer!.terms.map((t) => t.term);
+    for (const expected of [
+      "ARR",
+      "Revenue concentration",
+      "NRR",
+      "Value at risk",
+      "Roadmap coverage",
+      "Opportunity cost",
+      "Selection bias",
+    ]) {
+      expect(terms).toContain(expected);
+    }
+    for (const t of primer!.terms) expect(t.matters.length).toBeGreaterThan(20);
+
+    const driverIds = new Set(scenario.drivers.map((d) => d.id));
+    for (const t of primer!.terms) {
+      if (t.driver) expect(driverIds).toContain(t.driver);
+    }
+  });
+});
+
 describe("pnl-profit-squeeze: the numbers the primer promises", () => {
   const scenario = getScenario("pnl-profit-squeeze");
   if (!scenario) throw new Error("scenario missing");

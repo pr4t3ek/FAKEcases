@@ -633,6 +633,22 @@ export const questions: SeedQuestion[] = [
     tags: "product management,experimentation,ab testing,statistical significance,returns,fashion,e-commerce,simulation",
   },
   {
+    externalId: "vyapar-mitra-activation",
+    title: "Vyapar Mitra: 38% more signups and the same 11,000 paying shops",
+    prompt:
+      "A billing app for small shops ran a ₹1.4 crore campaign, lifted installs 38% at a flat cost per install, and added almost no paying customers. The CEO wants to double the campaign; the head of sales wants to cut the price. Work out where the people are going, then spend a month acting on it.",
+    category: "product-management",
+    sector: "technology",
+    difficulty: "Easy",
+    interviewLevel: "PM",
+    type: "simulation",
+    betterApproach:
+      "Before buying more of the top of a funnel, measure what share of it reaches the bottom — and then ask a second question most people skip: is any step downstream already full? Rates multiply, ceilings do not, so a number that refuses to move under a 38% increase is usually a capacity problem rather than a conversion one. Split conversion by segment rather than reading it blended, and separate a compliance requirement from the product decision wrapped around it: the law says what must be true of a filed invoice, not what must be true before somebody may open the app.",
+    sampleSolution:
+      "Onboarding blocks the first invoice behind a GST number and a photographed registration certificate that a human must approve, and both halves bind. Only 6,300 of 17,500 installs submit anything, and a four-person team approves about 4,200 a month — so activation is the smaller of the two and has been pinned at 4,200 for a year. Approved shops convert at 22%, everyone else at 0.8%, so 24% of installs produce 90% of paying customers. The campaign lifted installs 38% and submissions 38%, approvals by nothing, and a base that settles at joiners ÷ churn moved 10,590 → 11,000 while marketing spend rose 41%. Cutting the price to ₹199 lifts conversion 3.1 points and cuts ARPU 33.4% — more customers, less money — and a setup walkthrough sends more applicants at a queue that already turns 2,100 away. Letting shops raise draft invoices first and verifying the GSTIN against the API instead of by hand takes activation from 24% to about 59% and contribution from ₹6.66 lakh a month to ₹23.6 lakh.",
+    tags: "product management,activation,onboarding,funnel,bottleneck,capacity,conversion,churn,saas,kirana,gst,simulation",
+  },
+  {
     externalId: "subscription-ltv-cac",
     title: "Padhai Plus: 18,000 new subscribers a month, and a bigger hole",
     prompt:
@@ -711,6 +727,38 @@ export const questions: SeedQuestion[] = [
     sampleSolution:
       "79% is an average of 92% and 44%: three suburbs in the commute windows are 31% of requests and 78% of failures, because 71% of the new professionals signed up in central zones already matching at 92%. Utilisation is 31% there and 84% at peak in the deficit suburbs — idle and short at once. A failed booking costs ₹185 and a customer who repeats at 21% instead of 68%, so pushing demand 20% raises GMV about 12% and roughly triples the loss.",
     tags: "product management,marketplace,liquidity,match rate,utilisation,take rate,home services,simulation",
+  },
+  {
+    externalId: "setu-roadmap-value",
+    title: "Setu: three quarters of shipping the most-requested features, and NRR at 94%",
+    prompt:
+      "A logistics software company ranked its roadmap by how many accounts asked for each item, shipped down that list with 91% on-time delivery for three quarters, and watched net revenue retention fall from 103% to 94%. The CEO wants a public feature-voting portal; engineering wants six more people. Work out what the request queue was actually measuring, then spend a quarter acting on it.",
+    category: "product-management",
+    sector: "technology",
+    difficulty: "Medium",
+    interviewLevel: "Product",
+    type: "simulation",
+    betterApproach:
+      "Rank work by the revenue at risk behind a request rather than by how many people made it — the two only agree when every customer is the same size. Before trusting any demand signal, ask who is structurally able to appear in it: a signal can be precise, well instrumented and unrepresentative at once. Then check whether the metric you are trying to move even responds in the segment you are serving, because effort spent on customers already near their retention floor buys nothing however well it is executed.",
+    sampleSolution:
+      "Request count runs inversely to account size: 12 enterprise accounts are 46% of ARR and 0.5% of requests (2.4 per crore) while 610 long-tail accounts are 20% of ARR and 90% of requests (985 per crore). The cause is two good decisions colliding — named CSMs for big accounts, so only 4% of their asks become tickets, and a roadmap process built on the ticket system because that is where the data was. Coverage is 11% enterprise against 72% tail; long-tail churn is 4.6% against a 4.2% floor no feature moves, while enterprise churn is 6.1% against a floor of 0.8%, so nearly all recoverable churn sits in the tier being ignored. A voting portal amplifies the bias — the twelve accounts will not vote either — and six engineers add 22% coverage on every tier for ₹1.5 crore a quarter. Re-ranking on ARR at risk and putting a squad on the enterprise commitment list takes coverage past 84%, enterprise churn to 1.9%, and quarterly NRR back above 100%.",
+    tags: "product management,prioritisation,roadmap,net revenue retention,revenue concentration,opportunity cost,selection bias,b2b saas,logistics,simulation",
+  },
+  {
+    externalId: "sehat-plus-service-level",
+    title: "Sehat Plus: 87% availability on 24% more stock",
+    prompt:
+      "A 240-store pharmacy chain promises 96% availability and delivers 87.4%, while holding ₹31.2 crore of stock — 24% more than a year ago, because safety stock was already raised from 11 days to 14 and the fill rate fell anyway. The CFO has been told to release ₹6 crore of working capital. Work out what the average is hiding, then spend a quarter acting on it.",
+    category: "retail",
+    sector: "healthcare",
+    difficulty: "Medium",
+    interviewLevel: "GeneralMBA",
+    type: "simulation",
+    betterApproach:
+      "Never read a service level at the level of the business. Availability is a promise about one item, so an aggregate averages items that behave nothing alike and destroys the information it was carrying — split it by how variable demand is before doing anything else. Then apply one test to every candidate cause: did it move differently across the two sides of the split? A degradation that hit both halves equally cannot explain a gap that opened on only one of them.",
+    sampleSolution:
+      "A national rule holds every SKU at 14 days of average demand. Chronic refills have a coefficient of variation of 0.14, so 14 days is about six standard deviations of cover and they sit at 98.2%; acute and seasonal lines have 0.71, so the same 14 days is about one, and they sit at 71.2% while being 40% of demand and 91% of the ₹13.61 crore a quarter that goes unserved. Blended that is 87.4% on stock turning 9.5 times — both perfectly respectable aggregates, which is why nobody could find it. Lead time did rise from 6 days to 8, but identically on both classes, so it cannot explain the split; raising cover to 21 days everywhere lifts the reported fill rate about three points and costs ₹6.5 crore of working capital, leaving the quarter slightly worse. Sizing safety stock on variability — about 4 days chronic, 26 acute — and holding the acute buffer forward in stores on a twice-weekly cycle takes blended availability past 96% on ₹4.3 crore *less* inventory.",
+    tags: "supply chain,inventory,fill rate,service level,safety stock,coefficient of variation,inventory turns,pharmacy,retail,simulation",
   },
   {
     externalId: "b2b-deal-tco",

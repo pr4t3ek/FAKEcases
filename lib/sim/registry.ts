@@ -15,12 +15,15 @@ import type { SimScenario } from "./types";
 import { metricDropFoodDelivery } from "./scenarios/metric-drop-food-delivery";
 import { adFunnelRoas } from "./scenarios/ad-funnel-roas";
 import { abTestReadout } from "./scenarios/ab-test-readout";
+import { vyaparMitraActivation } from "./scenarios/vyapar-mitra-activation";
 import { subscriptionLtvCac } from "./scenarios/subscription-ltv-cac";
 import { channelTradeSpend } from "./scenarios/channel-trade-spend";
 import { pricingElasticity } from "./scenarios/pricing-elasticity";
 import { marketSizingGtm } from "./scenarios/market-sizing-gtm";
 import { marketplaceLiquidity } from "./scenarios/marketplace-liquidity";
 import { b2bDealTco } from "./scenarios/b2b-deal-tco";
+import { sehatPlusServiceLevel } from "./scenarios/sehat-plus-service-level";
+import { setuRoadmapValue } from "./scenarios/setu-roadmap-value";
 import { pnlProfitSqueeze } from "./scenarios/pnl-profit-squeeze";
 import { cashConversionCycle } from "./scenarios/cash-conversion-cycle";
 import { balanceSheetLeverage } from "./scenarios/balance-sheet-leverage";
@@ -38,6 +41,7 @@ import { cashRunwayTurnaround } from "./scenarios/cash-runway-turnaround";
 const ALL: SimScenario[] = [
   adFunnelRoas,
   abTestReadout,
+  vyaparMitraActivation,
   subscriptionLtvCac,
   channelTradeSpend,
   pnlProfitSqueeze,
@@ -46,6 +50,8 @@ const ALL: SimScenario[] = [
   pricingElasticity,
   marketSizingGtm,
   marketplaceLiquidity,
+  sehatPlusServiceLevel,
+  setuRoadmapValue,
   b2bDealTco,
   metricDropFoodDelivery,
   // Last: the only turnaround in the catalogue, and a different exercise from

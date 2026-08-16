@@ -117,9 +117,19 @@ const EXPECTED: Record<string, string> = {
   "Kadak Coffee: the ads are working and the money is going": "Coffee",
   "Padhai Plus: 18,000 new subscribers a month, and a bigger hole": "GraduationCap",
   "Rangoli: the test says +6%, and the room wants it live on Monday": "ShoppingBag",
+  // "kirana" in the tags beats "saas" — the app is software, but the subject on
+  // the card is the shop it is sold to, and Store is the icon a reader scans for.
+  "Vyapar Mitra: 38% more signups and the same 11,000 paying shops": "Store",
   "Chaska: share is up five points and the profit is down a third": "Store",
   "Ujala Solar: we planned for 10.8 lakh units and sold 4.3 lakh": "Zap",
   "Lekha: our most profitable customer wants 18% off": "Factory",
+  // A retail chain whose subject is medicine: "pharmacy" in the tags reaches
+  // the healthcare rule before the Retail category fallback can be used.
+  "Sehat Plus: 87% availability on 24% more stock": "Stethoscope",
+  // "revenue" (in "net revenue retention") outranks "logistics" in the rule
+  // order, and that is the right call here: the subject is retained ARR, not
+  // freight. The software happens to be sold to hauliers.
+  "Setu: three quarters of shipping the most-requested features, and NRR at 94%": "IndianRupee",
   "Kirti Apparel: revenue is up 22% and profit is down 62%": "Shirt",
   "Nirmal Pipes: a record profit and no money for payroll": "Factory",
   // "ceramic" beats "bank" — the bank is in the sentence, not in the subject.

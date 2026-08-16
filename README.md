@@ -33,7 +33,7 @@ per slide) plus the prompts to generate the deck, for pitching what this is and 
 cp .env.example .env   # Prisma needs DATABASE_URL; .env is gitignored, so a clone has none
 pnpm install
 pnpm db:push           # create the SQLite database from prisma/schema.prisma
-pnpm db:seed           # 15 categories, 40 questions (24 guesstimates + 2 cases + 14 simulations), achievements, demo users
+pnpm db:seed           # 15 categories, 43 questions (24 guesstimates + 2 cases + 17 simulations), achievements, demo users
 pnpm dev               # http://localhost:3000
 ```
 
@@ -379,10 +379,10 @@ guesstimate and implied the two were interchangeable. They have their own leader
 reason: a war room is scored on a different rubric, so adding its score to a practice score — which
 the cumulative board used to do — produced a number that measured nothing.
 
-Thirteen scenarios ship today, easiest first — which is the order the library shows them in. Nine
+Sixteen scenarios ship today, easiest first — which is the order the library shows them in. Twelve
 teach product and marketing economics; three are a **finance track**, one per financial statement,
 filed under Finance in the library; and the last is the catalogue's only **turnaround**, a
-different exercise from everything above it. A fourteenth simulation, the buyback contract, runs on
+different exercise from everything above it. A seventeenth simulation, the buyback contract, runs on
 its own multi-period simulator rather than as a war room — see below.
 
 | Scenario | Level | Teaches |
@@ -390,6 +390,7 @@ its own multi-period simulator rather than as a war room — see below.
 | **Kadak Coffee** — ROAS 4.0 and losing money | Easy | CPM, impressions, CTR, conversion, AOV, CAC, ROAS, ROI — and that a campaign only breaks even once ROAS clears 1 ÷ gross margin |
 | **Rangoli** — the test says +6%, ship it Monday? | Easy | A/B tests, sample size, significance, novelty effect, confounded variants — and reading a test on the metric that pays the bills |
 | **Padhai Plus** — growing subscribers, growing burn | Easy | Churn, lifetime, LTV, CAC, payback, and that a subscriber base settles at joiners ÷ churn |
+| **Vyapar Mitra** — 38% more signups, the same 11,000 paying shops | Easy | Activation against acquisition, funnel arithmetic, ARPU, CAC and payback — and how to spot a **bottleneck**, a step whose fixed capacity decides the output however much arrives at it |
 | **Chaska** — share up five points, profit down a third | Easy | Net realisation, trade promotion, incrementality, cannibalisation — and why market share is a diagnostic rather than a target |
 | **Kirti Apparel** — revenue up 22%, profit down 62% | Easy | Reading a P&L: revenue, COGS, gross margin, opex, EBITDA, depreciation, net profit — and that a consolidated statement is an average of two businesses until you split it like-for-like |
 | **Nirmal Pipes** — a record profit and no money for payroll | Easy | Cash flow and working capital: DSO, DIO, DPO, the cash conversion cycle, and the one plank bridging EBITDA to cash |
@@ -397,6 +398,8 @@ its own multi-period simulator rather than as a war room — see below.
 | **Suraksha Home** — match the competitor's price cut? | Medium | Contribution per unit, break-even volume on a price change, price elasticity, trade promotion |
 | **Ujala Solar** — planned 10.8 lakh, sold 4.3 lakh | Medium | TAM / SAM / SOM, and channel economics on net rather than gross revenue |
 | **Ghar Sewa** — both sides grew, both sides are angry | Medium | Match rate, liquidity, utilisation, GMV, take rate — and that a platform-level average hides the only markets that matter |
+| **Sehat Plus** — 87% availability on 24% more stock | Medium | Fill rate, service level, safety stock, coefficient of variation, inventory turns and stockout cost — and that one service level across items with different demand variability is the same error as a national average |
+| **Setu** — shipped the whole roadmap, retention fell | Medium | Prioritising by value at risk rather than request volume, revenue concentration, NRR, opportunity cost — and that a demand signal can be precise and unrepresentative at once |
 | **Lekha** — our best customer wants 18% off | Medium | ARR, cost to serve, seats vs usage pricing, NRR, and total cost of ownership from both sides of the table |
 | **NukkadEats** — orders down 9%, nobody knows why | Medium | Metric-drop diagnosis with the model hidden — the original, and the hardest |
 | **Nayi Disha** — four quarters of cash and a ₹3 crore hole | Medium | A **turnaround**: net burn, runway, and that a cut which lands after the horizon reads as free unless the projection outlives the decision |
@@ -410,8 +413,8 @@ Plus one that is not a war room at all:
 **Every scenario but one teaches the vocabulary first.** Each carries a `teaching` block: a concept
 primer that opens before the run and reopens from the header, and a **metric map** derived from the
 driver graph showing how every number is built from the ones under it, with live values. Showing
-the map is opt-in per scenario, and that gate matters in both directions — on NukkadEats and Lekha
-the *shape* of the model is part of what the candidate has to work out, so the map stays hidden
+the map is opt-in per scenario, and that gate matters in both directions — on NukkadEats, Lekha and
+Setu the *shape* of the model is part of what the candidate has to work out, so the map stays hidden
 while the primer still ships.
 
 `difficulty` is enforced rather than promised: `validateScenario` rejects an `Easy` scenario with
@@ -646,8 +649,10 @@ weekly report emails — each structured as an additive plug-in. The `case` valu
 `QUESTION_TYPES` is reserved for the full-length interview format and has no runtime yet, so the
 library filters it out and the admin panel doesn't offer it (see `PRACTISABLE_TYPES`).
 
-More decision simulations are the cheapest next thing: the engine takes the scenario as a parameter
-throughout and no scenario id appears in engine code, so another one is a file in
-`lib/sim/scenarios/`, a line in the registry and a seed row. Prioritisation, supply-chain
-service-level and freemium-activation scenarios all fit the existing phases without engine
-changes.
+More decision simulations remain the cheapest next thing: the engine takes the scenario as a
+parameter throughout and no scenario id appears in engine code, so another one is a file in
+`lib/sim/scenarios/`, a line in the registry and a seed row. The three this note used to name —
+prioritisation, supply-chain service level and activation — have shipped as Setu, Sehat Plus and
+Vyapar Mitra, and none of them needed an engine change. What is still open is a scenario built
+**on** decision periods, which is the one thing that does: see the note at `lib/sim/types.ts:623`
+for the two prerequisites that have to land before a war room may set `decisionPeriods` again.
