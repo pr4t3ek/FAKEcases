@@ -597,3 +597,90 @@ Language passes over authored content have no test behind them — `sim-golden` 
 silently turn 42% into 40% and the suite stays green. This one was checked by extracting
 every number from all 452 user-facing strings before and after and diffing the multiset:
 618 figures, identical both times. Worth repeating on any future prose edit.
+
+### 17. Host mode: a professor runs a war room as a class exercise
+
+War rooms were a strictly single-player surface. `SimRun` is 1:1 with a `User`, every
+mutation re-derives ownership from the session cookie, and `canOpen(tier, question)`
+reads `Question.freeTier` — so a professor could not run a scenario in class unless
+every student already held a Pro pass. The point of this entry is that none of that
+changed. A room is an entitlement plus a roster; students play ordinary `SimRun`s that
+happen to carry a `roomId`, and `lib/sim/` never learns classrooms exist.
+
+**A role, not a tier.** `User.role` gained `professor`, granted from Admin → Users.
+Hosting is a new capability and deliberately not a widening of the admin gate: every
+`role !== "admin"` check in the app is untouched, and a test pins that `professor` and
+`admin` are different things — the assertion exists so that a later "simplification" of
+those five gates to `canHostRooms` fails loudly.
+
+**A grant, also not a tier.** `canOpen` gained an optional third argument: a set of
+question ids opened to one visitor regardless of tier. It sits beside `tierAccess`
+rather than in it, because that table's entire value is that its answer does not depend
+on which row is asking, and a membership is one person and one question. `tierFor` is
+untouched, so a student in a room is still a guest and is still offered the signup path
+everywhere else.
+
+`GatedQuestion.id` became required rather than optional. A caller that omitted it would
+silently lose its grant and lock a question it meant to open; failing closed is the safe
+direction but failing *silently* is not, so it is a type error instead. The change cost
+two test fixtures and zero production call sites, which is the evidence that every real
+caller already had the id in hand.
+
+**Hosting is gated on the host's own tier.** `createRoom` calls `canOpen` with no grant,
+so a professor who cannot open a scenario cannot host it. The alternative — a role that
+hands the paid catalogue to sixty people at a time — would make the paywall a formality
+any teaching account can waive. The "host this in class" control is absent on locked
+cards, which is the UI half of the same rule. Verified on a seeded free-tier professor:
+exactly one host control, on exactly the one free war room.
+
+**Closing a room stops new joins and new runs and touches nothing in flight.**
+`roomGrantFor` counts only open rooms, so the refusal falls out of the grant rather than
+needing a status check every future call site has to remember. A student mid-Investigate
+keeps their analyst-days — the same trade `startSimulation` makes when it resumes before
+it gates.
+
+**Run scoping is symmetric.** `findResumableRun` and `simStateByQuestion` filter on
+`roomId` in both directions. Unscoped, a class run would be resumed from the library
+against a question the student's tier does not open, and a room would adopt a solo run
+whose budget was already half spent. The dashboard is deliberately not scoped: a class
+run is real work.
+
+**A pre-existing bug this made load-bearing.** `login()` moved attempts and leaderboard
+rows and then deleted the guest row, cascading away every guest `SimRun` and `SimResult`.
+Signing *up* preserved a guest's war room (the row is upgraded in place); signing *in*
+discarded it. Live for as long as war rooms have existed, invisible because guests
+rarely signed in mid-run — and about to become the common path, since a class joins as
+guests by design. Runs now move too, and seats need the read-then-move that
+`mergeGuestEntries` already does, because `@@unique([roomId, userId])` makes a blind
+`updateMany` throw when the account is already in that room.
+
+**The code is designed for transcription.** Six characters of Crockford base32, and the
+normaliser *folds* `O`→`0` and `I`/`L`→`1` rather than rejecting them, so a student who
+copies the wrong glyph off a projector gets in. The generator therefore must never emit
+a character the normaliser folds away, or two distinct codes would normalise to one and
+the unique constraint would be guarding something other than it appears to. That is the
+load-bearing property and it has a test.
+
+**One refusal message** for a bad code, a closed room and a wrong password alike — three
+messages would tell an attacker which codes exist and tell the student nothing, since
+all three fields came off the same whiteboard. `getOrCreateGuest` runs only after the
+password verifies, so wrong guesses no longer mint `User` rows.
+
+**Polling, not SSE or `router.refresh()`.** A self-paced room has no moment the server
+knows about that the client doesn't, so there is no event to push — a stream would be a
+poll with extra machinery. `router.refresh()` is this repo's idiom for re-reading after
+a mutation and all fourteen of its uses fire once; on a five-second loop it would
+re-render the whole tree, ship the full payload, resist aborting, and reset the sort
+order every tick. The console polls a JSON route, pauses on `document.hidden`, skips
+rather than queues when a request is in flight, and keeps the last good roster when one
+fails. One poller per console; the student's page does not poll.
+
+**The roster is seat-driven rather than run-driven**, so "joined but hasn't started" —
+the most useful row in the first two minutes of a class — has somewhere to appear. It
+reads `SimRun` directly rather than `LeaderboardEntry`, which filters guests out at read
+time: correct for a public ranking, exactly wrong for a classroom that is mostly guests.
+
+`lib/rate-limit.ts` was lifted out of the inline limiter in `app/api/feedback/route.ts`
+and is now shared by both, with an injectable clock so the window can be tested without
+sleeping. It is in-memory and therefore per-process, which the README says plainly rather
+than papering over.

@@ -305,6 +305,9 @@ Access is a property of a **tier**, not of the user row:
 | `free` | a registered account | the same questions, plus saved progress, streaks, rank and a profile |
 | `pro` | a live pass (`User.proUntil > now`) | the whole library |
 
+Plus one thing that is **not** a tier: sitting in a classroom room opens that room's single war
+room, and nothing else, for as long as the room is open. See [Classroom rooms](#classroom-rooms).
+
 The free set is **one of each format** — one guesstimate, one case and one simulation. Today
 those are chai in Bangalore, the food-delivery margin case, and the Kadak Coffee war room: the
 most inviting of each kind rather than the first of each kind. Widening it is the admin
@@ -538,6 +541,56 @@ sync with the transcript.
 
 ---
 
+## Classroom rooms
+
+A professor runs a war room as a class exercise. They pick one from the catalogue, choose
+**host this in class**, and get a six-character code and a password to read out. Students join
+at `/join` — **no account needed** — and each plays their own run at their own pace while the
+professor watches a live roster: who's in, what phase they're on, analyst-days burned, final
+score and band.
+
+Seeded to try immediately: `prof@estimateiq.app` / `prof1234`.
+
+**Who can host.** `User.role` gained a third value, `professor`, granted from **Admin → Users**.
+It opens rooms and nothing else — every admin gate in the app still tests `role === "admin"`
+exactly as narrowly as before.
+
+**What a student gets.** Joining opens **that room's one war room and nothing else**. The rest
+of the catalogue stays locked, and the student stays a guest — `tierFor` is untouched, so they
+are still offered the signup path everywhere else. `canOpen` takes an optional `AccessGrant`
+that sits *beside* the tier table rather than in it, because a tier is a property of a person
+and this is a property of one room. Both the button and the server gate derive that grant from
+one function, so they cannot disagree.
+
+**What hosting costs.** A professor can only host a war room **their own account can open**.
+Otherwise the role would be a way to hand the whole paid catalogue to sixty people, so a
+free-tier professor hosts the free war room and an admin grants Pro alongside the role when a
+professor should reach the rest. The "host this in class" control is absent on locked cards for
+the same reason, which keeps the card and the gate saying the same thing.
+
+**Closing a room** stops new joins and new runs and leaves runs in flight completely alone.
+Stranding a student six analyst-days into Investigate to enforce a room setting is not a trade
+worth making — the same reasoning the entitlement gates already use when they resume before
+they refuse.
+
+**The room code is designed for transcription, not entropy.** Crockford base32, and the
+normaliser *folds* `O`→`0` and `I`/`L`→`1` rather than rejecting them, so a student who copies
+the wrong glyph off a projector still gets in. The generator therefore never emits a character
+the normaliser folds away — otherwise two codes would collide into one — and that property has
+a test.
+
+**One refusal message.** A bad code, a closed room and a wrong password all say the same thing.
+Three messages would tell an attacker which codes exist and tell the student nothing, since
+they typed all three fields off the same whiteboard. A guest row is minted only *after* the
+password verifies, so wrong guesses don't accumulate `User` rows.
+
+**No websockets.** The console polls a JSON route every five seconds, pausing when the tab is
+hidden. A self-paced room has no event to push, so a stream would be a poll with extra
+machinery — and `router.refresh()` on a timer would re-render the whole page to update one
+table. Only the professor's console polls; the student's page doesn't.
+
+---
+
 ## Deploying to production
 
 1. **Host** on Vercel (push the repo, import it).
@@ -581,9 +634,21 @@ deliberately unfinished, and it's better to say so than to let you find out:
   ignores, so only the cookie's own `maxAge` bounds a session.
 - **Guest rows accumulate.** Every visitor who starts practising gets a `User` row and nothing
   prunes them. They're kept out of the rank population, but they are never collected.
-- **Signing in from a guest session migrates attempts only.** Bookmarks and achievements earned
-  as a guest are dropped. Signing *up* from a guest session upgrades the row in place and keeps
-  everything.
+- **Signing in from a guest session migrates attempts, war-room runs and classroom seats.**
+  Bookmarks and achievements earned as a guest are still dropped. Signing *up* from a guest
+  session upgrades the row in place and keeps everything. (Runs used to be dropped here too —
+  the guest row is deleted and everything hanging off it cascades, and `SimRun` was simply not
+  in the list of things moved first. Classroom rooms made that the common path rather than a
+  rare one, since a class joins as guests by design.)
+- **Room join rate limiting is in-memory**, so it is per-process and resets on redeploy; on a
+  multi-instance deployment the effective ceiling is the limit times the instance count. It is
+  guarding a classroom password rather than a credential, which is the trade it was chosen for.
+  The upgrade is a shared store behind the same `lib/rate-limit.ts` interface.
+- **A room password can't be shown again** once set — it is scrypt-hashed like any other. The
+  console has a reset control, which is the way out of forgetting it mid-class.
+- **A guest in a classroom is bound to one device.** The session is a 30-day cookie, so a
+  student who joins on a phone and reopens on a laptop is a new person to the app and must join
+  again (and starts a new run). The room page says so and offers signup as the fix.
 - **`recomputeRank` only updates the submitting user**, so everyone else's percentile is stale
   until they next submit. At real scale this belongs in a scheduled job.
 

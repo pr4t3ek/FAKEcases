@@ -327,6 +327,39 @@ poisoned `Progress.bySkill` and the dashboard radar.
 `SimPurchase` carries a unique constraint on `(runId, drilldownId)`: a double-click must not be
 charged twice for the same cut.
 
+### The classroom tables
+
+```mermaid
+erDiagram
+    SimRoom {
+        string id PK
+        string code UK "6 chars, Crockford base32 — read off a projector"
+        string passwordHash "scrypt, via lib/password — one-way, hence resetRoomPassword"
+        string name "what the host calls it: 'Tue 4pm, Section B'"
+        string hostId FK "a professor or an admin"
+        string questionId FK "the one war room this room runs"
+        string status "open|closed — closing stops new joins, never a run in flight"
+    }
+    SimRoomMember {
+        string id PK
+        string roomId FK
+        string userId FK "usually a guest row minted at the door"
+        string displayName "pinned — a later profile edit must not rewrite a past roster"
+        datetime joinedAt
+    }
+    SimRoom ||--o{ SimRoomMember : seats
+    SimRoom ||--o{ SimRun : "runs (SimRun.roomId, nullable)"
+```
+
+`SimRoomMember` carries a unique constraint on `(roomId, userId)`, which is what makes joining
+idempotent: a reloaded form, a double-tap and a student correcting a typo'd name all land on
+one row instead of three on the professor's roster. It is also what forces `mergeGuestSeats` to
+read both sides before moving anything when a guest signs in — the same shape `mergeGuestEntries`
+has, for the same constraint-shaped reason.
+
+`SimRun.roomId` is nullable and `SetNull` on delete: a professor tidying up after term must not
+delete the work sixty students did. See §3c for how the two kinds of run are kept apart.
+
 ### Admin driver overrides
 
 `SimScenarioOverride` is the one simulation table that holds *content* rather than a run. It stores
@@ -484,6 +517,93 @@ question is good and whether it is given away are different decisions, and putti
 by the seed and by one dedicated action, `setQuestionFreeTier` — which is also the only
 control that works on a simulation, whose catalogue row the question form deliberately refuses
 to edit.
+
+### The classroom grant sits beside the table, not in it
+
+`canOpen` takes an optional third argument, an `AccessGrant`: a set of question ids opened to
+one visitor regardless of their tier. Today the only thing that issues one is a classroom
+membership (§3c).
+
+It is **not** a fourth tier and **not** a column on `tierAccess`, and the reason is the
+sentence this whole section rests on. A tier answers "what does this *tier* reach?", and its
+value is that the answer does not depend on which row is asking. A membership is the opposite
+kind of fact — one person, one question, expiring when the room closes. Expressing it in the
+table would mean either inventing a tier for people who are still guests, or putting per-user
+state on the one structure that exists to have none.
+
+`tierFor` is untouched. A student sitting in a room is still a guest, so `upgradeFor` still
+owes them the signup path and the wall banner still says the right thing.
+
+**The "one function, both callers" invariant survives because the grant is derived per
+surface**, and both sides of a surface derive it identically:
+
+| Surface | Card / button | Server gate | Grant |
+|---|---|---|---|
+| `/library` | `isLocked` | `startAttempt` | none |
+| `/simulations` | `isLocked` | `startSimulation` | none |
+| `/room/[code]` | `canOpen` | `startRoomRun` | `roomGrantFor(userId)` |
+
+What must never happen is one side of a *single* surface passing a grant the other does not,
+which is why the derivation is one exported function (`roomGrantFor` in `lib/rooms.ts`) and is
+never inlined at a call site.
+
+---
+
+## 3c. Classroom rooms
+
+A professor opens a room on a war room, reads out a code and a password, and sixty students
+join — as guests, with no signup — and play **their own runs at their own pace**.
+
+```mermaid
+flowchart TB
+    P["Professor<br/>role: professor"] -->|"host this in class"| CR["createRoom<br/>gated on the HOST's own tier"]
+    CR --> R["SimRoom<br/>code · passwordHash · questionId · status"]
+    S["Student<br/>(guest, no account)"] -->|"code + password + name"| J["joinRoom"]
+    J --> M["SimRoomMember<br/>unique(roomId, userId)"]
+    M --> G["roomGrantFor()<br/>open rooms only"]
+    G --> CO["canOpen(tier, question, grant)"]
+    CO --> SR["startRoomRun<br/>derives questionId FROM the room"]
+    SR --> RUN["SimRun (roomId set)<br/>an ordinary run in every other respect"]
+    RUN --> RO["buildRoster"]
+    R --> RO
+    RO --> C["Host console<br/>polls /api/host/[code]/roster every 5s"]
+
+    style CO fill:#2b6cb0,color:#fff
+    style CR fill:#9b2c2c,color:#fff
+```
+
+**A room is not a shared run.** Every student plays their own `SimRun`; the room is an
+entitlement plus a roster. That is what keeps `lib/sim/` from ever learning classrooms exist —
+scoring, XP, the leaderboard and every format are untouched. (`docs/SCRUM_SIMULATOR.md` §8
+sketches a *different* `SimRoom`: one run whose decision vector is split across seats and
+ticked in lockstep. The name is shared because the concept is; the fields are not, and
+`SimSeat` is deliberately still free for it.)
+
+**Hosting is gated on the host's own tier.** `createRoom` calls `canOpen` with **no** grant, so
+a professor who cannot open a scenario cannot host it either. Otherwise the role is a way to
+hand the entire paid catalogue to sixty people at a time, and the paywall becomes a formality
+any teaching account can waive. An admin pairs "make professor" with a Pro grant when a
+professor should reach the paid set — two buttons, side by side, for exactly this reason.
+
+**Closing a room stops new joins and new runs, and touches nothing in flight.** `roomGrantFor`
+counts only open rooms, so the refusal falls out of the grant rather than needing a status
+check every future call site must remember. A student six analyst-days into Investigate keeps
+playing — the same trade `startSimulation` already makes when it resumes before it gates.
+
+**Run scoping is symmetric.** `findResumableRun` and `simStateByQuestion` filter on `roomId`,
+in both directions. Unscoped, a class run would be resumed from the library against a question
+the student's tier does not open, and a room would adopt a solo run whose budget is already
+half spent. The dashboard is deliberately *not* scoped: a class run is real work.
+
+**One refusal message.** An unknown code, a closed room and a wrong password all return the
+same sentence. Three messages would tell an attacker which codes exist and tell the student
+nothing — they typed all three fields off the same whiteboard. `getOrCreateGuest` runs only
+*after* the password verifies, so a wrong guess does not mint a `User` row.
+
+**Polling, not SSE.** A self-paced room has no moment the server knows about that the client
+doesn't, so there is no event to push. The console polls a JSON route handler every 5s, pauses
+when the tab is hidden, and keeps the last good roster when a request fails. One poller per
+console — `/room/[code]` does not poll.
 
 ---
 
@@ -702,9 +822,13 @@ app/
 │                       simulation driver overrides)
 ├── dashboard/         Stats, charts, rank card, achievements
 ├── library/           Browse/filter practice questions (guesstimates + cases)
-├── simulations/       Browse/filter war rooms, and their own leaderboard
+├── simulations/       Browse/filter war rooms, their own leaderboard, and (for a
+│                       professor) "host this in class" on each unlocked card
 ├── practice/[id]/     Core interviewer + calculator + framework + evaluation UI
 ├── simulate/[runId]/  Decision simulation: dashboard, drilldown market, commit, debrief
+├── host/              Professor's rooms, and the console for one (roster, code, close)
+├── join/[code]?/      The student's door — public, no session required
+├── room/[code]/       The student's landing: the brief, and one way in
 └── (login|signup|forgot-password)/   Auth pages
 
 components/
@@ -714,14 +838,24 @@ components/
 │                       commit panel, debrief report, coach
 ├── dashboard/          Charts (Recharts), stat cards, rank card, achievements
 ├── admin/              Question/category managers, CSV/JSON import, feedback queue,
-│                       scenario driver editor
+│                       scenario driver editor, Pro grants and role grants
+├── rooms/              Host dialog, projectable room code, polling roster board,
+│                       close/reset controls, the student's join form
 └── marketing/          Landing page sections
 
 lib/
 ├── config/            Central typed config: env, access tiers, evaluation weights, gamification curve,
 │                       practice defaults, profile vocabularies, the curated college list
 ├── storage/            Avatar bytes behind an AvatarStore interface (db today; S3 is a file + a case)
-├── entitlements.ts     What a tier may open — pure, shared by the server gates and the UI
+├── entitlements.ts     What a tier may open, plus the per-surface AccessGrant — pure,
+│                       shared by the server gates and the UI
+├── rooms/              Classroom rules, all pure: code (Crockford base32 + folding),
+│                       access (the grant, and one refusal for every join failure),
+│                       roster (seat-driven, so "joined, not started" has a row)
+├── rooms.ts            Classroom data access — the only file that touches Prisma for a
+│                       room, so lib/rooms/ stays pure
+├── rate-limit.ts       Sliding-window limiter, injectable clock — shared by the join
+│                       form and the feedback route (in-memory, so per-process)
 ├── avatar.ts           Upload validation (magic-byte sniffing), URL building, initials — pure
 ├── profile-schema.ts   The profile authoring contract, shared by /profile and /welcome
 ├── profile.ts          Profile reads, and the rule for pre-applying goals to the library
