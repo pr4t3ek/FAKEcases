@@ -221,8 +221,8 @@ model is deterministic. So a variant with a *different true cause* and re-tuned 
 genuinely new play from an already-authored file — the candidate cannot replay from memory,
 because what they'd be remembering is now wrong. `SimScenarioOverride` and `lib/sim/overlay.ts`
 already prove the pattern works: a driver graph can be swapped at runtime, re-validated, and
-fall back to the authored code when the merged scenario doesn't hold. Twelve scenarios at ~3
-causes each is ~27 war rooms. Any variant must pass `checkBalance`, which brute-forces every
+fall back to the authored code when the merged scenario doesn't hold. Twelve war rooms at ~3
+plausible true causes each is ~36 of them. Any variant must pass `checkBalance`, which brute-forces every
 affordable combination to prove the declared best allocation really is best — a variant that
 can't clear that bar is a broken scenario, not a new one.
 

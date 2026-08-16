@@ -33,7 +33,7 @@ per slide) plus the prompts to generate the deck, for pitching what this is and 
 cp .env.example .env   # Prisma needs DATABASE_URL; .env is gitignored, so a clone has none
 pnpm install
 pnpm db:push           # create the SQLite database from prisma/schema.prisma
-pnpm db:seed           # 15 categories, 38 questions (24 guesstimates + 2 cases + 12 simulations), achievements, demo users
+pnpm db:seed           # 15 categories, 40 questions (24 guesstimates + 2 cases + 14 simulations), achievements, demo users
 pnpm dev               # http://localhost:3000
 ```
 
@@ -379,9 +379,11 @@ guesstimate and implied the two were interchangeable. They have their own leader
 reason: a war room is scored on a different rubric, so adding its score to a practice score — which
 the cumulative board used to do — produced a number that measured nothing.
 
-Twelve scenarios ship today, easiest first — which is the order the library shows them in. The
-first nine teach product and marketing economics; the last three are a **finance track**, one per
-financial statement, filed under Finance in the library:
+Thirteen scenarios ship today, easiest first — which is the order the library shows them in. Nine
+teach product and marketing economics; three are a **finance track**, one per financial statement,
+filed under Finance in the library; and the last is the catalogue's only **turnaround**, a
+different exercise from everything above it. A fourteenth simulation, the buyback contract, runs on
+its own multi-period simulator rather than as a war room — see below.
 
 | Scenario | Level | Teaches |
 |---|---|---|
@@ -397,6 +399,13 @@ financial statement, filed under Finance in the library:
 | **Ghar Sewa** — both sides grew, both sides are angry | Medium | Match rate, liquidity, utilisation, GMV, take rate — and that a platform-level average hides the only markets that matter |
 | **Lekha** — our best customer wants 18% off | Medium | ARR, cost to serve, seats vs usage pricing, NRR, and total cost of ownership from both sides of the table |
 | **NukkadEats** — orders down 9%, nobody knows why | Medium | Metric-drop diagnosis with the model hidden — the original, and the hardest |
+| **Nayi Disha** — four quarters of cash and a ₹3 crore hole | Medium | A **turnaround**: net burn, runway, and that a cut which lands after the horizon reads as free unless the projection outlives the decision |
+
+Plus one that is not a war room at all:
+
+| Simulation | Level | Teaches |
+|---|---|---|
+| **Buyback contract** — twelve months against a supplier who is watching | Medium | Ordering under a buyback clause: over-ordering is covered until the supplier reprices it, so the clause is a relationship rather than a term sheet |
 
 **Every scenario but one teaches the vocabulary first.** Each carries a `teaching` block: a concept
 primer that opens before the run and reopens from the header, and a **metric map** derived from the
@@ -406,8 +415,26 @@ the *shape* of the model is part of what the candidate has to work out, so the m
 while the primer still ships.
 
 `difficulty` is enforced rather than promised: `validateScenario` rejects an `Easy` scenario with
-more than six drilldowns, more than six causes, a cause tree deeper than one level, a punishing
-budget, or no primer.
+more than six drilldowns, more than five interventions, a cause tree deeper than one level, a
+punishing budget, or no primer. Note what is *not* on that list any more — how many causes are on
+the board. Every war room owes eight to ten, parents included, whatever its difficulty, so Easy and
+Medium are separated by how much a candidate must hold at once rather than by how much there is to
+read.
+
+Three rules apply to every war room, and they are the ones to know before authoring one:
+
+- **Eight to ten causes, parents counted** (`CAUSE_BOARD`). Fewer and the board can be cleared by
+  elimination — buy most of the pulls, rule out four, and the remainder is the answer without a
+  hypothesis ever being formed. More and it is a reading exercise. At most three may be named
+  (`maxSuspects`), and hedging is priced: `tests/sim-score.test.ts` pins that one confident pick
+  beats three across every board width the app allows.
+- **Every pull costs the same** — two analyst-days. Mixed pricing made a candidate weigh what a
+  pull would rule out *and* what it cost, and only the first is the exercise. A budget is therefore
+  a count of questions, which is also what makes the overspend penalty legible: buying past par
+  sharpens the investigation ratio and takes points off the overall score, disclosed on the report.
+- **A dashboard has to be worth reading** (`DASHBOARD_FLOOR`). Minimum reported metrics and panels,
+  met with decoys — true, correctly derived, and off the causal path. Denser, deliberately not
+  harder: a decoy must never introduce a concept, only the judgement of what to ignore.
 
 Four things are worth knowing before you touch it:
 
@@ -469,6 +496,23 @@ button re-runs all three on demand.)
 The debrief coach is optional. The authored debrief is the product; with no API key the same
 follow-up questions are answered from the scenario's `coachFallback` by the mock, using the same
 matcher that serves a case's `dataPack`.
+
+**Both speak in bullets, in plain words.** `strongAnswer` and every `coachFallback` answer are
+`string[]` — one idea per bullet, the everyday word ahead of the term of art, and a gloss the first
+time one is unavoidable. Two reasons, and the second is the substantive one: the debrief is read by
+someone who has just been told they were wrong, which is the worst possible moment for a paragraph
+of six load-bearing clauses; and the structure is half the lesson, because an interview answer has
+moves and a list makes them countable. `simCoachRules` asks a real model for the same shape. The
+two surfaces that still need a string — the prompt block, and `sampleSolution`/`dataPack`, whose
+contract is shared with ordinary practice questions — go through `asBulletText`, so the offline
+mock's replies read as a list too.
+
+**Money is typed, not dragged.** Every commitment on the commit panel is a number the candidate
+enters. A slider used to sit behind the money, on the argument that a saturating curve makes *where
+to stop* the interesting question and you cannot see a knee in a text field — true, and outweighed
+by what a track does to the exercise: it invites dragging until something looks right. Where the
+curve stops paying is now stated in words under the box, which is what the tick on the track was
+carrying anyway.
 
 **Help is priced.** Hints cost Confidence as they escalate. Teacher mode — the one AI mode whose
 prompt actually works the problem — costs the equivalent of the whole hint ladder and is disclosed
@@ -571,6 +615,18 @@ allocation's *order* cannot change the result), drilldown pricing and locking, e
 dimension on its own, the payload guards, the redaction projection, the authoring invariants, and
 the scenario's balance — which brute-forces every affordable combination of interventions to prove
 the declared best allocation really is best.
+
+Three of those pin rules rather than numbers, which is the distinction worth preserving when you
+retune. `overspendPenaltyFor` is tested for its *shape* — nothing at or under par, linear in the
+overage — so the constants can move in `simConfig` without a test edit. Hedging is tested as a
+property across every board width the app allows, rather than against a leaf count that
+`CAUSE_BOARD` now caps. And `tests/sim-fixture.ts` satisfies the authoring rules itself, so the
+suite cannot certify a scenario shape the app would refuse to load.
+
+`tests/fixtures/sim-golden.json` pins every scenario's projected paths, and
+`pnpm tsx scripts/sim-golden.ts` regenerates it while printing which slugs moved. Run it only when
+you meant to change a scenario's numbers — a diff in a scenario nobody touched is the bug it exists
+to catch. Changes to the *board* — causes, panels, day-costs, budgets — should move nothing.
 
 `tests/sim-overlay.test.ts` covers admin driver overrides, and its through-line is that a stored
 override can never make the app worse than not having one: malformed JSON, an edit that orphans a
