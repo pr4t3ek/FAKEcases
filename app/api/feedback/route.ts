@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { FEEDBACK_TYPES } from "@/lib/types";
+import { createLimiter } from "@/lib/rate-limit";
 
 const schema = z.object({
   questionId: z.string(),
@@ -11,10 +12,10 @@ const schema = z.object({
   message: z.string().max(1000).optional(),
 });
 
-// Very small in-memory rate limiter (per user/guest, best-effort).
-const lastByUser = new Map<string, number[]>();
-const WINDOW_MS = 60_000;
-const MAX_PER_WINDOW = 5;
+// Per user/guest, best-effort. The limiter itself now lives in lib/rate-limit,
+// shared with the classroom join form — see the note there about it being
+// in-memory and therefore per-process.
+const limiter = createLimiter({ windowMs: 60_000, max: 5 });
 
 export async function POST(req: Request) {
   const user = await getSessionUser();
@@ -22,14 +23,9 @@ export async function POST(req: Request) {
   const parsed = schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
 
-  const key = user?.id ?? "anon";
-  const now = Date.now();
-  const hits = (lastByUser.get(key) ?? []).filter((t) => now - t < WINDOW_MS);
-  if (hits.length >= MAX_PER_WINDOW) {
+  if (!limiter.check(user?.id ?? "anon").ok) {
     return NextResponse.json({ error: "Too many reports, please slow down." }, { status: 429 });
   }
-  hits.push(now);
-  lastByUser.set(key, hits);
 
   const question = await db.question.findUnique({ where: { id: parsed.data.questionId } });
   if (!question) return NextResponse.json({ error: "Not found" }, { status: 404 });

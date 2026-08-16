@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Flame, Zap } from "lucide-react";
 import type { User } from "@prisma/client";
 import { initialsFor } from "@/lib/avatar";
+import { canHostRooms } from "@/lib/types";
 import { Brand } from "@/components/brand";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NavLinks } from "@/components/app/nav-links";
@@ -16,7 +17,9 @@ export function AppHeader({ user }: { user: User | null }) {
       <div className="container flex h-16 items-center justify-between gap-4">
         <div className="flex items-center gap-6">
           <Brand href={isMember ? "/dashboard" : "/library"} />
-          {isMember && <NavLinks isAdmin={user!.role === "admin"} />}
+          {isMember && (
+            <NavLinks isAdmin={user!.role === "admin"} canHost={canHostRooms(user!.role)} />
+          )}
         </div>
 
         <div className="flex items-center gap-2">

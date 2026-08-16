@@ -24,7 +24,12 @@ model User {
   /// URL rather than a data URI is what keeps a 30 KB avatar out of every RSC
   /// payload, since `getSessionUser()` returns this whole row on every page.
   image          String?
-  role           String    @default("user") // "user" | "admin"
+  /// "user" | "professor" | "admin" — see USER_ROLES in lib/types.ts.
+  ///
+  /// A professor may open classroom rooms and nothing else; the admin panel
+  /// stays admin-only. One column rather than a second boolean, so "what is this
+  /// person" has exactly one answer.
+  role           String    @default("user")
   isGuest        Boolean   @default(false)
 
   /// Pro access runs until this instant, or null for a free account.
@@ -78,6 +83,8 @@ model User {
   simRuns        SimRun[]
   simOverrides   SimScenarioOverride[]
   ranked         LeaderboardEntry[]
+  hostedRooms    SimRoom[]             @relation("HostedRooms")
+  roomSeats      SimRoomMember[]
 
   @@index([collegeId])
 }
@@ -209,6 +216,7 @@ model Question {
   feedback       QuestionFeedback[]
   simRuns        SimRun[]
   ranked         LeaderboardEntry[]
+  rooms          SimRoom[]
 
   @@index([categoryId])
   @@index([difficulty])
@@ -525,6 +533,19 @@ model SimRun {
   /// JSON SimAllocationLine[] — the committed capacity split.
   allocation     String?
 
+  /// The classroom room this run was played for, or null for solo play.
+  ///
+  /// Nullable and `SetNull` rather than `Cascade`: a professor tidying up after
+  /// term must not delete the work sixty students did. The run outlives the room
+  /// exactly as it outlives the room's `open` status — see `closeRoom`.
+  ///
+  /// Also the reason `findResumableRun` and `simStateByQuestion` filter on
+  /// `roomId: null`. A class run and a solo run of the same scenario are two
+  /// different sittings, and collapsing them would let the catalogue re-open a
+  /// run the student started in a lecture.
+  roomId         String?
+  room           SimRoom?  @relation(fields: [roomId], references: [id], onDelete: SetNull)
+
   /// The RNG seed for a stochastic simulator, assigned once when the run opens.
   ///
   /// Not a convenience. `lib/sim/engine/stochastic.ts` threads a seeded
@@ -560,6 +581,81 @@ model SimRun {
   @@index([userId])
   @@index([questionId])
   @@index([phase])
+  @@index([roomId])
+}
+
+/// A professor-hosted classroom exercise.
+///
+/// The room is coordination and entitlement, nothing else: students play
+/// ordinary `SimRun`s that happen to carry its id, so scoring, XP, the
+/// leaderboard and the whole `lib/sim` engine are untouched by its existence.
+/// That is the entire design. A room that owned a shared run would have had to
+/// answer whose hypothesis it was.
+///
+/// It points at a `Question` rather than a scenario slug because `questionId` is
+/// what `recordFirstResult` and `simStateByQuestion` key on — pinning the room
+/// to the same catalogue row is what keeps a class run indistinguishable from
+/// any other run everywhere downstream.
+model SimRoom {
+  id           String    @id @default(cuid())
+
+  /// The code read out in class, uppercase. Its alphabet excludes O/0/I/1 (see
+  /// lib/rooms/code.ts): it is transcribed off a projector by sixty people at
+  /// once, and a code that needs a spelling correction has failed.
+  code         String    @unique
+  /// scrypt via lib/password.ts. A room password is a password, and storing it
+  /// in the clear so the console could redisplay it is not a trade worth making
+  /// — the host re-sets it instead.
+  passwordHash String
+  name         String
+
+  hostId       String
+  host         User      @relation("HostedRooms", fields: [hostId], references: [id], onDelete: Cascade)
+
+  /// The war room the host picked from the catalogue.
+  questionId   String
+  question     Question  @relation(fields: [questionId], references: [id])
+
+  /// "open" | "closed" — see ROOM_STATUSES in lib/types.ts. Closing stops new
+  /// joins and new runs and deliberately leaves runs already under way alone.
+  status       String    @default("open")
+  closedAt     DateTime?
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  members      SimRoomMember[]
+  runs         SimRun[]
+
+  @@index([hostId])
+}
+
+/// One student's seat in a room.
+///
+/// The row that grants access: `roomGrant` reads these to decide which single
+/// question a non-Pro student may open, which is why it is a real row rather
+/// than something derived from having a run — the grant has to exist BEFORE the
+/// run does, or the first click would be refused.
+model SimRoomMember {
+  id          String   @id @default(cuid())
+  roomId      String
+  room        SimRoom  @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Typed at the door. Kept apart from `User.name` so a signed-in student can
+  /// appear as "Roll 42" on one professor's roster without renaming their
+  /// account across the app. For a guest row the two are set together, since a
+  /// roster full of "Guest" is not a roster.
+  displayName String
+
+  joinedAt    DateTime @default(now())
+
+  /// One seat per person per room. This constraint is what makes re-joining
+  /// idempotent — an upsert against it turns a refreshed join form into a no-op
+  /// instead of a second row on the roster.
+  @@unique([roomId, userId])
+  @@index([userId])
 }
 
 model SimPurchase {

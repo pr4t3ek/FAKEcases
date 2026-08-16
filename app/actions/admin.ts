@@ -5,7 +5,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { PRO_PASS_DAYS, nextProUntil } from "@/lib/billing";
-import { FEEDBACK_STATUSES } from "@/lib/types";
+import { FEEDBACK_STATUSES, USER_ROLES, isUserRole } from "@/lib/types";
 import {
   questionCoreSchema,
   refineQuestion,
@@ -144,6 +144,52 @@ export async function revokePro(userId: string): Promise<SaveResult> {
   revalidatePath("/library");
   revalidatePath("/dashboard");
   revalidatePath("/profile");
+  return { ok: true };
+}
+
+/**
+ * Make someone a professor, or take it back.
+ *
+ * Its own action rather than a field on a general user form, for the same reason
+ * `setQuestionFreeTier` is its own action: this is a trust decision, and folding
+ * it into a save that also carries unrelated fields is how an unrelated edit
+ * silently resets it.
+ *
+ * It deliberately does NOT also grant Pro. `createRoom` gates on the *host's own*
+ * tier, so a free-tier professor can host only the free war rooms — see the note
+ * there. Handing every new professor the paid catalogue for sixty students is a
+ * commercial decision, not a side effect of a role, so the two grants stay two
+ * buttons sitting next to each other.
+ */
+export async function setUserRole(userId: string, role: string): Promise<SaveResult> {
+  await assertAdmin();
+
+  if (!isUserRole(role)) {
+    return { ok: false, error: `Role must be one of ${USER_ROLES.join(", ")}.` };
+  }
+
+  const self = await getSessionUser();
+  // Demoting yourself locks you out of the only screen that could undo it.
+  if (self?.id === userId && role !== "admin") {
+    return { ok: false, error: "You can't remove your own admin role." };
+  }
+
+  const target = await db.user.findUnique({
+    where: { id: userId },
+    select: { isGuest: true },
+  });
+  if (!target) return { ok: false, error: "No such user." };
+  // A guest row is absorbed at signup or deleted at login, so a role granted to
+  // one is a grant that evaporates without saying so.
+  if (target.isGuest) return { ok: false, error: "Guests can't hold a role." };
+
+  await db.user.update({ where: { id: userId }, data: { role } });
+  revalidatePath("/admin");
+  // The nav's Host link and the catalogue's "Host this in class" control are
+  // both keyed off the role, so both have to re-render for the person whose
+  // role just changed.
+  revalidatePath("/simulations");
+  revalidatePath("/host");
   return { ok: true };
 }
 

@@ -312,6 +312,44 @@ export const FEEDBACK_TYPE_LABELS: Record<FeedbackType, string> = {
 export const FEEDBACK_STATUSES = ["Open", "Reviewing", "Resolved", "Dismissed"] as const;
 export type FeedbackStatus = (typeof FEEDBACK_STATUSES)[number];
 
+/**
+ * `User.role`.
+ *
+ * A third value rather than a second boolean column. `isProfessor` alongside the
+ * existing role check would make "what is this person" answerable two ways, and
+ * the day someone is both an admin and a professor the two answers disagree
+ * about which panel to render. One column, three values, and every guard reads
+ * it through a named predicate below.
+ */
+export const USER_ROLES = ["user", "professor", "admin"] as const;
+export type UserRole = (typeof USER_ROLES)[number];
+
+export function isUserRole(value: string): value is UserRole {
+  return (USER_ROLES as readonly string[]).includes(value);
+}
+
+/**
+ * Who may open a classroom room.
+ *
+ * Admins host because they can already grant themselves the role — refusing them
+ * would be a lock with the key taped to it, and one more state for the nav to
+ * get wrong. Deliberately a function rather than an inline `===` at each call
+ * site: `requireHost`, the nav and the room actions have to agree, and three
+ * copies of a two-way comparison is exactly how they stop agreeing.
+ */
+export function canHostRooms(role: string): boolean {
+  return role === "professor" || role === "admin";
+}
+
+/**
+ * `SimRoom.status`.
+ *
+ * Closing stops new joins and new runs; it deliberately does NOT stop a run
+ * already under way — see `lib/rooms.ts`.
+ */
+export const ROOM_STATUSES = ["open", "closed"] as const;
+export type RoomStatus = (typeof ROOM_STATUSES)[number];
+
 /** Shape of a single itemized feedback line stored in Evaluation.feedback JSON. */
 export interface FeedbackItem {
   tone: "positive" | "warning" | "tip";

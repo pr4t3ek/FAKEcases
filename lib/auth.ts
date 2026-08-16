@@ -6,6 +6,8 @@ import { db } from "@/lib/db";
 import { env } from "@/lib/config";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { mergeGuestEntries } from "@/lib/leaderboard";
+import { mergeGuestSeats } from "@/lib/rooms";
+import { canHostRooms } from "@/lib/types";
 import type { User } from "@prisma/client";
 
 const COOKIE_NAME = "eq_session";
@@ -85,6 +87,24 @@ export async function requireAdmin(): Promise<User> {
   return user;
 }
 
+/**
+ * Guard the classroom host surfaces.
+ *
+ * Named for the capability rather than the role, because admins pass it too — a
+ * `requireProfessor` that let admins through would read as a bug at every call
+ * site. The role list itself lives in `lib/types.ts` so the nav can ask the same
+ * question without importing `server-only`.
+ *
+ * Note what this deliberately is NOT: a widening of `requireAdmin`. A professor
+ * reaches `/host` and nothing else; every `role !== "admin"` check in the app
+ * stays exactly as narrow as it was.
+ */
+export async function requireHost(): Promise<User> {
+  const user = await getSessionUser();
+  if (!user || !canHostRooms(user.role)) redirect("/login");
+  return user;
+}
+
 // ── Credential auth ─────────────────────────────────────────────────────────
 
 export interface AuthOutcome {
@@ -134,13 +154,27 @@ export async function login(email: string, password: string): Promise<AuthOutcom
     return { ok: false, error: "Invalid email or password." };
   }
 
-  // If a guest session with attempts exists, migrate them to this account.
-  // Ranked rows move too, so a question first solved in a guest session stays
-  // that account's first attempt — otherwise signing in would quietly re-open a
-  // question for ranking that the same person had already played.
+  // If a guest session with work in it exists, migrate that work to this
+  // account. Ranked rows move too, so a question first solved in a guest session
+  // stays that account's first attempt — otherwise signing in would quietly
+  // re-open a question for ranking that the same person had already played.
+  //
+  // The guest row is DELETED at the end, and everything hanging off it cascades.
+  // So anything worth keeping has to be moved before that line, and forgetting
+  // one is silent: `SimRun` was missed here for as long as war rooms have
+  // existed, which meant signing *up* from a guest session preserved a war room
+  // (the row is upgraded in place) while signing *in* discarded it along with
+  // its `SimResult`. Classroom rooms make that the common path rather than a
+  // rare one, since a class joins as guests by design.
   const current = await getSessionUser();
   if (current && current.isGuest && current.id !== user.id) {
     await db.attempt.updateMany({ where: { userId: current.id }, data: { userId: user.id } });
+    // No unique constraint stands in the way: a second run of the same question
+    // is a replay, which is legal.
+    await db.simRun.updateMany({ where: { userId: current.id }, data: { userId: user.id } });
+    // Seats DO have one, so they need the same read-then-move that
+    // `mergeGuestEntries` does. See `mergeGuestSeats`.
+    await mergeGuestSeats(current.id, user.id);
     await mergeGuestEntries(current.id, user.id);
     await db.user.delete({ where: { id: current.id } }).catch(() => {});
   }

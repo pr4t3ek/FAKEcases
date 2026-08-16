@@ -4,6 +4,7 @@ import { getSessionUser } from "@/lib/auth";
 import { isLocked, tierFor, upgradeFor, WALL_LOCKED, WALL_PARAM } from "@/lib/entitlements";
 import { listCategories, listQuestions, listSectors } from "@/lib/questions";
 import { simStateByQuestion } from "@/lib/simulations";
+import { canHostRooms } from "@/lib/types";
 import type { SimQuestionState } from "@/lib/sim/replay";
 import { AppHeader } from "@/components/app/app-header";
 import { FilterBar } from "@/components/library/filter-bar";
@@ -85,6 +86,9 @@ export default async function SimulationsPage({
 
   const tier = tierFor(user);
   const upgrade = upgradeFor(tier);
+  // Professors and admins get a "host this in class" control on each unlocked
+  // card. Read here rather than inside the card so the card stays a pure view.
+  const canHost = !!user && canHostRooms(user.role);
   const openCount = questions.filter((q) => !isLocked(tier, q)).length;
   const lockedCount = questions.length - openCount;
 
@@ -174,6 +178,7 @@ export default async function SimulationsPage({
                 locked={isLocked(tier, q)}
                 upgrade={upgrade}
                 simState={simState[q.id] ?? null}
+                canHost={canHost}
               />
             ))}
           </div>

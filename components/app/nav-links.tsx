@@ -18,13 +18,18 @@ import { cn } from "@/lib/utils";
  * Two links sharing a pathname meant it had to read the `type` param too, or
  * both would light up at once.
  */
-export function NavLinks({ isAdmin }: { isAdmin: boolean }) {
+export function NavLinks({ isAdmin, canHost }: { isAdmin: boolean; canHost: boolean }) {
   const pathname = usePathname();
 
   const links = [
     { href: "/dashboard", label: "Dashboard" },
     { href: "/library", label: "Library" },
     { href: "/simulations", label: "War rooms" },
+    // Professors and admins only. Its own link rather than a tab inside War
+    // rooms: hosting a class is a different job from playing one, and burying
+    // it under the catalogue would make the catalogue's primary action
+    // ambiguous for the one person who uses both.
+    ...(canHost ? [{ href: "/host", label: "Host" }] : []),
     ...(isAdmin ? [{ href: "/admin", label: "Admin" }] : []),
   ];
 

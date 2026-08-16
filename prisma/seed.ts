@@ -149,7 +149,28 @@ async function main() {
       onboardedAt: new Date(),
     },
   });
-  console.log("  ✓ demo@estimateiq.app (demo1234) + admin@estimateiq.app (admin1234)");
+  // Professor — the classroom host. Given a live Pro pass on purpose: hosting is
+  // gated on the host's OWN tier (see `createRoom`), so a professor without one
+  // could open a room on the single free war room and nothing else, which would
+  // make the feature look broken on a fresh clone rather than gated. The pass is
+  // re-asserted on every re-seed for the same reason demo's is.
+  await db.user.upsert({
+    where: { email: "prof@estimateiq.app" },
+    update: { role: "professor", proUntil: new Date(Date.now() + 30 * DAY_MS) },
+    create: {
+      email: "prof@estimateiq.app",
+      name: "Prof. Iyer",
+      role: "professor",
+      passwordHash: hashPassword("prof1234"),
+      onboardedAt: new Date(),
+      profileCompletedAt: new Date(),
+      proUntil: new Date(Date.now() + 30 * DAY_MS),
+    },
+  });
+  console.log(
+    "  ✓ demo@estimateiq.app (demo1234) + admin@estimateiq.app (admin1234)" +
+      " + prof@estimateiq.app (prof1234)",
+  );
 
   // Benchmark cohort for rank cold-start: synthetic users with a skill-rating
   // spread so a solo/offline user still gets a sensible percentile.

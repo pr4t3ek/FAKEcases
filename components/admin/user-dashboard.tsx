@@ -11,9 +11,10 @@ import {
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
-import { grantPro, revokePro } from "@/app/actions/admin";
+import { grantPro, revokePro, setUserRole } from "@/app/actions/admin";
 import type { AdminUserRow, AdminUserStats } from "@/lib/admin-stats";
 import { PRO_PASS_DAYS, proDaysRemaining } from "@/lib/billing";
+import { USER_ROLES, type UserRole } from "@/lib/types";
 import { USER_SEGMENT_LABELS, type UserSegment } from "@/lib/user-segment";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +32,7 @@ const segmentVariant: Record<UserSegment, "default" | "secondary" | "muted"> = {
 type SortKey =
   | "name"
   | "pro"
+  | "role"
   | "level"
   | "xp"
   | "attempts"
@@ -110,6 +112,75 @@ function ProCell({ user }: { user: AdminUserRow }) {
   );
 }
 
+/**
+ * Making someone a professor, or taking it back.
+ *
+ * A professor may open classroom rooms and reach nothing else — the admin panel
+ * stays admin-only. Note the deliberate separation from the Pro control next
+ * door: `createRoom` gates on the host's *own* tier, so a professor with no pass
+ * can host only the free war rooms. Granting both is two clicks on purpose, so
+ * handing sixty students the paid catalogue is always a decision someone made.
+ */
+function RoleCell({ user }: { user: AdminUserRow }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+
+  function run(role: UserRole, done: string) {
+    startTransition(async () => {
+      const result = await setUserRole(user.id, role);
+      if (!result.ok) {
+        toast.error(result.error ?? "That didn't work.");
+        return;
+      }
+      toast.success(done);
+      router.refresh();
+    });
+  }
+
+  // Same reasoning as `ProCell`: a guest row is absorbed at signup or deleted at
+  // login, so a role granted to one evaporates without saying so.
+  if (user.segment !== "registered") {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+
+  // An admin's role is not editable from here. Demoting yourself locks the panel
+  // (the action refuses it too), and demoting another admin is a bigger decision
+  // than a ghost button in a table row should carry.
+  if (user.role === "admin") {
+    return <span className="text-xs text-muted-foreground">Admin</span>;
+  }
+
+  const isProfessor = user.role === "professor";
+
+  return (
+    <div className="flex items-center justify-end gap-1.5">
+      {isProfessor ? (
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={pending}
+          className="h-7 px-2 text-xs text-destructive"
+          title="Close their ability to open new classroom rooms. Rooms they already opened stay as they are."
+          onClick={() => run("user", "Professor role removed")}
+        >
+          Remove
+        </Button>
+      ) : (
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={pending}
+          className="h-7 px-2 text-xs"
+          title="Let them open classroom rooms. They can host any war room their own tier opens — grant Pro as well for the paid catalogue."
+          onClick={() => run("professor", "Now a professor")}
+        >
+          Make professor
+        </Button>
+      )}
+    </div>
+  );
+}
+
 /** Sorted descending by default — for every column here, "most" is the interesting end. */
 const COLUMNS: { key: SortKey; label: string; numeric?: boolean; title?: string }[] = [
   { key: "name", label: "User" },
@@ -118,6 +189,12 @@ const COLUMNS: { key: SortKey; label: string; numeric?: boolean; title?: string 
     label: "Pro",
     numeric: true,
     title: "Days left on a Pro pass. Granting again extends it rather than resetting it.",
+  },
+  {
+    key: "role",
+    label: "Role",
+    numeric: true,
+    title: "A professor can open classroom rooms. What they may host is still decided by their own tier.",
   },
   { key: "level", label: "Level", numeric: true },
   { key: "xp", label: "XP", numeric: true },
@@ -138,6 +215,10 @@ function sortValue(row: AdminUserRow, key: SortKey): string | number {
       return (row.name ?? row.email ?? "").toLowerCase();
     case "pro":
       return row.proUntil ? Date.parse(row.proUntil) : 0;
+    // Sorted by authority rather than alphabetically, so "show me the staff"
+    // is one click on a descending sort.
+    case "role":
+      return USER_ROLES.indexOf(row.role as UserRole);
     case "level":
       return row.level;
     case "xp":
@@ -314,11 +395,15 @@ export function UserDashboard({ stats }: { stats: AdminUserStats }) {
                           {USER_SEGMENT_LABELS[u.segment]}
                         </Badge>
                         {u.role === "admin" && <Badge variant="warning">Admin</Badge>}
+                        {u.role === "professor" && <Badge variant="secondary">Professor</Badge>}
                         {u.rank && <Badge variant="outline">{u.rank}</Badge>}
                       </div>
                     </td>
                     <td className="p-3">
                       <ProCell user={u} />
+                    </td>
+                    <td className="p-3">
+                      <RoleCell user={u} />
                     </td>
                     <td className="p-3 text-right tabular-nums">{u.level}</td>
                     <td className="p-3 text-right tabular-nums">{u.xp}</td>

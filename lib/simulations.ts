@@ -61,9 +61,21 @@ export async function loadRun(runId: string) {
 export async function findResumableRun(
   userId: string,
   questionId: string,
+  /**
+   * The room this run belongs to, or null for solo play.
+   *
+   * **Not "any room" by omission** — `null` is a real `IS NULL` filter, and the
+   * scoping has to be symmetric in both directions. Unscoped, two things go
+   * wrong at once: a student who played the class exercise would find that run
+   * resumed the next time they opened the same scenario from the library —
+   * outside the room, against a question their tier does not open — and a room
+   * would adopt a half-spent solo run from last week, handing the class exercise
+   * a budget that is already partly gone.
+   */
+  roomId: string | null = null,
 ): Promise<string | null> {
   const existing = await db.simRun.findFirst({
-    where: { userId, questionId, phase: { not: "debrief" } },
+    where: { userId, questionId, roomId, phase: { not: "debrief" } },
     orderBy: { createdAt: "desc" },
     select: { id: true },
   });
@@ -94,12 +106,18 @@ export async function startRun(
    * counterfactual and resume derives from it.
    */
   seed: string | null = null,
+  /**
+   * The classroom this run is being played for, or null for solo play. Passed
+   * through to the resume guard as well as the row, so the guard scopes the same
+   * way the write does.
+   */
+  roomId: string | null = null,
 ): Promise<string> {
-  const existing = await findResumableRun(userId, questionId);
+  const existing = await findResumableRun(userId, questionId, roomId);
   if (existing) return existing;
 
   const created = await db.simRun.create({
-    data: { userId, questionId, scenarioSlug, phase: firstPhase, seed },
+    data: { userId, questionId, scenarioSlug, phase: firstPhase, seed, roomId },
     select: { id: true },
   });
   return created.id;
@@ -409,7 +427,17 @@ export async function simStateByQuestion(
   userId: string,
 ): Promise<Record<string, SimQuestionState>> {
   const rows = await db.simRun.findMany({
-    where: { userId },
+    // Solo runs only. A classroom run is reached through its room, and the
+    // catalogue card cannot act on one anyway — the question is locked, and
+    // `QuestionCard` checks `locked` before it reaches the resume branch. So
+    // counting one here would advertise a "Resume" button that never renders,
+    // and inflate the "you have N war rooms still open" line with rooms the
+    // student cannot open from this page.
+    //
+    // Deliberately NOT applied to `listRunsForUser` / `simSummary`: a class run
+    // is real work and belongs on the student's own dashboard. The entitlement
+    // surface is the catalogue grid, and it is the only one that needs this.
+    where: { userId, roomId: null },
     select: {
       id: true,
       questionId: true,
