@@ -15,6 +15,7 @@ import type { SimScenario } from "./types";
 import { metricDropFoodDelivery } from "./scenarios/metric-drop-food-delivery";
 import { adFunnelRoas } from "./scenarios/ad-funnel-roas";
 import { abTestReadout } from "./scenarios/ab-test-readout";
+import { vyaparMitraActivation } from "./scenarios/vyapar-mitra-activation";
 import { subscriptionLtvCac } from "./scenarios/subscription-ltv-cac";
 import { channelTradeSpend } from "./scenarios/channel-trade-spend";
 import { pricingElasticity } from "./scenarios/pricing-elasticity";
@@ -38,6 +39,7 @@ import { cashRunwayTurnaround } from "./scenarios/cash-runway-turnaround";
 const ALL: SimScenario[] = [
   adFunnelRoas,
   abTestReadout,
+  vyaparMitraActivation,
   subscriptionLtvCac,
   channelTradeSpend,
   pnlProfitSqueeze,

@@ -468,6 +468,199 @@ describe("ab-test-readout: the numbers the primer promises", () => {
   });
 });
 
+describe("vyapar-mitra-activation: the numbers the primer promises", () => {
+  const scenario = getScenario("vyapar-mitra-activation");
+  if (!scenario) throw new Error("scenario missing");
+  const v = resolveDrivers(scenario.drivers);
+  const LAKH = 100_000;
+
+  /**
+   * The shape the whole scenario turns on: activation is a MINIMUM, not a rate.
+   * 6,300 shops submit and a four-person team approves 4,200, so the ceiling is
+   * what decides the output and the 24% "activation rate" is a consequence of it
+   * rather than a property of the funnel.
+   */
+  it("caps activation at what the review team can approve, not at what arrives", () => {
+    expect(v.attempts).toBeCloseTo(6_300, 0);
+    expect(v.reviewCapacity).toBeCloseTo(4_200, 0);
+    expect(v.fastActivators).toBeCloseTo(4_200, 0);
+    // The binding one is capacity, which is the entire finding.
+    expect(v.reviewCapacity).toBeLessThan(v.attempts);
+    expect(v.fastActivationRate).toBeCloseTo(0.24, 4);
+    expect(v.slowUsers).toBeCloseTo(13_300, 0);
+  });
+
+  /** The other split, and the reason the ceiling matters so much. */
+  it("converts approved shops twenty-seven times better than everyone else", () => {
+    expect(v.fastConversion / v.slowConversion).toBeCloseTo(27.5, 1);
+    expect(v.fastPaid).toBeCloseTo(924, 0);
+    expect(v.slowPaid).toBeCloseTo(106.4, 1);
+    // 24% of the installs, 90% of the paying customers.
+    expect(v.fastPaid / v.newPaid).toBeGreaterThan(0.89);
+  });
+
+  it("settles the base at joiners ÷ churn, which is the 11,000 nobody could move", () => {
+    expect(v.newPaid).toBeCloseTo(1_030.4, 1);
+    expect(v.subscribers).toBeCloseTo(1_030.4 / 0.0937, 0);
+    expect(v.subscribers).toBeCloseTo(11_000, -2);
+    expect(v.lifetimeMonths).toBeCloseTo(10.67, 2);
+  });
+
+  it("earns ₹32.88 lakh of revenue and ₹6.66 lakh of contribution", () => {
+    expect(v.subscriptionRevenue).toBeCloseTo(32.88 * LAKH, -3);
+    expect(v.grossProfit).toBeCloseTo(26.96 * LAKH, -3);
+    expect(v.marketingSpend).toBeCloseTo(16.8 * LAKH, -2);
+    expect(v.contribution).toBeCloseTo(6.66 * LAKH, -3);
+  });
+
+  /**
+   * Cost per install held steady through the whole campaign, which is why nobody
+   * worried. The number that moved is the one nobody was reading.
+   */
+  it("pays ₹1,630 for a paying customer that contributes ₹245 a month", () => {
+    expect(v.cacPerPaid).toBeCloseTo(1_630, 0);
+    expect(v.marginPerSub).toBeCloseTo(245.18, 1);
+    expect(v.paybackMonths).toBeCloseTo(6.65, 2);
+    // A seven-month payback on an eleven-month customer: it works, barely.
+    expect(v.paybackMonths).toBeLessThan(v.lifetimeMonths);
+    expect(v.ltv).toBeGreaterThan(v.cacPerPaid);
+  });
+
+  it("roughly doubles the paying base once the gate comes off", () => {
+    const outcome = runOutcome(scenario, scenario.bestAllocation);
+    expect(finalValue(outcome.paths, "subscribers")).toBeGreaterThan(
+      1.9 * finalValue(outcome.doNothing, "subscribers"),
+    );
+    // Activation stops being capped: it more than doubles as a share of installs.
+    expect(finalValue(outcome.paths, "fastActivationRate")).toBeGreaterThan(0.55);
+    expect(finalValue(outcome.paths, "contribution")).toBeGreaterThan(20 * LAKH);
+  });
+
+  /**
+   * The sharpest trap, and the reason it is sharp: everything in its pitch is
+   * true. It buys customers and sells revenue, and the second is the bigger
+   * number — so the subscriber count goes UP while the north star goes DOWN.
+   */
+  it("makes the price cut win customers and lose money at the same time", () => {
+    const outcome = runOutcome(scenario, [
+      { interventionId: "iv-price-cut", sprints: 1, rupees: 5 * LAKH },
+    ]);
+    expect(finalValue(outcome.paths, "subscribers")).toBeGreaterThan(
+      finalValue(outcome.doNothing, "subscribers"),
+    );
+    expect(finalValue(outcome.paths, "subscriptionRevenue")).toBeLessThan(
+      finalValue(outcome.doNothing, "subscriptionRevenue"),
+    );
+    expect(finalValue(outcome.paths, "contribution")).toBeLessThan(
+      finalValue(outcome.doNothing, "contribution"),
+    );
+  });
+
+  /**
+   * A price is a switch, not a dial: ₹299 becomes ₹199 or it does not. Tripling
+   * the money behind the rollout must not buy a deeper cut than the one the card
+   * describes, or the arithmetic on the card stops being the arithmetic in the
+   * model.
+   */
+  it("does not let over-funding the price cut buy a bigger price cut", () => {
+    const asked = runOutcome(scenario, [
+      { interventionId: "iv-price-cut", sprints: 1, rupees: 5 * LAKH },
+    ]);
+    const tripled = runOutcome(scenario, [
+      { interventionId: "iv-price-cut", sprints: 1, rupees: 15 * LAKH },
+    ]);
+    expect(finalValue(tripled.paths, "arpu")).toBeCloseTo(
+      finalValue(asked.paths, "arpu"),
+      6,
+    );
+    expect(finalValue(asked.paths, "arpu")).toBeCloseTo(299 * (1 - 0.334), 2);
+  });
+
+  /**
+   * The second trap, and the signature of a bottleneck.
+   *
+   * Installs are exactly as buyable as the media plan says — the campaign is not
+   * badly run — and approvals do not move at all, because the step that decides
+   * the output is full. The tell is the activation *rate* falling while nothing
+   * about the funnel got worse: the denominator grew and the numerator could not.
+   */
+  it("buys the campaign the installs it promises, and no more approvals at all", () => {
+    const outcome = runOutcome(scenario, [
+      { interventionId: "iv-scale-campaign", sprints: 2, rupees: 10 * LAKH },
+    ]);
+    const installsUp =
+      finalValue(outcome.paths, "installs") / finalValue(outcome.doNothing, "installs");
+    const paidUp =
+      finalValue(outcome.paths, "newPaid") / finalValue(outcome.doNothing, "newPaid");
+    expect(installsUp).toBeGreaterThan(1.3);
+    expect(paidUp).toBeLessThan(1.1);
+    // Approvals are pinned to the ceiling however many people arrive.
+    expect(finalValue(outcome.paths, "fastActivators")).toBeCloseTo(
+      finalValue(outcome.doNothing, "fastActivators"),
+      6,
+    );
+    expect(finalValue(outcome.paths, "fastActivationRate")).toBeLessThan(
+      finalValue(outcome.doNothing, "fastActivationRate"),
+    );
+    // And the bill lands in full, so contribution goes backwards.
+    expect(finalValue(outcome.paths, "contribution")).toBeLessThan(
+      finalValue(outcome.doNothing, "contribution"),
+    );
+  });
+
+  /**
+   * The quietest trap: it works exactly as advertised on a step that was never
+   * the constraint, so it moves activation by precisely nothing while costing a
+   * sprint and ₹7 lakh. Adding demand at a full step is the classic wrong answer
+   * to a bottleneck, and it has to be available to get wrong.
+   */
+  it("lets the setup walkthrough change activations by nothing at all", () => {
+    const outcome = runOutcome(scenario, [
+      { interventionId: "iv-guided-setup", sprints: 1, rupees: 7 * LAKH },
+    ]);
+    expect(finalValue(outcome.paths, "fastActivators")).toBeCloseTo(
+      finalValue(outcome.doNothing, "fastActivators"),
+      6,
+    );
+    expect(finalValue(outcome.paths, "subscribers")).toBeCloseTo(
+      finalValue(outcome.doNothing, "subscribers"),
+      6,
+    );
+    // Everything it costs still lands.
+    expect(finalValue(outcome.paths, "contribution")).toBeLessThan(
+      finalValue(outcome.doNothing, "contribution"),
+    );
+  });
+
+  it("defines the funnel vocabulary before using it, and links it to the map", () => {
+    const primer = scenario.teaching?.primer;
+    expect(primer).toBeDefined();
+    expect(scenario.teaching?.showMetricMap).toBe(true);
+    const terms = primer!.terms.map((t) => t.term);
+    for (const expected of [
+      "Install",
+      "Activation",
+      "Activation rate",
+      "Bottleneck",
+      "Paid conversion",
+      "Churn",
+      "Subscriber base",
+      "ARPU",
+      "CAC",
+      "Payback period",
+      "Contribution",
+    ]) {
+      expect(terms).toContain(expected);
+    }
+    for (const t of primer!.terms) expect(t.matters.length).toBeGreaterThan(20);
+
+    const driverIds = new Set(scenario.drivers.map((d) => d.id));
+    for (const t of primer!.terms) {
+      if (t.driver) expect(driverIds).toContain(t.driver);
+    }
+  });
+});
+
 describe("channel-trade-spend: the numbers the primer promises", () => {
   const scenario = getScenario("channel-trade-spend");
   if (!scenario) throw new Error("scenario missing");

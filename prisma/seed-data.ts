@@ -633,6 +633,22 @@ export const questions: SeedQuestion[] = [
     tags: "product management,experimentation,ab testing,statistical significance,returns,fashion,e-commerce,simulation",
   },
   {
+    externalId: "vyapar-mitra-activation",
+    title: "Vyapar Mitra: 38% more signups and the same 11,000 paying shops",
+    prompt:
+      "A billing app for small shops ran a ₹1.4 crore campaign, lifted installs 38% at a flat cost per install, and added almost no paying customers. The CEO wants to double the campaign; the head of sales wants to cut the price. Work out where the people are going, then spend a month acting on it.",
+    category: "product-management",
+    sector: "technology",
+    difficulty: "Easy",
+    interviewLevel: "PM",
+    type: "simulation",
+    betterApproach:
+      "Before buying more of the top of a funnel, measure what share of it reaches the bottom — and then ask a second question most people skip: is any step downstream already full? Rates multiply, ceilings do not, so a number that refuses to move under a 38% increase is usually a capacity problem rather than a conversion one. Split conversion by segment rather than reading it blended, and separate a compliance requirement from the product decision wrapped around it: the law says what must be true of a filed invoice, not what must be true before somebody may open the app.",
+    sampleSolution:
+      "Onboarding blocks the first invoice behind a GST number and a photographed registration certificate that a human must approve, and both halves bind. Only 6,300 of 17,500 installs submit anything, and a four-person team approves about 4,200 a month — so activation is the smaller of the two and has been pinned at 4,200 for a year. Approved shops convert at 22%, everyone else at 0.8%, so 24% of installs produce 90% of paying customers. The campaign lifted installs 38% and submissions 38%, approvals by nothing, and a base that settles at joiners ÷ churn moved 10,590 → 11,000 while marketing spend rose 41%. Cutting the price to ₹199 lifts conversion 3.1 points and cuts ARPU 33.4% — more customers, less money — and a setup walkthrough sends more applicants at a queue that already turns 2,100 away. Letting shops raise draft invoices first and verifying the GSTIN against the API instead of by hand takes activation from 24% to about 59% and contribution from ₹6.66 lakh a month to ₹23.6 lakh.",
+    tags: "product management,activation,onboarding,funnel,bottleneck,capacity,conversion,churn,saas,kirana,gst,simulation",
+  },
+  {
     externalId: "subscription-ltv-cac",
     title: "Padhai Plus: 18,000 new subscribers a month, and a bigger hole",
     prompt:

@@ -81,7 +81,7 @@ export const tierAccess: Record<AccessTier, TierAccess> = {
       // quietly under-sold the product at the moment someone decides to pay.
       reason:
         "Your account opens the free set. Pro opens the whole library — all 24 guesstimates, " +
-        "both cases and all 14 war rooms.",
+        "both cases and all 15 war rooms.",
       unlocks: "with Pro",
     },
   },
