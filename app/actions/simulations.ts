@@ -61,6 +61,7 @@ import {
 } from "@/lib/simulations";
 import { applySimulationRewards } from "@/lib/gamification";
 import { recordFirstResult } from "@/lib/leaderboard";
+import { roomGrantFor, seatFor } from "@/lib/rooms";
 
 export interface SimActionResult {
   ok: boolean;
@@ -141,6 +142,34 @@ export async function startSimulation(questionId: string): Promise<void> {
 
   if (!canOpen(tierFor(user), question)) redirect(wallRedirect("simulation"));
 
+  const runId = await openSimulationRun({
+    userId: user.id,
+    questionId: question.id,
+    slug,
+    roomId: null,
+  });
+  redirect(`/simulate/${runId}`);
+}
+
+/**
+ * Open a run, once the caller has decided the visitor is allowed one.
+ *
+ * Extracted so the library entry point and the classroom one cannot drift on the
+ * first phase or on seeding. A room run that skipped the seed would be a war
+ * room that can never be replayed — discovered a term later, by which time the
+ * runs that lack it are the ones people want to look back at.
+ *
+ * Deliberately not exported, and deliberately not a gate: both callers gate
+ * before they reach it, each with the grant its own surface derives.
+ */
+async function openSimulationRun(args: {
+  userId: string;
+  questionId: string;
+  slug: string;
+  roomId: string | null;
+}): Promise<string> {
+  const { userId, questionId, slug, roomId } = args;
+
   // The first phase is the format's, not a constant: a turnaround opens on its
   // briefing, a war room on Observe.
   const simulator = getSimulatorConfig(slug);
@@ -150,12 +179,60 @@ export async function startSimulation(questionId: string): Promise<void> {
     : scenario
       ? formatFor(scenario).phases[0].id
       : "observe";
+
   // Seeded whether or not anything currently draws from it. A run that starts
   // without one can never gain the weather later — the seed is the entropy
   // source everything downstream is a pure function of — so a scenario gaining
   // `noise` would otherwise leave every run started before that day playing a
   // different game from every run started after.
-  const runId = await startRun(user.id, question.id, slug, firstPhase, runSeed());
+  return startRun(userId, questionId, slug, firstPhase, runSeed(), roomId);
+}
+
+/**
+ * Open the war room a classroom is running.
+ *
+ * A separate action rather than a `roomCode` parameter on `startSimulation`, and
+ * the difference is where the question id comes from. `startSimulation` takes it
+ * from the client; given an optional room code it would have to cross-check that
+ * the room's question matches the id it was handed, and a mismatch would be a
+ * forgery path that has to be got right forever. This **derives** the question
+ * from the room, so there is nothing to cross-check.
+ *
+ * Same rule `commitDecision` applies to the diagnosis ("comes off the run, never
+ * off the request") and `submitMonth` applies to the tick index.
+ */
+export async function startRoomRun(code: string): Promise<void> {
+  // Not `getOrCreateGuest`: a seat implies a row already exists, and minting one
+  // here would silently create an account for someone who never joined.
+  const user = await getSessionUser();
+  if (!user) redirect(`/join/${code}`);
+
+  const seated = await seatFor(user.id, code);
+  if (!seated) redirect(`/join/${code}`);
+  const { room } = seated;
+
+  // Resume BEFORE the gate, matching `startSimulation` and `startAttempt`. A
+  // room closed while a student was six analyst-days into Investigate must not
+  // strand what they already spent.
+  const resumable = await findResumableRun(user.id, room.questionId, room.id);
+  if (resumable) redirect(`/simulate/${resumable}`);
+
+  // The control, and the same call the room page rendered its button from —
+  // with the same derivation, which is what keeps the card and the gate honest.
+  // A closed room fails here because `roomGrantFor` only counts open ones, so
+  // there is no separate status check for a future caller to forget.
+  const grant = await roomGrantFor(user.id);
+  if (!canOpen(tierFor(user), room.question, grant)) redirect(`/room/${code}`);
+
+  const slug = room.question.externalId;
+  if (!slug || !(scenarioExists(slug) || isSimulatorSlug(slug))) redirect(`/room/${code}`);
+
+  const runId = await openSimulationRun({
+    userId: user.id,
+    questionId: room.questionId,
+    slug,
+    roomId: room.id,
+  });
   redirect(`/simulate/${runId}`);
 }
 
