@@ -495,3 +495,82 @@ Every `bestAllocation` came from `pnpm tsx scripts/best-allocation.ts <slug>` an
 re-run to confirm nothing moved; all five v2 scenarios report `balance: OK`. The golden
 fixture gained the three new slugs and **no existing projection changed**. The Pro pitch
 and the plan card, which are prose and quote a count, moved 14 → 17.
+
+### 16. An analytics track, and a category to put it in
+
+Fifteen of the sixteen war rooms taught business or finance economics. Exactly one —
+Rangoli — was statistical, and a candidate preparing for a data or analytics interview
+had that one scenario and nothing after it. A grep across `lib/sim/scenarios/` for
+`conjoint|PCA|regression|cluster|chi-square|t-test|anova` returned no content hits.
+
+This is the first two rungs of a ladder that goes on to classification thresholds,
+conjoint, PCA and causal inference. Both are `engine: "v2"` with a `spend` block, both
+were authored to the entry 14 rules from the first line, and both are Easy — the point
+of a track is that somebody can start at the bottom of it.
+
+**The framing problem, and how it was solved.** A war room is "diagnose a metric that
+moved, then spend one quarter's capacity on it". A statistical technique is not a metric
+that moved, and forcing one into the format produces a quiz with a dashboard attached.
+So each scenario is written as the **post-mortem of a decision the analysis already
+drove** — the book was reallocated, the redesign shipped — and the war room is the
+diagnosis plus the fix. That is what makes the format carry a technique at all, and it
+is the constraint the remaining four scenarios in the ladder have to satisfy too.
+
+**Sahyog Finance** (Easy) — an NBFC whose four collections agencies are ranked on
+recovery rate. One agency tops the table at 41.4% against 33–35%, so 60% of the overdue
+book moved to it and blended recovery fell 35.6% → 33.8%. Recovery is decided by ageing
+bucket (60.9% at 0–30 days, 11.1% at 90+, a 49.8-point spread), and 42% of that agency's
+book sat in the 0–30 bucket against 24–27% for the others. Rebuild each agency's blended
+rate from the pooled bucket rates and its own mix and the league table reproduces exactly
+with every agency performing identically. Held inside one bucket the four land within
+1.6 points and do not rank consistently, while one agency's own month-to-month swing in
+that bucket is 2.8 points — between-group spread smaller than within-group, which is the
+comparison an ANOVA computes, taught without printing an F-statistic. `recoveryRate` is a
+`product` of contact and settlement rather than one input, so the two fixes on the board
+are visibly different levers instead of two ways to nudge the same number.
+
+**Chalo Fitness** (Easy) — a class-booking subscription that shipped a home-screen
+redesign on "+11.3% booking rate, p = 0.032" in one segment. The experiment is clean:
+one change, randomised, correctly instrumented — everything Rangoli got wrong, this team
+got right. The reading is not. Fourteen comparisons were run and the winner reported;
+1 − 0.95¹⁴ = 51.2%, and a Bonferroni bar would be 0.0036. The test was stopped on day 9
+against a written 21-day plan, the afternoon it first crossed, and was back above 0.05 by
+day 12. A pre-registered replication returned +0.4%, CI −3.1% to +3.9%.
+
+The half candidates miss is the mirror image. The primary metric came back −1.8% at
+p = 0.19 and was filed as "no effect" when the design could only detect 3%; at 45 days it
+clears. Type I error on fourteen questions nobody planned to ask, type II on the one they
+did, same three weeks of data. Deliberately not a second Rangoli: `variant.novelty` and
+`reading.power` both come back clean on the headline, so a candidate who pattern-matches
+to "confounded" or "underpowered" is answering the previous scenario's question.
+
+Both traps do what their readout argues for and end below doing nothing. Consolidating
+Sahyog's book is −₹10.8 lakh, because the eight points were a book rather than a skill
+and the volume outruns the officers. Building more of Chalo's streak widget is −₹11.9
+lakh, and it is the sharper of the two: `sessionsPerSubscriber` sits on the **cost** side
+of contribution — Chalo pays the studio ₹96 a class — so optimising the metric the
+readout reported is arithmetically a loss. Each scenario also carries an honest decoy
+that clears doing nothing (+₹2.9 lakh, +₹1.8 lakh) and loses comfortably, with a
+`saturation` override for the reason entry 15 gives: more field officers and more evening
+classes work whatever is wrong upstream.
+
+**A `data-analytics` category**, mirroring the finance track's own. Rangoli moved into it,
+so the track ships three deep rather than two. No application code was needed:
+`listCategories(surface)` asks the database which categories hold something a surface can
+render, so a simulation-only category appears on `/simulations` and is dropped from
+`/library` on its own — the seam entry 13 built, used a second time without touching it.
+The one edit that is easy to miss is `components/library/question-icon.tsx`, whose `ICONS`
+allowlist gates `Category.icon`: an unknown name **silently** degrades to the default
+rather than erroring, so a new category needs `Sigma` added there or it renders wrong and
+nothing says so.
+
+Two comments claiming "every war room is filed under `product-management`" are no longer
+true and were corrected rather than left to mislead — one in `lib/questions.ts`, one in
+`tests/sectors.test.ts`, whose guard still passes because eleven war rooms remain there.
+
+Every `bestAllocation` came from `pnpm tsx scripts/best-allocation.ts <slug>` and was
+re-run to confirm nothing moved; both report `balance: OK`. The golden fixture gained the
+two new slugs and **no existing projection changed**. The Pro pitch and the plan card
+moved 17 → 19; the seeded counts moved to 16 categories and 45 questions. The pitch deck
+had said "25 guesstimates" against a real 24 for some time, and that is corrected here
+too.

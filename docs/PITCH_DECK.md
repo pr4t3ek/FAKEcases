@@ -90,8 +90,8 @@ deterministic causal model that answers with moved business metrics — orders, 
 margin — instead of a mark.
 
 STATUS: pre-launch. No public users, no revenue, no payment gateway. Built and tested end
-to end: ~55,000 lines of TypeScript, 50 test suites, 12 product surfaces, 43 seeded
-exercises (25 guesstimates, 2 cases, 17 simulations). Runs fully offline with zero API
+to end: ~55,000 lines of TypeScript, 50 test suites, 12 product surfaces, 45 seeded
+exercises (24 guesstimates, 2 cases, 19 simulations). Runs fully offline with zero API
 keys; real LLM providers swap in through environment variables only.
 
 AUDIENCE: seed investors in India edtech. Tone: precise, evidence-first, no hype. Every
@@ -146,7 +146,7 @@ SLIDES
     full library. Pro is built as a dated pass, not a subscription: one timestamp on the
     user, so there is no renewal job and no cancellation flow. B2B licensing to placement
     cells is the second line.
-12. Where we are today — engineering evidence, not vanity metrics. 43 exercises, 12
+12. Where we are today — engineering evidence, not vanity metrics. 45 exercises, 12
     surfaces, 50 test suites, deterministic scoring, entitlements and gating complete and
     tested ahead of any payment integration. Explicitly: zero public users, pre-launch.
 13. What we build next — four retention levers, in order: instrumentation, mastery instead
@@ -450,12 +450,14 @@ end, a rounded results card showing three metric rows with up, down and flat arr
 red and grey. Flat vector, clean, Inter, 16:9.
 ```
 
-**Scenario table — use as a backup or appendix slide.** Seventeen ship today, easiest first:
+**Scenario table — use as a backup or appendix slide.** Nineteen ship today, easiest first:
 
 | Scenario | Level | Teaches |
 |---|---|---|
 | Kadak Coffee — ROAS 4.0 and losing money | Easy | Why a campaign only breaks even once ROAS clears 1 ÷ gross margin |
 | Rangoli — the test says +6%, ship it Monday? | Easy | Significance, novelty effect, reading a test on the metric that pays |
+| Sahyog Finance — the best agency got 60% of the book, recovery fell | Easy | Between- vs within-group spread; a league table can be a mix table in disguise |
+| Chalo Fitness — fourteen ways to read one test, one said yes | Easy | Multiple comparisons, optional stopping, power; "not significant" is not "no effect" |
 | Vyapar Mitra — 38% more signups, the same 11,000 shops | Easy | Activation vs acquisition; a bottleneck caps output however much arrives |
 | Padhai Plus — growing subscribers, growing burn | Easy | LTV, CAC, payback; a base settles at joiners ÷ churn |
 | Chaska — share up five points, profit down a third | Easy | Why market share is a diagnostic, not a target |
@@ -609,7 +611,7 @@ Flat vector, Inter, 16:9.
   No card, no login.
 - **Free account** — the same content, plus saved progress, streaks, a percentile rank and a
   profile.
-- **Pro, ₹499/month** — the full library: 25 guesstimates, both cases, all 17 war rooms.
+- **Pro, ₹499/month** — the full library: 24 guesstimates, both cases, all 19 war rooms.
 - **The mechanic is a dated pass, not a subscription.** Pro is one timestamp on the user row,
   compared against *now* — so there is no renewal job, no cron, no cancellation flow, and no
   stored label that can drift out of date. Granting extends rather than resets.
@@ -646,7 +648,7 @@ say the pre-launch part before anyone has to ask.**
 **Headline.** Pre-launch, and built end to end.
 
 **Body.** What exists, verifiable in the repository today:
-- **43 exercises** — 25 guesstimates, 2 cases, 17 war rooms, all India-context.
+- **45 exercises** — 24 guesstimates, 2 cases, 19 war rooms, all India-context.
 - **12 product surfaces** — landing, library, practice, war rooms, dashboard, profile,
   onboarding, admin, auth.
 - **~55,000 lines** of strict TypeScript across **50 test suites** — scorer, gamification,

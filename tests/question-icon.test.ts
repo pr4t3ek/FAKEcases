@@ -136,9 +136,14 @@ const EXPECTED: Record<string, string> = {
   "Deccan Ceramics: our best ever EBITDA, and the bank wants a word": "Factory",
   "Meraki Textiles: twelve months, one supplier, and a clause you can abuse once": "Shirt",
   "Sutradhar: four quarters of cash and three ways to spend it": "Package",
-  // No subject rule matches these two, so they exercise the Category.icon fallback.
+  // No subject rule matches these four, so they exercise the Category.icon
+  // fallback. The two analytics scenarios fall back to Data & Analytics rather
+  // than to a lending or a fitness icon, which is the right card for both: the
+  // subject is the league table and the readout, not the loan book or the gym.
   "Suraksha Home: the competitor cut price — do we match?": "LineChart",
   "Ghar Sewa: customers waiting, professionals idle, both sides growing": "LineChart",
+  "Sahyog Finance: the best agency got 60% of the book, and recovery fell": "Sigma",
+  "Chalo Fitness: fourteen ways to read one test, and the one that said yes": "Sigma",
 };
 
 describe("every seeded question resolves to a subject icon", () => {
