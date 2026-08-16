@@ -22,6 +22,10 @@ scoring/integrity corrections.
 🔁 **[Retention](docs/RETENTION.md)** — why a finite library is not the reason people leave,
 and the four levers (mastery, a daily loop, leagues, cheap content) that would keep them.
 
+🏃 **[Scrum simulator plan](docs/SCRUM_SIMULATOR.md)** — a design spec for teaching agile with the
+existing simulation engine: Scrum's ceremonies mapped onto the engine's tick, a Product Owner who
+decides rather than obeys, and both a solo and a classroom mode.
+
 🎤 **[Pitch deck kit](docs/PITCH_DECK.md)** — a 16-slide spec (headline, visual, speaker notes
 per slide) plus the prompts to generate the deck, for pitching what this is and where it's going.
 
