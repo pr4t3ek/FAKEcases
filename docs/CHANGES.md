@@ -437,3 +437,61 @@ Projections did not move: `pnpm tsx scripts/sim-golden.ts` reports no scenario c
 and `checkBalance` still certifies every declared best allocation. The test fixture now
 satisfies the same authoring rules as shipped content, so the suite cannot certify a
 shape the app would refuse to load.
+
+### 15. Three new war rooms, authored to the rules entry 14 laid down
+
+The point of doing entry 14 first was so that new scenarios would be written against
+the final rules rather than retrofitted a second time. These three are the payoff, and
+each was built to `CAUSE_BOARD` (8–10 causes), uniform 2-day pulls, `DASHBOARD_FLOOR`
+(6+ panels including decoys) and bulleted debriefs from the first line. All three are
+`engine: "v2"` with a `spend` block, so money reaches the P&L and "how much?" has an
+answer that is not "all of it". They are the three the README's "Deferred / future"
+note named, and that note no longer names them.
+
+**Vyapar Mitra** (Easy) — a billing app for kirana shops whose ₹1.4 crore install
+campaign raised installs 38% and paying customers by almost nothing. Onboarding demands
+a GST number and a photographed registration certificate before the first invoice can
+be raised, so only 36% of installs submit anything — and a four-person verification team
+approves 4,200 a month, which it has done for a year. Activation is therefore
+`min(submissions, capacity)`, and this scenario needed the `min` driver kind: a funnel
+of pure rates multiplies, so it cannot express "we bought 38% more and got none of it".
+Finding a ceiling is a different skill from finding a leak, and nothing else in the
+catalogue teaches it.
+
+**Sehat Plus** (Medium) — a 240-store pharmacy chain promising 96% availability,
+delivering 87.4%, and holding 24% more stock than it ever has. One national 14-day
+safety-stock rule meets two kinds of demand: chronic refills at a coefficient of
+variation of 0.14 sit at 98.2% on six standard deviations of cover, and acute lines at
+0.71 sit at 71.2% on about one. Every aggregate a head office reads is healthy —
+including 9.5 inventory turns — because the failure is entirely in a distribution.
+
+**Setu** (Medium) — B2B logistics software that shipped its most-requested features for
+three quarters at 91% on-time delivery and watched NRR fall from 103% to 94%. Request
+count runs inversely to account size (2.4 requests per crore of ARR from the twelve
+accounts that are 46% of it, against 985 from the long tail), because those twelve have
+a named CSM instead of a support queue and the roadmap process was built on the ticket
+system. Churn is modelled as a floor plus a roadmap-sensitive part, which is what makes
+the misallocation expensive rather than merely unfair: the tail is within half a point
+of a floor no feature moves, and the enterprise tier is at eight times its own.
+
+**Every trap keeps its full effect.** The engine's off-target default saturates early
+and low, on the reasoning that money aimed at the wrong cause stops working almost at
+once — and that reasoning is wrong for a lever that is arithmetic rather than a bet on a
+hypothesis. A price cut lifts conversion whatever else is broken; more safety stock is
+more safety stock; a voting portal really does collect votes. So each of those carries a
+`saturation` override and fails for an honest reason instead of quietly doing nothing.
+Vyapar Mitra's price cut goes further and uses `linear`, because a price is a switch
+rather than a dial: ₹299 becomes ₹199 or it does not, and a saturating curve would have
+rendered the cut as −26% of ARPU at full funding, which is not a price anybody set.
+
+Three of the traps are worth naming for what they do to the north star. Cutting Vyapar
+Mitra's price wins customers (10,366 → 11,997) and loses revenue (₹31.0 L → ₹23.9 L).
+Raising Sehat Plus's cover to 21 days lifts the blended fill rate everybody is measured
+on and leaves contribution slightly *below* doing nothing once the stock is carried.
+Setu's voting portal works exactly as designed and makes retention worse, because it
+collects more of a biased signal and counts it the same way.
+
+Every `bestAllocation` came from `pnpm tsx scripts/best-allocation.ts <slug>` and was
+re-run to confirm nothing moved; all five v2 scenarios report `balance: OK`. The golden
+fixture gained the three new slugs and **no existing projection changed**. The Pro pitch
+and the plan card, which are prose and quote a count, moved 14 → 17.
