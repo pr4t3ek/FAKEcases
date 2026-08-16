@@ -574,3 +574,26 @@ two new slugs and **no existing projection changed**. The Pro pitch and the plan
 moved 17 → 19; the seeded counts moved to 16 categories and 45 questions. The pitch deck
 had said "25 guesstimates" against a real 24 for some time, and that is corrected here
 too.
+
+**A note on register, which the rest of the track has to match.** Both scenarios were
+written denser than the house style and then simplified — 65 user-facing sentences of 28+
+words came down to 13, and the longest from 44 words to 33. The drilldown `question:`
+line is where the drift showed most, because it is the one-line prompt a student reads
+*before* spending analyst-days: "Held to like-for-like accounts, is any agency actually
+better?" is not the same register as Kadak Coffee's "Is the campaign badly run?", and the
+older one is right. The rules that pass applied, and that A3 to A6 should be written to
+from the first line: one idea per sentence, at most one em-dash aside, no fronted
+subordinate clauses, everyday word ahead of the term of art.
+
+**No term was removed** — the vocabulary is what an analytics track exists to teach, and
+an interviewer will use it. Only the English around it changed. The pass also surfaced two
+content errors: Sahyog's primer said "the last four" over five business terms, and the
+README credited Chalo with teaching family-wise error when the scenario never named it.
+The primer count is fixed and the term is now named where the multiple-comparisons
+definition already explained the idea.
+
+Language passes over authored content have no test behind them — `sim-golden` proves the
+*model* did not move, and nothing guards a figure quoted inside prose, so a rewrite can
+silently turn 42% into 40% and the suite stays green. This one was checked by extracting
+every number from all 452 user-facing strings before and after and diffing the multiset:
+618 figures, identical both times. Worth repeating on any future prose edit.
