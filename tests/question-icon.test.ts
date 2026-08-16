@@ -123,6 +123,9 @@ const EXPECTED: Record<string, string> = {
   "Chaska: share is up five points and the profit is down a third": "Store",
   "Ujala Solar: we planned for 10.8 lakh units and sold 4.3 lakh": "Zap",
   "Lekha: our most profitable customer wants 18% off": "Factory",
+  // A retail chain whose subject is medicine: "pharmacy" in the tags reaches
+  // the healthcare rule before the Retail category fallback can be used.
+  "Sehat Plus: 87% availability on 24% more stock": "Stethoscope",
   "Kirti Apparel: revenue is up 22% and profit is down 62%": "Shirt",
   "Nirmal Pipes: a record profit and no money for payroll": "Factory",
   // "ceramic" beats "bank" — the bank is in the sentence, not in the subject.

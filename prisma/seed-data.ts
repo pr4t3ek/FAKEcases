@@ -729,6 +729,22 @@ export const questions: SeedQuestion[] = [
     tags: "product management,marketplace,liquidity,match rate,utilisation,take rate,home services,simulation",
   },
   {
+    externalId: "sehat-plus-service-level",
+    title: "Sehat Plus: 87% availability on 24% more stock",
+    prompt:
+      "A 240-store pharmacy chain promises 96% availability and delivers 87.4%, while holding ₹31.2 crore of stock — 24% more than a year ago, because safety stock was already raised from 11 days to 14 and the fill rate fell anyway. The CFO has been told to release ₹6 crore of working capital. Work out what the average is hiding, then spend a quarter acting on it.",
+    category: "retail",
+    sector: "healthcare",
+    difficulty: "Medium",
+    interviewLevel: "GeneralMBA",
+    type: "simulation",
+    betterApproach:
+      "Never read a service level at the level of the business. Availability is a promise about one item, so an aggregate averages items that behave nothing alike and destroys the information it was carrying — split it by how variable demand is before doing anything else. Then apply one test to every candidate cause: did it move differently across the two sides of the split? A degradation that hit both halves equally cannot explain a gap that opened on only one of them.",
+    sampleSolution:
+      "A national rule holds every SKU at 14 days of average demand. Chronic refills have a coefficient of variation of 0.14, so 14 days is about six standard deviations of cover and they sit at 98.2%; acute and seasonal lines have 0.71, so the same 14 days is about one, and they sit at 71.2% while being 40% of demand and 91% of the ₹13.61 crore a quarter that goes unserved. Blended that is 87.4% on stock turning 9.5 times — both perfectly respectable aggregates, which is why nobody could find it. Lead time did rise from 6 days to 8, but identically on both classes, so it cannot explain the split; raising cover to 21 days everywhere lifts the reported fill rate about three points and costs ₹6.5 crore of working capital, leaving the quarter slightly worse. Sizing safety stock on variability — about 4 days chronic, 26 acute — and holding the acute buffer forward in stores on a twice-weekly cycle takes blended availability past 96% on ₹4.3 crore *less* inventory.",
+    tags: "supply chain,inventory,fill rate,service level,safety stock,coefficient of variation,inventory turns,pharmacy,retail,simulation",
+  },
+  {
     externalId: "b2b-deal-tco",
     title: "Lekha: our most profitable customer wants 18% off",
     prompt:

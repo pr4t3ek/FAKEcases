@@ -860,6 +860,160 @@ describe("marketplace-liquidity: the numbers the primer promises", () => {
   });
 });
 
+describe("sehat-plus-service-level: the numbers the primer promises", () => {
+  const scenario = getScenario("sehat-plus-service-level");
+  if (!scenario) throw new Error("scenario missing");
+  const v = resolveDrivers(scenario.drivers);
+  const CRORE = 10_000_000;
+
+  /**
+   * The finding, stated as arithmetic: 87.4% is not a fill rate, it is the
+   * average of two of them that have nothing to do with each other.
+   */
+  it("averages 98.2% and 71.2% into a blended 87.4%", () => {
+    expect(v.chronicFillRate).toBeCloseTo(0.982, 4);
+    expect(v.acuteFillRate).toBeCloseTo(0.712, 4);
+    expect(v.blendedFillRate).toBeCloseTo(0.874, 4);
+    // And the blend sits nowhere near either of the things it is made of.
+    expect(v.blendedFillRate).toBeLessThan(v.chronicFillRate);
+    expect(v.blendedFillRate).toBeGreaterThan(v.acuteFillRate);
+  });
+
+  it("loses ₹13.61 crore of demand a quarter, almost all of it acute", () => {
+    expect(v.totalDemandValue).toBeCloseTo(108 * CRORE, -4);
+    expect(v.totalSales).toBeCloseTo(94.392 * CRORE, -4);
+    expect(v.lostSalesValue).toBeCloseTo(13.608 * CRORE, -4);
+
+    const chronicLost = v.chronicDemandValue - v.chronicSales;
+    const acuteLost = v.acuteDemandValue - v.acuteSales;
+    // 91% of the shortfall is the 40% of demand nobody was looking at.
+    expect(acuteLost / v.lostSalesValue).toBeGreaterThan(0.9);
+    expect(chronicLost / v.lostSalesValue).toBeLessThan(0.1);
+  });
+
+  /**
+   * Both halves carry the identical national rule — 14 days of safety stock plus
+   * 12 of cycle — and that is exactly the problem: the same number of days is a
+   * completely different promise on the two of them.
+   */
+  it("holds both halves of the range to the same 26 days of cover", () => {
+    expect(v.chronicCoverDays).toBeCloseTo(26, 6);
+    expect(v.acuteCoverDays).toBeCloseTo(26, 6);
+    expect(v.chronicSafetyDays).toBe(v.acuteSafetyDays);
+    // Five times the variability, and not one extra day behind it.
+    expect(v.acuteCv / v.chronicCv).toBeCloseTo(5.07, 1);
+  });
+
+  it("carries ₹31.2 crore of stock turning 9.5 times a year", () => {
+    expect(v.chronicStock).toBeCloseTo(18.72 * CRORE, -4);
+    expect(v.acuteStock).toBeCloseTo(12.48 * CRORE, -4);
+    expect(v.inventoryValue).toBeCloseTo(31.2 * CRORE, -4);
+    expect(v.holdingCost).toBeCloseTo(2.184 * CRORE, -4);
+    // The aggregate that looks entirely healthy while half the range is wrong.
+    expect(v.inventoryTurns).toBeCloseTo(9.53, 1);
+  });
+
+  it("earns ₹20.09 crore of gross profit and ₹1.70 crore of contribution", () => {
+    expect(v.grossProfit).toBeCloseTo(20.0876 * CRORE, -4);
+    expect(v.contribution).toBeCloseTo(1.7036 * CRORE, -4);
+  });
+
+  /**
+   * The shape of a good inventory decision, and the one the CFO can also sign:
+   * availability goes up and the stock goes DOWN, because the chain was holding
+   * roughly the right amount against the wrong risks.
+   */
+  it("buys availability while releasing stock rather than consuming it", () => {
+    const outcome = runOutcome(scenario, scenario.bestAllocation);
+    const acute = finalValue(outcome.paths, "acuteFillRate");
+    const chronic = finalValue(outcome.paths, "chronicFillRate");
+
+    expect(acute).toBeGreaterThan(finalValue(outcome.doNothing, "acuteFillRate") + 0.2);
+    expect(finalValue(outcome.paths, "blendedFillRate")).toBeGreaterThan(0.96);
+    // Chronic gives up almost nothing: five of its six standard deviations of
+    // cover were never doing any work.
+    expect(chronic).toBeGreaterThan(0.975);
+    // And it costs negative working capital.
+    expect(finalValue(outcome.paths, "inventoryValue")).toBeLessThan(
+      finalValue(outcome.doNothing, "inventoryValue"),
+    );
+  });
+
+  /**
+   * The sharpest trap, and the reason it is sharp: it genuinely moves the metric
+   * the whole chain is measured on, and still loses money once the stock it
+   * bought has to be carried.
+   */
+  it("lets blanket safety stock lift the fill rate and lose the quarter", () => {
+    const outcome = runOutcome(scenario, [
+      { interventionId: "iv-blanket-safety", sprints: 1, rupees: 1 * CRORE },
+    ]);
+    expect(finalValue(outcome.paths, "blendedFillRate")).toBeGreaterThan(
+      finalValue(outcome.doNothing, "blendedFillRate"),
+    );
+    expect(finalValue(outcome.paths, "acuteFillRate")).toBeGreaterThan(
+      finalValue(outcome.doNothing, "acuteFillRate"),
+    );
+    // Bought with the balance sheet the CFO has been told to shrink…
+    expect(finalValue(outcome.paths, "inventoryValue")).toBeGreaterThan(
+      finalValue(outcome.doNothing, "inventoryValue") + 5 * CRORE,
+    );
+    // …and it does not pay for itself.
+    expect(finalValue(outcome.paths, "contribution")).toBeLessThan(
+      finalValue(outcome.doNothing, "contribution"),
+    );
+  });
+
+  /**
+   * The second trap. The fact is true — lead time really did go 6 → 8 — and the
+   * data acquits it: it moved identically on both halves of the split, so it
+   * cannot be what created the split.
+   */
+  it("moves lead time equally across the two classes that behave differently", () => {
+    const pull = scenario.drilldowns.find((d) => d.id === "dd-leadtime");
+    expect(pull).toBeDefined();
+    const panel = pull!.reveals.find((p) => p.id === "p-sp-leadtime");
+    expect(panel?.kind).toBe("timeseries");
+    if (panel?.kind !== "timeseries") throw new Error("expected a timeseries");
+
+    const [chronic, acute] = panel.series;
+    expect(chronic.points).toHaveLength(acute.points.length);
+    for (const [i, point] of chronic.points.entries()) {
+      // Never more than a fifth of a day apart, at any point in two years.
+      expect(Math.abs(point.value - acute.points[i].value)).toBeLessThanOrEqual(0.2);
+    }
+    // Both roughly a third longer than they were.
+    expect(acute.points.at(-1)!.value / acute.points[0].value).toBeGreaterThan(1.3);
+  });
+
+  it("defines the inventory vocabulary before using it, and links it to the map", () => {
+    const primer = scenario.teaching?.primer;
+    expect(primer).toBeDefined();
+    expect(scenario.teaching?.showMetricMap).toBe(true);
+    const terms = primer!.terms.map((t) => t.term);
+    for (const expected of [
+      "Fill rate",
+      "Service level",
+      "Safety stock",
+      "Cycle stock",
+      "Coefficient of variation",
+      "Lead time",
+      "Inventory turns",
+      "Stockout cost",
+      "Holding cost",
+      "Contribution",
+    ]) {
+      expect(terms).toContain(expected);
+    }
+    for (const t of primer!.terms) expect(t.matters.length).toBeGreaterThan(20);
+
+    const driverIds = new Set(scenario.drivers.map((d) => d.id));
+    for (const t of primer!.terms) {
+      if (t.driver) expect(driverIds).toContain(t.driver);
+    }
+  });
+});
+
 describe("b2b-deal-tco: the numbers the primer promises", () => {
   const scenario = getScenario("b2b-deal-tco");
   if (!scenario) throw new Error("scenario missing");

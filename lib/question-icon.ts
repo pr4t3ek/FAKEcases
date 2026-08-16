@@ -38,7 +38,7 @@ const RULES: { icon: string; patterns: string[] }[] = [
   { icon: "Trophy", patterns: ["cricket", "sport", "stadium", "bat"] },
   { icon: "Syringe", patterns: ["insulin", "diabetic", "diabetes", "vaccine"] },
   { icon: "BedDouble", patterns: ["hospital bed", "bed"] },
-  { icon: "Stethoscope", patterns: ["hospital", "clinic", "doctor", "patient"] },
+  { icon: "Stethoscope", patterns: ["hospital", "clinic", "doctor", "patient", "pharmacy", "chemist"] },
   { icon: "Shirt", patterns: ["apparel", "garment", "textile"] },
   // Before the banking rule below: "Deccan Ceramics: … the bank wants a word"
   // is a question about a tile factory, and the bank is in the sentence rather
