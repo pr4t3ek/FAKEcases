@@ -5,6 +5,8 @@ import { CircleDashed, Loader2, Trophy, Users } from "lucide-react";
 import type { Roster, RosterRow } from "@/lib/rooms/roster";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ClassStandings } from "@/components/rooms/class-standings";
 
 /** How often the console asks. A classroom minute, not a game frame. */
 const POLL_MS = 5_000;
@@ -53,6 +55,7 @@ export function RosterBoard({
 }) {
   const [roster, setRoster] = useState<Roster>(initial);
   const [stale, setStale] = useState(false);
+  const [view, setView] = useState<"roster" | "standings">("roster");
   // Held in a ref rather than state: a request in flight must not re-trigger the
   // effect that owns the interval.
   const inFlight = useRef<AbortController | null>(null);
@@ -131,7 +134,24 @@ export function RosterBoard({
         />
       </div>
 
-      {rows.length === 0 ? (
+      {/* One poller, two views. The standings read the same live state this
+          component already maintains — a second fetch would double the console's
+          request rate to render numbers it is holding. */}
+      <Tabs value={view} onValueChange={(v) => setView(v as "roster" | "standings")}>
+        <TabsList>
+          <TabsTrigger value="roster">Roster</TabsTrigger>
+          <TabsTrigger value="standings">
+            Standings
+            {summary.finished > 0 && (
+              <span className="ml-1.5 text-xs text-muted-foreground">{summary.finished}</span>
+            )}
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {view === "standings" ? (
+        <ClassStandings roster={roster} />
+      ) : rows.length === 0 ? (
         <Card className="p-10 text-center text-sm text-muted-foreground">
           {roomOpen ? (
             <>

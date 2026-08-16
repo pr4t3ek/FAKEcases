@@ -684,3 +684,42 @@ time: correct for a public ranking, exactly wrong for a classroom that is mostly
 and is now shared by both, with an injectable clock so the window can be tested without
 sleeping. It is in-memory and therefore per-process, which the README says plainly rather
 than papering over.
+
+### 18. Class standings, and the chart that shows what a score hides
+
+The host console said where everyone was and not how they did. A professor
+finished a session with a column of scores and no way to see the shape of them.
+
+The constraint that shaped this: **every number here is derived from the roster
+the console already polls.** No new query, no new endpoint, no schema change,
+and the tab is live for free because `RosterBoard` already owns the fetch loop.
+Adding a second fetch would have doubled the console's request rate to render
+numbers it was already holding. One column — `SimResult.daysPar` — joins a
+`select` that was already running.
+
+**The ranking rule is borrowed, not invented.** Score descending, then analyst-
+days *ascending*, then who got there first — which is exactly what
+`LeaderboardEntry` does, whose `effort` column documents that lower is always
+better because a war room is judged on how cheaply it was investigated. Stated
+in `classStandings` and pinned by a test, so a class board and the public board
+cannot drift into ranking the same two results differently. Ties are dense:
+two students who scored the same and spent the same are genuinely tied, and
+inventing an order between them would put one above the other on a screen their
+professor reads out.
+
+It reads roster rows rather than `LeaderboardEntry` for the reason `buildRoster`
+does — that table filters guests at read time, correct for a public ranking and
+exactly wrong for a class that is mostly guests by design.
+
+**The scatter is the part worth having.** Analyst-days on x, score on y, a
+dashed reference line at the scenario's par, and points split by whether the run
+found the real cause. A score alone cannot distinguish the student who
+diagnosed it in five days from the one who bought every pull and arrived at the
+same answer; the chart puts them in different places, and the interesting
+quadrant — cheap and correct — is where a debrief should start. `daysPar` is
+what anchors it: without the line it is a cloud of dots with no sense of what
+"expensive" meant for this scenario.
+
+`CHART_TOOLTIP_STYLE` and `CHART_TICK` are imported from
+`components/dashboard/charts.tsx` rather than redefined, so a theme change stays
+one edit.
