@@ -169,6 +169,40 @@ export const simConfig = {
   /** Score cost of funding an intervention below its `minSprints`, per stall. */
   stalledDecisionPenalty: 18,
 
+  // ─── The price of a wasted analyst-day ───────────────────────────────────
+
+  /**
+   * How sharply Investigation's par ratio falls once a run buys past par.
+   *
+   * The ratio itself is `par / spent`, which is gentle by construction: at
+   * twice par it is 0.5, and since it carries 55% of a dimension weighted 1.2
+   * of 6.0, doubling the investigation budget used to cost about five points
+   * overall. That is a rounding error for a habit worth naming — an analyst-day
+   * is the one resource in the phase, and spending it on a pull you could not
+   * say the purpose of is the mistake this dimension exists to price.
+   *
+   * Raising the ratio to a power bites where the waste is and nowhere else:
+   * under par the ratio is 1 and 1^n is still 1, so a disciplined run is
+   * untouched at any exponent. At 2.0, twice par takes the ratio to 0.25.
+   */
+  overspendExponent: 2.0,
+  /**
+   * Points off the **overall** score per multiple of par spent beyond the
+   * first, applied after the rubric is weighted.
+   *
+   * On the composite rather than inside Investigation alone, because a
+   * dimension weighted 1.2 of 6.0 can only ever express a fifth of an opinion,
+   * and the opinion here is that the run as a whole was wasteful. This is what
+   * lets burning the whole budget move the band a candidate lands in, which is
+   * the visible consequence a purely in-dimension penalty could never deliver.
+   *
+   * Linear in the overage and uncapped except by the 0 floor: at 8 points, a
+   * run spending twice par gives up 8 and one spending three times par gives up
+   * 16. Disclosed in the report by `buildFeedback` rather than deducted
+   * silently — an unexplained penalty teaches nothing.
+   */
+  overspendOverallPenalty: 8,
+
   // ─── v2 engine: how money becomes effect ─────────────────────────────────
 
   /**

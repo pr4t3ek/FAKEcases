@@ -405,9 +405,19 @@ export function SimulationReport({
         {/* ── The model answer ────────────────────────────────────────────── */}
         <Card className="p-6">
           <h2 className="text-sm font-semibold">What a strong answer sounds like</h2>
-          <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
-            {data.strongAnswer}
-          </p>
+          {/* A list rather than a paragraph, and the structure is half the
+              lesson: an interview answer has moves, and seeing them separated
+              is how a candidate learns to make them. */}
+          <ul className="mt-2 space-y-1.5 text-sm leading-relaxed text-muted-foreground">
+            {data.strongAnswer.map((point, i) => (
+              <li key={i} className="flex gap-2">
+                <span aria-hidden className="text-muted-foreground/60">
+                  •
+                </span>
+                <span>{point}</span>
+              </li>
+            ))}
+          </ul>
           {data.teaching && (
             <div className="mt-4 border-t pt-3">
               <div className="mb-2 text-xs text-muted-foreground">

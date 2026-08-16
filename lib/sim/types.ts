@@ -444,14 +444,28 @@ export interface SimDebriefCopy {
   /** The true chain, one step per line. */
   causalChain: string[];
   whereTheLeverageWas: string;
-  /** What a strong interview answer to this sounds like. */
-  strongAnswer: string;
+  /**
+   * What a strong interview answer to this sounds like, one bullet per point.
+   *
+   * An array rather than a paragraph, for the same reason `causalChain` is one.
+   * This is the densest thing in the debrief — the whole case, compressed —
+   * and it was being handed over as a single block of six or seven clauses in
+   * which every clause was load-bearing. A student who has just been told they
+   * were wrong is the least likely reader in the app to parse that.
+   *
+   * One idea per bullet, in plain words. The list is what makes the structure
+   * of the answer visible, which is itself part of what is being taught: an
+   * interview answer *has* moves, and seeing them separated is how you learn to
+   * make them.
+   */
+  strongAnswer: string[];
 }
 
 /** Offline coach answers, matched by topic exactly like `Question.dataPack`. */
 export interface SimCoachFact {
   topic: string[];
-  answer: string;
+  /** The reply, one bullet per point — see `SimDebriefCopy.strongAnswer`. */
+  answer: string[];
 }
 
 /**

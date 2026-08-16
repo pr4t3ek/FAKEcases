@@ -25,12 +25,56 @@ import type { CauseId, SimEffect, SimResponse, SimScenario } from "./types";
  * Derived from what makes NukkadEats hard: not one big thing, but ten pulls,
  * twelve causes across four branches and seven interventions, all held at once.
  * Roughly half of each is the target.
+ *
+ * **`causes` is no longer one of the dials.** Every war room now owes a board of
+ * `CAUSE_BOARD` size regardless of difficulty, so the cap is pinned to the top
+ * of that range and can never be the binding constraint. What separates Easy
+ * from Medium is now the two that survived: how many pulls you must hold in
+ * your head, and how many ways there are to spend. A wide board of *plausible*
+ * suspects is reading; ten pulls and seven interventions is working memory, and
+ * that is the thing difficulty was always really measuring.
  */
 export const EASY_CAPS = {
   drilldowns: 6,
-  causes: 6,
+  causes: 10,
   interventions: 5,
 } as const;
+
+/**
+ * How many suspects a war room must put on the board, parents included.
+ *
+ * A floor as well as a ceiling, and the floor is the point. A six-cause board
+ * is small enough to clear by elimination — buy most of the pulls, rule out
+ * four, and the remainder is the answer without a hypothesis ever being formed.
+ * Widening it past the number of pulls anyone can afford forces the candidate
+ * to choose what to test, which is the skill being taught.
+ *
+ * The ceiling exists so the board stays a decision rather than a reading
+ * exercise: past ten, a student is scanning a list rather than weighing
+ * branches, and `maxSuspects` of 3 starts to look arbitrary against it.
+ *
+ * Parents count. They are what make the board a tree a candidate can reason
+ * down rather than a flat list, and a scenario that hits the count with eight
+ * unrelated leaves has satisfied the letter of this and none of its intent.
+ */
+export const CAUSE_BOARD = { min: 8, max: 10 } as const;
+
+/**
+ * The floor on how much a dashboard shows before a rupee is spent.
+ *
+ * Both halves matter and they are different claims. `reported` is what the
+ * outcome report tracks — too few and the run reads as one number moving, which
+ * teaches that a business has a score rather than a shape. `panels` is what
+ * Observe puts in front of the candidate, and the floor there buys the thing
+ * this is really for: enough real, correct, *irrelevant* instrumentation that
+ * finding the signal is work.
+ *
+ * The distinction worth holding on to is between hard and confusing. A denser
+ * board must not add a concept — every decoy is a number the candidate already
+ * knows how to read, sitting where it does not matter. What it adds is the
+ * judgement of which numbers to ignore, which no amount of vocabulary teaches.
+ */
+export const DASHBOARD_FLOOR = { reported: 4, panels: 6 } as const;
 
 function duplicates(ids: string[]): string[] {
   const seen = new Set<string>();
@@ -75,6 +119,18 @@ export function validateScenario(scenario: SimScenario): string[] {
   }
   for (const id of scenario.reported) {
     if (!driverIds.has(id)) errors.push(`reported driver "${id}" does not exist`);
+  }
+
+  // The board has to be busy enough to be worth reading — see `DASHBOARD_FLOOR`.
+  if (scenario.reported.length < DASHBOARD_FLOOR.reported) {
+    errors.push(
+      `A scenario must report at least ${DASHBOARD_FLOOR.reported} metrics alongside its north star — "${scenario.slug}" reports ${scenario.reported.length}, so the outcome reads as one number moving`,
+    );
+  }
+  if (scenario.dashboard.length < DASHBOARD_FLOOR.panels) {
+    errors.push(
+      `A dashboard needs at least ${DASHBOARD_FLOOR.panels} panels before anything is bought — "${scenario.slug}" shows ${scenario.dashboard.length}, which is not enough to have to search`,
+    );
   }
 
   /**
@@ -305,6 +361,23 @@ export function validateScenario(scenario: SimScenario): string[] {
     if (hasCycle(cause.id)) errors.push(`Cause cycle through "${cause.id}"`);
   }
 
+  // A war room's board has a required width — see `CAUSE_BOARD`. Turnarounds
+  // are exempt for the same reason they are exempt from the drilldown rules
+  // below: there is no investigation phase, so the board is a statement of what
+  // is already known rather than a space to search.
+  if (!isTurnaround(scenario)) {
+    if (scenario.causes.length < CAUSE_BOARD.min) {
+      errors.push(
+        `A war room needs at least ${CAUSE_BOARD.min} causes on the board, parents included — "${scenario.slug}" has ${scenario.causes.length}, which is narrow enough to clear by elimination`,
+      );
+    }
+    if (scenario.causes.length > CAUSE_BOARD.max) {
+      errors.push(
+        `A war room may show at most ${CAUSE_BOARD.max} causes — "${scenario.slug}" has ${scenario.causes.length}, which is a reading exercise rather than a choice`,
+      );
+    }
+  }
+
   const parents = new Set(scenario.causes.map((c) => c.parentId).filter(Boolean));
   if (!scenario.trueCauseIds.length) errors.push("trueCauseIds is empty");
   for (const id of scenario.trueCauseIds) {
@@ -321,6 +394,26 @@ export function validateScenario(scenario: SimScenario): string[] {
   }
 
   // ── Drilldowns ──────────────────────────────────────────────────────────
+  //
+  // Every pull on a board costs the same number of analyst-days.
+  //
+  // The old boards priced a wide opening pull at 3 and the rest at 2, which
+  // reads as realism and works as noise: a candidate weighing two pulls was
+  // weighing what each would rule out *and* what each cost, and only the first
+  // of those is the exercise. Flat pricing makes the budget a count of
+  // questions — six days is three questions — so "what would this rule out?" is
+  // the only question left to answer, and the overspend penalty in
+  // `scoreInvestigation` becomes legible as pulls over par rather than an
+  // arithmetic accident.
+  const costs = [...new Set(scenario.drilldowns.map((d) => d.cost))];
+  if (costs.length > 1) {
+    errors.push(
+      `Every drilldown must cost the same number of analyst-days — "${scenario.slug}" mixes ${costs
+        .sort((a, b) => a - b)
+        .join(", ")}`,
+    );
+  }
+
   for (const d of scenario.drilldowns) {
     if (d.cost <= 0) errors.push(`Drilldown "${d.id}" must cost at least one analyst-day`);
     // Still checked, though it no longer gates anything: a dangling id is now

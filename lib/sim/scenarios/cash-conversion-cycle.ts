@@ -257,6 +257,47 @@ export const cashConversionCycle: SimScenario = {
         { label: "Payables", value: 6.44 * CRORE, unit: "inr", deltaPct: -0.258, goodDirection: "up" },
       ],
     },
+    // ── Decoys ──────────────────────────────────────────────────────────
+    //
+    // Three more panels of true, correctly stated fact, none of it evidence
+    // for a cause. The collections panel is the most useful kind of decoy: it
+    // shows a team working hard and hitting its targets, which is precisely
+    // what makes "nobody is chasing hard enough" so tempting and so wrong.
+    {
+      id: "p-ccc-collections",
+      kind: "stat",
+      title: "The collections desk",
+      caption: "What the two people chasing the money are actually doing.",
+      tiles: [
+        { label: "Invoices raised on time", value: 0.98, unit: "ratio", goodDirection: "up" },
+        { label: "Reminders sent per overdue invoice", value: 4.2, unit: "count", goodDirection: "up" },
+        { label: "Value in dispute", value: 0.6, unit: "inr_crore", goodDirection: "down" },
+        { label: "Bad debt written off", value: 0.04, unit: "inr_crore", goodDirection: "down" },
+      ],
+    },
+    {
+      id: "p-ccc-capex",
+      kind: "stat",
+      title: "Capital spending and plant",
+      caption: "What was bought this year, and whether it is running.",
+      tiles: [
+        { label: "Capex", value: 3.1, unit: "inr_crore", goodDirection: "down" },
+        { label: "Extrusion line utilisation", value: 0.87, unit: "ratio", goodDirection: "up" },
+        { label: "Maintenance downtime", value: 0.031, unit: "ratio", goodDirection: "down" },
+      ],
+    },
+    {
+      id: "p-ccc-orderbook",
+      kind: "segments",
+      title: "Order book by segment",
+      caption: "What is contracted but not yet despatched.",
+      dimension: "Segment",
+      rows: [
+        { label: "Infrastructure", value: 48.2, unit: "inr_crore", deltaPct: 61.4 },
+        { label: "Trade distributors", value: 19.6, unit: "inr_crore", deltaPct: 7.2 },
+        { label: "Institutional", value: 6.4, unit: "inr_crore", deltaPct: 12.8 },
+      ],
+    },
     {
       id: "p-ccc-room",
       kind: "note",
@@ -276,7 +317,7 @@ export const cashConversionCycle: SimScenario = {
       id: "dd-cash-bridge",
       label: "Reconcile the profit to the cash",
       question: "₹4.19 crore of profit, ₹41 lakh in the bank. Where did the difference go?",
-      cost: 3,
+      cost: 2,
       evidenceFor: ["cycle.terms", "cycle.inventory"],
       readsAs:
         "₹31.4 crore was absorbed by working capital against ₹9.48 crore of EBITDA, so operations consumed ₹21.9 crore rather than producing anything. Receivables alone account for ₹20.9 crore of it. Nothing here is an error — this is what the growth cost.",
@@ -480,6 +521,28 @@ export const cashConversionCycle: SimScenario = {
       verdict:
         "True as a description and useless as a diagnosis, because it points at the growth rather than at the terms. The same ₹25 crore of extra revenue on the old 61-day cycle would have absorbed about ₹4 crore, not ₹31 crore. Growth did not empty the account; the days did.",
     },
+    {
+      id: "pnl.capex",
+      parentId: "pnl",
+      label: "We spent the cash on plant rather than losing it",
+      verdict:
+        "No. Capex was ₹3.1 crore against a ₹31.4 crore swing in working capital. It is on the cash flow statement, it is a tenth of the problem, and the extrusion line it bought is running.",
+    },
+    { id: "collection", parentId: null, label: "How we bill and chase", verdict: "One branch here is the cause wearing an operational costume. Read both carefully." },
+    {
+      id: "collection.effort",
+      parentId: "collection",
+      label: "Nobody is chasing the money hard enough",
+      verdict:
+        "The tempting misread. Two people work collections full time and dealers still pay in 38 days on the same effort. What changed is not the chasing — it is that infra payment falls due 60 days after a sign-off that runs 55 to 80 days late. You cannot chase an invoice that is not yet due.",
+    },
+    {
+      id: "collection.disputes",
+      parentId: "collection",
+      label: "Customers are disputing what we invoice",
+      verdict:
+        "No. ₹0.6 crore is in dispute out of a ₹31 crore ledger, and the ageing is the same with or without it. The money is not contested — it is simply not payable yet.",
+    },
   ],
   trueCauseIds: ["cycle.terms"],
 
@@ -604,50 +667,85 @@ export const cashConversionCycle: SimScenario = {
     ],
     whereTheLeverageWas:
       "The days, not the deals. Billing against delivered quantity — a right the contracts already contained — takes DSO from 118 to about 61 and is worth about ₹16 crore, and returning to 60-day supplier terms adds about ₹5 crore more at a cost of ₹0.97 crore of margin. Together they take free cash flow from about minus ₹27 crore to about minus ₹10 crore: not solved, but reduced to a gap the ₹10 crore facility can actually cover, which is the difference between a funding plan and a crisis.",
-    strongAnswer:
-      "Start by refusing to argue about whether the profit is real, because it is, and so is the empty account — the two statements answer different questions. Bridge them: EBITDA of ₹9.48 crore less a ₹31.4 crore increase in working capital is minus ₹21.9 crore of operating cash, and after capex, interest and tax, minus ₹26.8 crore of free cash flow. So the question is not 'where did the profit go' but 'what absorbed ₹31 crore', and there are only three places it can be. Receivables took ₹20.9 crore, inventory ₹8.2 crore, and payables gave back ₹2.2 crore. Cut the ledger and the receivables are one customer type: the two infra accounts are 71% of the book at 141 days, while trade still pays in 38. That is not a collections failure, it is a terms problem — and the contracts already allow progress invoicing against delivered quantity, which nobody has used. The payables movement is the one nobody volunteers: a 2% discount for paying 28 days early is 26.6% a year against an overdraft at 11.5%, so a reported margin win was the most expensive borrowing in the company. Fix both and the cycle goes from 180 days to about 100 and the hole from ₹27 crore to ₹10 crore. Then borrow the ₹10 crore — but borrow it knowing what it is for, rather than borrowing ₹27 crore because nobody looked at the days.",
+    strongAnswer: [
+      "Don't argue about whether the profit is real. It is — and so is the empty account. The two statements answer different questions.",
+      "Bridge them instead: ₹9.48 crore of operating profit, less ₹31.4 crore tied up in the business, is minus ₹21.9 crore of cash from operations.",
+      "After equipment, interest and tax, that is minus ₹26.8 crore of free cash.",
+      "So the question is not \"where did the profit go\" but \"what swallowed ₹31 crore\" — and there are only three places money can hide.",
+      "Unpaid customer bills took ₹20.9 crore, stock took ₹8.2 crore, and paying suppliers later gave ₹2.2 crore back.",
+      "Cut the customer ledger and it is one type of customer: the two infrastructure accounts are 71% of the book and take 141 days to pay, while dealers still pay in 38.",
+      "That is not a collections failure, it is a terms problem — and the contracts already let us invoice against quantity delivered. Nobody has used it.",
+      "The supplier side is the one nobody volunteers. We take a 2% discount for paying 28 days early, which works out to 26.6% a year — against an overdraft at 11.5%.",
+      "So a reported margin win was the most expensive borrowing in the company.",
+      "Fix both and the cash cycle goes from 180 days to about 100, and the hole from ₹27 crore to ₹10 crore.",
+      "Then borrow the ₹10 crore — knowing what it is for, instead of borrowing ₹27 crore because nobody looked at the days.",
+    ],
   },
 
   coachFallback: [
     {
       topic: ["profit", "cash", "difference", "bridge", "why", "accrual", "empty account"],
-      answer:
-        "Profit and cash answer different questions and both statements were honest. EBITDA was ₹9.48 crore and working capital absorbed ₹31.4 crore, so operations consumed ₹21.9 crore and free cash flow was minus ₹26.8 crore. The bridge between the two has one plank: the movement in working capital.",
+      answer: [
+        "Both statements were honest — profit and cash answer different questions.",
+        "Profit counts a sale when you make it; cash counts it when the customer pays.",
+        "Operating profit was ₹9.48 crore, ₹31.4 crore got tied up in the business, so operations consumed ₹21.9 crore and free cash was minus ₹26.8 crore. That one movement is the whole bridge.",
+      ],
     },
     {
       topic: ["dso", "receivables", "collect", "118", "infra", "certification", "milestone"],
-      answer:
-        "Receivables were the biggest piece: ₹31.04 crore against ₹10.12 crore, or 118 days against 52. The two infra accounts are 71% of the ledger at 141 days because payment falls due 60 days after a certification that runs 55 to 80 days late. Trade distributors still pay in 38 days.",
+      answer: [
+        "Money owed by customers was the biggest piece: ₹31.04 crore against ₹10.12 crore, or 118 days' worth against 52.",
+        "The two infrastructure accounts are 71% of that and take 141 days, because payment only falls due 60 days after a sign-off that itself runs 55 to 80 days late.",
+        "Dealers still pay in 38 days, which tells you it is those contracts and not your collections team.",
+      ],
     },
     {
       topic: ["dpo", "payables", "supplier", "discount", "2%", "early payment", "procurement"],
-      answer:
-        "That 2% discount is the trap. Paying 28 days earlier to save 2% is 2 ÷ 98 × 365 ÷ 28, or about 26.6% a year, against an overdraft costing 11.5%. It added roughly ₹0.97 crore to gross profit and took ₹2.24 crore of cash out of a company that had ₹41 lakh in the bank.",
+      answer: [
+        "That 2% discount is the trap.",
+        "Paying 28 days early to save 2% works out at about 26.6% a year, against an overdraft costing 11.5%.",
+        "It added about ₹0.97 crore to gross profit and took ₹2.24 crore of cash out of a company with ₹41 lakh in the bank.",
+      ],
     },
     {
       topic: ["ccc", "cash conversion", "cycle", "180", "days"],
-      answer:
-        "The cash conversion cycle is DSO plus DIO minus DPO: 118 + 96 − 34 = 180 days, against 52 + 71 − 62 = 61 days last year. That is 119 extra days of trading the company had to fund itself, and it is the cleanest single number for what went wrong.",
+      answer: [
+        "The cash cycle is how long your money is out of your hands: days waiting for customers, plus days stock sits, minus days you take to pay suppliers.",
+        "118 + 96 − 34 = 180 days, against 61 days last year.",
+        "That is 119 extra days of trading the company had to fund itself — the cleanest single number for what went wrong.",
+      ],
     },
     {
       topic: ["inventory", "stock", "dio", "monsoon", "96"],
-      answer:
-        "Inventory absorbed ₹8.24 crore, and about ₹4 crore of that is genuinely stuck — large-diameter CPVC for a rescheduled project. The rest is a defensible pre-monsoon build. Real, and the smallest of the three levers against ₹31 crore of receivables.",
+      answer: [
+        "Stock swallowed ₹8.24 crore, and about ₹4 crore of that is genuinely stuck — wide-diameter pipe for a project that was rescheduled.",
+        "The rest is a sensible build-up before the monsoon.",
+        "Real, but the smallest of the three levers next to ₹31 crore of unpaid bills.",
+      ],
     },
     {
       topic: ["overdraft", "borrow", "bank", "loan", "facility", "8 crore", "funding"],
-      answer:
-        "Borrowing moves no operational number — the same 180-day cycle, funded more expensively, and the covenant caps the cycle at 150 days from the FY26 half-year. It is a fair answer to the ₹10 crore left after the terms are fixed and no answer at all to the ₹27 crore before it.",
+      answer: [
+        "Borrowing changes nothing about how the business runs — the same 180-day cycle, funded more expensively.",
+        "And the loan terms cap that cycle at 150 days from the FY26 half-year, so it is a temporary shelter at best.",
+        "It is a fair answer to the ₹10 crore left after fixing the terms, and no answer at all to the ₹27 crore before it.",
+      ],
     },
     {
       topic: ["margin", "infra margin", "reprice", "price", "24%", "profitable"],
-      answer:
-        "Infra runs at 24.1% gross margin against 31.8% on trade — thinner and comfortably profitable. Repricing raises accounting profit by about ₹2 crore and, because a client asked for more money certifies no faster, lengthens the collection. More earnings, arriving later, at a company short of cash rather than margin.",
+      answer: [
+        "Infrastructure work keeps 24.1% of each rupee against 31.8% on dealer sales — thinner, and comfortably profitable.",
+        "Charging more adds about ₹2 crore of profit, but a client asked for more money does not sign off any faster.",
+        "So it means more earnings arriving later, at a company short of cash rather than short of margin.",
+      ],
     },
     {
       topic: ["growth", "grew too fast", "balance sheet", "fund"],
-      answer:
-        "True as a description, misleading as a diagnosis. The same ₹25 crore of extra revenue on the old 61-day cycle would have absorbed about ₹4 crore of cash rather than ₹31 crore. Growth did not empty the account — the days did.",
+      answer: [
+        "True as a description, misleading as a diagnosis.",
+        "The same ₹25 crore of extra revenue on last year's 61-day cycle would have absorbed about ₹4 crore, not ₹31 crore.",
+        "Growth did not empty the account. The days did.",
+      ],
     },
   ],
 };

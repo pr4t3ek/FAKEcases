@@ -98,7 +98,8 @@ Rules:
 - Use ONLY the figures and findings given below. Never invent a number, a metric or a fact. If you do not have something, say the simulation doesn't cover it.
 - Be specific about what THEIR decision bought and what it cost, using their allocation as given.
 - Where the ${mentor.audience} went wrong, say why the evidence pointed elsewhere — not merely that they were wrong.
-- 2–4 sentences. Conversational, direct, no bullet lists, no headings.
+- Answer as 2–4 short bullets, each starting "- " on its own line. One idea per bullet. No headings, no sub-bullets, no closing paragraph.
+- Keep each bullet to one or two short sentences a first-year student would follow. Prefer the everyday word: "money left after costs" beats "contribution", "what it costs to get one customer" beats "CAC". Where a term has to be used, gloss it in the same bullet the first time.
 - Write plain sentences. No LaTeX (\\text, \\times, \\( \\)), no markdown headings or bold. Say arithmetic as words and symbols: "15 crore × 30% = 4.5 crore".`;
 }
 
@@ -121,7 +122,7 @@ export function renderSimContextBlock(sim: NonNullable<InterviewerContext["simul
     `The candidate funded:\n${allocation}`,
     `Outcome: ${sim.outcomeSummary}`,
     `Their scores: ${sim.scores.map((s) => `${s.label} ${s.value}`).join(", ")}`,
-    `A strong answer sounds like: ${sim.strongAnswer}`,
+    `A strong answer sounds like:\n${sim.strongAnswer.map((point) => `  - ${point}`).join("\n")}`,
   ].join("\n\n");
 }
 

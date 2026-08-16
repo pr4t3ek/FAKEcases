@@ -54,7 +54,7 @@ export const b2bDealTco: SimScenario = {
     "Your largest customer — 900 seats, ₹2.7 crore of ARR, on the deck at 78% gross margin — is up for renewal and has asked for 18% off to commit to three years. " +
     "Sales wants to take it today. Customer success says this one account absorbs more of their team than the next four combined. " +
     "Finance ran a fully loaded cost-to-serve for the first time last week and has asked you to look at it before anything is signed. " +
-    "You have 7 analyst-days, then 3 sprints and ₹60 lakh to decide what you are actually offering them.",
+    "You have 6 analyst-days, then 3 sprints and ₹60 lakh to decide what you are actually offering them.",
   difficulty: "Medium",
   periodNoun: "quarter",
 
@@ -244,6 +244,32 @@ export const b2bDealTco: SimScenario = {
       ],
     },
     {
+      id: "p-b2b-usage",
+      kind: "stat",
+      title: "How the account uses the product",
+      caption: "Engagement is excellent. That is not the same as the account being good.",
+      tiles: [
+        { label: "Weekly active seats", value: 641, unit: "count", goodDirection: "up" },
+        { label: "Documents processed per quarter", value: 184_000, unit: "count", goodDirection: "up" },
+        { label: "Satisfaction score", value: 4.3, unit: "count", goodDirection: "up" },
+        { label: "Uptime", value: 0.9993, unit: "ratio", goodDirection: "up" },
+      ],
+    },
+    {
+      id: "p-b2b-portfolio",
+      kind: "segments",
+      title: "Our five largest accounts, by revenue",
+      caption: "Where this one sits in the book — on the measure the deck reports.",
+      dimension: "Account",
+      rows: [
+        { label: "This account", value: 270, unit: "inr_lakh", deltaPct: 8.4 },
+        { label: "Account B", value: 186, unit: "inr_lakh", deltaPct: 12.1 },
+        { label: "Account C", value: 154, unit: "inr_lakh", deltaPct: 4.6 },
+        { label: "Account D", value: 132, unit: "inr_lakh", deltaPct: 19.2 },
+        { label: "Account E", value: 118, unit: "inr_lakh", deltaPct: -2.4 },
+      ],
+    },
+    {
       id: "p-b2b-room",
       kind: "note",
       title: "What the room is saying",
@@ -255,14 +281,14 @@ export const b2bDealTco: SimScenario = {
     },
   ],
 
-  budget: { analystDays: 7, sprints: 3, rupees: 60 * LAKH },
+  budget: { analystDays: 6, sprints: 3, rupees: 60 * LAKH },
 
   drilldowns: [
     {
       id: "dd-cost-to-serve",
       label: "Fully loaded cost to serve this account",
       question: "What does this contract actually cost us to deliver?",
-      cost: 3,
+      cost: 2,
       evidenceFor: ["economics.usage"],
       readsAs:
         "₹54.3 lakh a quarter against ₹67.5 lakh of revenue — a 19.5% gross margin, not 78%. The reported number counts hosting and nothing else. ₹17 lakh a quarter is one line: engineering on a connector that exists only for this customer.",
@@ -325,7 +351,7 @@ export const b2bDealTco: SimScenario = {
       id: "dd-customer-tco",
       label: "What the software costs them",
       question: "The CFO said it costs them a fortune. Costs them what, exactly?",
-      cost: 3,
+      cost: 2,
       dependsOn: ["dd-usage"],
       evidenceFor: ["economics.usage"],
       readsAs:
@@ -659,55 +685,93 @@ export const b2bDealTco: SimScenario = {
     ],
     whereTheLeverageWas:
       "The connector, because it is the only line that is large on both sides of the table. Retiring it takes ₹21 lakh a quarter out of your cost to serve and ₹26 lakh a quarter out of theirs — more relief than the discount they asked for, at no cost to your price. Repricing then stops the same thing happening again: seats for access, metered volume for the work, so the forty seats driving the cost are the ones paying for it.",
-    strongAnswer:
-      "I would not answer the discount question until the margin question is answered, because 18% off 78% and 18% off 19.5% are different conversations. Fully loaded, this account runs at 19.5%: ₹54.3 lakh a quarter to serve ₹67.5 lakh of revenue, and a third of that cost is two and a half engineers on a connector built for one customer. It is invisible because it is booked as R&D. Underneath it is a pricing mismatch — 40 of 900 seats drive 71% of the volume and 64% of the tickets, and we charge by seat. Then the part that changes the negotiation: I would go and cost their side too. Their total cost of ownership is ₹1.15 crore a quarter, our licence is 59% of it, and 41% is work our product creates and does not do. So the CFO asking for 18% is asking us to relieve about a tenth of his problem in the most expensive way available to us. What I would take into the room instead is: we retire the connector, ship native month-end batch, and reprice — seats for access, metered volume for the work, with the seat price down 6%. That gives him more relief than the discount, gives us a margin, and gives both sides a reason to sign three years. And I would fix the margin report, because an account that looked like our best one was our worst.",
+    strongAnswer: [
+      "I would not answer the discount question until we have answered the margin question.",
+      "18% off a 78% margin and 18% off a 19.5% margin are completely different conversations.",
+      "Counting everything it takes to serve them, this account runs at 19.5%: ₹54.3 lakh a quarter to serve ₹67.5 lakh of revenue.",
+      "A third of that cost is two and a half engineers maintaining a connector built for this one customer — invisible, because we book it as R&D.",
+      "Underneath that is a pricing mismatch: 40 of 900 seats drive 71% of the volume and 64% of the support tickets, and we charge by the seat.",
+      "Then the move that changes the negotiation — go and cost their side of it too.",
+      "Their all-in cost of running us is ₹1.15 crore a quarter. Our licence is 59% of it. The other 41% is work our product creates and does not do.",
+      "So the CFO asking for 18% is asking us to relieve about a tenth of his problem, in the most expensive way available to us.",
+      "What I would take into the room instead: retire the connector, ship the month-end batch natively, and reprice — seats for access, metered volume for the work, with the seat price down 6%.",
+      "That gives him more relief than the discount, gives us a margin, and gives both sides a reason to sign three years.",
+      "And fix the margin report. An account that looked like our best one was our worst.",
+    ],
   },
 
   coachFallback: [
     {
       topic: ["cost to serve", "margin", "78", "19.5", "loaded"],
-      answer:
-        "The 78% counts hosting only. Fully loaded — support, customer success and the bespoke connector — the account costs ₹54.3 lakh a quarter against ₹67.5 lakh of revenue, so the real gross margin is 19.5%.",
+      answer: [
+        "The 78% only counts what it costs to host them.",
+        "Counting everything — support, customer success and the custom connector — the account costs ₹54.3 lakh a quarter against ₹67.5 lakh of revenue.",
+        "So the real margin is 19.5%, not 78%.",
+      ],
     },
     {
       topic: ["connector", "erp", "integration", "patch", "bespoke"],
-      answer:
-        "The connector is ₹17 lakh a quarter of engineering that exists for one customer, and 81% of tickets land within five days of their ERP vendor patching. It is a third of your cost to serve and 41% of their cost of ownership — the only line that is large on both sides of the table.",
+      answer: [
+        "The connector costs ₹17 lakh a quarter in engineering time and exists for exactly one customer.",
+        "81% of their support tickets arrive within five days of their finance-system vendor issuing a patch — so it breaks on a schedule.",
+        "It is a third of what they cost us and 41% of what we cost them. The only line that is big on both sides of the table.",
+      ],
     },
     {
       topic: ["seats", "usage", "pricing", "meter", "40 seats"],
-      answer:
-        "40 of 900 seats drive 71% of documents and 64% of tickets, and the contract charges per seat — so the users generating the cost pay the same as the ones who open a report once a fortnight. Seats for access and metered volume for the work is what fixes that.",
+      answer: [
+        "40 of their 900 seats drive 71% of the documents and 64% of the tickets.",
+        "But the contract charges per seat, so those 40 pay the same as someone who opens a report once a fortnight.",
+        "Charging for access by the seat and for the work by the volume is what fixes it.",
+      ],
     },
     {
       topic: ["tco", "total cost", "ownership", "their cost", "cfo"],
-      answer:
-        "Their total cost of ownership is ₹1.15 crore a quarter and our licence is 59% of it — the rest is two of their engineers on the connector, nine person-days a month of reconciliation and a supervised month-end batch. An 18% discount relieves 10.6% of that; retiring the connector relieves 23%.",
+      answer: [
+        "Their all-in cost of running us is ₹1.15 crore a quarter, and our licence is only 59% of it.",
+        "The rest is two of their engineers on the connector, nine person-days a month reconciling, and a month-end batch someone has to sit and watch.",
+        "An 18% discount relieves 10.6% of that. Retiring the connector relieves 23%.",
+      ],
     },
     {
       topic: ["discount", "18%", "renewal", "three year"],
-      answer:
-        "Eighteen points off a 19.5% margin takes contract contribution from ₹72 lakh to about minus ₹37 lakh, and locks it for three years. It also relieves about a tenth of the customer's actual cost problem, which is the part that makes it a bad trade for both sides.",
+      answer: [
+        "Eighteen points off a 19.5% margin takes the contract from ₹72 lakh of contribution to about minus ₹37 lakh.",
+        "And it locks that in for three years.",
+        "It also relieves only about a tenth of the customer's real cost problem — which is what makes it a bad trade for both sides.",
+      ],
     },
     {
       topic: ["expand", "expansion", "nrr", "second division", "retention"],
-      answer:
-        "The second division runs the same batch pattern on a different ERP instance, so it arrives with its own connector, implementation and patch calendar. Revenue up 44%, net revenue retention 144%, contract contribution down 83% — expansion multiplies the margin you have.",
+      answer: [
+        "The second division runs the same month-end pattern on a different finance-system instance.",
+        "So it arrives with its own connector, its own implementation and its own patch calendar.",
+        "Revenue up 44%, retention a headline 144%, contribution down 83%. Expansion multiplies whatever margin you already have — including a negative one.",
+      ],
     },
     {
       topic: ["support", "csat", "unhappy", "csm", "staffing"],
-      answer:
-        "CSAT is 4.3 out of 5 and 11% of tickets are about the product. Premium support handles the same tickets faster; a second CSM adds ₹4.2 lakh a quarter to save ₹1.6 lakh. Neither touches a connector that breaks on a schedule.",
+      answer: [
+        "They are not unhappy: 4.3 out of 5 on satisfaction, and only 11% of tickets are actually about the product.",
+        "Premium support handles the same tickets faster; a second account manager costs ₹4.2 lakh a quarter to save ₹1.6 lakh.",
+        "Neither one touches a connector that breaks on a schedule.",
+      ],
     },
     {
       topic: ["competitor", "competitive", "undercut", "evaluation"],
-      answer:
-        "There is no live bid. They evaluated an alternative eight months ago and stopped when their own team costed re-integration at ₹3.4 crore and eleven months. The discount request is a CFO managing a cost line.",
+      answer: [
+        "There is no live competing bid.",
+        "They looked at an alternative eight months ago and stopped when their own team costed the re-integration at ₹3.4 crore and eleven months.",
+        "This is a CFO managing a cost line, not a customer with one foot out of the door.",
+      ],
     },
     {
       topic: ["price", "benchmark", "too low", "29000"],
-      answer:
-        "₹29,000 a seat sits at the 78th percentile of comparable contracts, so there is no headroom. And raising the seat price would charge the 860 light users for what the 40 heavy ones cost, which is the mistake already in the contract.",
+      answer: [
+        "₹29,000 a seat already sits near the top of comparable contracts, so there is no room to push it up.",
+        "And raising the seat price charges the 860 light users for what the 40 heavy ones cost.",
+        "That is the mistake already in the contract — doing more of it will not help.",
+      ],
     },
   ],
 };

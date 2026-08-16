@@ -44,7 +44,8 @@ export interface SimCoachContext {
   trueCauseLabels: string[];
   causalChain: string[];
   whereTheLeverageWas: string;
-  strongAnswer: string;
+  /** One bullet per point — see `SimDebriefCopy.strongAnswer`. */
+  strongAnswer: string[];
   studentDiagnosis: string[];
   studentAllocation: { label: string; sprints: number; rupees: number; onTarget: boolean }[];
   scores: { label: string; value: number }[];

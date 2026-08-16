@@ -272,6 +272,37 @@ export const subscriptionLtvCac: SimScenario = {
         { label: "Cancelled", value: 18_000 },
       ],
     },
+    // ── Decoys ──────────────────────────────────────────────────────────
+    //
+    // True, correct, and evidence for nothing. A candidate has to notice that
+    // an even channel split and a falling cost to serve are both good news
+    // about a business that is losing money — and that neither tells them
+    // where the losing happens.
+    {
+      id: "p-sub-channels",
+      kind: "segments",
+      title: "Where subscribers come from",
+      caption: "Share of the 18,000 who joined last month, and what each costs.",
+      dimension: "Channel",
+      rows: [
+        { label: "Paid search", value: 7400, unit: "count", deltaPct: 4.1 },
+        { label: "Referral", value: 4900, unit: "count", deltaPct: 2.6 },
+        { label: "Campus partnerships", value: 3300, unit: "count", deltaPct: -1.2 },
+        { label: "Organic", value: 2400, unit: "count", deltaPct: 0.8 },
+      ],
+    },
+    {
+      id: "p-sub-costs",
+      kind: "stat",
+      title: "What it costs to run",
+      caption: "The cost side of the same subscriber.",
+      tiles: [
+        { label: "Cost to serve, per month", value: 41, unit: "inr", goodDirection: "down" },
+        { label: "Fixed cost base, per month", value: 2_60_00_000, unit: "inr", goodDirection: "down" },
+        { label: "Support tickets per 100 students", value: 2.8, unit: "count", goodDirection: "down" },
+        { label: "Content NPS", value: 61, unit: "count", goodDirection: "up" },
+      ],
+    },
     {
       id: "p-sub-room",
       kind: "note",
@@ -290,7 +321,7 @@ export const subscriptionLtvCac: SimScenario = {
       id: "dd-retention-curve",
       label: "Retention curve by monthly cohort",
       question: "How long do subscribers actually stay?",
-      cost: 3,
+      cost: 2,
       evidenceFor: ["retention.churn"],
       readsAs:
         "Half of every cohort is gone by month four. At 11% a month the base replaces itself roughly every nine months, so acquisition spend never compounds — it only refills.",
@@ -443,6 +474,28 @@ export const subscriptionLtvCac: SimScenario = {
       verdict:
         "A 20% rise held ARPU and pushed cancellations up about a sixth. Because the base is joiners divided by churn, a churn increase costs more than the price rise earns.",
     },
+    {
+      id: "economics.mix",
+      parentId: "economics",
+      label: "We are winning the wrong kind of student",
+      verdict:
+        "No. Students from paid search, referral and campus channels all retain within four points of each other. Where they come from is not what decides whether they stay — what they do in week one is.",
+    },
+    { id: "cost", parentId: null, label: "What it costs to run", verdict: "Real numbers, and none of them is what the ₹2.6 crore is waiting on." },
+    {
+      id: "cost.fixed",
+      parentId: "cost",
+      label: "The fixed cost base is simply too big",
+      verdict:
+        "It is ₹2.6 crore and it is the reason the base has to be large. But it has not moved in two years, so it cannot explain a business that got worse — it is the bar, not the fall.",
+    },
+    {
+      id: "cost.serve",
+      parentId: "cost",
+      label: "Serving each student costs more than we think",
+      verdict:
+        "No. Cost to serve is ₹41 a month against ₹299 of revenue, and it has fallen as the base grew. This is the healthiest line in the whole model.",
+    },
   ],
   trueCauseIds: ["retention.churn"],
 
@@ -537,45 +590,74 @@ export const subscriptionLtvCac: SimScenario = {
     ],
     whereTheLeverageWas:
       "The divisor. Because the steady-state base is joiners divided by churn, cutting churn from 11% to 6.6% grows the business 67% without one extra rupee of acquisition — while a 50% increase in acquisition spend buys about a quarter as much base and has to be paid again every nine months.",
-    strongAnswer:
-      "The ratio that looks healthiest is the one causing the confusion. LTV:CAC of 4.6 is a per-subscriber test, and it was true — each subscriber really did return 4.6 times what they cost. It just says nothing about whether the base is big enough to cover ₹2.6 crore of fixed costs. So the question is not 'is a subscriber worth acquiring' but 'how big does this base get', and that is joiners ÷ churn. At 18,000 and 11%, it caps out around 1.64 lakh — structurally too small, no matter how efficient acquisition becomes. From there the diagnosis is a retention question, and the cohort data localises it hard: 62% of leavers never finished a single practice test, and the ones who did retained four times better. That is an onboarding problem, not a content problem, and the fix is in the denominator rather than the numerator.",
+    strongAnswer: [
+      "The healthiest-looking number is the one causing the confusion.",
+      "LTV:CAC of 4.6 was true — each subscriber really did return 4.6 times what they cost to win.",
+      "But it is a test on one subscriber. It says nothing about whether we have enough of them to cover ₹2.6 crore of fixed costs.",
+      "So the question is not \"is a subscriber worth buying\" but \"how big does this base ever get\".",
+      "That number is joiners ÷ churn. At 18,000 joining and 11% leaving each month, it settles around 1.64 lakh — too small, however cheap acquisition gets.",
+      "From there it is a retention question, and the cohort data points hard: 62% of the people who left never finished a single practice test.",
+      "The ones who did finish one stayed about four times as well.",
+      "So this is an onboarding problem, not a content problem — and the fix is in what we divide by, not what we multiply.",
+    ],
   },
 
   coachFallback: [
     {
       topic: ["churn", "retention", "leave", "cancel"],
-      answer:
-        "Churn was the cause. At 11% a month a subscriber lasts about nine months and the base settles at joiners ÷ churn ≈ 1.64 lakh. 62% of the people who cancelled never completed a practice test in week one — they left because they never started.",
+      answer: [
+        "Churn — the share of subscribers leaving each month — was the cause.",
+        "At 11% a month a subscriber stays about nine months, and the base settles at joiners ÷ churn, roughly 1.64 lakh.",
+        "62% of the people who cancelled never completed a practice test in their first week. They left because they never really started.",
+      ],
     },
     {
       topic: ["ltv", "cac", "ratio", "4.6", "payback"],
-      answer:
-        "LTV:CAC of 4.6 was genuinely true and genuinely irrelevant. It is a per-subscriber test: it tells you a subscriber is worth acquiring, not whether the base ever gets big enough to cover ₹2.6 crore of fixed costs. It didn't.",
+      answer: [
+        "LTV:CAC of 4.6 was genuinely true and genuinely beside the point.",
+        "It compares what one subscriber is worth against what one costs — so it tells you a subscriber is worth buying.",
+        "It does not tell you whether the base ever gets big enough to cover ₹2.6 crore of fixed costs. It didn't.",
+      ],
     },
     {
       topic: ["steady state", "base", "subscribers", "formula", "bucket"],
-      answer:
-        "The base settles at new subscribers ÷ churn rate — 18,000 ÷ 0.11 ≈ 1.64 lakh. That formula is the whole scenario: acquisition moves the numerator and retention moves the divisor, and the divisor is worth about four times as much.",
+      answer: [
+        "A subscriber base settles at new subscribers ÷ churn rate: 18,000 ÷ 0.11 ≈ 1.64 lakh.",
+        "Think of a bucket with a hole — the level stops rising when what pours in matches what leaks out.",
+        "Acquisition changes what pours in; retention changes the size of the hole. The hole was worth about four times as much here.",
+      ],
     },
     {
       topic: ["acquisition", "more ads", "spend", "growth"],
-      answer:
-        "Spending 50% more on acquisition really does grow the base — it is the numerator. But you pay for those subscribers again every nine months, and the same money spent on churn buys roughly four times as much base permanently.",
+      answer: [
+        "Spending 50% more on acquisition really does grow the base — more people pouring in.",
+        "But you pay for those subscribers again every nine months, because that is how long they stay.",
+        "The same money spent on keeping people buys roughly four times as much base, and you only pay once.",
+      ],
     },
     {
       topic: ["price", "arpu", "299", "raise"],
-      answer:
-        "The price rise gave 20% more ARPU, 12% more churn and 15% fewer sign-ups. Because the base is joiners over churn, that hits the numerator and the divisor at once — it earns less than it costs.",
+      answer: [
+        "The price rise brought 20% more revenue per subscriber — and 12% more of them leaving, plus 15% fewer signing up.",
+        "Since the base is joiners divided by churn, that hurts both halves of the sum at once.",
+        "It earns less than it costs.",
+      ],
     },
     {
       topic: ["onboarding", "week one", "practice test", "activation"],
-      answer:
-        "Students who finished a practice test in week one retained at 79% to month three; those who didn't retained at 19%, and they were 62% of joiners. Getting people to finish something early was the highest-leverage thing available.",
+      answer: [
+        "Students who finished a practice test in week one were still there at month three 79% of the time.",
+        "Those who didn't: 19% — and they were 62% of everyone who joined.",
+        "Getting people to finish something early was the biggest lever on the board.",
+      ],
     },
     {
       topic: ["content", "nps", "product quality"],
-      answer:
-        "The content was fine — NPS 61 among students who actually used it. The problem was never quality, it was how many people never got far enough to encounter it.",
+      answer: [
+        "The content was fine. Students who actually used it rated it 61 on NPS, which is strong.",
+        "The problem was never quality.",
+        "It was how many people never got far enough in to see it.",
+      ],
     },
   ],
 };

@@ -106,23 +106,29 @@ export function scoreHypothesis(scenario: SimScenario, suspects: CauseId[]): num
  * Under par is full marks and never more — buying less than the cheapest
  * sufficient investigation is not a virtue if it means guessing.
  *
- * A pull counts as relevant if it spoke to a true cause *or* to the hypothesis
- * the candidate held **when they bought it**: chasing a wrong-but-reasonable
- * hypothesis is good practice that happened not to pay, and shouldn't be scored
- * as waste.
+ * A pull counts as relevant if it spoke to a true cause, to the hypothesis the
+ * candidate held **when they bought it**, *or* to the one they finally
+ * committed to. Chasing a wrong-but-reasonable hypothesis is good practice that
+ * happened not to pay, and shouldn't be scored as waste — and neither should
+ * the pull that changed their mind.
  *
- * "When they bought it" is doing real work now that the hypothesis is revisable
- * (`hypothesisEditFor`). Judged against the final belief instead, a run could
- * buy anything at all, revise to name whatever those pulls turned out to be
- * evidence for, and score full relevance for a search it never conducted — the
- * same hindsight problem the old purchase-count lock existed to prevent,
- * wearing this dimension's clothes. `hypothesisAtPurchase` is what closes it,
- * and the question it asks is the better one: was this worth buying, given what
- * you believed at the time?
+ * **Why both, and what it costs.** The at-purchase basis alone asks the better
+ * question — was this worth buying, given what you believed at the time? — and
+ * it closes a real hole: judged against the final belief only, a run could buy
+ * anything at all, revise to name whatever those pulls turned out to be
+ * evidence for, and score full relevance for a search it never conducted. But
+ * it also quietly punishes the candidate this phase is *for*. Someone who opens
+ * on rider supply, buys the pull that disproves it, and moves to dispatch has
+ * done the thing being taught, and the pull that turned them is evidence for
+ * the belief they ended with rather than the one they started with.
  *
- * The gate matters most. A run that never bought anything bearing on the real
- * cause is capped however confident its diagnosis — guessing right is worth
- * less than diagnosing right.
+ * Crediting either satisfies both: the honest revision keeps its marks, and the
+ * hindsight run gains only the pulls it can retro-fit to a single final
+ * hypothesis — which the `foundEvidence` gate below then caps anyway if none of
+ * them touched the real cause. That gate is what makes this affordable, and it
+ * matters most: a run that never bought anything bearing on the real cause is
+ * capped however confident its diagnosis, because guessing right is worth less
+ * than diagnosing right.
  */
 export function scoreInvestigation(
   scenario: SimScenario,
@@ -134,7 +140,11 @@ export function scoreInvestigation(
 
   const spent = purchases.reduce((sum, p) => sum + p.cost, 0);
   const par = parCost(scenario);
-  const parRatio = par > 0 ? par / Math.max(spent, par) : 1;
+  // Raised to `overspendExponent`, so par and under is untouched (1^n === 1)
+  // and only the overage is sharpened. See the config note for why the flat
+  // ratio was too gentle to teach anything.
+  const parRatio =
+    par > 0 ? Math.pow(par / Math.max(spent, par), simConfig.overspendExponent) : 1;
 
   const bought = purchases
     .map((p) => ({ record: p, drilldown: drilldownById(scenario, p.drilldownId) }))
@@ -147,6 +157,7 @@ export function scoreInvestigation(
     isEvidenceFor(drilldown, [
       ...scenario.trueCauseIds,
       ...hypothesisAtPurchase(log, record.seq, hypothesis),
+      ...hypothesis,
     ]),
   ).length;
   const relevance = relevant / bought.length;
@@ -373,10 +384,17 @@ export function scoreSimulation(input: SimScoreInput): SimScoreResult {
   // The rubric the run's own format declares, not a constant — a periodic war
   // room's sixth dimension has to reach the overall as well as the scorecard,
   // and a single commit must keep weighting exactly the five it always did.
-  const overall = weightedSimOverall(scores, formatFor(scenario).rubric);
+  const weighted = weightedSimOverall(scores, formatFor(scenario).rubric);
   const daysSpent = purchases.reduce((sum, p) => sum + p.cost, 0);
   const daysPar = parCost(scenario);
   const causeFound = diagnosis.some((d) => scenario.trueCauseIds.includes(d));
+
+  // Wasted analyst-days come off the composite, not out of one dimension. The
+  // band reads the penalised number deliberately: spending three times par
+  // should be able to cost a candidate the band, which is the only place the
+  // consequence is visible at a glance.
+  const overspendPenalty = overspendPenaltyFor(daysSpent, daysPar);
+  const overall = clamp(Math.round(weighted - overspendPenalty), 0, 100);
 
   return {
     overall,
@@ -385,8 +403,29 @@ export function scoreSimulation(input: SimScoreInput): SimScoreResult {
     causeFound,
     daysSpent,
     daysPar,
-    feedback: buildFeedback({ scenario, scores, causeFound, daysSpent, daysPar, outcome }),
+    feedback: buildFeedback({
+      scenario,
+      scores,
+      causeFound,
+      daysSpent,
+      daysPar,
+      overspendPenalty,
+      outcome,
+    }),
   };
+}
+
+/**
+ * Points off the overall for buying past par, linear in the overage.
+ *
+ * Zero at or under par, so a disciplined run never touches this path. Exported
+ * for the tests, which pin the shape rather than the constant — the constant
+ * lives in `simConfig` precisely so it can be retuned without a test edit.
+ */
+export function overspendPenaltyFor(daysSpent: number, daysPar: number): number {
+  if (daysPar <= 0 || daysSpent <= daysPar) return 0;
+  const multiplesOver = daysSpent / daysPar - 1;
+  return multiplesOver * simConfig.overspendOverallPenalty;
 }
 
 /** Itemised notes for the report. Reuses the `FeedbackItem` shape. */
@@ -396,9 +435,10 @@ function buildFeedback(args: {
   causeFound: boolean;
   daysSpent: number;
   daysPar: number;
+  overspendPenalty: number;
   outcome: SimOutcomeResult;
 }): FeedbackItem[] {
-  const { scenario, scores, causeFound, daysSpent, daysPar, outcome } = args;
+  const { scenario, scores, causeFound, daysSpent, daysPar, overspendPenalty, outcome } = args;
   const items: FeedbackItem[] = [];
 
   if (causeFound) {
@@ -415,10 +455,14 @@ function buildFeedback(args: {
       tone: "positive",
       text: `You found it in ${daysSpent} analyst-days against a par of ${daysPar} — that is the habit interviewers are listening for.`,
     });
-  } else if (daysSpent > daysPar * 1.5) {
+  } else if (overspendPenalty > 0) {
+    // Named, and priced. A deduction the candidate cannot see is a deduction
+    // that teaches nothing, so the points come with the sentence.
     items.push({
-      tone: "tip",
-      text: `You spent ${daysSpent} analyst-days where ${daysPar} would have done. Ask what each pull would rule out before buying it.`,
+      tone: "warning",
+      text: `You spent ${daysSpent} analyst-days where ${daysPar} would have done, which cost you ${Math.round(
+        overspendPenalty,
+      )} points overall on top of a lower investigation score. Ask what each pull would rule out before buying it.`,
     });
   }
 

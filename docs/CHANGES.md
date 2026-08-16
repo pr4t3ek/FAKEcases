@@ -369,3 +369,71 @@ metric-map node and was read by nothing; `@radix-ui/react-tooltip` was a depende
 `lib/sim/glossary.ts` indexes by term, expansion and driver, matches exactly rather than on
 substrings — a confident wrong definition is worse than none — and withholds formulas wherever the
 metric map is withheld, since a formula names its inputs.
+
+### 14. The war room: a wider board, one price per pull, and an answer in bullets
+
+Seven changes to how a decision simulation is played and scored, applied to every
+scenario rather than to new ones only — so nothing is authored against rules the
+shipped content breaks.
+
+**Money is typed, not dragged.** `MoneyDial` — a slider with a number box beside it —
+is now `MoneyEntry`, a number box alone, and the buyback screen's order quantity
+went the same way (`components/ui/slider.tsx` is deleted). The slider's argument was
+that a saturating curve makes *where to stop* the interesting question and you cannot
+see a knee in a text field. True, and outweighed: a track invites dragging until
+something looks right, and every other commitment in a war room is a number the
+candidate has to mean. The knee moved into words under the box, which is what the
+tick and the track were carrying anyway.
+
+**A wasted analyst-day costs something.** The par ratio was `par / spent` — flat, so
+buying twice par cost about five points overall, on the dimension whose whole subject
+is whether the search was worth conducting. It is now raised to `overspendExponent`,
+which leaves a disciplined run untouched (`1^n` is 1) and bites only the overage, and
+`overspendOverallPenalty` comes off the composite *after* weighting, because a
+dimension weighted 1.2 of 6.0 can only ever express a fifth of an opinion about a run
+that bought the whole board. The band reads the penalised number, and `buildFeedback`
+names the points lost rather than deducting them quietly.
+
+**Investigation credits both beliefs.** A pull now counts if it spoke to the true
+cause, the hypothesis held **when it was bought**, *or* the one finally committed to.
+Judging at purchase alone closed a hindsight cheat and, in closing it, punished the
+candidate who bought the pull that changed their mind — which is the habit the phase
+exists to teach. The cheat is held by the `foundEvidence` cap instead: retro-fitting a
+hypothesis to your purchases still caps the score unless one of them bore on the real
+cause.
+
+**Eight to ten causes, parents included** (`CAUSE_BOARD`). Six is small enough to
+clear by elimination — buy most of the pulls, rule out four, and the remainder is the
+answer without a hypothesis ever being formed. Ten is the ceiling because past it a
+student is scanning rather than weighing. `EASY_CAPS.causes` rises to 10 and stops
+being a dial: Easy and Medium are now separated by pulls and interventions, which is
+working memory, rather than by how much there is to read. `maxSuspects` stays at 3.
+
+**One price per board.** Pulls cost 3, 2 and sometimes 1, so weighing two of them
+meant weighing what each would rule out *and* what each cost — and only the first is
+the exercise. Everything costs 2, which makes a budget a count of questions and makes
+the overspend penalty legible as pulls over par. Three Medium budgets drop 7 → 6,
+which under flat pricing buys exactly the three pulls they always bought; Suraksha and
+Ujala gained a seventh pull so six days still cannot cover half the board.
+
+**A board worth reading** (`DASHBOARD_FLOOR`). Minimum reported metrics and dashboard
+panels, met by adding decoys everywhere: true, correctly derived, and off the causal
+path. Deliberately not harder — no decoy introduces a concept — but denser, so
+deciding what to ignore is part of the work. On Kirti and Deccan they do double duty,
+because a healthy operating board sitting next to a broken return on capital *is* the
+lesson.
+
+**The answer comes back in bullets.** `SimDebriefCopy.strongAnswer` and
+`SimCoachFact.answer` are `string[]`, one idea per bullet, in the everyday word where
+there is one — "money left after costs" ahead of "contribution" — with a gloss the
+first time a term has to be used. The debrief is read by someone who has just been
+told they were wrong, which is the worst moment to hand over a paragraph of six
+load-bearing clauses; and the structure is half the lesson, since an interview answer
+has moves and a list makes them countable. `simCoachRules` used to instruct the model
+"no bullet lists" and now asks for the opposite. `asBulletText` flattens the array for
+the two surfaces that still need a string, so the offline mock reads as a list too.
+
+Projections did not move: `pnpm tsx scripts/sim-golden.ts` reports no scenario changed,
+and `checkBalance` still certifies every declared best allocation. The test fixture now
+satisfies the same authoring rules as shipped content, so the suite cannot certify a
+shape the app would refuse to load.

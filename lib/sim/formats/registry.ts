@@ -16,8 +16,8 @@ import { buybackFormat } from "./buyback";
  * The format a scenario runs on when it does not say.
  *
  * Defaulting rather than requiring `format` on every scenario is deliberate:
- * twelve existing files describe war rooms and making the field mandatory would
- * mean twelve edits that say nothing a default cannot. The point of putting the
+ * every existing file but one describes a war room, and making the field
+ * mandatory would mean a dozen edits that say nothing a default cannot. The point of putting the
  * format in one place is to stop changes rippling across the content.
  */
 export const DEFAULT_FORMAT_SLUG = warRoomFormat.slug;

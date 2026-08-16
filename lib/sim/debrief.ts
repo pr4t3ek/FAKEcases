@@ -167,3 +167,21 @@ export function trueCauseLabels(scenario: SimScenario): string[] {
     return cause ? [cause.label] : [];
   });
 }
+
+/**
+ * Authored bullets, flattened into the one string a text surface can take.
+ *
+ * `strongAnswer` and every `coachFallback` answer are arrays now, and two
+ * consumers still want a string: the LLM prompt blocks, and `sampleSolution` /
+ * `dataPack`, whose contract is shared with ordinary practice questions and is
+ * not worth forking for this.
+ *
+ * A leading "- " rather than a joined paragraph, because the chat bubble is
+ * `whitespace-pre-wrap` over plain text (see `AssistantText`, which is
+ * deliberately not a markdown renderer). A hyphen and a newline is what a
+ * bullet *is* in that surface — so the same authored array reads as a list in
+ * the report, in the mock's offline reply, and in what a real model is shown.
+ */
+export function asBulletText(lines: string[]): string {
+  return lines.map((line) => `- ${line}`).join("\n");
+}

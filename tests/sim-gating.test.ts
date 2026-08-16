@@ -73,7 +73,15 @@ describe("interventionsByLeaf / causesWithNoIntervention", () => {
   });
 
   it("finds leaves with nothing behind them, and ignores roots", () => {
-    expect(causesWithNoIntervention(scenario)).toEqual([]);
+    // The fixture's three ballast leaves are exactly this shape: nameable
+    // suspects with no fix behind them. A board of eight cannot be all
+    // actionable — that is what a decoy *is* — so the honest expectation is
+    // the list, not an empty array.
+    expect(causesWithNoIntervention(scenario)).toEqual([
+      "supply.restaurants",
+      "demand.interest",
+      "product.app",
+    ]);
 
     const orphaned = fixtureScenario({
       causes: [
@@ -82,7 +90,10 @@ describe("interventionsByLeaf / causesWithNoIntervention", () => {
       ],
     });
     // Roots never appear — they cannot be named in the first place.
-    expect(causesWithNoIntervention(orphaned)).toEqual(["external.rain"]);
+    expect(causesWithNoIntervention(orphaned)).toContain("external.rain");
+    // And "product" is a root with a child, so it stays off the list even
+    // though nothing addresses it.
+    expect(causesWithNoIntervention(orphaned)).not.toContain("product");
   });
 });
 

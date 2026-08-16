@@ -128,8 +128,15 @@ describe("toClientScenario", () => {
       expect(payload).not.toContain(line);
     }
     expect(payload).not.toContain(scenario.debrief.whereTheLeverageWas);
-    expect(payload).not.toContain(scenario.debrief.strongAnswer);
-    expect(payload).not.toContain(scenario.coachFallback[0].answer);
+    // Bullet by bullet, now that both are arrays. Passing the array straight to
+    // `toContain` would compare against its stringified form and pass whatever
+    // the payload held, which is the wrong test wearing the right name.
+    for (const point of scenario.debrief.strongAnswer) {
+      expect(payload).not.toContain(point);
+    }
+    for (const point of scenario.coachFallback[0].answer) {
+      expect(payload).not.toContain(point);
+    }
   });
 
   it("still ships everything the candidate needs to play", () => {
@@ -138,7 +145,14 @@ describe("toClientScenario", () => {
     expect(client.title).toBe(scenario.title);
     expect(client.situation).toBe(scenario.situation);
     expect(client.budget).toEqual(scenario.budget);
-    expect(client.panels.map((p) => p.id)).toEqual(["p-orders"]);
+    expect(client.panels.map((p) => p.id)).toEqual([
+      "p-orders",
+      "p-headline",
+      "p-unit",
+      "p-mix",
+      "p-steps",
+      "p-room-note",
+    ]);
     expect(client.drilldowns).toHaveLength(scenario.drilldowns.length);
     expect(client.causes.map((c) => c.label)).toEqual(scenario.causes.map((c) => c.label));
   });

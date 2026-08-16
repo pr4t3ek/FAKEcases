@@ -303,6 +303,37 @@ export const channelTradeSpend: SimScenario = {
         },
       ],
     },
+    // ── Decoys ──────────────────────────────────────────────────────────
+    //
+    // Real instrumentation that answers a question nobody asked here. Brand
+    // health being intact and wastage being flat are both worth knowing and
+    // neither localises anything — which is the point: the candidate has to
+    // rule them out rather than never meet them.
+    {
+      id: "p-ch-brand",
+      kind: "stat",
+      title: "Brand health tracker",
+      caption: "The quarterly consumer panel, against the same quarter last year.",
+      tiles: [
+        { label: "Unprompted awareness", value: 0.41, unit: "ratio", goodDirection: "up" },
+        { label: "Household penetration", value: 0.186, unit: "ratio", goodDirection: "up" },
+        { label: "Would buy again", value: 0.78, unit: "ratio", goodDirection: "up" },
+        { label: "Wastage as share of despatch", value: 0.012, unit: "ratio", goodDirection: "down" },
+      ],
+    },
+    {
+      id: "p-ch-supply",
+      kind: "segments",
+      title: "Despatch and fill rate by region",
+      caption: "Whether we are simply failing to get stock onto shelves.",
+      dimension: "Region",
+      rows: [
+        { label: "North", value: 0.972, unit: "ratio", deltaPct: 0.4 },
+        { label: "West", value: 0.968, unit: "ratio", deltaPct: -0.3 },
+        { label: "South", value: 0.981, unit: "ratio", deltaPct: 1.1 },
+        { label: "East", value: 0.964, unit: "ratio", deltaPct: 0.2 },
+      ],
+    },
     {
       id: "p-ch-room",
       kind: "note",
@@ -322,7 +353,7 @@ export const channelTradeSpend: SimScenario = {
       id: "dd-source",
       label: "Where the quick-commerce buyers came from",
       question: "Is this new demand, or the same shoppers arriving by a different route?",
-      cost: 3,
+      cost: 2,
       evidenceFor: ["channel.cannibal"],
       readsAs:
         "Two-thirds of quick-commerce buyers already bought the pack from a kirana. And where quick commerce went live first, our general-trade offtake fell 21% over the same period; in pincodes it has not reached, general trade is flat. This is not new demand — it is the same demand, moved to a channel that keeps more of it.",
@@ -506,6 +537,28 @@ export const channelTradeSpend: SimScenario = {
       verdict:
         "Not supported as the cause. Elasticity of about 1.7 means a ₹5 rise nets roughly ₹4 lakh a month — real money, and about a tenth of what the channel mix is costing.",
     },
+    {
+      id: "value.wastage",
+      parentId: "value",
+      label: "Returns and near-expiry stock are eating the margin",
+      verdict:
+        "No. Wastage runs at 1.2% of despatch, flat for six quarters, and quick commerce actually returns less than general trade because the stock moves faster. A steady line cannot explain a change.",
+    },
+    { id: "demand", parentId: null, label: "Whether people still want the product", verdict: "They do. Every branch here comes back clean, which is what leaves the channel." },
+    {
+      id: "demand.competitor",
+      parentId: "demand",
+      label: "A competitor is taking our customers",
+      verdict:
+        "Not in the way it looks. Our nearest competitor grew 6% in general trade — in the same channel we shrank 21%. Somebody taking share from us everywhere would not spare the channel where we still have display.",
+    },
+    {
+      id: "demand.brand",
+      parentId: "demand",
+      label: "The brand has weakened with shoppers",
+      verdict:
+        "No. Unprompted awareness is 41% against 40% last year and household penetration is flat. People still ask for us — they are just being sold to us somewhere that keeps less of the money.",
+    },
   ],
   trueCauseIds: ["channel.cannibal"],
 
@@ -636,50 +689,84 @@ export const channelTradeSpend: SimScenario = {
     ],
     whereTheLeverageWas:
       "The 16% you control. Platform commission is the price of the channel and you cannot argue with it; visibility and offer funding is yours, and it was buying volume you already had. Cutting it back gives up about three points of share and takes contribution per pack on quick commerce from ₹8.80 to ₹14.08 — and the kirana volume it was suppressing comes back at ₹21.40.",
-    strongAnswer:
-      "The share number and the profit number are both correct and they are measuring different things. Share went from 4% to 11.5%, total volume moved 1.8%, and that gap is the finding: we did not win 3.4 lakh packs a month, we moved them. The panel says 68% of quick-commerce buyers already bought us from a kirana, and the pincode split is close to a natural experiment — offtake down 21% where quick commerce is live, up 1% where it is not. The cost of moving a pack is ₹12.60, because the platform's 26% plus our own 16% of visibility and offer funding leaves ₹34.80 of a ₹60 pack against ₹47.40 in general trade. So I would cut the visibility and offer spend to a maintenance level, keep the listing — the 18% who are new to the category are real and worth serving — and take the money to 8,000 kirana outlets in towns quick commerce will not reach for years. That costs us about three points of quick-commerce share, and I would say so to the board in those words, because the alternative is to keep buying a number that costs ₹12.60 a pack.",
+    strongAnswer: [
+      "The share number and the profit number are both correct — they are measuring different things.",
+      "Share went from 4% to 11.5%, but total volume moved only 1.8%. That gap is the whole finding.",
+      "We did not win 3.4 lakh packs a month. We moved them from one shelf to another.",
+      "The evidence is strong: 68% of quick-commerce buyers already bought us from a corner shop.",
+      "And the pincode split is almost an experiment — corner-shop sales fell 21% where quick commerce is live, and rose 1% where it isn't.",
+      "Moving a pack costs us ₹12.60. On a ₹60 pack we keep ₹34.80 through quick commerce against ₹47.40 through the corner shop.",
+      "That is the platform's 26% cut plus the 16% we ourselves spend on prime placement and offers.",
+      "So: cut our own visibility and offer spend back to a maintenance level, and keep the listing — the 18% who are genuinely new to the category are worth serving.",
+      "Move that money to 8,000 corner-shop outlets in towns quick commerce will not reach for years.",
+      "That costs about three points of quick-commerce share, and I would tell the board so in those words — because the alternative is to keep buying a number at ₹12.60 a pack.",
+    ],
   },
 
   coachFallback: [
     {
       topic: ["cannibal", "moved", "shift", "kirana", "general trade", "pincode"],
-      answer:
-        "The growth was cannibalisation. 68% of quick-commerce buyers already bought us from a kirana, and general-trade offtake fell 21% in exactly the pincodes quick commerce reached while rising 1% where it did not. Share rose seven points; total volume moved 1.8%.",
+      answer: [
+        "The growth was not new business — it was the same customers buying somewhere else.",
+        "68% of quick-commerce buyers already bought us from a corner shop, and corner-shop sales fell 21% in exactly the pincodes quick commerce reached, while rising 1% where it did not.",
+        "Share rose seven points. Total volume moved 1.8%.",
+      ],
     },
     {
       topic: ["realisation", "deduction", "commission", "platform", "42%", "34.80"],
-      answer:
-        "A ₹60 pack realises ₹34.80 on quick commerce — 26% platform commission plus 16% of visibility and offer funding — against ₹47.40 in general trade, where the whole trade chain takes 21%. Same ₹26 of cost, so ₹8.80 of contribution against ₹21.40.",
+      answer: [
+        "On a ₹60 pack we keep ₹34.80 through quick commerce: the platform takes 26%, and we spend another 16% on placement and offers.",
+        "Through the corner shop we keep ₹47.40, because the whole trade chain takes 21%.",
+        "The pack costs the same ₹26 to make either way — so we earn ₹8.80 there against ₹21.40 here.",
+      ],
     },
     {
       topic: ["trade promotion", "trade spend", "visibility", "slot", "2+1", "offer"],
-      answer:
-        "The 16% is the part you control: ₹4.4 lakh a month on the top search slot, ₹2.9 lakh funding the 2+1, ₹0.5 lakh in listing fees. It was buying volume that was already yours, and the 2+1 was undercutting what your own distributors pay.",
+      answer: [
+        "The 16% is the part you control: ₹4.4 lakh a month for the top search slot, ₹2.9 lakh funding the buy-two-get-one, ₹0.5 lakh in listing fees.",
+        "It was buying volume that was already yours.",
+        "And the buy-two-get-one was undercutting the price your own distributors pay.",
+      ],
     },
     {
       topic: ["incremental", "incrementality", "new demand", "18%"],
-      answer:
-        "Only 18% of quick-commerce buyers were new to the category — that is the genuinely incremental part, and it is worth serving. The other 82% was volume you already had, moved to a channel that keeps twice as much of it.",
+      answer: [
+        "Only 18% of quick-commerce buyers were new to the category.",
+        "That part is genuinely new business, and it is worth serving.",
+        "The other 82% was volume you already had, moved to a channel that hands back twice as much of it.",
+      ],
     },
     {
       topic: ["share", "market share", "number one", "15%"],
-      answer:
-        "Share can always be bought with trade promotion, which is what makes it a bad target. Doubling down takes share past 15% and takes contribution per pack from ₹8.80 to ₹4.96 — and the right answer here gives up about three points of share and grows net contribution by roughly three-quarters.",
+      answer: [
+        "Share can always be bought with promotion money, which is exactly what makes it a bad target.",
+        "Doubling down takes share past 15% and takes what we keep per pack from ₹8.80 to ₹4.96.",
+        "The right answer gives up about three points of share and grows total profit by roughly three-quarters.",
+      ],
     },
     {
       topic: ["decline", "dying", "structural", "competitor"],
-      answer:
-        "Kirana is not dying. The category grew 4% in general trade and our nearest competitor grew 6%. We are the only brand in the top five going backwards there, which makes it something we did.",
+      answer: [
+        "Corner shops are not dying. The category grew 4% there, and our nearest competitor grew 6%.",
+        "We are the only brand in the top five going backwards in that channel.",
+        "That makes it something we did, not something that happened to us.",
+      ],
     },
     {
       topic: ["cogs", "cost", "sourcing", "laminate", "input"],
-      answer:
-        "Cost per pack moved 2.4% in eighteen months, ₹25.40 to ₹26.00. Attacking it is worth about ₹7 lakh a month and is good housekeeping — it is not what changed.",
+      answer: [
+        "The cost of making a pack moved 2.4% in eighteen months — ₹25.40 to ₹26.00.",
+        "Attacking it is worth about ₹7 lakh a month, and it is good housekeeping.",
+        "But it is not what changed, so it cannot be the cause.",
+      ],
     },
     {
       topic: ["mrp", "price", "raise", "elasticity", "65"],
-      answer:
-        "The last ₹5 rise cost about 15% of volume, so elasticity is roughly 1.7. Another ₹5 nets about ₹4 lakh a month — real, and roughly a tenth of what the channel mix is costing. Fix the mix first; the price rise still works next quarter.",
+      answer: [
+        "The last ₹5 rise cost about 15% of volume, so customers here are fairly price-sensitive.",
+        "Another ₹5 nets about ₹4 lakh a month — real money, and roughly a tenth of what the channel mix is costing us.",
+        "Fix the mix first. The price rise still works next quarter.",
+      ],
     },
   ],
 };

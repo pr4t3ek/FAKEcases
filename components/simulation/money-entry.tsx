@@ -1,23 +1,24 @@
 "use client";
 
 import { Input } from "@/components/ui/input";
-import { Slider } from "@/components/ui/slider";
 import type { SaturationHint } from "@/lib/sim/types";
 import type { MoneyScale } from "./money";
 
 /**
  * How much money goes behind one fix.
  *
- * A number box was the right control while money was linear: there was nothing
- * to feel, because every rupee was worth the same as the last and the answer
- * was always "as much as the budget allows". Under a saturating curve the
- * interesting question is *where to stop*, and a number box makes that question
- * invisible — you cannot see a knee in a text field.
+ * A typed number, and only a typed number. This replaced a slider-plus-box pair
+ * whose argument was that a saturating curve makes *where to stop* the
+ * interesting question and "you cannot see a knee in a text field" — true as
+ * far as it goes, and outweighed by what a slider does to the rest of the
+ * exercise. A track invites dragging until something looks right, which is
+ * exactly the habit a war room exists to break: every other commitment here is
+ * a number a candidate has to mean, and money was the one place they could
+ * gesture at an answer instead of naming one.
  *
- * So: a slider for the shape, a number box beside it for the precision, both
- * driving the same value. The tick on the track is where this lever stops
- * paying, and the line underneath says what the next slice buys relative to the
- * first.
+ * So the knee moves into words. The readout below the box says where this lever
+ * stops paying and what the next slice buys relative to the first — the same
+ * two facts the tick and the track carried, stated rather than shown.
  *
  * **What that readout can and cannot say.** It is a ratio of two slopes on the
  * same curve, which cancels the effect size algebraically — so it can tell a
@@ -26,7 +27,7 @@ import type { MoneyScale } from "./money";
  * at all. That is what makes it shippable to the browser at all; see
  * `SaturationHint`.
  */
-export function MoneyDial({
+export function MoneyEntry({
   value,
   max,
   scale,
@@ -61,21 +62,11 @@ export function MoneyDial({
           step={scale.step}
           value={value}
           disabled={disabled}
+          aria-label={`Money for ${label}, in ${scale.label}`}
           onChange={(e) => onChange(Math.max(0, +e.target.value || 0))}
           className="h-8 w-28 text-right"
         />
       </div>
-
-      <Slider
-        className="mt-2"
-        value={Math.min(value, max)}
-        max={max}
-        step={scale.step}
-        marker={satiation}
-        disabled={disabled}
-        aria-label={`Money for ${label}, in ${scale.label}`}
-        onValueChange={onChange}
-      />
 
       <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
         <Readout value={value} ask={ask} satiation={satiation} scale={scale} hint={hint} />
@@ -97,7 +88,19 @@ function Readout({
   scale: MoneyScale;
   hint?: SaturationHint;
 }) {
-  if (value <= 0) return <>Nothing behind this yet.</>;
+  // Nothing typed yet. With no track to look at, this is also the only place
+  // the stopping point can be advertised before a number exists — so say it
+  // here, where it is still advice rather than a verdict.
+  if (value <= 0) {
+    if (satiation !== null) {
+      return (
+        <>
+          Nothing behind this yet. It stops paying much past ₹{satiation.toFixed(1)} {scale.short}.
+        </>
+      );
+    }
+    return <>Nothing behind this yet.</>;
+  }
 
   const share = Math.round((value / ask) * 100);
 
@@ -116,8 +119,8 @@ function Readout({
   if (satiation !== null && value >= satiation) {
     return (
       <span className="text-warning">
-        {share}% of its ask — and past the point where it does much. The last{" "}
-        {scale.short} here buys about {asPct}% of what the first did.
+        {share}% of its ask — and past ₹{satiation.toFixed(1)} {scale.short}, where it stops doing
+        much. The last {scale.short} here buys about {asPct}% of what the first did.
       </span>
     );
   }
@@ -126,6 +129,7 @@ function Readout({
     <>
       {share}% of its ask. The next {scale.step} {scale.short} buys about {asPct}% of what the
       first {scale.step} did.
+      {satiation !== null && <> It stops paying much past ₹{satiation.toFixed(1)} {scale.short}.</>}
     </>
   );
 }

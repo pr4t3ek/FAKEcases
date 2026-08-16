@@ -239,6 +239,30 @@ export const cashRunwayTurnaround: SimScenario = {
       ],
     },
     {
+      id: "p-customers",
+      kind: "stat",
+      title: "The customer base",
+      caption: "Who is paying, and how that has moved this quarter.",
+      tiles: [
+        { label: "Paying customers", value: 2000, unit: "count", goodDirection: "up" },
+        { label: "Revenue per customer, per quarter", value: 36_000, unit: "inr", goodDirection: "up" },
+        { label: "New customers this quarter", value: 200, unit: "count", goodDirection: "up" },
+        { label: "Customers lost this quarter", value: 180, unit: "count", goodDirection: "down" },
+      ],
+    },
+    {
+      id: "p-product",
+      kind: "stat",
+      title: "Product and service",
+      caption: "How the thing itself is doing — healthy, and not what the deadline is about.",
+      tiles: [
+        { label: "Uptime", value: 0.9987, unit: "ratio", goodDirection: "up" },
+        { label: "Support tickets per customer", value: 1.4, unit: "count", goodDirection: "down" },
+        { label: "Satisfaction score", value: 4.2, unit: "count", goodDirection: "up" },
+        { label: "Shipments processed per week", value: 412_000, unit: "count", goodDirection: "up" },
+      ],
+    },
+    {
       id: "p-room",
       kind: "note",
       title: "What the room is saying",
@@ -399,35 +423,58 @@ export const cashRunwayTurnaround: SimScenario = {
     ],
     whereTheLeverageWas:
       "Price is the fastest lever and retention is the largest one, and they are complements rather than alternatives: repricing raises what each customer is worth, and fixing churn raises how many quarters you collect it for. The trap is that the cost lines look like the decision, because they are the only numbers a founder can move without asking anyone's permission.",
-    strongAnswer:
-      "Start from the deadline: ₹12 crore against ₹3 crore a quarter is four quarters, so whatever you do has to show up inside that. Separate the two ways to close a ₹3 crore gap — earn more or spend less — and notice that the spending is 65% salaries and only 10% engineering, so the cost side cannot close it without cutting the thing that generates revenue. Then look at what a customer is worth: ₹36,000 a quarter, unchanged in three years, against a product they run their shipping on. Reprice first because it lands immediately and costs only a little churn. Fund support second because churn is a stock problem — every quarter you leave it, you lose customers you have already paid ₹90,000 each to acquire. Refuse the marketing cut, and say why out loud: it is the only thing replacing the base, and turning it off buys two good-looking quarters and a smaller company.",
+    strongAnswer: [
+      "Start from the deadline. ₹12 crore of cash against ₹3 crore a quarter of burn is four quarters — so anything we do has to show up inside that.",
+      "There are only two ways to close a ₹3 crore gap: earn more, or spend less.",
+      "Look at the spending first: 65% of it is salaries and only 10% is engineering. The cost side cannot close this without cutting the thing that earns the revenue.",
+      "Then look at what a customer is worth: ₹36,000 a quarter, unchanged in three years, for a product they run their shipping on.",
+      "Reprice first. It lands in the quarter you do it and costs only a little extra churn.",
+      "Fund support second, because customers lost are a running total, not a one-off. Every quarter you leave it, you lose people you already paid ₹90,000 each to win.",
+      "Refuse the marketing cut, and say why out loud.",
+      "It is the only thing replacing the customers who leave. Turning it off buys two good-looking quarters and a permanently smaller company.",
+    ],
   },
 
   coachFallback: [
     {
       topic: ["marketing", "acquisition", "cut", "switch off"],
-      answer:
-        "It saves ₹1.35 crore a quarter, which is more than any other single lever, and it is still wrong. Marketing is buying 200 customers a quarter against churn of 180. Switch it off and the base starts falling by roughly 180 a quarter — around ₹65 lakh of revenue gone every quarter, permanently, and compounding. Cash looks better for two quarters and the company is smaller for good.",
+      answer: [
+        "It saves ₹1.35 crore a quarter, more than any other single lever — and it is still wrong.",
+        "Marketing is bringing in 200 customers a quarter, against 180 leaving.",
+        "Switch it off and the base starts shrinking by about 180 a quarter — roughly ₹65 lakh of revenue gone every quarter, permanently, and compounding.",
+      ],
     },
     {
       topic: ["price", "repricing", "arpu"],
-      answer:
-        "A 20% rise takes revenue per customer from ₹36,000 to ₹43,200 — about ₹1.4 crore a quarter at today's base — and costs roughly a tenth more churn. It is the only lever that improves cash in the quarter you pull it without shrinking anything.",
+      answer: [
+        "A 20% rise takes revenue per customer from ₹36,000 to ₹43,200 — about ₹1.4 crore a quarter at today's size.",
+        "It costs roughly a tenth more customers leaving.",
+        "It is the only lever that improves cash in the quarter you pull it without making the company smaller.",
+      ],
     },
     {
       topic: ["support", "churn", "retention", "success"],
-      answer:
-        "Support is funded for exactly the 2,000 customers you have, so growth immediately pushes the service ratio below 1, and last quarter's service ratio sets this quarter's churn. Funding it costs ₹60 lakh and two sprints and pays back through the customer balance rather than through a line on the P&L, which is why it is the hardest one to justify and usually the right one.",
+      answer: [
+        "Support is staffed for exactly the 2,000 customers you have, so any growth immediately spreads it too thin.",
+        "And how well you served people last quarter sets how many leave this quarter.",
+        "Funding it costs ₹60 lakh and two sprints, and pays back through customers kept rather than a line on the P&L — which is why it is the hardest to justify and usually the right call.",
+      ],
     },
     {
       topic: ["runway", "cash", "how long"],
-      answer:
-        "₹12 crore of cash against ₹3 crore a quarter of net burn is four quarters. Runway moves when either half moves, which is why net burn rather than burn is the number to watch.",
+      answer: [
+        "₹12 crore in the bank against ₹3 crore a quarter of net burn is four quarters.",
+        "Runway moves when either half moves — the cash, or the burn.",
+        "That is why net burn, not gross spending, is the number to watch.",
+      ],
     },
     {
       topic: ["engineering", "eng", "layoff", "headcount"],
-      answer:
-        "Engineering is ₹1.05 crore of a ₹10.2 crore quarter — 10%. Cutting 40% of it saves ₹42 lakh and raises underlying churn by about a third on a two-quarter ramp, so the bill arrives after the quarter in which the saving looked free.",
+      answer: [
+        "Engineering is ₹1.05 crore of a ₹10.2 crore quarter — about 10% of spending.",
+        "Cutting 40% of it saves ₹42 lakh and raises the rate customers leave by about a third, arriving over two quarters.",
+        "So the bill lands after the quarter in which the saving looked free.",
+      ],
     },
   ],
 };

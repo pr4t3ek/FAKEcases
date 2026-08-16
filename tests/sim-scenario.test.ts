@@ -18,7 +18,7 @@ import {
   checkBalance,
   fullyFundableCombos,
 } from "@/lib/sim/balance";
-import { scoreSimulation } from "@/lib/sim/score";
+import { scoreHypothesis, scoreSimulation } from "@/lib/sim/score";
 import type { SimAllocationLine, SimScenario } from "@/lib/sim/types";
 
 const scenarios = listScenarios();
@@ -1256,36 +1256,60 @@ describe("metric-drop-food-delivery specifics", () => {
    * guessing — on the dimension whose whole purpose is to make a candidate
    * commit. Eleven takes that to 27%.
    */
+  /**
+   * Hedging still loses, on a board that is now capped rather than sprawling.
+   *
+   * This used to assert ten or more leaves, on the reasoning that a wide board
+   * is what stops three picks from being a good bet. `CAUSE_BOARD` caps the
+   * whole board at ten including parents, so that number is no longer reachable
+   * — and it was always a proxy anyway. The property it was standing in for is
+   * checked directly here: naming one and being right must beat naming three
+   * and being right, and must beat the expected value of three random picks.
+   */
   it("offers enough leaves that hedging three picks does not pay", () => {
     if (!scenario) throw new Error("scenario missing");
     const parents = new Set(scenario.causes.map((c) => c.parentId).filter(Boolean));
     const leaves = scenario.causes.filter((c) => !parents.has(c.id));
-    expect(leaves.length).toBeGreaterThanOrEqual(10);
+
+    // Wide enough that three picks is not most of the board.
+    expect(leaves.length).toBeGreaterThanOrEqual(6);
+
+    const trueLeaf = scenario.trueCauseIds[0];
+    const others = leaves.filter((c) => c.id !== trueLeaf).slice(0, 2);
+
+    const committed = scoreHypothesis(scenario, [trueLeaf]);
+    const hedged = scoreHypothesis(scenario, [trueLeaf, ...others.map((c) => c.id)]);
+    expect(committed).toBeGreaterThan(hedged);
+
+    // And against a guesser: three picks land the true leaf 3/n of the time.
+    const guessEv = (3 / leaves.length) * hedged;
+    expect(committed).toBeGreaterThan(guessEv);
   });
 
-  it("cannot be bought out of, and has something cheap on it", () => {
+  it("cannot be bought out of, and prices every pull the same", () => {
     // Two properties of a board worth triaging. The budget must not cover it,
-    // or there is nothing to choose; and at least one pull must be cheap
-    // enough that the opening move is a decision rather than a coin flip.
+    // or there is nothing to choose; and every pull must cost the same, so the
+    // only question left is what each one would rule out.
     if (!scenario) throw new Error("scenario missing");
     const total = scenario.drilldowns.reduce((sum, d) => sum + d.cost, 0);
     expect(scenario.drilldowns.length).toBeGreaterThanOrEqual(12);
     expect(total).toBeGreaterThan(scenario.budget.analystDays * 2);
-    expect(Math.min(...scenario.drilldowns.map((d) => d.cost))).toBe(1);
+    expect(new Set(scenario.drilldowns.map((d) => d.cost)).size).toBe(1);
   });
 
   it("carries a redundant route to the answer, priced like the first one", () => {
     // Buying both is the board's clearest example of paying twice for the same
-    // sentence, and it is only a lesson if the second one genuinely costs.
+    // sentence, and it is only a lesson if the second one genuinely costs. Under
+    // uniform pricing "priced like the first one" is exact rather than a floor,
+    // which is a stronger statement than the `>= 3` this used to make.
     if (!scenario) throw new Error("scenario missing");
-    const routes = scenario.drilldowns.filter(
-      (d) => d.evidenceFor.includes("supply.riders") && d.cost >= 3,
-    );
+    const routes = scenario.drilldowns.filter((d) => d.evidenceFor.includes("supply.riders"));
     expect(routes.length).toBeGreaterThanOrEqual(2);
-    // …and par uses neither of them, because the call is makeable without.
-    for (const route of routes) {
-      expect(scenario.parInvestigation).not.toContain(route.id);
-    }
+    expect(new Set(routes.map((d) => d.cost)).size).toBe(1);
+
+    // …and par does not need all of them, because the call is makeable without.
+    const parRoutes = routes.filter((r) => scenario.parInvestigation.includes(r.id));
+    expect(parRoutes.length).toBeLessThan(routes.length);
   });
 
   it("has a coach answer for every major wrong theory in the room", () => {

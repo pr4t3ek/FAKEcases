@@ -63,7 +63,7 @@ export const balanceSheetLeverage: SimScenario = {
     "You are the financial analyst at Deccan Ceramics, a Morbi tile manufacturer that commissioned a third kiln last year on a ₹120 crore term loan. FY25 EBITDA came in at ₹40.5 crore, up 31% and the best in the company's history. " +
     "In the same week, the auditor attached an emphasis-of-matter paragraph on going concern, and the lender's relationship manager asked for a meeting about the interest-cover covenant. " +
     "The managing director wants to announce the EBITDA. The finance director wants to refinance. Nobody has explained why both of them can be right. " +
-    "You have 7 analyst-days, then 4 sprints and ₹16 crore.",
+    "You have 6 analyst-days, then 4 sprints and ₹16 crore.",
   difficulty: "Medium",
 
   mentor: {
@@ -295,6 +295,48 @@ export const balanceSheetLeverage: SimScenario = {
         },
       ],
     },
+    // ── Decoys ──────────────────────────────────────────────────────────
+    //
+    // Three panels of true, correctly derived fact that point nowhere. On this
+    // scenario they earn their place twice over: the whole lesson is that a
+    // company can look excellent on every operating measure while destroying
+    // capital, so a board full of good operating measures is not padding —
+    // it is the trap, rendered.
+    {
+      id: "p-bs-operations",
+      kind: "stat",
+      title: "Plant and operations",
+      caption: "How the factory itself is running, across all three kilns.",
+      tiles: [
+        { label: "Output, million sq m", value: 27.4, unit: "count", goodDirection: "up" },
+        { label: "Energy cost per sq m", value: 21.4, unit: "inr", goodDirection: "down" },
+        { label: "First-pass yield", value: 0.943, unit: "ratio", goodDirection: "up" },
+        { label: "Unplanned downtime", value: 0.026, unit: "ratio", goodDirection: "down" },
+      ],
+    },
+    {
+      id: "p-bs-market",
+      kind: "segments",
+      title: "Revenue by channel",
+      caption: "Where the ₹238 crore was sold.",
+      dimension: "Channel",
+      rows: [
+        { label: "Dealer network", value: 151.2, unit: "inr_crore", deltaPct: 11.4 },
+        { label: "Projects and institutional", value: 54.8, unit: "inr_crore", deltaPct: 18.2 },
+        { label: "Exports", value: 32.0, unit: "inr_crore", deltaPct: -4.1 },
+      ],
+    },
+    {
+      id: "p-bs-people",
+      kind: "stat",
+      title: "People and overheads",
+      caption: "The cost lines a cost-cutting exercise would reach for first.",
+      tiles: [
+        { label: "Headcount", value: 612, unit: "count", goodDirection: "down" },
+        { label: "Revenue per employee", value: 38.9, unit: "inr_lakh", goodDirection: "up" },
+        { label: "Admin overhead, share of revenue", value: 0.041, unit: "ratio", goodDirection: "down" },
+      ],
+    },
     {
       id: "p-bs-room",
       kind: "note",
@@ -308,14 +350,14 @@ export const balanceSheetLeverage: SimScenario = {
     },
   ],
 
-  budget: { analystDays: 7, sprints: 4, rupees: 16 * CRORE },
+  budget: { analystDays: 6, sprints: 4, rupees: 16 * CRORE },
 
   drilldowns: [
     {
       id: "dd-dupont",
       label: "Decompose the return into margin and turnover",
       question: "ROCE halved. Was that the profit or the capital?",
-      cost: 3,
+      cost: 2,
       evidenceFor: ["capital.idle", "trading.margin"],
       readsAs:
         "EBIT margin went from 11.4% to 10.6% and capital turnover from 1.30 to 0.76. Almost the entire fall is the denominator: the company put ₹162 crore of new capital in and earned ₹3 crore more operating profit on it.",
@@ -347,7 +389,7 @@ export const balanceSheetLeverage: SimScenario = {
       id: "dd-kiln-util",
       label: "Capacity and utilisation, kiln by kiln",
       question: "Is the new capacity being used?",
-      cost: 3,
+      cost: 2,
       evidenceFor: ["capital.idle", "trading.demand"],
       readsAs:
         "Kilns one and two run at 91% and 88%. The new kiln runs at 46% and is 58% of the net book value. More than half the capital added last year is producing nothing for more than half the time.",
@@ -378,7 +420,7 @@ export const balanceSheetLeverage: SimScenario = {
       id: "dd-ratios",
       label: "Run the standard ratio pack",
       question: "Which ratios actually broke, and by how much?",
-      cost: 3,
+      cost: 2,
       evidenceFor: ["capital.idle", "funding.maturity", "funding.leverage"],
       readsAs:
         "Every liquidity and return ratio deteriorated and every trading ratio held. That pattern — trading flat, balance sheet ratios collapsing — points at the capital side before a single further pull is bought.",
@@ -407,7 +449,7 @@ export const balanceSheetLeverage: SimScenario = {
       label: "The repayment schedule and the covenant pack",
       question: "What actually falls due, and what has been promised to the bank?",
       cost: 2,
-      evidenceFor: ["funding.maturity", "funding.leverage", "funding.cost"],
+      evidenceFor: ["funding.maturity", "funding.leverage"],
       readsAs:
         "A 15-year kiln was funded with a 5-year loan on a 2-year moratorium that has just ended. Nothing was borrowed this year — ₹64 crore reclassified as current on a date, and that alone took the current ratio from 2.11 to 0.93.",
       reveals: [
@@ -550,13 +592,6 @@ export const balanceSheetLeverage: SimScenario = {
       label: "We simply borrowed too much",
       verdict:
         "Debt to equity of 0.92× is inside the 1.25× covenant and unremarkable for the sector. Leverage decided how quickly this became urgent; it did not decide that the capital would earn 1.9%. Swapping ₹40 crore of debt for ₹40 crore of equity leaves capital employed — and therefore ROCE — exactly where it was.",
-    },
-    {
-      id: "funding.cost",
-      parentId: "funding",
-      label: "We are paying too much for the debt",
-      verdict:
-        "9.9% blended is the market rate for this leverage and this sector, and the lender's own refinance offer is 80 basis points *more*, not less. What capital costs is never the question on its own — the question is the gap between that and what it earns, and here it earns 1.9%.",
     },
     { id: "trading", parentId: null, label: "The trading performance", verdict: "Is the best it has ever been." },
     {
@@ -752,80 +787,135 @@ export const balanceSheetLeverage: SimScenario = {
     ],
     whereTheLeverageWas:
       "Both halves of the capital turnover. Filling Kiln 3 with the private-label volume that has been sitting unanswered for five months uses the asset that was already bought; selling the Hosur land and idle press takes ₹34.8 crore of capital out that was producing nothing and repays debt with it. Refinancing and the rights issue are both sensible transactions that move liquidity and leverage and leave the return exactly where it was — which is the most useful thing this scenario has to teach.",
-    strongAnswer:
-      "Take the two statements at face value: EBITDA really is a record and the balance sheet really is in trouble, and they are not in conflict because a P&L cannot see capital. So divide one by the other. ROCE is 8.1% against 14.8%, and the decomposition says which half broke: EBIT margin 11.4% to 10.6%, capital turnover 1.30 to 0.76. That is a denominator problem, and ₹161.6 crore of new capital returning ₹3.0 crore — about 1.9% incremental against debt at 9.9% — is the whole story. Confirm it physically rather than by ratio: kilns one and two run at 91% and 88%, kiln three at 46% and it is 58% of the book value, plus ₹34.8 crore of land and idle plant in nobody's production plan. The peer table settles the argument — best EBITDA margin of the four comparables, worst ROCE — because a company can only have both if its capital turnover is the outlier. From there, the answer is to make the capital work or to stop owning it: sign the private-label volume even at 8% below own-brand realisation, because contribution on an asset already paid for is nearly all return, and sell what is not in the plan. The liquidity crisis is real and is a separate fact — ₹64 crore moved column on a date, not on a decision — so refinance to match the fifteen-year asset, and be clear that it buys time rather than earnings. The rights issue is the instructive trap: it halves debt to equity, clears the covenant, and moves ROCE by nothing at all, because ₹40 crore simply crosses from one side of capital employed to the other.",
+    strongAnswer: [
+      "Take both statements at face value. EBITDA really is a record, and the balance sheet really is in trouble.",
+      "They do not conflict, because a profit statement cannot see the money tied up in producing it.",
+      "So divide one by the other. Return on capital is 8.1% against 14.8% last year.",
+      "Split that in two and you can see which half broke: profit margin barely moved, 11.4% to 10.6%. Sales per rupee of capital collapsed, 1.30 to 0.76.",
+      "So this is about the capital, not the trading. ₹161.6 crore of new capital brought in ₹3.0 crore of extra operating profit — about 1.9%, against debt costing 9.9%.",
+      "Confirm it physically rather than by ratio. Kilns one and two run at 91% and 88%; kiln three runs at 46% and is 58% of the book value.",
+      "Add ₹34.8 crore of land and idle plant that appears in nobody's production plan.",
+      "The peer table settles it: best profit margin of the four comparable companies, worst return on capital. A company can only be both if its capital turnover is the outlier.",
+      "So the answer is to make the capital work, or to stop owning it.",
+      "Sign the private-label volume even at 8% below our own price — on a kiln already paid for, almost all of that comes back as return.",
+      "And sell what is not in the plan: ₹34.8 crore straight out of capital employed, giving up no profit, because it was producing none.",
+      "The liquidity crisis is real and separate: ₹64 crore changed column on a date, not because anyone did anything. Refinance to match the life of the asset — but be clear that buys time, not earnings.",
+      "And name the trap. The rights issue halves the debt-to-equity ratio and clears the covenant, and moves return on capital by nothing at all — because the ₹40 crore just crosses from one side of capital employed to the other. The owners are diluted for it.",
+    ],
   },
 
   coachFallback: [
     {
       topic: ["roce", "return on capital", "8.1", "denominator", "capital employed"],
-      answer:
-        "ROCE fell from 14.8% to 8.1% because capital employed went from ₹150.6 crore to ₹312.2 crore while operating profit went from ₹22.3 crore to ₹25.3 crore. That is an incremental return of about 1.9% on the new capital, against debt costing 9.9%.",
+      answer: [
+        "Return on capital is operating profit divided by the money tied up earning it.",
+        "The money tied up went from ₹150.6 crore to ₹312.2 crore. The profit went from ₹22.3 crore to ₹25.3 crore.",
+        "So the new capital is earning about 1.9%, while the debt that funded it costs 9.9%.",
+      ],
     },
     {
       topic: ["dupont", "margin", "turnover", "decompose", "capital turnover"],
-      answer:
-        "The decomposition is the move: ROCE is EBIT margin times capital turnover. FY24 was 11.4% × 1.30 = 14.8%; FY25 is 10.6% × 0.76 = 8.1%. The margin fell 0.8 points and the turnover fell 42%, so this was never a trading problem.",
+      answer: [
+        "Split the return into two questions: how much profit per rupee of sales, and how much sales per rupee of capital.",
+        "Last year: 11.4% × 1.30 = 14.8%. This year: 10.6% × 0.76 = 8.1%.",
+        "The margin barely moved; the sales per rupee of capital fell 42%. So this was never a trading problem.",
+      ],
     },
     {
       topic: ["kiln", "utilisation", "46", "idle", "capacity", "third kiln"],
-      answer:
-        "Kilns one and two run at 91% and 88%; kiln three runs at 46% and is 58% of the net book value. It has 12 million sq m of capacity and made 5.5 million, against a plan of 78% built on an export programme that was never signed.",
+      answer: [
+        "Kilns one and two run at 91% and 88%. Kiln three runs at 46% — and it is 58% of what the plant is worth on the books.",
+        "It can make 12 million sq m and made 5.5 million.",
+        "The plan assumed 78%, built on an export programme that was never actually signed.",
+      ],
     },
     {
       topic: ["current ratio", "quick ratio", "liquidity", "going concern", "0.93", "64 crore"],
-      answer:
-        "Nothing was borrowed this year. The loan's two-year moratorium ended, so ₹64 crore reclassified from non-current to current on a date, and that alone took the current ratio from 2.11 to 0.93 and the quick ratio to 0.42. A liquidity crisis with no transaction behind it.",
+      answer: [
+        "Nothing was borrowed this year — that is the surprising part.",
+        "The loan's two-year grace period ended, so ₹64 crore moved from \"due later\" to \"due within a year\" on a date.",
+        "That alone took short-term cover from 2.11 to 0.93. A liquidity crisis with no transaction behind it.",
+      ],
     },
     {
       topic: ["refinance", "tenor", "ten year", "maturity", "match"],
-      answer:
-        "Refinancing is worth doing and is not the answer. It takes the current ratio to about 1.86 and clears the auditor's paragraph, but total debt is unchanged, so capital employed is unchanged and ROCE does not move — and the extra 80 basis points makes interest cover slightly worse.",
+      answer: [
+        "Refinancing is worth doing, and it is not the answer.",
+        "It takes short-term cover to about 1.86 and clears the auditor's warning — but total debt is unchanged, so the capital employed is unchanged and the return does not move.",
+        "The extra 0.8% of interest actually makes the cover of interest slightly worse.",
+      ],
     },
     {
       topic: ["equity", "rights issue", "leverage", "debt to equity", "dilute", "de-risk"],
-      answer:
-        "The rights issue is the clearest lesson here: ₹40 crore of equity repaying ₹40 crore of debt halves debt-to-equity and clears the covenant, and moves ROCE by not one basis point — because capital employed is equity plus debt, and the money just crossed from one to the other. The owners are diluted for it.",
+      answer: [
+        "This is the clearest lesson in the case.",
+        "Raising ₹40 crore from owners to repay ₹40 crore of debt halves the debt-to-equity ratio and clears the covenant.",
+        "And it moves the return on capital by nothing — because capital employed is debt plus equity, and the money just crossed from one to the other. The owners are diluted for it.",
+      ],
     },
     {
       topic: ["interest cover", "covenant", "1.7", "2.0", "breach", "bank"],
-      answer:
-        "Interest cover is 1.70× against a 2.00× covenant, breached, and the current-ratio covenant at 1.00× is breached too. Interest went from ₹3.19 crore to ₹14.85 crore — the cost of ₹150 crore of debt against ₹32 crore last year.",
+      answer: [
+        "Profit covers the interest bill 1.70 times, against a promise to the bank of 2.00. That is a breach, and so is the short-term cover test.",
+        "Interest went from ₹3.19 crore to ₹14.85 crore.",
+        "That is the cost of carrying ₹150 crore of debt against ₹32 crore last year.",
+      ],
     },
     {
       topic: ["private label", "contract manufacturing", "8%", "brand", "dilute the brand"],
-      answer:
-        "Two national brands asked about private-label contract manufacture at 8% below own-brand realisation for about 20% more volume, and it sat with sales for five months. On a kiln at 46% utilisation, contribution on an asset already paid for is almost entirely return — 8% off realisation is a very cheap way to buy the turnover that broke.",
+      answer: [
+        "Two national brands asked us to make tiles under their name — 8% below our own price, for about 20% more volume.",
+        "It sat with the sales team for five months.",
+        "On a kiln running at 46%, that volume costs almost nothing extra to make, so nearly all of it comes back as return. 8% is a cheap price for the thing that broke.",
+      ],
     },
     {
       topic: ["ebitda", "record", "31%", "trading", "peer", "sector"],
-      answer:
-        "EBITDA really is a record and the EBITDA margin of 17% is the best of the four listed comparables — while ROCE at 8.1% is the worst against a peer median of 16.4%. A company can only hold both of those at once if its capital turnover is the outlier, which is exactly the diagnosis.",
+      answer: [
+        "The record is real: a 17% operating margin, best of the four listed comparable companies.",
+        "And the return on capital of 8.1% is the worst of them, against a median of 16.4%.",
+        "A company can only be both at once if its sales per rupee of capital is the outlier — which is exactly the diagnosis.",
+      ],
     },
     {
       topic: ["inventory", "stock", "working capital", "large format", "receivables"],
-      answer:
-        "Stock rose ₹15.7 crore, about ₹11 crore of it large-format made to feed the kiln rather than to fill an order, and debtor days actually improved slightly. Clearing it releases about ₹10 crore against ₹162 crore of new capital — worth doing, and a fifteenth of the problem.",
+      answer: [
+        "Stock rose ₹15.7 crore, about ₹11 crore of it large-format tile made to keep the kiln busy rather than to fill an order.",
+        "Days waiting for customers to pay actually improved slightly.",
+        "Clearing the stock releases about ₹10 crore against ₹162 crore of new capital — worth doing, and a fifteenth of the problem.",
+      ],
     },
     {
       topic: ["land", "hosur", "sell", "leaseback", "sale", "press"],
-      answer:
-        "The Hosur land and the mothballed press are carried at ₹34.8 crore and are in nobody's production plan. Selling them takes ₹34.8 crore straight out of capital employed and off the term loan, and gives up no operating profit at all because they were producing none.",
+      answer: [
+        "The Hosur land and the mothballed press are on the books at ₹34.8 crore and appear in nobody's production plan.",
+        "Selling them takes ₹34.8 crore straight out of the capital employed and off the loan.",
+        "And it gives up no operating profit at all, because they were producing none.",
+      ],
     },
     {
       topic: ["interest rate", "cost of debt", "9.9", "expensive debt", "cheaper"],
-      answer:
-        "The rate is not the problem. 9.9% blended is market for this leverage, and the ten-year refinance the bank offered is 80 basis points dearer. Capital costing 9.9% and earning 1.9% is a gap you close from the earning side.",
+      answer: [
+        "The rate is not the problem. 9.9% is a market rate for this much borrowing.",
+        "The ten-year refinance the bank offered is actually 0.8% dearer.",
+        "Capital costing 9.9% and earning 1.9% is a gap you close from the earning side.",
+      ],
     },
     {
       topic: ["morbi", "competition", "oversupply", "sector", "soft market"],
-      answer:
-        "Morbi is genuinely oversupplied, and it cannot explain Deccan specifically: a soft market squeezes everyone's margin, yet Deccan has the best EBITDA margin of the four listed comparables and the worst ROCE. The outlier is the capital turnover, which is a choice rather than a market.",
+      answer: [
+        "Morbi is genuinely oversupplied — that part is true.",
+        "But a soft market squeezes everybody's margin, and Deccan has the best margin of the four listed comparables and the worst return on capital.",
+        "The outlier is what we did with our capital, which is a choice, not a market.",
+      ],
     },
     {
       topic: ["price", "5%", "raise prices", "realisation"],
-      answer:
-        "A 5% price rise costs about 6% of volume in a market with spare capacity everywhere — roughly revenue-neutral at a slightly better margin. It addresses the half of the return that did not break, and takes volume off a kiln that is already half idle.",
+      answer: [
+        "A 5% price rise costs about 6% of volume in a market with spare capacity everywhere — roughly a wash on revenue, at a slightly better margin.",
+        "It addresses the half of the return that did not break.",
+        "And it takes volume off a kiln that is already half idle, which makes the real problem worse.",
+      ],
     },
   ],
 };

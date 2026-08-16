@@ -271,6 +271,39 @@ export const metricDropFoodDelivery: SimScenario = {
         { label: "Order placed", value: 24_00_000, deltaPct: -0.091 },
       ],
     },
+    // ── Decoys ──────────────────────────────────────────────────────────
+    //
+    // The model is hidden on this scenario, so the opening board is the only
+    // thing a candidate has before they start spending. These two are true,
+    // national, and — decisively — reported as one number each. That is the
+    // trap the whole case turns on: a national average cannot show a drop that
+    // is four times worse in tier-2, and a candidate who reads reassurance into
+    // these has drawn the wrong conclusion from a correct figure.
+    {
+      id: "p-platform-health",
+      kind: "stat",
+      title: "Platform health, this week",
+      caption: "App and payments, nationally.",
+      tiles: [
+        { label: "Crash-free sessions", value: 0.9962, unit: "ratio", goodDirection: "up" },
+        { label: "Checkout latency, ms", value: 840, unit: "count", goodDirection: "down" },
+        { label: "Payment success rate", value: 0.971, unit: "ratio", goodDirection: "up" },
+        { label: "Restaurants live", value: 118_400, unit: "count", goodDirection: "up" },
+      ],
+    },
+    {
+      id: "p-ratings",
+      kind: "segments",
+      title: "Customer satisfaction by service area",
+      caption: "The weekly rating pulse, averaged across all 180 cities.",
+      dimension: "Area",
+      rows: [
+        { label: "Food quality", value: 4.3, unit: "count", deltaPct: -0.4 },
+        { label: "Delivery experience", value: 3.9, unit: "count", deltaPct: -6.1 },
+        { label: "App experience", value: 4.4, unit: "count", deltaPct: 0.2 },
+        { label: "Support", value: 4.1, unit: "count", deltaPct: -1.1 },
+      ],
+    },
     {
       id: "p-brief",
       kind: "note",
@@ -332,7 +365,7 @@ export const metricDropFoodDelivery: SimScenario = {
       id: "dd-funnel-tier",
       label: "Funnel by step, split by city tier",
       question: "Which step of the funnel is leaking, and where?",
-      cost: 3,
+      cost: 2,
       evidenceFor: ["supply.riders", "product.release"],
       readsAs:
         "The leak is entirely at checkout → order placed, and entirely outside the metros. Whatever is wrong happens at the moment of committing to an order.",
@@ -400,7 +433,7 @@ export const metricDropFoodDelivery: SimScenario = {
       id: "dd-riders",
       label: "Active rider hours by city tier",
       question: "Do we still have the riders we had six weeks ago?",
-      cost: 3,
+      cost: 2,
       dependsOn: ["dd-city"],
       evidenceFor: ["supply.riders"],
       readsAs:
@@ -455,7 +488,7 @@ export const metricDropFoodDelivery: SimScenario = {
       label: "Payment success rate by gateway",
       question: "Are orders failing at payment?",
       cost: 2,
-      evidenceFor: ["product.payments"],
+      evidenceFor: ["product.release"],
       readsAs: "Payments are flat. A cheap way to rule out the scariest explanation.",
       reveals: [
         {
@@ -532,7 +565,7 @@ export const metricDropFoodDelivery: SimScenario = {
       id: "dd-competitor",
       label: "Competitor pricing and promo tracker",
       question: "Is a competitor taking our orders?",
-      cost: 3,
+      cost: 2,
       evidenceFor: ["external.competitor"],
       readsAs:
         "Competitor promo intensity is up, but evenly across tiers — so it cannot explain a drop that is four times worse in tier-2 than in the metros. The expensive way to learn that a national explanation can't produce a regional pattern.",
@@ -564,7 +597,7 @@ export const metricDropFoodDelivery: SimScenario = {
       id: "dd-dispatch",
       label: "Dispatch efficiency in tier-2",
       question: "Are the riders we still have being assigned badly?",
-      cost: 3,
+      cost: 2,
       dependsOn: ["dd-riders"],
       evidenceFor: ["supply.dispatch", "supply.riders"],
       readsAs:
@@ -599,7 +632,7 @@ export const metricDropFoodDelivery: SimScenario = {
       label: "Order frequency and checkout completion by cohort",
       question: "Are existing customers ordering less often, or failing to finish?",
       cost: 2,
-      evidenceFor: ["demand.churn", "supply.riders"],
+      evidenceFor: ["demand.interest", "supply.riders"],
       readsAs:
         "Frequency held and completion collapsed, and only in tier-2. Customers did not lose the habit — they got to the last screen and left. That moves the search from the demand side to the funnel in a single pull.",
       reveals: [
@@ -629,8 +662,8 @@ export const metricDropFoodDelivery: SimScenario = {
       id: "dd-fees",
       label: "Fee and surge screen, before and after 8.4",
       question: "Did a fee or surge change land with the release?",
-      cost: 1,
-      evidenceFor: ["product.fees"],
+      cost: 2,
+      evidenceFor: ["product.release", "demand.price"],
       readsAs:
         "Nothing changed and the fee went down. A fee change shipping with a release is a real cause of a drop shaped like this one, so it is worth a day to rule out — and a day is what it costs.",
       reveals: [
@@ -650,8 +683,8 @@ export const metricDropFoodDelivery: SimScenario = {
       id: "dd-seasonality",
       label: "Same six weeks, last year",
       question: "Is this just the festival calendar?",
-      cost: 1,
-      evidenceFor: ["external.seasonality"],
+      cost: 2,
+      evidenceFor: ["external.competitor"],
       readsAs:
         "Last year the same weeks were flat. One analyst-day to retire an explanation that would otherwise have absorbed the whole quarter.",
       reveals: [
@@ -684,16 +717,6 @@ export const metricDropFoodDelivery: SimScenario = {
       parentId: "demand",
       label: "Customer interest / traffic",
       verdict: "Sessions, menu views and carts are all flat. Customers kept arriving throughout.",
-    },
-    {
-      id: "demand.churn",
-      parentId: "demand",
-      label: "Customers ordering less often",
-      verdict:
-        "Order frequency among customers who kept ordering is flat at 3.4 a month. Nobody lost the habit — they reached checkout, saw a 48-minute estimate, and stopped there. That is a conversion event wearing a retention costume.",
-      unactionable: {
-        why: "Win-back campaigns and loyalty spend both assume customers stopped wanting to order. They did not — frequency held, and the loss is at the last screen. There is no retention fix on this board because retention is not what moved.",
-      },
     },
     {
       id: "demand.price",
@@ -734,35 +757,16 @@ export const metricDropFoodDelivery: SimScenario = {
       verdict:
         "A coincidence of timing, and the most confidently held theory in the room. Crash-free sessions and checkout latency are unchanged, and the drop is regional while the release was not.",
     },
-    {
-      id: "product.payments",
-      parentId: "product",
-      label: "Payment failures",
-      verdict: "Success rates are flat or up on every gateway.",
-    },
-    {
-      id: "product.fees",
-      parentId: "product",
-      label: "Fees or surge shown at checkout",
-      verdict:
-        "Delivery fee per order fell slightly over the period and the surge screen has not changed since February. Cheap to check, and worth checking — a fee change landing with a release is a genuinely common cause of exactly this shape.",
-      unactionable: {
-        why: "You cannot roll back a change that was never made. Fees went down over the period, not up, so there is nothing here to reverse.",
-      },
-    },
-    { id: "external", parentId: null, label: "External", verdict: "Real, but not load-bearing." },
-    {
-      id: "external.seasonality",
-      parentId: "external",
-      label: "Festival seasonality",
-      verdict: "The same six weeks last year were flat.",
-      unactionable: {
-        why: "Nobody funds a fix for the calendar. If the festival window really were the cause, the quarter would be something to ride out rather than something to spend on.",
-      },
-    },
+    // Top-level and childless, rather than the sole survivor of an "External"
+    // branch. The board is capped at ten now, and a parent whose only child is
+    // this one is a node that adds a click and no reasoning: naming the region
+    // and naming the cause would be the same act. As a leaf in its own right it
+    // still carries the move the scenario is built on — that a national cause
+    // cannot produce a regional drop — which is the reason it survived the trim
+    // and the payments and fees branches did not.
     {
       id: "external.competitor",
-      parentId: "external",
+      parentId: null,
       label: "Competitor promotions",
       verdict:
         "Competitor promo intensity did rise — evenly across tiers. A national cause cannot produce a drop four times worse in tier-2 than in the metros. It is, however, the reason the riders left.",
@@ -1020,49 +1024,81 @@ export const metricDropFoodDelivery: SimScenario = {
     ],
     whereTheLeverageWas:
       "Rider supply in 46 tier-2 cities. Everything else in the dashboard — the funnel, the ETAs, the margin — is downstream of it, so a fix anywhere else buys a symptom back at full price.",
-    strongAnswer:
-      "Start by splitting orders into sessions and conversion. Sessions are flat, so this is not a demand problem and every national explanation — competitor spend, brand, seasonality — is already weak, because a national cause cannot produce a drop four times worse in tier-2 than in the metros. That leaves conversion, and the funnel localises it to checkout. The question then becomes: what changed about the offer at the moment of committing? ETA is the obvious candidate, and ETA is set by rider supply. From there, one pull confirms it. The trap is that discounting genuinely raises orders — so if you are measured on orders alone you can hit your number and hand back the entire contribution margin doing it, which is exactly what the previous six weeks of quiet discount increases had already started.",
+    strongAnswer: [
+      "Break orders into two parts: how many people visited, and what share of them ordered.",
+      "Visits are flat. So this is not a demand problem — people are still showing up.",
+      "That already weakens every national explanation, competitor spend and seasonality included: a national cause cannot make the drop four times worse in small cities than in the metros.",
+      "So it is the share who ordered. Walk the funnel and it breaks at checkout.",
+      "Then ask the right question: what changed about the offer at the moment someone commits?",
+      "Delivery time is the obvious candidate — and delivery time is set by how many riders we have.",
+      "One data pull confirms it, so there is no need to buy the whole board.",
+      "Name the trap too: discounting genuinely does raise orders.",
+      "So if you are measured on orders alone, you can hit your number and hand back all of the profit doing it — which is exactly what six weeks of quiet discount increases had already started.",
+    ],
   },
 
   coachFallback: [
     {
       topic: ["rider", "supply", "payout", "churn"],
-      answer:
-        "Rider supply was the constraint. A competitor's tier-2 payout hike pulled 22% of rider hours out of the affected cities, and monthly rider churn went from 6% to 19%. Everything else you saw was downstream of that.",
+      answer: [
+        "Rider supply was the real constraint.",
+        "A competitor raised rider pay in small cities, which pulled 22% of rider hours out of the affected ones. Monthly rider churn went from 6% to 19%.",
+        "Everything else you saw on the dashboard followed from that.",
+      ],
     },
     {
       topic: ["eta", "delivery time", "late"],
-      answer:
-        "Median tier-2 ETAs went from 31 to 48 minutes. That is the mechanism: customers reached checkout, saw a much worse offer than they were used to, and left.",
+      answer: [
+        "Typical delivery time in the small cities went from 31 minutes to 48.",
+        "That is the mechanism.",
+        "Customers got all the way to checkout, saw a much worse offer than they were used to, and left.",
+      ],
     },
     {
       topic: ["discount", "margin", "profit", "contribution"],
-      answer:
-        "Discount per order was already up 19% before you arrived, which is why contribution margin fell about four times faster than orders. Deepening discounts further does raise orders — it just pays for them out of the margin, so you hit the number and lose the business case.",
+      answer: [
+        "Discount per order was already up 19% before you arrived — which is why profit fell about four times faster than orders.",
+        "Discounting further does raise orders.",
+        "It just pays for them out of the money you keep, so you hit the number and lose the business case.",
+      ],
     },
     {
       topic: ["brand", "campaign", "marketing", "sessions", "traffic"],
-      answer:
-        "Orders are sessions times conversion. Sessions never fell, so buying more traffic adds volume to the top of a funnel that is breaking at the bottom — about 5% more sessions for almost no additional orders, and slightly worse conversion because the incremental traffic is lower-intent.",
+      answer: [
+        "Orders are visits multiplied by the share of visitors who order.",
+        "Visits never fell — so buying more traffic pours people into the top of a funnel that is breaking at the bottom.",
+        "About 5% more visits for almost no extra orders, and slightly worse conversion, because bought traffic wants it less.",
+      ],
     },
     {
       topic: ["release", "8.4", "engineering", "crash", "latency"],
-      answer:
-        "The 8.4 release was a coincidence of timing. Crash-free sessions and checkout latency were effectively unchanged, and the release went out nationally while the drop was regional.",
+      answer: [
+        "The 8.4 release was a coincidence of timing.",
+        "Crashes and checkout speed were effectively unchanged.",
+        "And the release went out nationally, while the drop was regional — so it cannot be the cause.",
+      ],
     },
     {
       topic: ["competitor", "promo", "external"],
-      answer:
-        "Competitor promo intensity did rise, but evenly across tiers, so it cannot explain a drop four times worse in tier-2. It is the reason the riders left, not the reason the customers did.",
+      answer: [
+        "Competitor promotions did rise — but evenly across big and small cities.",
+        "So they cannot explain a drop four times worse in the small ones.",
+        "That competitor is why the riders left, not why the customers did.",
+      ],
     },
     {
       topic: ["seasonality", "festival", "calendar"],
-      answer: "The same six weeks last year were flat, so seasonality does not explain this.",
+      answer: [
+        "The same six weeks last year were flat.",
+        "So the calendar does not explain this.",
+      ],
     },
     {
       topic: ["restaurant", "selection", "supply of restaurants"],
-      answer:
-        "Restaurant supply grew in every tier over the period. Customers were not short of places to order from.",
+      answer: [
+        "The number of restaurants grew in every tier over the period.",
+        "Customers were not short of places to order from.",
+      ],
     },
   ],
 };
