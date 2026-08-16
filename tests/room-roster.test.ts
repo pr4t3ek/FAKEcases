@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { buildRoster, type RosterMember, type RosterRun } from "@/lib/rooms/roster";
+import {
+  buildRoster,
+  classDaysPar,
+  classStandings,
+  costScorePoints,
+  type RosterMember,
+  type RosterRun,
+} from "@/lib/rooms/roster";
 
 const T0 = new Date("2026-08-16T09:00:00.000Z");
 const at = (minutes: number) => new Date(T0.getTime() + minutes * 60_000);
@@ -26,7 +33,18 @@ function run(userId: string, over: Partial<RosterRun> = {}): RosterRun {
   };
 }
 
-const finished = { overall: 72, band: "Strong", causeFound: true };
+const finished = { overall: 72, band: "Strong", causeFound: true, daysPar: 8 };
+
+/** A committed run in one line, for the ranking cases below. */
+function done(userId: string, overall: number, daysSpent: number, over: Partial<RosterRun> = {}) {
+  return run(userId, {
+    id: `run-${userId}`,
+    phase: "debrief",
+    daysSpent,
+    result: { ...finished, overall },
+    ...over,
+  });
+}
 
 describe("buildRoster", () => {
   /**
@@ -208,5 +226,125 @@ describe("the roster summary", () => {
     );
     expect(summary.causesFound).toBe(1);
     expect(summary.finished).toBe(2);
+  });
+});
+
+describe("classStandings", () => {
+  it("ranks by score, highest first", () => {
+    const standings = classStandings(
+      buildRoster([member("ana", 1), member("bea", 2), member("carl", 3)], [
+        done("ana", 60, 5),
+        done("bea", 88, 5),
+        done("carl", 74, 5),
+      ]).rows,
+    );
+    expect(standings.map((s) => s.userId)).toEqual(["bea", "carl", "ana"]);
+    expect(standings.map((s) => s.rank)).toEqual([1, 2, 3]);
+  });
+
+  /**
+   * The property `LeaderboardEntry.effort` documents — "lower is always better",
+   * because a war room is judged on how cheaply it was investigated, not on how
+   * long the tab was open. Pinned here so the class board and the public board
+   * cannot drift into ranking the same two results differently.
+   */
+  it("breaks a tied score on fewer analyst-days", () => {
+    const standings = classStandings(
+      buildRoster([member("ana", 1), member("bea", 2)], [
+        done("ana", 80, 9),
+        done("bea", 80, 4),
+      ]).rows,
+    );
+    expect(standings.map((s) => s.userId)).toEqual(["bea", "ana"]);
+  });
+
+  it("breaks a total tie on who joined first", () => {
+    const standings = classStandings(
+      buildRoster([member("ana", 1), member("bea", 2)], [
+        done("bea", 80, 5),
+        done("ana", 80, 5),
+      ]).rows,
+    );
+    expect(standings.map((s) => s.userId)).toEqual(["ana", "bea"]);
+  });
+
+  it("gives a genuine tie the same rank, and the next result the position it holds", () => {
+    // Dense ranking: inventing an order between two identical results would put
+    // one student above another on a screen their professor reads out.
+    const standings = classStandings(
+      buildRoster([member("ana", 1), member("bea", 2), member("carl", 3)], [
+        done("ana", 80, 5),
+        done("bea", 80, 5),
+        done("carl", 70, 5),
+      ]).rows,
+    );
+    expect(standings.map((s) => s.rank)).toEqual([1, 1, 3]);
+  });
+
+  it("leaves out anyone who hasn't finished", () => {
+    const standings = classStandings(
+      buildRoster([member("ana", 1), member("bea", 2), member("carl", 3)], [
+        done("ana", 80, 5),
+        run("bea", { phase: "investigate", daysSpent: 3 }),
+      ]).rows,
+    );
+    // carl never started, bea is mid-run — neither has a score to rank.
+    expect(standings.map((s) => s.userId)).toEqual(["ana"]);
+  });
+
+  it("is empty for a room where nobody has committed", () => {
+    expect(classStandings([])).toEqual([]);
+    expect(classStandings(buildRoster([member("ana")], []).rows)).toEqual([]);
+  });
+});
+
+describe("costScorePoints", () => {
+  it("carries both axes for each finished run", () => {
+    const points = costScorePoints(
+      buildRoster([member("ana")], [done("ana", 72, 6)]).rows,
+    );
+    expect(points).toEqual([
+      { userId: "ana", displayName: "ANA", daysSpent: 6, overall: 72, causeFound: true },
+    ]);
+  });
+
+  it("omits runs still in progress", () => {
+    // Plotting one at its current spend would place a student on the chart at a
+    // score they have not earned yet.
+    const points = costScorePoints(
+      buildRoster([member("ana", 1), member("bea", 2)], [
+        done("ana", 72, 6),
+        run("bea", { phase: "commit", daysSpent: 4 }),
+      ]).rows,
+    );
+    expect(points.map((p) => p.userId)).toEqual(["ana"]);
+  });
+
+  it("is empty before anyone commits", () => {
+    expect(costScorePoints(buildRoster([member("ana")], []).rows)).toEqual([]);
+  });
+});
+
+describe("classDaysPar and underPar", () => {
+  it("reads par off a scored run", () => {
+    expect(classDaysPar(buildRoster([member("ana")], [done("ana", 72, 6)]).rows)).toBe(8);
+  });
+
+  it("has no par to draw before anyone finishes", () => {
+    expect(classDaysPar([])).toBeNull();
+    expect(classDaysPar(buildRoster([member("ana")], []).rows)).toBeNull();
+  });
+
+  it("counts who came in at or under it", () => {
+    const { summary } = buildRoster([member("ana", 1), member("bea", 2), member("carl", 3)], [
+      done("ana", 72, 6), // under
+      done("bea", 72, 8), // exactly par counts as under
+      done("carl", 72, 11), // over
+    ]);
+    expect(summary.underPar).toBe(2);
+  });
+
+  it("counts nobody in an empty room", () => {
+    expect(buildRoster([], []).summary.underPar).toBe(0);
   });
 });

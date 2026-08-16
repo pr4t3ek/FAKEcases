@@ -191,7 +191,12 @@ export async function loadRoster(roomId: string): Promise<Roster> {
         phase: true,
         daysSpent: true,
         createdAt: true,
-        result: { select: { overall: true, band: true, causeFound: true } },
+        // `daysPar` is the authored budget for the scenario. Carried so the
+        // console can draw the line between "came in under budget" and "over"
+        // rather than showing a cloud of unanchored dots.
+        result: {
+          select: { overall: true, band: true, causeFound: true, daysPar: true },
+        },
       },
     }),
   ]);

@@ -589,6 +589,21 @@ hidden. A self-paced room has no event to push, so a stream would be a poll with
 machinery — and `router.refresh()` on a timer would re-render the whole page to update one
 table. Only the professor's console polls; the student's page doesn't.
 
+**Standings and a cost-vs-score chart.** The console's second tab ranks the class — score
+first, then *fewer* analyst-days, which is the rule `LeaderboardEntry.effort` already
+documents ("lower is always better"), so the class board and the public board can't disagree
+about the same two results. Genuine ties share a rank rather than being ordered arbitrarily on
+a screen someone reads out.
+
+Beside it, a scatter of analyst-days against score with a dashed line at the scenario's par.
+That chart is the one worth having: it separates the student who found the cause cheaply from
+the one who bought every data pull and arrived at the same answer — a distinction the score
+alone hides, and the thing a debrief should open on.
+
+Both are derived from the roster the console is **already** polling, so the tab is live with
+no extra request, no extra endpoint and no schema change. The only data addition is one column
+(`daysPar`) on a `select` that was already running.
+
 ---
 
 ## Deploying to production
