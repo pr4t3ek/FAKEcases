@@ -75,7 +75,7 @@ export const sahyogAgencyRecovery: SimScenario = {
     "Shreeji Collections has topped that table every month this year, at 41.4% against 33-35% for the other three. " +
     "So two months ago the head of collections moved 60% of the overdue book to Shreeji. " +
     "Since then blended recovery has fallen from 35.6% to 33.8%. " +
-    "The head of collections now thinks the other three are dragging the average down, and wants the rest of the book moved as well. " +
+    "The head of collections now blames the other three, and wants the rest of the book moved as well. " +
     "You have 6 analyst-days to work out what that league table was measuring, then 3 sprints and ₹24 lakh to act on it.",
   difficulty: "Easy",
   engine: "v2",
@@ -111,13 +111,13 @@ export const sahyogAgencyRecovery: SimScenario = {
           plain:
             "How much the numbers move around inside one group. Think of a single agency's recovery rate going up and down from one month to the next.",
           matters:
-            "This is your yardstick. A gap between two groups only means something once it is bigger than the noise inside those groups. Most gaps that get acted on are not.",
+            "This is what you measure the gap against. A gap between two groups only means something if it is bigger than the noise inside those groups. Most gaps that people act on are not.",
         },
         {
           term: "Between-group variation",
           plain: "How far the group averages sit from each other.",
           matters:
-            "On its own it tells you nothing. Compare it against the within-group variation and you get a signal-to-noise ratio. That ratio is all an ANOVA really computes.",
+            "On its own it tells you nothing. Compare it against the within-group variation, and you can see whether the signal is bigger than the noise. That comparison is all an ANOVA really does.",
         },
         {
           term: "ANOVA",
@@ -479,7 +479,7 @@ export const sahyogAgencyRecovery: SimScenario = {
           kind: "note",
           title: "How the allocation was set, historically",
           body:
-            "New arrears have gone to Shreeji since 2022, back when it was the only agency with a tele-calling desk and the other three were field-only. They all have desks now, but nobody revisited the routing rule. " +
+            "New arrears have gone to Shreeji since 2022. Back then it was the only agency with a tele-calling desk, and the other three worked only in the field. They all have desks now, but nobody went back and changed the rule. " +
             "Now take the pooled bucket recovery rates and apply each agency's own mix to them. You get 33.2%, 35.1%, 41.4% and 33.5% — the league table, rebuilt without any agency being better at anything.",
         },
       ],
@@ -590,7 +590,7 @@ export const sahyogAgencyRecovery: SimScenario = {
           body:
             "Inside the 0–30 bucket, the four agency averages sit 1.6 points apart. One agency's own month-to-month standard deviation, inside that same bucket, is 2.8 points. " +
             "So the variation between agencies is smaller than the variation within one of them. That is the definition of a difference you cannot act on, and an ANOVA on this data would not come close to significance. " +
-            "Note carefully what this does not say. It does not say the eight-point gap on the league table is noise — that gap is far too big and too steady to be chance. It says the steady part of it has to come from something other than agency skill, because agency skill does not survive a like-for-like comparison.",
+            "Note carefully what this does not say. It does not say the eight-point gap on the league table is noise. That gap is far too big and too steady to be chance. It says the cause of that gap is something other than agency skill. Skill disappears as soon as you compare like with like.",
         },
       ],
     },
@@ -707,7 +707,7 @@ export const sahyogAgencyRecovery: SimScenario = {
           title: "What a flat rate does and does not do",
           body:
             "All four contracts pay 11.8% of the rupees recovered. No floor, no bucket loading, no volume tier. Nobody is paid to game a mix, and nobody is paid extra to work a hard account instead of an easy one. " +
-            "Raising the rate also raises what you pay on every rupee that was already coming back — about ₹33.5 lakh a month of it. That is an expensive way to buy a small amount of settlement.",
+            "Raising the rate also raises what you pay on every rupee that was already coming back. That is about ₹33.5 lakh a month. It is an expensive way to buy a small amount of settlement.",
         },
       ],
     },
@@ -725,7 +725,7 @@ export const sahyogAgencyRecovery: SimScenario = {
       parentId: "ranking",
       label: "The agencies were working different books",
       verdict:
-        "This was it. 42% of Shreeji's book sat in the 0–30 bucket, against 24–27% for the others. A 0–30 account recovers at 61%, a 90+ account at 11%. Rebuild each agency's blended rate from the pooled bucket rates and its own mix, and the league table comes back exactly — with no agency being better at anything.",
+        "This was it. 42% of Shreeji's book sat in the 0–30 bucket, against 24–27% for the others. A 0–30 account recovers at 61%, a 90+ account at 11%. Take the pooled bucket rates, apply each agency's own mix, and the league table comes back exactly. No agency has to be better at anything.",
     },
     {
       id: "ranking.noise",
@@ -746,7 +746,7 @@ export const sahyogAgencyRecovery: SimScenario = {
       parentId: "agency",
       label: "The other three agencies are simply worse at collecting",
       verdict:
-        "Not supported. Inside a single bucket the four land within 1.6 points, and they do not rank consistently: Vaibhav tops 0–30 and comes last in 61–90. There is no lasting skill difference in this data.",
+        "Not supported. Inside a single bucket the four land within 1.6 points. They do not rank consistently either: Vaibhav tops 0–30 and comes last in 61–90. There is no lasting skill difference in this data.",
     },
     {
       id: "agency.capacity",
@@ -801,7 +801,7 @@ export const sahyogAgencyRecovery: SimScenario = {
         otherwise: [{ driver: "contactRate", deltaPct: 0.02 }],
       },
       debrief:
-        "The cheap half of the answer, and mostly it undoes damage. Spreading the book back across four agencies that have the officers to work it takes contact rate back toward where it was. It buys no skill, because there was never any skill to buy. What it buys is a league table you can actually read next month.",
+        "The cheaper of the two fixes, and mostly it just repairs the damage. Spread the book back across four agencies that have the officers to work it, and contact rate climbs back toward where it was. It does not add any skill, because there was never any skill to add. What you get is a league table you can actually read next month.",
     },
     {
       id: "iv-early",
@@ -819,13 +819,13 @@ export const sahyogAgencyRecovery: SimScenario = {
         otherwise: [{ driver: "settlementRate", deltaPct: 0.03 }],
       },
       debrief:
-        "The expensive half, and the one that compounds. The bucket table is the finding the league table was hiding: recovery is decided by when you reach somebody, not by who reaches them. Moving effort forward is the only lever here that acts on what actually drives the number. And every account that settles in 0–30 is an account that never reaches the 11% bucket.",
+        "The costlier fix, and the one that keeps paying off. The bucket table is the finding the league table was hiding. Recovery depends on when you reach somebody, not on who reaches them. Moving effort earlier is the only lever here that touches what actually drives the number. Every account that settles in 0–30 is an account that never reaches the 11% bucket.",
     },
     {
       id: "iv-shift-more",
       label: "Move the rest of the book to Shreeji",
       pitch:
-        "The room's proposal. Shreeji has topped the table every month this year and the other three have not. Move the whole book to the agency that performs, and stop paying for three that do not.",
+        "This is what the room wants to do. Shreeji has topped the table every month this year and the other three have not. Move the whole book to the agency that performs, and stop paying for three that do not.",
       addresses: "agency.quality",
       cost: { sprints: 1, rupees: 3 * LAKH },
       effects: {
@@ -836,7 +836,7 @@ export const sahyogAgencyRecovery: SimScenario = {
         ],
       },
       debrief:
-        "It does exactly what the league table argues for, and it is the worst thing you can do with this budget. Shreeji's eight points were its book, not its people, so moving more volume buys no settlement. The volume also arrives at an agency already 68% over on accounts per officer, so contact rate falls again. The cheapest option on the board, and the one that destroys the most money.",
+        "It does exactly what the league table argues for, and it is the worst thing you can do with this budget. Shreeji's eight points came from its book, not its people. So moving more volume there does not make any more borrowers pay. The volume also lands on an agency already 68% over on accounts per officer, so contact rate falls again. This is the cheapest option on the board, and the one that loses the most money.",
     },
     {
       id: "iv-commission",
@@ -853,7 +853,7 @@ export const sahyogAgencyRecovery: SimScenario = {
         ],
       },
       debrief:
-        "The lever that pays for itself in the wrong direction. A flat commission is paid on every rupee that was already coming back — about ₹33.5 lakh a month. So buying 2.6% more settlement costs you 22.9% more commission on the entire base. The model charges you for that honestly. It is why 'just pay them more' is almost never the answer when a rate fell for structural reasons.",
+        "This lever pays for itself in the wrong direction. A flat commission is paid on every rupee that was already coming back, about ₹33.5 lakh a month. So buying 2.6% more settlement costs you 22.9% more commission on the whole base. The model charges you for that honestly. It is why 'just pay them more' is almost never the answer when a rate fell for a structural reason.",
     },
     {
       id: "iv-officers",
@@ -886,7 +886,7 @@ export const sahyogAgencyRecovery: SimScenario = {
         ],
       },
       debrief:
-        "Genuinely beats standing still, and that is what makes it a good decoy. More officers reach more borrowers, and the model gives you most of it. But you are buying contact evenly across a book that is 20% dead paper. Much of the extra calling lands on accounts that recover at 11%, and each one costs ₹96 to work. Under a quarter of what the same capacity does at the front of the book.",
+        "This really does beat doing nothing, and that is what makes it so tempting. More officers reach more borrowers, and the model gives you most of that. But you are spreading contact evenly across a book where 20% is very old debt that almost never pays. Much of the extra calling lands on accounts that recover at 11%, and each one costs ₹96 to work. You get under a quarter of what the same money does at the front of the book.",
     },
   ],
 
@@ -942,11 +942,11 @@ export const sahyogAgencyRecovery: SimScenario = {
 
   debrief: {
     causalChain: [
-      "Recovery on an overdue loan is decided by how old the arrear is: a 0–30 day account pays back 60.9%, a 90+ day account 11.1%. That is a 49.8-point spread and it belongs to the bucket, not to the collector.",
+      "Recovery on an overdue loan depends on how old the arrear is. A 0–30 day account pays back 60.9%. A 90+ day account pays back 11.1%. That is a 49.8-point spread, and it belongs to the bucket rather than the collector.",
       "New arrears had gone to Shreeji since 2022, when it was the only agency with a tele-calling desk. Nobody revisited the rule. So 42% of Shreeji's book sat in the 0–30 bucket, against 24–27% for the other three.",
       "Rebuild each agency's blended recovery from the pooled bucket rates and its own mix. You get 33.2%, 35.1%, 41.4%, 33.5% — the league table exactly, with every agency performing identically.",
       "Inside a single bucket the four agencies land within 1.6 points of each other, and they do not rank consistently. One agency's own month-to-month swing in that bucket is 2.8 points. So the variation between agencies is smaller than the variation within one of them.",
-      "The eight-point gap was therefore measuring bucket mix. Moving 60% of the book to Shreeji moved a mix rather than a skill: Shreeji's mix went back to the portfolio's, and its blended rate fell to the average.",
+      "The eight-point gap was therefore measuring bucket mix. Moving 60% of the book to Shreeji moved a mix, not a skill. Shreeji's mix went back to the portfolio's, and its blended rate fell to the average.",
       "The volume also arrived faster than the officers did, with accounts per officer up 68%. Shreeji's contact rate fell from 59.4% to 51.8%. Blended recovery went 35.6% → 33.8%, and net recovery fell ₹14 lakh a month.",
     ],
     whereTheLeverageWas:
@@ -958,7 +958,7 @@ export const sahyogAgencyRecovery: SimScenario = {
       "Shreeji had 42% of its book in the 0–30 bucket. The others had 24 to 27%. That mix alone rebuilds the whole league table.",
       "The check that settles it is holding the bucket fixed. Inside 0–30 the four agencies are within 1.6 points, and they do not even rank the same way in different buckets.",
       "And one agency's own month-to-month swing inside a bucket is 2.8 points — wider than the gap between agencies. Between-group variation smaller than within-group variation is a difference you cannot act on.",
-      "So the move bought a mix, not a skill. Shreeji's book went back to the portfolio average, and the volume outran its officers, so contact fell from 59.4% to 51.8%.",
+      "So the move bought a mix, not a skill. Shreeji's book went back to the portfolio average. The volume also grew faster than its officer count, so contact fell from 59.4% to 51.8%.",
       "I would rebalance to like-for-like books sized to each agency's officers, and rank on that comparison from next month.",
       "Then spend the real money on working the 0–30 bucket hard, because that is where the bucket table says the rupees are.",
       "And change the report. An agency league table has to be reported within bucket, or it is measuring the allocation rule rather than the agency.",
@@ -979,14 +979,14 @@ export const sahyogAgencyRecovery: SimScenario = {
       answer: [
         "Hold the bucket fixed and the agencies land within 1.6 points of each other.",
         "One agency's own month-to-month swing inside that same bucket is 2.8 points.",
-        "When the variation between groups is smaller than the variation within them, there is no difference to act on — that comparison is what an ANOVA computes.",
+        "When the variation between groups is smaller than the variation within them, there is no difference to act on. That comparison is what an ANOVA does.",
       ],
     },
     {
       topic: ["shreeji", "best agency", "quality", "skill", "better"],
       answer: [
         "No agency on this data is better than any other.",
-        "Inside a single bucket the four are within 1.6 points, and the ranking changes from bucket to bucket — Vaibhav is top in 0–30 and last in 61–90.",
+        "Inside a single bucket the four are within 1.6 points. The ranking also changes from bucket to bucket: Vaibhav is top in 0–30 and last in 61–90.",
         "Shreeji's eight points were the book it was given, and books do not travel with the agency.",
       ],
     },
@@ -995,7 +995,7 @@ export const sahyogAgencyRecovery: SimScenario = {
       answer: [
         "Shreeji's book went from 22% to 60% of the portfolio on 43% more officers.",
         "Accounts per officer rose 68% and its contact rate fell from 59.4% to 51.8%.",
-        "That is why the move cost as much as it did — but staffing it properly would only have made a pointless reallocation cost-neutral.",
+        "That is why the move cost as much as it did. But staffing it properly would only have made a pointless move cost nothing.",
       ],
     },
     {
@@ -1003,7 +1003,7 @@ export const sahyogAgencyRecovery: SimScenario = {
       answer: [
         "Rebalance to like-for-like books first, so next month's table means something.",
         "Then put the real money on working the 0–30 bucket before accounts roll into 31–60.",
-        "Everything worth recovering is recovered early — that is what the bucket table is telling you, and it is the finding the league table was hiding.",
+        "Everything worth recovering is recovered early. That is what the bucket table tells you, and it is what the league table was hiding.",
       ],
     },
     {
@@ -1011,7 +1011,7 @@ export const sahyogAgencyRecovery: SimScenario = {
       answer: [
         "Commission is a flat 11.8% of rupees recovered, identical across agencies and buckets.",
         "It is not distorting the comparison, so it is not the cause.",
-        "And raising it is expensive: you pay the higher rate on the ₹33.5 lakh a month that was already coming back, to buy a small amount of extra settlement.",
+        "And raising it is expensive. You pay the higher rate on the ₹33.5 lakh a month that was already coming back. You get only a little extra settlement.",
       ],
     },
     {

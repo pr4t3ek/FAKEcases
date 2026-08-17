@@ -576,14 +576,28 @@ had said "25 guesstimates" against a real 24 for some time, and that is correcte
 too.
 
 **A note on register, which the rest of the track has to match.** Both scenarios were
-written denser than the house style and then simplified — 65 user-facing sentences of 28+
-words came down to 13, and the longest from 44 words to 33. The drilldown `question:`
+written denser than the house style and then simplified twice. The drilldown `question:`
 line is where the drift showed most, because it is the one-line prompt a student reads
 *before* spending analyst-days: "Held to like-for-like accounts, is any agency actually
 better?" is not the same register as Kadak Coffee's "Is the campaign badly run?", and the
-older one is right. The rules that pass applied, and that A3 to A6 should be written to
-from the first line: one idea per sentence, at most one em-dash aside, no fronted
-subordinate clauses, everyday word ahead of the term of art.
+older one is right.
+
+The target is the **whole class, not the top of it or the middle** — which turned out to
+be a different instruction from "make it shorter", and the second pass is what found the
+difference. Sentence length was the smaller half: median 13 → 12, p90 22 → 20, longest 44
+→ 24 words, and the share over 20 words 14% → 7%. The larger half was **figurative
+language**, which is invisible to a length metric and is exactly what a weaker or
+non-native reader has to stop and decode. Twenty-odd phrases went: a book that was "20%
+dead paper", "a usage answer wearing a price answer's clothes", "a wandering line", "a
+machine for finding things that are not real", "the cheap half of the answer", "buys no
+settlement", "took the top slot", "filed as 'no effect'" (six times), "does not survive
+its own context", "a good decoy". Each became a literal statement of the same fact.
+
+The rules, and what A3 to A6 should be written to from the first line: one idea per
+sentence, at most one em-dash aside, no fronted subordinate clauses, everyday word ahead
+of the term of art, and **no metaphor carrying a load-bearing point**. A metaphor in a
+debrief is a second thing to decode at the moment a student has just been told they were
+wrong.
 
 **No term was removed** — the vocabulary is what an analytics track exists to teach, and
 an interviewer will use it. Only the English around it changed. The pass also surfaced two
