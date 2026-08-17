@@ -6,12 +6,14 @@ import {
   CalendarPlus,
   CheckCircle2,
   Flame,
+  Loader2,
   TrendingUp,
+  Trash2,
   UserRound,
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
-import { grantPro, revokePro, setUserRole } from "@/app/actions/admin";
+import { deleteUser, grantPro, revokePro, setUserRole } from "@/app/actions/admin";
 import type { AdminUserRow, AdminUserStats } from "@/lib/admin-stats";
 import { PRO_PASS_DAYS, proDaysRemaining } from "@/lib/billing";
 import { USER_ROLES, type UserRole } from "@/lib/types";
@@ -20,6 +22,13 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { RankDistributionChart, SignupsChart } from "./user-charts";
 
@@ -177,6 +186,103 @@ function RoleCell({ user }: { user: AdminUserRow }) {
           Make professor
         </Button>
       )}
+    </div>
+  );
+}
+
+/**
+ * Deleting someone's account on their behalf.
+ *
+ * Support requests and right-to-be-forgotten asks, which previously had no
+ * answer short of editing the database by hand.
+ *
+ * Confirmed by typing the target's own email — unlike `deleteQuestion` next
+ * door, which deletes on a single click of a trash icon. The difference is what
+ * is at the other end: a question is re-importable from `seed-data.ts`, and a
+ * person's history is not. On a table of hundreds of rows the mis-click is the
+ * likely failure, not the malicious one.
+ *
+ * The refusals — deleting yourself, a benchmark row, the last admin — live in the
+ * action, not here. This is the second copy of a rule's worth of nothing: a
+ * disabled button that lies about why is worse than a message that explains.
+ */
+function DeleteCell({ user }: { user: AdminUserRow }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [pending, startTransition] = useTransition();
+
+  // A guest has no email to type, so the id stands in — the admin can see it on
+  // screen and nobody types a cuid from memory by accident. Matches what the
+  // action expects.
+  const expected = user.email ?? user.id;
+  const matches = typed.trim().toLowerCase() === expected.toLowerCase();
+
+  function close(next: boolean) {
+    if (pending) return;
+    setOpen(next);
+    if (!next) setTyped("");
+  }
+
+  function confirm() {
+    startTransition(async () => {
+      const result = await deleteUser(user.id, typed);
+      if (!result.ok) {
+        toast.error(result.error ?? "That didn't work.");
+        return;
+      }
+      toast.success("Account deleted");
+      setOpen(false);
+      setTyped("");
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="flex items-center justify-end">
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-7 px-2 text-xs text-destructive"
+        title="Permanently delete this account. Classroom results are kept anonymously."
+        onClick={() => setOpen(true)}
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </Button>
+
+      <Dialog open={open} onOpenChange={close}>
+        <DialogContent className="sm:max-w-md">
+          <DialogTitle>Delete this account?</DialogTitle>
+          <DialogDescription>
+            {user.name || "This account"}&apos;s profile, practice history, evaluations and
+            leaderboard results will be permanently deleted. Any classroom result stays on
+            its professor&apos;s roster as “Deleted student”. This can&apos;t be undone.
+          </DialogDescription>
+
+          <div className="space-y-2">
+            <label htmlFor={`confirm-${user.id}`} className="text-sm text-muted-foreground">
+              Type <span className="font-medium text-foreground">{expected}</span> to confirm.
+            </label>
+            <Input
+              id={`confirm-${user.id}`}
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              autoComplete="off"
+              placeholder={expected}
+            />
+          </div>
+
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => close(false)} disabled={pending}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirm} disabled={!matches || pending}>
+              {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Delete account
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -376,6 +482,11 @@ export function UserDashboard({ stats }: { stats: AdminUserStats }) {
                       </button>
                     </th>
                   ))}
+                  {/* Outside COLUMNS deliberately: that array drives the sort,
+                      and there is nothing to sort a delete button by. */}
+                  <th className="p-3 text-right font-medium">
+                    <span className="sr-only">Delete</span>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -415,6 +526,9 @@ export function UserDashboard({ stats }: { stats: AdminUserStats }) {
                     </td>
                     <td className="whitespace-nowrap p-3 text-muted-foreground">
                       {formatDate(u.createdAt)}
+                    </td>
+                    <td className="p-3">
+                      <DeleteCell user={u} />
                     </td>
                   </tr>
                 ))}
