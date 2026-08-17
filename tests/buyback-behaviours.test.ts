@@ -283,7 +283,13 @@ describe("the engines stay generic", () => {
     // The words that would mean an engine had learned this domain. Comments are
     // stripped first: the modules explain themselves with examples, and a word
     // in prose is documentation, not coupling.
-    const forbidden = /\b(inventory|backlog|wholesale|buyback|supplier|factory|sku|warehouse|shipment)\b/i;
+    //
+    // No trailing \b, and that is the fix rather than an oversight. With one,
+    // this test passed for months while `financials.ts` took an `inventoryValue`
+    // argument and `time.ts` read `working.inventoryValue` by name — a whole
+    // balance-sheet line of supply chain sitting in the shared loop, invisible
+    // because the identifier was camelCase and the word boundary fell inside it.
+    const forbidden = /\b(inventor|backlog|wholesale|buyback|supplier|factory|sku|warehouse|shipment)/i;
     for (const [file, src] of Object.entries(engineSource)) {
       const code = src
         .replace(/\/\*[\s\S]*?\*\//g, "")

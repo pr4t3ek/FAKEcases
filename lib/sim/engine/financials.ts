@@ -29,7 +29,18 @@ export interface ProfitAndLoss {
 export interface BalanceSheet {
   cash: number;
   receivables: number;
-  inventoryValue: number;
+  /**
+   * Value held that has not yet become cash.
+   *
+   * Named for the shape rather than the thing: stock for a distributor, work
+   * finished but unreleased for a software team. It was `inventoryValue` until a
+   * second domain needed it, which put this domain's word inside a shared engine
+   * — the exact coupling the prohibition test in `tests/buyback-behaviours.test.ts`
+   * exists to catch, and which it missed only because the identifier was
+   * camelCase. Which state key fills it is now named by
+   * `SettlementConfig.heldAssetKey`.
+   */
+  heldAssetValue: number;
   payables: number;
   netAssets: number;
 }
@@ -83,7 +94,7 @@ export function postPeriod(args: {
   costOfGoodsSold: number;
   contractSettlement: number;
   operatingCost: number;
-  inventoryValue: number;
+  heldAssetValue: number;
 }): { posted: PostedPeriod; ledger: Ledger } {
   const { tick, config, ledger, openingCash } = args;
 
@@ -127,9 +138,9 @@ export function postPeriod(args: {
       balance: {
         cash,
         receivables,
-        inventoryValue: args.inventoryValue,
+        heldAssetValue: args.heldAssetValue,
         payables,
-        netAssets: cash + receivables + args.inventoryValue - payables,
+        netAssets: cash + receivables + args.heldAssetValue - payables,
       },
       cashFlow: { collected, paid, net: netCash },
     },
@@ -174,10 +185,10 @@ export function rollingNpv(args: {
 
 /**
  * Cash conversion cycle in days: how long a rupee is tied up between paying for
- * stock and being paid for it.
+ * what you hold and being paid for it.
  */
 export function cashConversionCycle(args: {
-  inventoryValue: number;
+  heldAssetValue: number;
   receivables: number;
   payables: number;
   costOfGoodsSold: number;
@@ -185,10 +196,10 @@ export function cashConversionCycle(args: {
   daysPerPeriod: number;
 }): number {
   const { daysPerPeriod } = args;
-  const daysInventory =
-    args.costOfGoodsSold > 0 ? (args.inventoryValue / args.costOfGoodsSold) * daysPerPeriod : 0;
+  const daysHeld =
+    args.costOfGoodsSold > 0 ? (args.heldAssetValue / args.costOfGoodsSold) * daysPerPeriod : 0;
   const daysReceivable = args.revenue > 0 ? (args.receivables / args.revenue) * daysPerPeriod : 0;
   const daysPayable =
     args.costOfGoodsSold > 0 ? (args.payables / args.costOfGoodsSold) * daysPerPeriod : 0;
-  return daysInventory + daysReceivable - daysPayable;
+  return daysHeld + daysReceivable - daysPayable;
 }

@@ -178,7 +178,12 @@ export function runTick(
     costOfGoodsSold: line(config.settlement.costOfGoods),
     contractSettlement: line(config.settlement.contract),
     operatingCost: working[config.settlement.operatingCostKey] ?? 0,
-    inventoryValue: working.inventoryValue ?? 0,
+    // Which key holds value that has not become cash is the domain's to name.
+    // Reading one by name here was the last piece of supply chain left in the
+    // loop; a domain that holds nothing between periods omits the key entirely.
+    heldAssetValue: config.settlement.heldAssetKey
+      ? (working[config.settlement.heldAssetKey] ?? 0)
+      : 0,
   });
   working.cash = posted.balance.cash;
 

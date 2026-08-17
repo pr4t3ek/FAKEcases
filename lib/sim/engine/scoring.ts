@@ -79,7 +79,7 @@ export function computeKpis(args: {
       }
       case "cashCycle":
         return cashConversionCycle({
-          inventoryValue: state.current[formula.stockValueKey] ?? 0,
+          heldAssetValue: state.current[formula.stockValueKey] ?? 0,
           receivables: args.receivables,
           payables: args.payables,
           costOfGoodsSold: sumOf(formula.periodCostKey) / ticks,
