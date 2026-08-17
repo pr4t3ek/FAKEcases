@@ -29,6 +29,10 @@ decides rather than obeys, and both a solo and a classroom mode.
 🎤 **[Pitch deck kit](docs/PITCH_DECK.md)** — a 16-slide spec (headline, visual, speaker notes
 per slide) plus the prompts to generate the deck, for pitching what this is and where it's going.
 
+🚨 **[War room: the Kavach threshold](docs/WAR_ROOM_CONFUSION_MATRIX.md)** — the facilitator's copy
+of the confusion-matrix case: a fraud model at 95% accuracy, one threshold dial, and the answer key
+for why 95% is a vanity metric when one error costs ten times the other.
+
 ---
 
 ## Quick start
@@ -37,7 +41,7 @@ per slide) plus the prompts to generate the deck, for pitching what this is and 
 cp .env.example .env   # Prisma needs DATABASE_URL; .env is gitignored, so a clone has none
 pnpm install
 pnpm db:push           # create the SQLite database from prisma/schema.prisma
-pnpm db:seed           # 16 categories, 45 questions (24 guesstimates + 2 cases + 19 simulations), achievements, demo users
+pnpm db:seed           # 16 categories, 46 questions (24 guesstimates + 3 cases + 19 simulations), achievements, demo users
 pnpm dev               # http://localhost:3000
 ```
 

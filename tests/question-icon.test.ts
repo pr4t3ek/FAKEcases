@@ -113,6 +113,13 @@ const EXPECTED: Record<string, string> = {
   "Annual GMV of a mid-size D2C brand in India": "ShoppingBag",
   "Falling delivery margins at a food-delivery platform": "Bike",
   "Should a two-wheeler maker enter electric scooters?": "BatteryCharging",
+  // "bank" reaches the banking rule, so this one does NOT fall back to the Data
+  // & Analytics category icon the way the other analytics rows do — and that is
+  // the right card: the subject is a bank's fraud desk. Worth pinning by name
+  // because its tags are one word away from a different icon; adding "card" to
+  // them would silently repoint it to CreditCard, which sits above banking.
+  "Sampann Bank: Kavach is 95% accurate, and the fraud desk is ₹1 crore down a month":
+    "Landmark",
   "NukkadEats: orders are down 9% and nobody knows why": "Bike",
   "Kadak Coffee: the ads are working and the money is going": "Coffee",
   "Padhai Plus: 18,000 new subscribers a month, and a bigger hole": "GraduationCap",

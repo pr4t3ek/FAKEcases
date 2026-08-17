@@ -90,8 +90,8 @@ deterministic causal model that answers with moved business metrics — orders, 
 margin — instead of a mark.
 
 STATUS: pre-launch. No public users, no revenue, no payment gateway. Built and tested end
-to end: ~55,000 lines of TypeScript, 50 test suites, 12 product surfaces, 45 seeded
-exercises (24 guesstimates, 2 cases, 19 simulations). Runs fully offline with zero API
+to end: ~55,000 lines of TypeScript, 50 test suites, 12 product surfaces, 46 seeded
+exercises (24 guesstimates, 3 cases, 19 simulations). Runs fully offline with zero API
 keys; real LLM providers swap in through environment variables only.
 
 AUDIENCE: seed investors in India edtech. Tone: precise, evidence-first, no hype. Every
@@ -611,7 +611,7 @@ Flat vector, Inter, 16:9.
   No card, no login.
 - **Free account** — the same content, plus saved progress, streaks, a percentile rank and a
   profile.
-- **Pro, ₹499/month** — the full library: 24 guesstimates, both cases, all 19 war rooms.
+- **Pro, ₹499/month** — the full library: 24 guesstimates, all 3 cases, all 19 war rooms.
 - **The mechanic is a dated pass, not a subscription.** Pro is one timestamp on the user row,
   compared against *now* — so there is no renewal job, no cron, no cancellation flow, and no
   stored label that can drift out of date. Granting extends rather than resets.
@@ -648,7 +648,7 @@ say the pre-launch part before anyone has to ask.**
 **Headline.** Pre-launch, and built end to end.
 
 **Body.** What exists, verifiable in the repository today:
-- **45 exercises** — 24 guesstimates, 2 cases, 19 war rooms, all India-context.
+- **46 exercises** — 24 guesstimates, 3 cases, 19 war rooms, all India-context.
 - **12 product surfaces** — landing, library, practice, war rooms, dashboard, profile,
   onboarding, admin, auth.
 - **~55,000 lines** of strict TypeScript across **50 test suites** — scorer, gamification,

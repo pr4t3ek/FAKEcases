@@ -310,6 +310,14 @@ describe("the Pro pitch names the catalogue it is selling", () => {
     expect(reason).toContain(`${counts.simulation} war rooms`);
   });
 
+  it("quotes the real number of cases", () => {
+    // The third format, unpinned until the confusion-matrix case landed — and
+    // duly wrong the moment it did, because the sentence said "both cases" while
+    // there were three. Asserting the numeral is also what keeps the copy from
+    // going back to a word: "both" cannot be checked against a count.
+    expect(reason).toContain(`${counts.qualitative} cases`);
+  });
+
   it("counts a war room once, in the catalogue and in the registries alike", () => {
     // A seed row without an exercise behind it is inert, and an exercise without
     // a row is unreachable. The pitch is only honest if the two agree, so it is

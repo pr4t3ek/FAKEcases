@@ -569,6 +569,107 @@ export const questions: SeedQuestion[] = [
     tags: "market entry,ev,strategy",
   },
   /**
+   * The confusion-matrix war room, and the analytics track's first *case*.
+   *
+   * Filed under `data-analytics` with the four statistical war rooms rather than
+   * under `finance`, because what it teaches is a way of reading a 2×2 table —
+   * the fraud desk is the setting, not the subject. It is the first practice
+   * question in that category, which is why "Data & Analytics" now appears on
+   * `/library` as well as `/simulations`: `listCategories(surface)` derives that
+   * from what a category holds, so no wiring changed to let it through.
+   *
+   * A case rather than a simulation on purpose. The exercise is a text brief
+   * with one dial, not a dashboard — there is no metric map to explore and no
+   * quarter to spend, so a `lib/sim/scenarios` entry would be all cost and no
+   * mechanic. The facilitator's copy, with the full threshold table and the
+   * answer key, is `docs/WAR_ROOM_CONFUSION_MATRIX.md`.
+   *
+   * No `framework`: none of the five in `lib/config/frameworks.ts` fits a
+   * threshold trade-off, and declaring `profitability` would have guided mode
+   * offering "Procuring Raw Materials" under a fraud model. Detection falls back
+   * to inference from the candidate's own labels, which is the right answer here.
+   *
+   * The prompt carries what the student cannot be asked to guess — the four
+   * cells and the two prices — and the data pack carries everything else,
+   * including the five certified thresholds. That split is deliberate: a
+   * candidate who never asks what the other settings cost has not found the
+   * decision, and the exercise should be able to notice.
+   */
+  {
+    externalId: "war-room-fraud-threshold",
+    title: "Sampann Bank: Kavach is 95% accurate, and the fraud desk is ₹1 crore down a month",
+    prompt:
+      "A bank's new fraud model reports 95% accuracy on 10,000 high-value transactions: 220 frauds caught, 180 frauds approved, 320 legitimate transactions wrongly declined, 9,280 approved correctly. A missed fraud costs ₹50,000 in write-off and chargeback handling; a wrongly declined customer costs ₹5,000 in service and lost lifetime value. The CFO says the losses haven't moved, the segment head says his customers are leaving, and the head of analytics says 95% is the best model the bank has ever run. You cannot retrain it — you can only move the score threshold at which it blocks. Price the errors, decide which one you are willing to have more of, and defend the trade.",
+    category: "data-analytics",
+    sector: "financial-services",
+    difficulty: "Medium",
+    // The audience the exercise was written for: it needs no statistics beyond
+    // arithmetic, and the whole lesson is a management one.
+    interviewLevel: "GeneralMBA",
+    type: "qualitative",
+    expectedBuckets: [
+      "Cost of a False Negative",
+      "Cost of a False Positive",
+      "Value the model creates",
+      "Base rate",
+      "Accuracy as a metric",
+      "Threshold direction",
+      "Operational capacity",
+      "Customer segment",
+    ],
+    dataPack: [
+      {
+        topic: ["threshold", "sensitivity", "setting", "settings", "options", "dial", "tune", "tuning"],
+        fact: "Five certified settings, replayed on the same 10,000 transactions (TP / FN / FP / TN, accuracy): A at 0.80 → 140 / 260 / 90 / 9,510, 96.5%. B at 0.65 → 185 / 215 / 175 / 9,425, 96.1%. C at 0.50, live today → 220 / 180 / 320 / 9,280, 95.0%. D at 0.35 → 300 / 100 / 700 / 8,900, 92.0%. E at 0.20 → 350 / 50 / 1,900 / 7,700, 80.5%. Every row still contains 400 real frauds and 9,600 real legitimate transactions.",
+      },
+      {
+        topic: ["base rate", "prevalence", "imbalance", "fraud rate", "how much fraud"],
+        fact: "400 of the 10,000 transactions are fraudulent — a 4% base rate. The other 9,600 are legitimate, and the model approves 9,280 of them, which is 92.8 of the 95 accuracy points on its own.",
+      },
+      {
+        topic: ["baseline", "do nothing", "no model", "approve everything", "before", "benchmark"],
+        fact: "Approving every transaction — no model at all — misclassifies only the 400 frauds, so it scores 96.0% accuracy and costs 400 × ₹50,000 = ₹2 crore a month. Blocking every transaction scores 4.0% and costs ₹4.8 crore. The live model costs ₹1.06 crore.",
+      },
+      {
+        topic: ["false negative", "missed fraud", "write-off", "fraud cost", "50,000"],
+        fact: "₹50,000 per missed fraud: ₹42,000 average fraudulent ticket written off, plus ₹8,000 of chargeback processing, investigation, card reissue and regulatory filing. Direct, certain, and on this month's P&L.",
+      },
+      {
+        topic: ["false positive", "declined", "blocked", "churn", "lifetime value", "ltv", "5,000"],
+        fact: "₹5,000 expected per wrongly declined transaction: ₹400 of contact-centre handling, card reissue and apology credit, plus a 9% chance the customer moves their primary relationship within 90 days against a remaining lifetime value of ₹51,000 (0.09 × 51,000 ≈ ₹4,600). Probabilistic and delayed — it surfaces as churn and NPS, never on the fraud line.",
+      },
+      {
+        topic: ["queue", "capacity", "review", "manual", "callback", "operations", "ops", "headcount"],
+        fact: "The fraud-operations desk can call back and manually clear 600 blocked transactions a month. Beyond 600 the customer waits a day rather than a minute. Headcount is frozen for the quarter.",
+      },
+      {
+        topic: ["segment", "priority", "vip", "customer mix", "tenure", "aum"],
+        fact: "The corridor is card-not-present spend above ₹25,000 by the wealthiest 4% of customers. The ₹51,000 lifetime value is a segment average spanning a ₹5-crore-AUM relationship and a nearly dormant one, so a single price for a False Positive is uniform across customers who are not.",
+      },
+      {
+        topic: ["retrain", "model", "features", "data science", "better model", "accuracy improvement"],
+        fact: "Off the table for the quarter: no retraining, no new data features, no relabelling, no extra reviewers. The score threshold is the only control that moves.",
+      },
+      {
+        topic: ["step-up", "otp", "authentication", "biometric", "alternative", "soft decline"],
+        fact: "Engineering can put a step-up check — OTP or biometric re-auth — on a blocked transaction instead of a hard decline, within the frozen quarter. A genuine customer clears it in about fifteen seconds, which turns a decline into a delay and cuts the effective cost of a False Positive.",
+      },
+      {
+        topic: ["complaint", "exit", "attrition", "nps", "customers leaving"],
+        fact: "Complaints from the segment are up four-fold since deployment and 29 customers have moved their primary relationship in six weeks. The exit interviews repeat one sentence: they were embarrassed in front of a vendor.",
+      },
+    ],
+    rootCause: {
+      path: ["Cost of a False Negative", "Threshold direction"],
+      note: "85% of the ₹1.06 crore monthly bleed is the 180 approved frauds (₹90 lakh) against ₹16 lakh of wrongly blocked customers, and the threshold is set where accuracy is comfortable rather than where the money is. Moving 0.50 → 0.35 buys 80 fewer missed frauds for 380 more blocked customers — 4.75 : 1 against a 10 : 1 break-even — and takes total error cost to ₹85 lakh while dropping reported accuracy to 92%.",
+    },
+    betterApproach:
+      "Price each cell of the matrix before judging the model, because accuracy weights a ₹50,000 mistake and a ₹5,000 mistake equally and the business does not. Then find the number that proves the metric is empty: with a 4% base rate, approving everything scores 96% — above the model — so accuracy is very nearly a measurement of the base rate. Choose the threshold on total error cost rather than on any single rate, and defend it at the margin: the two prices imply it is worth accepting up to ten new False Positives for every False Negative removed, so the right setting is the last one where the exchange rate is still under that. Finish on what would change your mind — which cost assumption, and at what value.",
+    sampleSolution:
+      "The live setting bleeds 180 × ₹50,000 = ₹90 lakh on missed fraud and 320 × ₹5,000 = ₹16 lakh on blocked customers: ₹1.06 crore a month, ₹12.7 crore a year, 85% of it in one cell. The 95% is a vanity metric because approving every transaction scores 96% and costs ₹2 crore — accuracy ranks the do-nothing system first and the model that saves ₹94 lakh second. So Kavach is badly tuned, not bad. Total error cost by setting: A ₹1.345 cr, B ₹1.1625 cr, C ₹1.06 cr, D ₹85 lakh, E ₹1.2 cr. Ship D — accept more False Positives to buy fewer False Negatives — worth ₹21 lakh a month, ₹2.52 crore a year. It holds at the margin: C → D removes 80 missed frauds for 380 more blocked customers, 4.75 : 1 against the 10 : 1 the prices imply, while D → E costs 24 : 1 and is refused on the same test. Note that accuracy peaks at A (96.5%), the second most expensive setting on the board, so the metric and the money rank the options almost in reverse. Two things finish the answer. D blocks 1,000 transactions against a desk that clears 600, so it ships with step-up authentication or a value-triaged queue, not on its own. And the whole recommendation rests on the ₹5,000: past ₹10,526 per wrongly declined customer the live setting is already optimal, past ₹12,069 the answer is B — so the honest close is to ship D and ask for the churn study behind the 9%.",
+    tags: "data analytics,confusion matrix,false positives,false negatives,precision,recall,class imbalance,base rate,decision threshold,cost of error,fraud detection,retail banking",
+  },
+  /**
    * The catalogue row for a decision simulation.
    *
    * Everything that makes it an exercise — dashboard, priced drilldowns, causal
