@@ -840,3 +840,37 @@ are both present, and `pnpm dev` serves the landing page.
 Unrelated and still outstanding: `package.json#prisma` carries the same kind of
 deprecation, and Prisma 7 will stop reading it. It warns on every install and has not
 been moved to `prisma.config.ts` yet.
+
+### 21. The pnpm fix in entry 20 was half a fix
+
+Entry 20 moved `onlyBuiltDependencies` and `overrides` out of `package.json` and into
+`pnpm-workspace.yaml`, and on pnpm 11 the install still failed with
+`ERR_PNPM_IGNORED_BUILDS` listing all nine packages — including the five the allowlist
+named.
+
+The diagnosis was right about the file and wrong about the keys. pnpm 11 did not move
+`onlyBuiltDependencies` and `ignoredBuiltDependencies` into the workspace file, it
+**removed** them, replacing both with an `allowBuilds` map from package name to boolean:
+`true` may run its install scripts, `false` is a deliberate skip that counts as reviewed
+and so does not error. `overrides` survived the rename untouched.
+
+That combination is what made the second failure hard to read, and it is the part worth
+keeping. On pnpm 11 the override applied normally while the allowlist beside it did
+nothing, so every visible signal said the file was being read — the `package.json#pnpm`
+warning was gone, and the js-yaml override forced a re-link of 27 packages — while half
+the file was dead. A setting that is ignored looks exactly like a setting that is
+satisfied.
+
+Both spellings are now present. `allowBuilds` is pnpm 11+; the legacy pair is pnpm
+10.6–10.x, where `allowBuilds` is the half that does nothing. They have to be kept in
+step, since a package added to one and forgotten in the other is silent on whichever
+major ignores it. The legacy pair can go once nobody is on pnpm 10.
+
+Verified on pnpm 10.33 from a deleted `node_modules`: install exits 0 with no
+ignored-build warning, `js-yaml@4.3.0` resolves alone, and the Prisma query engine and
+esbuild binary are both present — so adding `allowBuilds` does not disturb the major that
+ignores it. The pnpm 11 path is from the migration notes rather than a local run, since
+this container is on 10.33.
+
+`pnpm approve-builds` writes `allowBuilds` on pnpm 11, so running it produces this file
+rather than fighting it.

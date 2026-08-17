@@ -1,23 +1,49 @@
 # pnpm settings.
 #
 # These lived in `package.json#pnpm` until pnpm 11 stopped reading that field.
-# It does not fail loudly when it goes missing — it warns, drops every key, and
-# carries on — so both settings below were silently inert on a current pnpm and
-# the failure showed up somewhere else entirely:
+# It does not fail loudly when it goes missing — it warns, drops every key and
+# carries on — so the settings were silently inert and the failure surfaced
+# somewhere else: no build-script allowlist means nothing may run one, every
+# package with a build script lands in the ignored list, and pnpm exits 1 with
+# ERR_PNPM_IGNORED_BUILDS. `pnpm dev` runs a dependency check that shells out to
+# `pnpm install`, so the error names a command you did not type.
 #
-#   - With `onlyBuiltDependencies` gone there is no allowlist, so *nothing* is
-#     permitted to run a build script, every package with one lands in the
-#     ignored list, and pnpm exits 1 with ERR_PNPM_IGNORED_BUILDS. `pnpm dev`
-#     runs a dependency check that shells out to `pnpm install`, so the dev
-#     server never starts and the error names install rather than dev.
-#   - With `overrides` gone the js-yaml pin stops applying, which is the half
-#     worth worrying about: a dropped allowlist is loud, a dropped version pin
-#     is not.
+# ── Why the build settings are written twice ────────────────────────────────
 #
-# See https://pnpm.io/settings.
+# pnpm 11 did not move `onlyBuiltDependencies` and `ignoredBuiltDependencies`
+# into this file, it REMOVED them, and replaced both with the `allowBuilds` map
+# below. `overrides` survived that rename, which is the detail that makes the
+# breakage so hard to read: on pnpm 11 the override below applies normally while
+# the allowlist beside it does nothing, so the file looks like it is being read
+# — and it is — while half of it is dead.
+#
+# Both spellings are kept because they cover different majors and neither is
+# read by the other: `allowBuilds` is pnpm 11+, and the two legacy keys are
+# pnpm 10.6 to 10.x, where `allowBuilds` is the one that does nothing. Drop the
+# legacy pair once nobody is on pnpm 10.
+#
+# Keep the two lists in step. A package added to one and forgotten in the other
+# is silent on the major that ignores it.
+#
+# See https://pnpm.io/settings/build.
 
-# Packages allowed to run install scripts. Prisma generates its client, esbuild
-# and sharp fetch or compile a native binary; none of them work unbuilt.
+# pnpm 11+. true = may run its install scripts, false = deliberately skipped.
+# Listing the skips is not decoration: pnpm 11 treats an unreviewed build as an
+# error, so omitting them fails the install with a shorter list rather than none.
+allowBuilds:
+  "@prisma/client": true
+  "@prisma/engines": true
+  prisma: true
+  esbuild: true
+  sharp: true
+  # All three ship usable prebuilt artefacts. The suite, lint and build pass
+  # with their install scripts skipped, which is why these are false rather
+  # than an oversight.
+  "@google/genai": false
+  protobufjs: false
+  unrs-resolver: false
+
+# pnpm 10.6–10.x. Removed in pnpm 11; ignored there.
 onlyBuiltDependencies:
   - "@prisma/client"
   - "@prisma/engines"
@@ -25,15 +51,11 @@ onlyBuiltDependencies:
   - esbuild
   - sharp
 
-# Packages whose install scripts we deliberately skip. Listing them is not
-# decoration: current pnpm treats an unacknowledged ignored build as an error,
-# so without this the install still exits 1 — just with a shorter list. All
-# three ship usable prebuilt artefacts, and the suite, lint and build all pass
-# with their scripts skipped.
 ignoredBuiltDependencies:
   - "@google/genai"
   - protobufjs
   - unrs-resolver
 
+# Read by both majors.
 overrides:
   js-yaml: 4.3.0
