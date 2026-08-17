@@ -183,7 +183,7 @@ export default async function SimulatePage({
             balance: [
               { label: "Cash", value: money(lastPosted.balance.cash) },
               { label: "Receivables", value: money(lastPosted.balance.receivables) },
-              { label: "Stock", value: money(lastPosted.balance.inventoryValue) },
+              { label: "Stock", value: money(lastPosted.balance.heldAssetValue) },
               { label: "Payables", value: money(-lastPosted.balance.payables) },
               { label: "Net assets", value: money(lastPosted.balance.netAssets), emphasis: true },
             ],

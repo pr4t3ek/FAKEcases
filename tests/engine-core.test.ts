@@ -303,7 +303,7 @@ describe("financials", () => {
       costOfGoodsSold: 560_000,
       contractSettlement: 0,
       operatingCost: 250_000,
-      inventoryValue: 0,
+      heldAssetValue: 0,
     });
     // Profitable on the P&L…
     expect(posted.pnl.netProfit).toBe(150_000);
@@ -326,7 +326,7 @@ describe("financials", () => {
         costOfGoodsSold: 560_000,
         contractSettlement: 0,
         operatingCost: 250_000,
-        inventoryValue: 0,
+        heldAssetValue: 0,
       });
       ledger = r.ledger;
       cash = r.posted.balance.cash;
@@ -346,7 +346,7 @@ describe("financials", () => {
       costOfGoodsSold: 30_000,
       contractSettlement: 5_000,
       operatingCost: 10_000,
-      inventoryValue: 7_000,
+      heldAssetValue: 7_000,
     });
     expect(posted.balance.netAssets).toBeCloseTo(
       posted.balance.cash + posted.balance.receivables + 7_000 - posted.balance.payables,
@@ -374,7 +374,7 @@ describe("financials", () => {
 
   it("computes a cash conversion cycle that lengthens with slower collection", () => {
     const base = {
-      inventoryValue: 100_000,
+      heldAssetValue: 100_000,
       payables: 200_000,
       costOfGoodsSold: 560_000,
       revenue: 960_000,
