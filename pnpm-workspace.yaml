@@ -1,0 +1,39 @@
+# pnpm settings.
+#
+# These lived in `package.json#pnpm` until pnpm 11 stopped reading that field.
+# It does not fail loudly when it goes missing — it warns, drops every key, and
+# carries on — so both settings below were silently inert on a current pnpm and
+# the failure showed up somewhere else entirely:
+#
+#   - With `onlyBuiltDependencies` gone there is no allowlist, so *nothing* is
+#     permitted to run a build script, every package with one lands in the
+#     ignored list, and pnpm exits 1 with ERR_PNPM_IGNORED_BUILDS. `pnpm dev`
+#     runs a dependency check that shells out to `pnpm install`, so the dev
+#     server never starts and the error names install rather than dev.
+#   - With `overrides` gone the js-yaml pin stops applying, which is the half
+#     worth worrying about: a dropped allowlist is loud, a dropped version pin
+#     is not.
+#
+# See https://pnpm.io/settings.
+
+# Packages allowed to run install scripts. Prisma generates its client, esbuild
+# and sharp fetch or compile a native binary; none of them work unbuilt.
+onlyBuiltDependencies:
+  - "@prisma/client"
+  - "@prisma/engines"
+  - prisma
+  - esbuild
+  - sharp
+
+# Packages whose install scripts we deliberately skip. Listing them is not
+# decoration: current pnpm treats an unacknowledged ignored build as an error,
+# so without this the install still exits 1 — just with a shorter list. All
+# three ship usable prebuilt artefacts, and the suite, lint and build all pass
+# with their scripts skipped.
+ignoredBuiltDependencies:
+  - "@google/genai"
+  - protobufjs
+  - unrs-resolver
+
+overrides:
+  js-yaml: 4.3.0

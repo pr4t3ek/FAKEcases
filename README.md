@@ -45,6 +45,14 @@ The `.env` step is easy to skip and confusing when you do: the app itself defaul
 `DATABASE_URL` (`lib/config/env.ts`), but `prisma/schema.prisma` does not, so it is the
 `db:*` commands that fail rather than the site.
 
+**pnpm settings live in `pnpm-workspace.yaml`, not in `package.json`.** pnpm 11 stopped
+reading the `package.json#pnpm` field, and it does not fail loudly when it goes missing —
+it warns, drops every key and carries on. That takes the build-script allowlist with it,
+so nothing is allowed to run an install script and pnpm exits with
+`ERR_PNPM_IGNORED_BUILDS`. If you meet that error after running `pnpm dev` rather than
+`pnpm install`, they are the same error: `dev` runs a dependency check that shells out to
+`install`, so the message names the command you did not type.
+
 **The database is not in the repo** — `prisma/dev.db` is gitignored, as a binary build
 artifact should be. All the content lives in `prisma/seed-data.ts`, so an empty question
 library means the seed hasn't been run, not that the questions are missing.
