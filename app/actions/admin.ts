@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+import { deleteAccount } from "@/lib/account-deletion";
 import { PRO_PASS_DAYS, nextProUntil } from "@/lib/billing";
 import { FEEDBACK_STATUSES, USER_ROLES, isUserRole } from "@/lib/types";
+import { isRealUser } from "@/lib/user-segment";
 import {
   questionCoreSchema,
   refineQuestion,
@@ -189,6 +191,64 @@ export async function setUserRole(userId: string, role: string): Promise<SaveRes
   // both keyed off the role, so both have to re-render for the person whose
   // role just changed.
   revalidatePath("/simulations");
+  revalidatePath("/host");
+  return { ok: true };
+}
+
+/**
+ * Delete a user's account on their behalf.
+ *
+ * Returns its refusals rather than throwing like `deleteQuestion` next door: each
+ * one is a sentence an admin needs to read and act on, and a thrown Server Action
+ * error reaches them redacted in production.
+ *
+ * The target's email is typed to confirm, for the same reason it is on
+ * `/profile` — except here the mis-click being guarded against is a row on a
+ * table of hundreds, which is the more likely of the two.
+ */
+export async function deleteUser(userId: string, confirmEmail: string): Promise<SaveResult> {
+  await assertAdmin();
+
+  const self = await getSessionUser();
+  // Not a capability question — an admin may certainly delete their own account.
+  // But doing it from this table skips the last-admin check and the session
+  // teardown that `/profile` does, so it is refused with somewhere to go.
+  if (self?.id === userId) {
+    return { ok: false, error: "Delete your own account from your profile page." };
+  }
+
+  const target = await db.user.findUnique({
+    where: { id: userId },
+    select: { email: true, isGuest: true, role: true },
+  });
+  if (!target) return { ok: false, error: "No such user." };
+
+  // The 40 seeded rows exist to give the percentile rank a cold-start
+  // population; deleting them shrinks it and moves everyone's percentile for no
+  // reason a support request ever asked for.
+  if (!isRealUser(target)) {
+    return { ok: false, error: "Benchmark rows seed the rank population and can't be deleted." };
+  }
+
+  if (target.role === "admin") {
+    const admins = await db.user.count({ where: { role: "admin" } });
+    if (admins <= 1) {
+      return { ok: false, error: "That's the only admin account." };
+    }
+  }
+
+  // A guest row has no email to type, so the confirmation is the id instead —
+  // the table has it and a human does not type a cuid from memory.
+  const expected = (target.email ?? userId).toLowerCase();
+  if (confirmEmail.trim().toLowerCase() !== expected) {
+    return { ok: false, error: "That doesn't match the account you're deleting." };
+  }
+
+  await deleteAccount(userId);
+
+  revalidatePath("/admin");
+  // Their rows are gone from every board, and a room they hosted is now closed.
+  revalidatePath("/dashboard");
   revalidatePath("/host");
   return { ok: true };
 }

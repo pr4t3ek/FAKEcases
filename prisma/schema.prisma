@@ -32,6 +32,18 @@ model User {
   role           String    @default("user")
   isGuest        Boolean   @default(false)
 
+  /// Set only on a TOMBSTONE: the anonymous row that inherits a deleted
+  /// account's classroom footprint — its seats, its class runs and any rooms it
+  /// hosted — so a professor's roster and standings survive the deletion. See
+  /// `lib/account-deletion.ts`.
+  ///
+  /// Never set on a real account. A row carrying this is a marker, not a person:
+  /// it has no email and no password, so nothing can sign in as one, and it is
+  /// minted with `isGuest: true` so the existing `isGuest: false` filters in
+  /// `recomputeRank` and `rankableUser` keep it out of the rank population and
+  /// every public board with no new filter to add anywhere.
+  deletedAt      DateTime?
+
   /// Pro access runs until this instant, or null for a free account.
   ///
   /// The single source of truth for the paid tier, which is why the old `plan`

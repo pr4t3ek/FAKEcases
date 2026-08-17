@@ -9,6 +9,7 @@ import { AppHeader } from "@/components/app/app-header";
 import { ProfileForm } from "@/components/profile/profile-form";
 import { PasswordForm } from "@/components/profile/password-form";
 import { PlanCard } from "@/components/profile/plan-card";
+import { DeleteAccountCard } from "@/components/profile/delete-account-card";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +61,11 @@ export default async function ProfilePage() {
             }}
           />
           <PasswordForm />
+          {/* The confirmation is typing the address, so an account without one
+              has no way to complete it. Every signed-up account has an email —
+              `signup` requires it — so this guard is the type talking, not a
+              case a person can reach. */}
+          {user.email && <DeleteAccountCard email={user.email} />}
         </div>
       </main>
     </div>

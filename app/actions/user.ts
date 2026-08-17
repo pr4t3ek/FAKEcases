@@ -1,9 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth";
+import { clearSession, getSessionUser } from "@/lib/auth";
+import { deleteAccount as deleteAccountRows } from "@/lib/account-deletion";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { validateAvatarDataUri } from "@/lib/avatar";
 import { getAvatarStore } from "@/lib/storage";
@@ -209,4 +211,65 @@ export async function changePassword(input: unknown): Promise<SaveResult> {
     data: { passwordHash: hashPassword(parsed.data.next) },
   });
   return { ok: true };
+}
+
+/**
+ * Typing your own email address is the confirmation.
+ *
+ * Not a password, deliberately: this account may not have one (`passwordHash` is
+ * nullable and `changePassword` already has to say so), and an irreversible
+ * action wants a step that cannot be completed by muscle memory. Typing out the
+ * address is that step.
+ */
+const deleteAccountSchema = z.object({
+  confirmEmail: z.string().min(1, "Type your email address to confirm"),
+});
+
+/**
+ * Delete your own account.
+ *
+ * What survives is `lib/account-deletion.ts`'s business, and the card on
+ * `/profile` says so in as many words: everything personal goes, and classroom
+ * seats and results stay behind anonymously so a professor's roster does not
+ * develop holes weeks after the class.
+ *
+ * Guests are refused by `member()` like every other action here, and for a
+ * sharper reason than usual — a guest row is absorbed at signup or deleted at
+ * login, so "delete my account" is something the app already does to them.
+ */
+export async function deleteAccount(input: unknown): Promise<SaveResult> {
+  const user = await member();
+  if (!user) return { ok: false, error: "You need to be signed in." };
+
+  const parsed = deleteAccountSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: firstError(parsed.error) };
+
+  // The same normalisation `signup` and `login` apply, so an address that signs
+  // in confirms a deletion — trimmed and lowercased, or a capitalised autofill
+  // would refuse the person who typed it correctly.
+  const typed = parsed.data.confirmEmail.trim().toLowerCase();
+  if (!user.email || typed !== user.email) {
+    return { ok: false, error: "That doesn't match the email on this account." };
+  }
+
+  // Deleting the last admin leaves nobody who can reach /admin — the same
+  // lock-yourself-out reasoning `setUserRole` gives for refusing self-demotion,
+  // except there is no undoing this one.
+  if (user.role === "admin") {
+    const admins = await db.user.count({ where: { role: "admin" } });
+    if (admins <= 1) {
+      return {
+        ok: false,
+        error: "You're the only admin. Make someone else an admin first.",
+      };
+    }
+  }
+
+  await deleteAccountRows(user.id);
+
+  // Order matters: `clearSession` writes a cookie and `redirect` throws to
+  // unwind, so the cookie has to be gone before the throw. Same destination as
+  // `logoutAction` — there is no account to go back to.
+  await clearSession();
+  redirect("/");
 }
