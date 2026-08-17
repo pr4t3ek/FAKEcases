@@ -147,6 +147,16 @@ export interface SettlementConfig {
   contract?: SettlementLine;
   /** Fixed cost per period, as a state key so a mechanism can move it. */
   operatingCostKey: string;
+  /**
+   * The state key holding value that has not yet become cash — stock for a
+   * distributor, finished-but-unreleased work for a software team.
+   *
+   * Named by the domain rather than assumed by the engine. `time.ts` read
+   * `working.inventoryValue` by name until a second domain arrived, which is one
+   * word of supply chain inside a shared loop. Optional: a domain that holds
+   * nothing between periods omits it and the balance sheet carries zero.
+   */
+  heldAssetKey?: string;
 }
 
 // ─── The counterparty ──────────────────────────────────────────────────────

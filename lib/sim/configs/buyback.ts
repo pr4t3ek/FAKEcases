@@ -268,6 +268,10 @@ export const buybackConfig: SimulatorConfig = {
     // The clause: what makes this a buyback rather than a purchase order.
     contract: { quantityKey: "buybackUnits", priceKey: "buybackPrice" },
     operatingCostKey: "operatingCost",
+    // Stock is this domain's held asset. The engine used to read the key by
+    // name; now the config names it and a software team can point the same
+    // balance-sheet line at work it has finished but not released.
+    heldAssetKey: "inventoryValue",
   },
 
   /**
