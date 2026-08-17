@@ -53,6 +53,13 @@ so nothing is allowed to run an install script and pnpm exits with
 `pnpm install`, they are the same error: `dev` runs a dependency check that shells out to
 `install`, so the message names the command you did not type.
 
+The build settings are written twice in that file on purpose. pnpm 11 did not move
+`onlyBuiltDependencies` and `ignoredBuiltDependencies`, it **removed** them in favour of
+an `allowBuilds` map, while `overrides` survived unchanged — so on pnpm 11 the override
+applies while the allowlist beside it silently does nothing, and the file looks like it
+is being read because it is. `allowBuilds` covers pnpm 11+, the legacy pair covers
+pnpm 10.6–10.x, and the two lists have to be kept in step.
+
 **The database is not in the repo** — `prisma/dev.db` is gitignored, as a binary build
 artifact should be. All the content lives in `prisma/seed-data.ts`, so an empty question
 library means the seed hasn't been run, not that the questions are missing.
