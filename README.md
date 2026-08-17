@@ -37,7 +37,7 @@ per slide) plus the prompts to generate the deck, for pitching what this is and 
 cp .env.example .env   # Prisma needs DATABASE_URL; .env is gitignored, so a clone has none
 pnpm install
 pnpm db:push           # create the SQLite database from prisma/schema.prisma
-pnpm db:seed           # 16 categories, 45 questions (24 guesstimates + 2 cases + 19 simulations), achievements, demo users
+pnpm db:seed           # 16 categories, 46 questions (24 guesstimates + 2 cases + 20 simulations), achievements, demo users
 pnpm dev               # http://localhost:3000
 ```
 
@@ -386,18 +386,19 @@ guesstimate and implied the two were interchangeable. They have their own leader
 reason: a war room is scored on a different rubric, so adding its score to a practice score — which
 the cumulative board used to do — produced a number that measured nothing.
 
-Eighteen scenarios ship today, easiest first — which is the order the library shows them in. Eleven
-teach product and marketing economics; three are an **analytics track**, filed under Data &
+Nineteen scenarios ship today, easiest first — which is the order the library shows them in. Eleven
+teach product and marketing economics; four are an **analytics track**, filed under Data &
 Analytics; three are a **finance track**, one per financial statement, filed under Finance; and the
 last is the catalogue's only **turnaround**, a different exercise from everything above it. A
-nineteenth simulation, the buyback contract, runs on its own multi-period simulator rather than as a
+twentieth simulation, the buyback contract, runs on its own multi-period simulator rather than as a
 war room — see below.
 
-The **analytics track** is a sequence rather than three scenarios that share a subject. Rangoli
+The **analytics track** is a sequence rather than four scenarios that share a subject. Rangoli
 teaches a candidate to read one comparison; Sahyog shows them that a comparison between groups
 somebody else chose is not a comparison at all; Chalo shows them what happens to a p-value when you
-ask fourteen questions instead of one. All three sit together at the easy end, ahead of the finance
-block.
+ask fourteen questions instead of one; Kavach moves from reading a number to reading a classifier,
+where every headline metric can be computed correctly and still be the wrong metric. All four sit
+together at the easy end, ahead of the finance block.
 
 | Scenario | Level | Teaches |
 |---|---|---|
@@ -405,6 +406,7 @@ block.
 | **Rangoli** — the test says +6%, ship it Monday? | Easy | A/B tests, sample size, significance, novelty effect, confounded variants — and reading a test on the metric that pays the bills |
 | **Sahyog Finance** — the best agency got 60% of the book, and recovery fell | Easy | Group means against group variance, between- and within-group spread (the ANOVA idea), confounding, ageing buckets — and that a ranked league table can be a mix table wearing a performance table's clothes |
 | **Chalo Fitness** — fourteen ways to read one test, and the one that said yes | Easy | Multiple comparisons, family-wise error, Bonferroni, optional stopping, statistical power — and that "not significant" and "no effect" are different statements |
+| **Kavach Pay** — 99.4% accurate, and payment success is falling | Easy | The confusion matrix, class imbalance, precision against recall, why precision cannot be carried across a rebalanced test set, threshold as a cost decision, calibration — and that a flag does not have to mean allow or decline |
 | **Vyapar Mitra** — 38% more signups, the same 11,000 paying shops | Easy | Activation against acquisition, funnel arithmetic, ARPU, CAC and payback — and how to spot a **bottleneck**, a step whose fixed capacity decides the output however much arrives at it |
 | **Padhai Plus** — growing subscribers, growing burn | Easy | Churn, lifetime, LTV, CAC, payback, and that a subscriber base settles at joiners ÷ churn |
 | **Chaska** — share up five points, profit down a third | Easy | Net realisation, trade promotion, incrementality, cannibalisation — and why market share is a diagnostic rather than a target |

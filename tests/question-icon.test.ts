@@ -144,6 +144,12 @@ const EXPECTED: Record<string, string> = {
   "Ghar Sewa: customers waiting, professionals idle, both sides growing": "LineChart",
   "Sahyog Finance: the best agency got 60% of the book, and recovery fell": "Sigma",
   "Chalo Fitness: fourteen ways to read one test, and the one that said yes": "Sigma",
+  // The one analytics scenario that does NOT fall back to the category icon,
+  // and it is the rule list working rather than failing. Sahyog's and Chalo's
+  // titles name a book and a test; this one names a payment, which is a
+  // subject the rules have a card for. A bank building is the right card for
+  // UPI fraud, so this is left matching on subject like everything else.
+  "Kavach Pay: the model is 99.4% accurate, and payment success is falling": "Landmark",
 };
 
 describe("every seeded question resolves to a subject icon", () => {

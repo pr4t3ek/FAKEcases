@@ -677,6 +677,26 @@ export const questions: SeedQuestion[] = [
     tags: "data analytics,experimentation,multiple comparisons,p-hacking,bonferroni,statistical power,optional stopping,churn,subscription,fitness,simulation",
   },
   {
+    externalId: "kavach-fraud-threshold",
+    title: "Kavach Pay: the model is 99.4% accurate, and payment success is falling",
+    prompt:
+      "A fraud model shipped on 99.4% accuracy and 94% precision. Six months on, fraud losses have barely moved, payment success has fallen and merchants are routing volume away. Work out what those numbers were measuring, then spend a month acting on it.",
+    // The analytics track's fourth rung, and the one the ladder in CHANGES.md
+    // entry 16 named next. Filed here rather than under Finance despite the
+    // payments setting, for the same reason Rangoli is: the technique is what
+    // is being taught, and the industry is where it happens to be taught.
+    category: "data-analytics",
+    sector: "financial-services",
+    difficulty: "Easy",
+    interviewLevel: "PM",
+    type: "simulation",
+    betterApproach:
+      "Ask what the base rate is before you read any classifier metric. When the thing you are looking for is rare, every metric that includes the true-negative box goes blind — accuracy most of all, and a model that flags nothing will often beat a real one on it. So take the confusion matrix apart: precision and recall separately, measured on production traffic rather than a rebalanced holdout, because precision is the one headline metric that moves with prevalence. Then price both kinds of error in rupees, since the threshold is a business decision and cannot be chosen without them. And check whether a flag has to mean allow or decline, because a third action changes what an error costs rather than how many you make.",
+    sampleSolution:
+      "Fraud is 0.06% of transactions, so accuracy is measuring the 1.97 crore true negatives and nothing else. The model scores 99.41%; a model that flagged nothing would score 99.94%, so the metric the launch was approved on ranks it below doing nothing. Underneath: 4,524 frauds caught against 1,09,055 genuine payments declined — precision 4.0%, and 24.1 customers blocked per fraudster stopped. The 94% in the deck was measured on a holdout rebalanced to 50/50, and precision is the one metric that cannot be carried across a rebalanced set, though recall and specificity can. The costs were wrong the other way: the room worked from the ₹4,200 average ticket, but Kavach carries ₹1,180 after recovery, against ₹85 to handle a decline — so the declines were already the larger line, ₹92.7 lakh against ₹87.1 lakh. Raising recall to 62% is therefore the worst option on the board: it saves ₹33.7 lakh of fraud and spends ₹1.30 crore handling declines. Calibrate so a score is a probability, cut at the cost-optimal point around 0.90, and challenge the mid band with an OTP instead of declining it — the only lever that raises recall and cuts hard declines at once. Contribution goes from ₹1.27 crore a month to about ₹1.80 crore.",
+    tags: "data analytics,classification,confusion matrix,precision,recall,base rate,class imbalance,threshold,calibration,fraud detection,upi,payments,simulation",
+  },
+  {
     externalId: "vyapar-mitra-activation",
     title: "Vyapar Mitra: 38% more signups and the same 11,000 paying shops",
     prompt:
