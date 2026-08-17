@@ -737,3 +737,67 @@ what anchors it: without the line it is a cloud of dots with no sense of what
 `CHART_TOOLTIP_STYLE` and `CHART_TICK` are imported from
 `components/dashboard/charts.tsx` rather than redefined, so a theme change stays
 one edit.
+
+### 19. The analytics track's fourth rung: reading a classifier
+
+Entry 16 named the ladder this belongs to — "classification thresholds, conjoint, PCA
+and causal inference" — and left the first of those unbuilt. A grep across the repo
+for `confusion matrix|precision|recall|ROC|AUC|f1|false negative|classif` returned no
+content hits, so a candidate preparing for a data interview had three rungs on reading
+a *number* and nothing on reading a *classifier*, which fails in a way none of the
+first three prepare you for: every headline metric can be computed correctly and still
+be the wrong metric.
+
+**Kavach Pay** (Easy) — a UPI payments app shipped a fraud model six months ago at a
+0.5 cut. The deck reports 99.4% accuracy and 94% precision. Both figures are
+arithmetically correct and both are worthless. Fraud is 0.06% of transactions, so
+accuracy is a measurement of the 1.97 crore true negatives and nothing else: the model
+scores 99.41% and a model that flagged nothing would score 99.94%, which means the
+metric the launch was approved on ranks it *below doing nothing*. Underneath, 4,524
+frauds caught against 1,09,055 genuine payments declined — precision 4.0%, and 24.1
+customers blocked per fraudster stopped.
+
+Written to the entry 16 framing constraint, the post-mortem of a decision the analysis
+already drove, and to the entry 14 authoring rules: `engine: "v2"`, a `spend` block, a
+ten-cause board, six equally priced pulls, five interventions, a concept primer.
+
+**Why the confusion matrix suits this format unusually well.** It *is* arithmetic, so
+`precision`, `recall`, `blockedPerCatch` and `accuracy` are derived in the driver graph
+rather than authored as prose that can drift from the projection. `accuracy` is carried
+as a `reported` driver on purpose: across the whole decision space it moves about one and
+a quarter percentage points while net contribution swings from ₹27 lakh to ₹1.97 crore, so
+the student watches the metric the launch was signed off on register a seven-fold change
+in the business as a rounding difference. A `lagged`
+driver on the user base closes the decline → churn → smaller base → fewer payments loop
+across months, and `reviewed` is a `min` of queue capacity and flag volume so the review
+option's ceiling is something the student bumps into while funding it.
+
+**The balance trap, and what it cost to avoid.** The obvious authoring is to price a
+missed fraud at the ₹4,200 average ticket. Do that and blocking harder wins on the north
+star, and the scenario rewards precisely the error it exists to correct. It is not
+₹4,200: after issuer recovery and the chargeback split Kavach carries ₹1,180, while a
+hard decline costs ₹85 to handle — and 1.09 lakh declines is ₹92.7 lakh against ₹87.1
+lakh of fraud, so the false positives were already the larger line. The two error types
+are within 6% of each other and the room had assumed 50:1. `iv-block-harder` is then the
+worst option on the board through arithmetic rather than an authored penalty: recall 38%
+→ 62% saves ₹33.7 lakh of fraud and spends ₹1.30 crore handling declines.
+
+**One design decision worth recording, because it went against the plan.** The intended
+best play was calibrate, then cut, then add step-up auth. `scripts/best-allocation.ts`
+disagreed: once the threshold moves, recalibration's benefit overlaps it almost
+entirely, and at 2 sprints and ₹18 lakh against the threshold move's 1 sprint and ₹4
+lakh it does not earn a place. Rather than inflate its effects to force the intended
+answer, it is left as an honest near-miss with a debrief that says why — a prerequisite
+for making the *next* threshold decision defensible, not what buys the money this
+quarter. The optimum is `iv-threshold-cost` + `iv-stepup-auth`, 3 sprints, ₹8 lakh of a
+₹24 lakh budget, and the sprint constraint binds exactly.
+
+The threshold sweep panel is generated against the engine rather than written by hand,
+so the curve in the pull matches the projection: ₹27.5 lakh at 0.30, ₹1.27 crore at
+today's 0.50, ₹1.97 crore at 0.90, ₹1.94 crore at 0.97, and ₹1.71 crore flagging
+nothing. An interior optimum with both ends worse — and switching the model off beats
+today's setting comfortably, which makes the merchant team closer to right than the risk
+team while both are wrong.
+
+The golden fixture gained one slug and **no existing projection changed**. The Pro pitch
+and the plan card, which quote a count, moved 19 → 20.

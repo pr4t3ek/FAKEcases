@@ -17,6 +17,7 @@ import { adFunnelRoas } from "./scenarios/ad-funnel-roas";
 import { abTestReadout } from "./scenarios/ab-test-readout";
 import { sahyogAgencyRecovery } from "./scenarios/sahyog-agency-recovery";
 import { chaloMultipleComparisons } from "./scenarios/chalo-multiple-comparisons";
+import { kavachFraudThreshold } from "./scenarios/kavach-fraud-threshold";
 import { vyaparMitraActivation } from "./scenarios/vyapar-mitra-activation";
 import { subscriptionLtvCac } from "./scenarios/subscription-ltv-cac";
 import { channelTradeSpend } from "./scenarios/channel-trade-spend";
@@ -50,6 +51,7 @@ const ALL: SimScenario[] = [
   abTestReadout,
   sahyogAgencyRecovery,
   chaloMultipleComparisons,
+  kavachFraudThreshold,
   vyaparMitraActivation,
   subscriptionLtvCac,
   channelTradeSpend,
