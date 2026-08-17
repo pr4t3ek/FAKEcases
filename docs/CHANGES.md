@@ -801,3 +801,42 @@ team while both are wrong.
 
 The golden fixture gained one slug and **no existing projection changed**. The Pro pitch
 and the plan card, which quote a count, moved 19 → 20.
+
+### 20. pnpm settings moved out of package.json, where pnpm 11 stops looking
+
+`pnpm dev` failed on a current pnpm with `ERR_PNPM_IGNORED_BUILDS`, naming `pnpm
+install` in an error from a command nobody ran. Both halves of that are worth
+recording, because neither is obvious from the message.
+
+pnpm 11 no longer reads the `package.json#pnpm` field, and it does not fail when that
+field is all you have — it warns, drops every key and continues. This repo kept two
+settings there. `onlyBuiltDependencies` was the allowlist of packages permitted to run
+install scripts, so losing it meant *nothing* was permitted: every package with a build
+script landed in the ignored list, and a current pnpm treats an unacknowledged ignored
+build as an error rather than a warning. `pnpm dev` then fails because it runs a
+dependency check that shells out to `pnpm install`, which is why the error names a
+command the user did not type.
+
+The second setting is the one that would have hurt for longer. `overrides` pinned
+`js-yaml` to 4.3.0, and a dropped version pin is silent in a way a dropped allowlist is
+not — the install succeeds, and nothing says the pin stopped applying.
+
+Both now live in `pnpm-workspace.yaml`, and the `package.json#pnpm` field is gone rather
+than left in place, since keeping it is what produces the warning. The cost is dropping
+support for pnpm older than 10.6, which is what first read these settings from the
+workspace file.
+
+`ignoredBuiltDependencies` is new and is not decoration. `@google/genai`, `protobufjs`
+and `unrs-resolver` have install scripts this project has always skipped; under the old
+setup that was a warning, and under the new one it is an error until the list says the
+skip is deliberate. All three ship usable prebuilt artefacts, and the suite, lint and
+build pass with their scripts skipped — which was already true before this change, and
+is the reason the list is an acknowledgement rather than a fix.
+
+Verified from a deleted `node_modules`: install exits clean with no ignored-build
+warning, `js-yaml@4.3.0` resolves alone, the esbuild binary and the Prisma query engine
+are both present, and `pnpm dev` serves the landing page.
+
+Unrelated and still outstanding: `package.json#prisma` carries the same kind of
+deprecation, and Prisma 7 will stop reading it. It warns on every install and has not
+been moved to `prisma.config.ts` yet.

@@ -18,18 +18,6 @@
   "prisma": {
     "seed": "tsx prisma/seed.ts"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@prisma/client",
-      "@prisma/engines",
-      "prisma",
-      "esbuild",
-      "sharp"
-    ],
-    "overrides": {
-      "js-yaml": "4.3.0"
-    }
-  },
   "dependencies": {
     "@google/genai": "^2.13.0",
     "@prisma/client": "^6.2.1",
