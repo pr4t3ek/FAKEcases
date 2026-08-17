@@ -81,7 +81,7 @@ export const chaloMultipleComparisons: SimScenario = {
     "Three months ago the growth team tested a redesigned home screen built around a streak widget. " +
     "The metric they had registered in advance came back flat. So they cut the data by segment until something turned up: booking rate among 25–34s on Android in metros, +11.3%, p = 0.032. " +
     "The redesign shipped to everyone the following week. " +
-    "Since then bookings per member are up slightly, monthly churn has drifted from 5.6% to 6.2%, and net contribution is down ₹9 lakh a month. " +
+    "Since then bookings per member are up slightly. Monthly churn has drifted from 5.6% to 6.2%, and net contribution is down ₹9 lakh a month. " +
     "The growth lead now wants the next quarter spent on streak rewards and an iOS rollout. " +
     "You have 6 analyst-days to work out what that result was really worth, then 3 sprints and ₹28 lakh to act on it.",
   difficulty: "Easy",
@@ -120,7 +120,7 @@ export const chaloMultipleComparisons: SimScenario = {
             "Asking the same data many questions — several metrics, several segments, several cuts — and reporting the one that came back significant.",
           formula: "chance of at least one false positive = 1 − (1 − 0.05)^number of tests",
           matters:
-            "Fourteen questions at the 5% threshold carry a 51% chance that at least one says yes when nothing is there. Statisticians call that the family-wise error rate. Report only the winner and you have built a machine for finding things that are not real.",
+            "Fourteen questions at the 5% threshold carry a 51% chance that at least one says yes when nothing is there. Statisticians call that the family-wise error rate. Report only the winner, and you will keep finding results that are not real.",
         },
         {
           term: "Bonferroni correction",
@@ -128,7 +128,7 @@ export const chaloMultipleComparisons: SimScenario = {
             "The blunt fix: divide your threshold by how many comparisons you ran, and judge every result against that instead.",
           formula: "corrected threshold = 0.05 ÷ number of tests",
           matters:
-            "It is the fastest way to see whether a result survives its own context. Fourteen comparisons means the bar was 0.0036, not 0.05. A p of 0.032 is nearly ten times too big.",
+            "It is the fastest way to check whether a result still holds up once you count every question that was asked. Fourteen comparisons means the bar was 0.0036, not 0.05. A p of 0.032 is nearly ten times too big.",
         },
         {
           term: "Optional stopping",
@@ -142,14 +142,14 @@ export const chaloMultipleComparisons: SimScenario = {
           plain:
             "The chance your test would notice a real effect of a given size, if there were one. Driven by sample size, effect size and how long you run.",
           matters:
-            "It is the other way to be wrong, and the one nobody looks for. A flat result from a weak test does not mean there was no effect. It means the test could never have told you either way. Results like that quietly get filed as 'we checked, it was fine'.",
+            "It is the other way to be wrong, and the one nobody looks for. A flat result from a weak test does not mean there was no effect. It means the test could never have told you either way. Results like that quietly become 'we checked, it was fine'.",
         },
         {
           term: "Monthly churn",
           plain: "The share of members who cancel in a month.",
           formula: "cancellations ÷ members",
           matters:
-            "In a subscription it is the number that sets everything else. A base fed by a steady stream of joiners settles at joiners ÷ churn, so a small move in churn moves the whole business.",
+            "In a subscription it is the number that sets everything else. A base fed by a steady stream of joiners settles at joiners ÷ churn. So a small move in churn moves the whole business.",
           driver: "churnRate",
         },
         {
@@ -408,7 +408,7 @@ export const chaloMultipleComparisons: SimScenario = {
       cost: 2,
       evidenceFor: ["reading.multiplicity"],
       readsAs:
-        "Fourteen. Six segments crossed with the metrics the team had to hand, and one of those crossed p < 0.05. Fourteen comparisons at a 5% threshold carry a 51% chance of at least one false positive, even if the redesign did nothing at all. A Bonferroni-corrected bar would be 0.0036, not 0.05.",
+        "Fourteen. Six segments crossed with the metrics the team had to hand, and one of those crossed p < 0.05. Fourteen comparisons at a 5% threshold carry a 51% chance of at least one false positive. That is true even if the redesign did nothing. A Bonferroni-corrected bar would be 0.0036, not 0.05.",
       reveals: [
         {
           id: "p-chalo-grid",
@@ -439,8 +439,8 @@ export const chaloMultipleComparisons: SimScenario = {
           title: "What fourteen questions does to a 5% threshold",
           body:
             "Each comparison at p < 0.05 carries a one-in-twenty chance of a false positive. Run fourteen and the chance that at least one fires is 1 − 0.95¹⁴ = 51.2%. On a change that did precisely nothing, you would expect to find a 'winner' more often than not. " +
-            "The standard correction is to divide the threshold by the number of comparisons: 0.05 ÷ 14 = 0.0036. The winning cell's p was 0.032, about nine times too large to survive that. " +
-            "Note what this does not say. It does not prove the effect is absent. It says this analysis gives you no evidence for it — a different finding, and a much more common one than either side of the room wants.",
+            "The standard correction is to divide the threshold by the number of comparisons: 0.05 ÷ 14 = 0.0036. The winning cell's p was 0.032, about nine times too large to pass that bar. " +
+            "Note what this does not say. It does not prove the effect is absent. It says this analysis gives you no evidence for it. That is a different finding, and a much more common one than anyone in the room wants.",
         },
       ],
     },
@@ -481,7 +481,7 @@ export const chaloMultipleComparisons: SimScenario = {
           body:
             "The written plan says: primary metric 30-day retention, minimum detectable effect 3%, duration 21 days, no interim analysis. It is a good document and somebody wrote it properly. " +
             "The dashboard was then read every morning from day 3. The test was closed on day 9 with the note 'hit significance in core segment, shipping'. " +
-            "A wandering line will eventually be caught on a day it is across the threshold. Days 12 through 21 were collected anyway, because the test kept running in the background, and the cell sat above 0.05 for all of them.",
+            "A number that moves up and down will cross the line on some day. If you keep looking, you will catch it on that day. Days 12 to 21 were collected anyway, because the test kept running in the background. The cell sat above 0.05 for all of them.",
         },
       ],
     },
@@ -492,7 +492,7 @@ export const chaloMultipleComparisons: SimScenario = {
       cost: 2,
       evidenceFor: ["reading.multiplicity", "variant.android"],
       readsAs:
-        "It does not. A pre-registered replication on the same segment — one comparison, fixed at 28 days — came back at +0.4%, with a confidence interval from −3.1% to +3.9%. The original +11.3% is nowhere near that interval. This is what a false positive looks like when you make it stand still.",
+        "It does not. The team re-tested the same segment properly: one comparison, fixed at 28 days. That replication came back at +0.4%, with a confidence interval from −3.1% to +3.9%. The original +11.3% is nowhere near that interval. This is what a false positive looks like once you test it again properly.",
       reveals: [
         {
           id: "p-chalo-replication",
@@ -513,7 +513,7 @@ export const chaloMultipleComparisons: SimScenario = {
           title: "Why this one is worth more than the original",
           body:
             "Same segment, same widget, more than twice the members, and a duration fixed before it started. Exactly one comparison — the one the original claimed. Everything that inflated the first result has been removed. " +
-            "The interval −3.1% to +3.9% is wide enough to hold a small real effect in either direction, and narrow enough to rule out +11.3% comfortably. " +
+            "The interval −3.1% to +3.9% could still hold a small real effect either way. It is narrow enough to rule out +11.3% comfortably. " +
             "This is also the cheapest thing the team could have done before spending a quarter on the rollout. It costs one analyst two days.",
         },
       ],
@@ -525,7 +525,7 @@ export const chaloMultipleComparisons: SimScenario = {
       cost: 2,
       evidenceFor: ["reading.power"],
       readsAs:
-        "30-day retention came back at −1.8% relative, p = 0.19, and was filed as 'no effect'. That is not what it meant. The test had power to detect 3%, and the real effect is smaller than that and negative — so the test was never able to see it. Run the same design to 45 days and it clears significance.",
+        "30-day retention came back at −1.8% relative, p = 0.19, and everyone treated that as 'no effect'. That is not what it meant. The test had power to detect 3%. The real effect is smaller than that, and negative, so the test was never able to see it. Run the same design to 45 days and it clears significance.",
       reveals: [
         {
           id: "p-chalo-primary",
@@ -546,8 +546,8 @@ export const chaloMultipleComparisons: SimScenario = {
           title: "The other way to be wrong",
           body:
             "'Not significant' and 'no effect' are different statements, and the gap between them is where this test was actually lost. The design was powered to detect a 3% move in retention. The real move is about 1.8% and downward, so the test was never going to catch it in 21 days. A flat readout was the expected outcome whether or not the redesign hurt. " +
-            "So the team was overpowered and underpowered at the same time: fourteen chances to find something that was not there, and one look, too short, at something that was. " +
-            "The mechanism is on the home screen itself. The streak widget took the top slot and pushed the class browser two taps down. Booking a class in the first week is the strongest single predictor of a member reaching day 90: 68% of week-1 bookers renew, against 31% of everyone else. And week-1 booking has fallen from 51% to 46% since the redesign shipped.",
+            "So the team was overpowered and underpowered at the same time. They had fourteen chances to find something that was not there, and one short look at something that was. " +
+            "The mechanism is on the home screen itself. The streak widget was put at the top, and the class browser moved two taps down. Booking a class in the first week is the strongest single predictor of a member reaching day 90. 68% of week-1 bookers renew, against 31% of everyone else. And week-1 booking has fallen from 51% to 46% since the redesign shipped.",
         },
       ],
     },
@@ -582,7 +582,7 @@ export const chaloMultipleComparisons: SimScenario = {
           title: "Price, while we are here",
           body:
             "The ₹749 price has not moved in fourteen months, and no competitor in these three cities has cut theirs. Exit-survey reasons are stable: 'not using it enough' 46%, 'too expensive' 19%, 'moved city' 11%, the rest scattered. " +
-            "The 'not using it enough' share is up four points since the redesign. That looks like a complaint about price, but it is not one. Members who never booked a first class do not renew, and when you ask them why, they say it was not worth the money.",
+            "The 'not using it enough' share is up four points since the redesign. That looks like a complaint about price, but it is not one. Members who never booked a first class do not renew. Ask them why, and they say it was not worth the money.",
         },
       ],
     },
@@ -593,7 +593,7 @@ export const chaloMultipleComparisons: SimScenario = {
       cost: 2,
       evidenceFor: ["member.supply"],
       readsAs:
-        "Not really. Studio utilisation is 71%. Waitlists happen on 4% of slots and clear 82% of the time. There is a real peak-hour squeeze on weekday evenings, but it has been there all year and it did not move when churn did.",
+        "Not really. Studio utilisation is 71%. Waitlists happen on 4% of slots and clear 82% of the time. There is a real peak-hour squeeze on weekday evenings. But it has been there all year, and it did not move when churn did.",
       reveals: [
         {
           id: "p-chalo-capacity",
@@ -632,14 +632,14 @@ export const chaloMultipleComparisons: SimScenario = {
       parentId: "reading",
       label: "Fourteen comparisons were run and the one that said yes was reported",
       verdict:
-        "This was it. Fourteen comparisons at a 5% threshold carry a 51% chance of at least one false positive, and a corrected bar would be 0.0036 against the reported 0.032. The test was also stopped on day 9, the afternoon it first crossed, against a written plan of 21 days. By day 12 the cell was back above 0.05. A pre-registered replication returned +0.4%, CI −3.1% to +3.9%.",
+        "This was it. Fourteen comparisons at a 5% threshold carry a 51% chance of at least one false positive. A corrected bar would be 0.0036, against the reported 0.032. The test was also stopped on day 9, the afternoon it first crossed, against a written plan of 21 days. By day 12 the cell was back above 0.05. A pre-registered replication returned +0.4%, CI −3.1% to +3.9%.",
     },
     {
       id: "reading.power",
       parentId: "reading",
       label: "The test was too small to detect anything",
       verdict:
-        "Not on the headline. The winning cell had plenty of data to produce that number, which is why it looked convincing. But it is half-right in a way worth keeping: the primary metric was underpowered, so a real −1.8% on retention was filed as 'no effect'. The test was overpowered for finding flukes and underpowered for the one thing it was built to measure.",
+        "Not on the headline. The winning cell had plenty of data to produce that number, which is why it looked convincing. But it is half-right in a way worth keeping. The primary metric was too small to detect anything, so a real −1.8% on retention was treated as 'no effect'. The test was overpowered for finding flukes, and underpowered for the one thing it was built to measure.",
     },
     {
       id: "variant",
@@ -653,7 +653,7 @@ export const chaloMultipleComparisons: SimScenario = {
       parentId: "variant",
       label: "The effect is real, just narrow — Android metros only",
       verdict:
-        "Not supported. This is the most reasonable wrong answer on the board, and the replication settles it: same segment, twice the members, one pre-specified comparison, 28 days. It came back +0.4%, p = 0.81. There is no Android effect to be narrow about.",
+        "Not supported. This is the most reasonable wrong answer on the board, and the replication settles it. Same segment, twice the members, one pre-specified comparison, 28 days. It came back +0.4%, p = 0.81. There is no Android effect to be narrow about.",
     },
     {
       id: "variant.novelty",
@@ -697,7 +697,7 @@ export const chaloMultipleComparisons: SimScenario = {
       id: "iv-rollback",
       label: "Put the class browser back on the home screen",
       pitch:
-        "The evidence for the redesign does not survive its own context, so stop treating it as the default. Put the class browser back in the top slot, and keep the streak widget below the fold.",
+        "The evidence for the redesign does not hold up once you count every question that was asked. So stop treating it as the default. Put the class browser back at the top, and move the streak widget lower down.",
       addresses: "reading.multiplicity",
       cost: { sprints: 1, rupees: 4 * LAKH },
       effects: {
@@ -705,7 +705,7 @@ export const chaloMultipleComparisons: SimScenario = {
         otherwise: [{ driver: "churnRate", deltaPct: -0.018 }],
       },
       debrief:
-        "The cheap half of the answer, and mostly it undoes damage. The streak widget took the top slot and pushed booking two taps down. Week-1 booking fell from 51% to 46%, and week-1 bookers renew at 68% against 31%. Nothing here is a new idea. It is the home screen you had before somebody read a p-value wrong.",
+        "The cheaper of the two fixes, and mostly it just repairs the damage. The streak widget was put at the top of the screen, and booking moved two taps down. Week-1 booking fell from 51% to 46%, and week-1 bookers renew at 68% against 31%. Nothing here is a new idea. It is the home screen you had before somebody read a p-value wrong.",
     },
     {
       id: "iv-firstweek",
@@ -723,13 +723,13 @@ export const chaloMultipleComparisons: SimScenario = {
         otherwise: [{ driver: "churnRate", deltaPct: -0.035 }],
       },
       debrief:
-        "The expensive half, and the one that compounds through the steady state. 68% of members who book in week 1 reach day 90, against 31% of those who do not, and only 46% currently book. Every point of churn you take out grows the base by joiners ÷ churn, without buying a single extra joiner. That is why this is worth more than anything acquisition could do with the same money.",
+        "The costlier fix, and the one that keeps paying off through the steady state. 68% of members who book in week 1 reach day 90, against 31% of those who do not, and only 46% currently book. Every point of churn you take out grows the base by joiners ÷ churn, without buying a single extra joiner. That is why this is worth more than anything new-member spending could do with the same money.",
     },
     {
       id: "iv-streak-more",
       label: "Double down: streak rewards and the iOS rollout",
       pitch:
-        "The room's proposal. We measured +11.3% on booking rate and shipped it, so the obvious next step is to build more of what worked: reward tiers, a leaderboard, and the same widget on iOS.",
+        "This is what the room wants to do. We measured +11.3% on booking rate and shipped it. The obvious next step is to build more of what worked: reward tiers, a leaderboard, and the same widget on iOS.",
       addresses: "variant.android",
       cost: { sprints: 1, rupees: 5 * LAKH },
       effects: {
@@ -740,7 +740,7 @@ export const chaloMultipleComparisons: SimScenario = {
         ],
       },
       debrief:
-        "It delivers exactly what the winning cell promised, and it is the worst thing you can do with this budget. Members do book more, because the widget works. But a booked class costs ₹96 to supply and buys no renewal. So the metric the readout reported sits on the cost side of the contribution sum. Building more of a false positive is still building a false positive, and here you pay ₹96 a time for it.",
+        "It delivers exactly what the winning cell promised, and it is the worst thing you can do with this budget. Members do book more, because the widget works. But a booked class costs ₹96 to supply, and it does not make anyone renew. So the metric the readout reported sits on the cost side of the contribution sum. Building more of a false positive is still building a false positive, and here you pay ₹96 a time for it.",
     },
     {
       id: "iv-discount",
@@ -757,7 +757,7 @@ export const chaloMultipleComparisons: SimScenario = {
         ],
       },
       debrief:
-        "Answers a question the exit survey already closed. 'Too expensive' has been flat at 19% for a year while 'not using it enough' rose four points, so price was never what moved. It does buy some churn back, and it charges the whole base for it. An 8.4% cut in revenue per member against a 2.8% cut in churn is a trade the steady state does not repay.",
+        "Answers a question the exit survey already closed. 'Too expensive' has been flat at 19% for a year, while 'not using it enough' rose four points. So price was never what moved. It does buy some churn back, and it charges the whole base for it. An 8.4% cut in revenue per member against a 2.8% cut in churn is a trade the steady state does not repay.",
     },
     {
       id: "iv-trainers",
@@ -788,7 +788,7 @@ export const chaloMultipleComparisons: SimScenario = {
         otherwise: [{ driver: "churnRate", deltaPct: -0.045 }],
       },
       debrief:
-        "Genuinely beats standing still, which is what makes it a good decoy. The peak squeeze is real, and relieving it does shave churn. But it was at 93% six months ago when churn was 5.6%, so it is not what moved. And it does nothing at all for the members who never booked a first class, who are the ones actually leaving.",
+        "This really does beat doing nothing, which is what makes it so tempting. The peak squeeze is real, and easing it does shave churn. But it was at 93% six months ago when churn was 5.6%, so it is not what moved. And it does nothing at all for the members who never booked a first class, who are the ones actually leaving.",
     },
   ],
 
@@ -844,13 +844,13 @@ export const chaloMultipleComparisons: SimScenario = {
       "The primary metric they had registered in advance — 30-day retention — came back flat. So the team cut the data by segment and by metric until something crossed. Fourteen comparisons in all.",
       "Fourteen comparisons at a 5% threshold carry a 51% chance of at least one false positive on a change that does nothing. A corrected threshold would have been 0.05 ÷ 14 = 0.0036, against the reported 0.032.",
       "The test was also stopped on day 9, the afternoon that cell first crossed. The written plan said 21 days, and the dashboard was being checked every morning. By day 12 the cell was back above 0.05.",
-      "A pre-registered replication — same segment, twice the members, one comparison, 28 days — returned +0.4% with a confidence interval of −3.1% to +3.9%. The +11.3% was not there.",
-      "Meanwhile the real effect was in the metric everyone dismissed. Retention came back −1.8% at p = 0.19 and was filed as 'no effect'. But the test only had power to detect 3%, and the same design reaches p = 0.021 at 45 days.",
-      "The mechanism is the home screen itself: the streak widget took the top slot and pushed the class browser two taps down. Week-1 booking fell from 51% to 46%, and week-1 bookers reach day 90 at 68% against 31%.",
+      "The team then re-tested it properly: same segment, twice the members, one comparison, 28 days. That replication returned +0.4%, with a confidence interval of −3.1% to +3.9%. The +11.3% was not there.",
+      "Meanwhile the real effect was in the metric everyone dismissed. Retention came back −1.8% at p = 0.19, and everyone treated that as 'no effect'. But the test only had power to detect 3%, and the same design reaches p = 0.021 at 45 days.",
+      "The mechanism is the home screen itself. The streak widget was put at the top, and the class browser moved two taps down. Week-1 booking fell from 51% to 46%, and week-1 bookers reach day 90 at 68% against 31%.",
       "So churn went 5.6% → 6.2%, and the base fell 8.9% through joiners ÷ churn. Members also booked slightly more classes at ₹96 each, which is a cost rather than a benefit. Net contribution down ₹9 lakh a month.",
     ],
     whereTheLeverageWas:
-      "The replication, which costs one analyst two days and would have stopped the whole thing before a quarter was spent on it. Underneath that, the first week. 68% of members who book a class in week 1 reach day 90, against 31% of those who do not, and only 46% book. Restoring discovery undoes the damage. Rebuilding the first week around a single booked class is the lever that compounds, because every point of churn taken out grows the base without buying a single extra joiner.",
+      "The replication, which costs one analyst two days and would have stopped the whole thing before a quarter was spent on it. Underneath that, the first week. 68% of members who book a class in week 1 reach day 90, against 31% of those who do not, and only 46% book. Putting the class browser back repairs the damage. Rebuilding the first week around a single booked class is the lever that keeps paying off. Every point of churn you remove grows the base, without buying a single extra joiner.",
     strongAnswer: [
       "I would not build more of this — and not because the experiment was badly run. It was run well.",
       "The number that shipped it was one of fourteen comparisons, and only the winner went in the deck.",
@@ -859,9 +859,9 @@ export const chaloMultipleComparisons: SimScenario = {
       "The cheapest check is a replication: same segment, one pre-specified comparison, fixed duration. It came back +0.4%, interval −3.1% to +3.9%. There is no effect.",
       "Then the harder half. The primary metric said −1.8% on retention at p = 0.19, and the team read that as 'no effect'.",
       "That is not what it meant. The test could only detect 3%, so it was never going to see a real 1.8%. 'Not significant' and 'no effect' are different statements.",
-      "The mechanism was on the screen the whole time: the widget took the top slot and buried the class browser. Week-1 booking went 51% to 46%, and week-1 bookers renew at 68% against 31%.",
+      "The mechanism was on the screen the whole time. The widget went to the top, and the class browser got pushed down. Week-1 booking went 51% to 46%, and week-1 bookers renew at 68% against 31%.",
       "So I would restore the class browser, then spend the real money making the first week about booking one class.",
-      "And I would change the rule: one pre-registered primary metric, a duration fixed before the test starts, and any segment finding replicated before it ships.",
+      "And I would change the rule. One primary metric registered in advance, an end date fixed before the test starts, and every segment finding re-tested before it ships.",
     ],
   },
 
@@ -870,7 +870,7 @@ export const chaloMultipleComparisons: SimScenario = {
       topic: ["multiple", "comparison", "fourteen", "segments", "fishing", "p-hacking", "bonferroni", "family"],
       answer: [
         "Fourteen comparisons were run on this test and only the one that crossed was reported.",
-        "At a 5% threshold, fourteen questions carry a 51% chance that at least one fires on a change that does nothing — 1 − 0.95¹⁴.",
+        "At a 5% threshold, fourteen questions carry a 51% chance that at least one fires on a change that does nothing. That is 1 − 0.95¹⁴.",
         "Corrected for that, the bar was 0.05 ÷ 14 = 0.0036. The reported result was 0.032, about nine times too large.",
       ],
     },
@@ -879,7 +879,7 @@ export const chaloMultipleComparisons: SimScenario = {
       answer: [
         "The written plan said 21 days with no interim analysis. The dashboard was read every morning from day 3.",
         "The test was closed on day 9, the afternoon the cell first crossed 0.05.",
-        "A p-value that wanders will eventually be caught on a day it is across — and this one was back above 0.05 by day 12.",
+        "A p-value that moves up and down will cross the line on some day. This one was back above 0.05 by day 12.",
       ],
     },
     {
@@ -893,7 +893,7 @@ export const chaloMultipleComparisons: SimScenario = {
     {
       topic: ["power", "underpowered", "retention", "primary", "not significant", "type ii", "0.19"],
       answer: [
-        "The primary metric was 30-day retention. It came back −1.8% at p = 0.19 and was filed as 'no effect'.",
+        "The primary metric was 30-day retention. It came back −1.8% at p = 0.19, and everyone treated that as 'no effect'.",
         "The test only had power to detect a 3% move, so it could never have caught a real 1.8% one.",
         "'Not significant' means the test could not tell you. It does not mean nothing happened — the same design reaches p = 0.021 at 45 days.",
       ],
@@ -901,16 +901,16 @@ export const chaloMultipleComparisons: SimScenario = {
     {
       topic: ["mechanism", "discovery", "browser", "home screen", "week 1", "first class", "taps"],
       answer: [
-        "The streak widget took the top slot and pushed the class browser two taps down.",
+        "The streak widget was put at the top of the screen, and the class browser moved two taps down.",
         "Week-1 booking fell from 51% to 46% after the redesign shipped.",
-        "Members who book in week 1 reach day 90 at 68%, against 31% for those who do not — which is how a screen layout becomes a churn number.",
+        "Members who book in week 1 reach day 90 at 68%, against 31% for those who do not. That is how a screen layout becomes a churn number.",
       ],
     },
     {
       topic: ["streak", "widget", "novelty", "engagement", "rating", "liked"],
       answer: [
         "Members genuinely like the widget — engagement is flat at 34–36% of weekly actives and the app rating went up.",
-        "That is not novelty wearing off, and it is not the question.",
+        "That is not people losing interest once it stopped being new. And it is not the question anyway.",
         "Liking a screen and renewing because of it are different claims, and only one of them is on the contribution line.",
       ],
     },
@@ -927,7 +927,7 @@ export const chaloMultipleComparisons: SimScenario = {
       answer: [
         "Price has not moved in fourteen months and no competitor has cut.",
         "'Too expensive' is stable at 19% of exit reasons; what rose is 'not using it enough', up four points.",
-        "That is a usage answer wearing a price answer's clothes — members who never booked a first class report it as poor value.",
+        "That sounds like a price problem, but it is not one. Members who never booked a first class say the app was not worth the money.",
       ],
     },
   ],
