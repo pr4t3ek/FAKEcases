@@ -2,6 +2,7 @@ import { hintConfig } from "@/lib/config";
 import {
   renderContextBlock,
   renderDataPack,
+  renderTeacherReference,
   renderSimContextBlock,
   systemPromptForMode,
   hintSystemPrompt,
@@ -13,6 +14,20 @@ import type { InterviewerContext, ConvMessage } from "./types";
 function dataBlock(ctx: InterviewerContext): string {
   const pack = ctx.dataPack?.length ? renderDataPack(ctx.dataPack) : "";
   return pack ? `\n\n${pack}` : "";
+}
+
+/**
+ * The authored answer, appended for Teacher mode and no other.
+ *
+ * Gated here rather than inside `renderContextBlock` because that block is
+ * shared with `buildHintMessages`, which must never be handed the final number
+ * — see `renderTeacherReference`. Every other mode's prompt is unchanged, byte
+ * for byte.
+ */
+function teacherBlock(ctx: InterviewerContext): string {
+  if (ctx.mode !== "teacher") return "";
+  const reference = renderTeacherReference(ctx);
+  return reference ? `\n\n${reference}` : "";
 }
 
 /**
@@ -37,7 +52,7 @@ export function buildReplyMessages(ctx: InterviewerContext): {
     return { system, messages };
   }
 
-  const system = `${systemPromptForMode(ctx.mode, ctx.answerMode)}\n\nCurrent state:\n${renderContextBlock(ctx)}${dataBlock(ctx)}`;
+  const system = `${systemPromptForMode(ctx.mode, ctx.answerMode)}\n\nCurrent state:\n${renderContextBlock(ctx)}${dataBlock(ctx)}${teacherBlock(ctx)}`;
   const messages = ctx.messages.filter((m) => m.role !== "system");
   // Ensure there is at least one user message to respond to.
   if (messages.length === 0) {

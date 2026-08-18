@@ -136,6 +136,64 @@ export function renderDataPack(facts: { topic: string[]; fact: string }[]): stri
   ].join("\n");
 }
 
+/**
+ * The authored answer, for Teacher mode and nothing else.
+ *
+ * Teacher mode is the one mode whose job is to work the problem, and until now
+ * it was asked to do that with no anchor at all: `sampleSolution`, the ideal
+ * range and `betterApproach` all reached `QuestionContext` and none of them
+ * reached the prompt. So the model derived a fresh answer every time, and the
+ * same question taught a different number on each retry — while the evaluation
+ * screen went on showing the one authored figure as "Sample solution". Handing
+ * it the stored answer is what makes the lesson stable, and it is the same
+ * posture as `renderDataPack`: the question row holds the truth, not the model.
+ *
+ * **Kept out of `renderContextBlock` on purpose.** That block is shared with
+ * `buildHintMessages`, and a hint prompt is explicitly forbidden from stating
+ * the final number — a candidate sitting in Teacher mode who then asks for a
+ * hint would otherwise have the answer handed to the hint prompt as well. This
+ * is appended by `buildReplyMessages` alone, only when the mode is `teacher`,
+ * so no other prompt in the app can see it.
+ *
+ * The instruction travels with the data rather than sitting in `MODE_PROMPTS`,
+ * and that is deliberate: `sampleSolution` and `betterApproach` both default to
+ * `""` in the schema, so a mode prompt that said "teach toward the reference
+ * below" would be promising a block that an unauthored question never produces.
+ * Keeping the two together means this is purely additive — a question with
+ * nothing authored builds a byte-identical prompt to the one it built before.
+ */
+export function renderTeacherReference(ctx: InterviewerContext): string {
+  const q = ctx.question;
+  const numeric = ctx.answerMode !== "qualitative";
+  const lines: string[] = [];
+
+  if (q.sampleSolution.trim()) {
+    lines.push(
+      `- ${numeric ? "Sample solution" : "Sample recommendation"}: ${q.sampleSolution.trim()}`,
+    );
+  }
+  if (numeric && q.idealLow != null && q.idealHigh != null) {
+    const unit = q.unit?.trim() ? ` ${q.unit.trim()}` : "";
+    lines.push(
+      `- Accepted range: ${q.idealLow.toLocaleString("en-IN")} to ${q.idealHigh.toLocaleString("en-IN")}${unit}`,
+    );
+  }
+  if (q.betterApproach.trim()) {
+    lines.push(`- The approach to demonstrate: ${q.betterApproach.trim()}`);
+  }
+  if (!lines.length) return "";
+
+  const close = numeric
+    ? "Finish on the sample solution's figure, inside the accepted range where one is given, and choose your intermediate assumptions so the arithmetic reaches it. Never present a different final number."
+    : "Close on the sample recommendation. Never land on a different one.";
+
+  return [
+    "REFERENCE SOLUTION — the authored answer for this question. It is the same on every retry, so teach toward it rather than deriving a new one, and never say that you were given it:",
+    ...lines,
+    close,
+  ].join("\n");
+}
+
 /** Render the structured context into a compact user-visible state block. */
 export function renderContextBlock(ctx: InterviewerContext): string {
   const lines: string[] = [];
