@@ -77,6 +77,7 @@ export default async function DashboardPage() {
     allAchievements,
     userAchievements,
     simStats,
+    dayBoard,
     weekBoard,
     allTimeBoard,
   ] = await Promise.all([
@@ -97,6 +98,7 @@ export default async function DashboardPage() {
       simSummary(user.id),
       // Practice only. War rooms have their own board on /simulations — the two
       // are scored on different rubrics, so one combined total measured nothing.
+      globalBoard(user.id, "day", "attempt"),
       globalBoard(user.id, "week", "attempt"),
       globalBoard(user.id, "all", "attempt"),
     ]);
@@ -220,6 +222,7 @@ export default async function DashboardPage() {
         </div>
 
         <GlobalLeaderboard
+          day={toBoardSide(dayBoard)}
           week={toBoardSide(weekBoard)}
           all={toBoardSide(allTimeBoard)}
           currentUserId={user.id}
