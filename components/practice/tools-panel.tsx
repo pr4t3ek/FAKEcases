@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertTriangle, Check, Clock, Layers, Loader2, NotebookPen, Pause, Play } from "lucide-react";
+import { AlertTriangle, Check, Clock, Layers, Loader2, NotebookPen } from "lucide-react";
 import { toast } from "sonner";
 import { setFinalAnswer, setFinalEstimate } from "@/app/actions/practice";
 import { submitAttempt, type SubmitResult } from "@/app/actions/submit";
@@ -57,8 +57,6 @@ export function ToolsPanel({
   onFramework,
   onChainResult,
   elapsed,
-  running,
-  onRunningChange,
   disabled,
   onActiveTool,
   activeTool,
@@ -82,8 +80,6 @@ export function ToolsPanel({
   onChainResult?: (n: number) => void;
   /** The attempt clock, owned by PracticeScreen so fullscreen shares it. */
   elapsed: number;
-  running: boolean;
-  onRunningChange: (running: boolean) => void;
   disabled: boolean;
   onActiveTool: (tool: string) => void;
   activeTool: string;
@@ -142,15 +138,6 @@ export function ToolsPanel({
           <div className="inline-flex items-center gap-1.5 text-sm tabular-nums text-muted-foreground">
             <Clock className="h-4 w-4" />
             {fmt(elapsed)}
-            {!disabled && (
-              <button
-                onClick={() => onRunningChange(!running)}
-                className="ml-1 text-muted-foreground hover:text-foreground"
-                aria-label={running ? "Pause timer" : "Resume timer"}
-              >
-                {running ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-              </button>
-            )}
           </div>
           <div className="flex items-center gap-3">
             {/* No arithmetic in a qualitative case, so no calculator. */}

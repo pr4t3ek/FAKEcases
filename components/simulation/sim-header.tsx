@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { SIM_PHASES, type SimPhase } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { saveSimTime } from "@/app/actions/simulations";
+import { formatElapsed, useElapsedTimer } from "@/components/practice/use-attempt-timer";
 import { ConceptsButton } from "./concept-primer";
 import { GlossaryTerm } from "./glossary-term";
 
@@ -27,12 +29,16 @@ const PHASE_LABELS: Record<SimPhase, string> = {
 export function SimHeader({
   title,
   phase,
+  runId,
+  timeSpentSec,
   daysSpent,
   daysTotal,
   onOpenConcepts,
 }: {
   title: string;
   phase: SimPhase;
+  runId: string;
+  timeSpentSec: number;
   daysSpent: number;
   daysTotal: number;
   /** Present only when the scenario carries a primer. */
@@ -40,6 +46,22 @@ export function SimHeader({
 }) {
   const remaining = Math.max(0, daysTotal - daysSpent);
   const currentIndex = SIM_PHASES.indexOf(phase);
+
+  /*
+   * The same clock the practice screen runs, and the same rule: no pause.
+   *
+   * It stops at the debrief, where the run is over and the number is final —
+   * left running there it would keep counting while somebody read their result,
+   * which is reading time rather than time spent on the case.
+   *
+   * Analyst-days beside it are a different measure entirely: the budget the run
+   * spent, which is what a war room is ranked on. This one is display.
+   */
+  const elapsed = useElapsedTimer({
+    initial: timeSpentSec,
+    frozen: phase === "debrief",
+    onPersist: (sec) => saveSimTime(runId, sec),
+  });
 
   return (
     <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur">
@@ -97,6 +119,10 @@ export function SimHeader({
               />
             </div>
           )}
+          <span className="inline-flex shrink-0 items-center gap-1.5 text-sm tabular-nums text-muted-foreground">
+            <Clock className="h-4 w-4" />
+            {formatElapsed(elapsed)}
+          </span>
           <Badge variant="muted" className="sm:hidden">
             {remaining}d
           </Badge>

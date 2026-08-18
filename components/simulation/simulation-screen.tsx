@@ -128,6 +128,8 @@ export function SimulationScreen({ data }: { data: SimulationData }) {
       <SimHeader
         title={data.scenario.title}
         phase={data.phase}
+        runId={data.runId}
+        timeSpentSec={data.timeSpentSec}
         daysSpent={daysSpent}
         daysTotal={data.scenario.budget.analystDays}
         onOpenConcepts={teaching ? () => setPrimerOpen(true) : undefined}

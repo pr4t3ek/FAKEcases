@@ -111,6 +111,34 @@ async function ownedSimulatorRun(runId: string) {
 }
 
 /**
+ * Persist the war room's clock.
+ *
+ * Display only — a war room is ranked on analyst-days, not on minutes — so this
+ * is deliberately forgiving: it takes the largest value it has seen rather than
+ * whatever arrived last, and it answers silently. Two tabs open on one run would
+ * otherwise let the slower one wind the clock back, and a save that fails on a
+ * flaky connection must not interrupt somebody mid-diagnosis.
+ *
+ * Ownership is still re-derived from the session like every other action here;
+ * a display field is not a reason to let one account write another's row.
+ */
+export async function saveSimTime(runId: string, seconds: number): Promise<void> {
+  const user = await getSessionUser();
+  if (!user) return;
+  if (!Number.isFinite(seconds) || seconds < 0) return;
+
+  const run = await db.simRun.findUnique({
+    where: { id: runId },
+    select: { userId: true, timeSpentSec: true },
+  });
+  if (!run || run.userId !== user.id) return;
+
+  const next = Math.floor(seconds);
+  if (next <= run.timeSpentSec) return;
+  await db.simRun.update({ where: { id: runId }, data: { timeSpentSec: next } });
+}
+
+/**
  * Open a simulation from its library card.
  *
  * The same tier gate as `startAttempt`, reading the same `freeTier` flag — a

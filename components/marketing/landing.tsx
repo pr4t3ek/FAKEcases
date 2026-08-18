@@ -31,7 +31,6 @@ export function Landing({ isAuthed }: { isAuthed: boolean }) {
         <Hero isAuthed={isAuthed} />
         <HowItWorks />
         <Features />
-        <Testimonials />
         <FinalCta isAuthed={isAuthed} />
       </main>
       <SiteFooter />
@@ -260,45 +259,6 @@ function Features() {
               <h3 className="mt-4 font-semibold">{f.title}</h3>
               <p className="mt-2 text-sm text-muted-foreground">{f.body}</p>
             </motion.div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-const TESTIMONIALS = [
-  { quote: "It actually made me defend my assumptions instead of just reading a solved PDF. Felt like a real BCG round.", name: "Ananya R.", role: "MBA, IIM-A" },
-  { quote: "The framework builder + hints combo is brilliant. I stopped freezing on market-sizing.", name: "Karthik S.", role: "PM aspirant" },
-  { quote: "Loved that everything is India-context. Numbers finally felt intuitive.", name: "Meera J.", role: "Strategy hopeful" },
-];
-
-function Testimonials() {
-  return (
-    <section className="border-t bg-muted/30 py-20">
-      <div className="container">
-        <SectionHeading
-          eyebrow="Loved by learners"
-          title="From guesswork to structured thinking"
-          subtitle="Placeholder testimonials — swap for real ones as they come in."
-        />
-        <div className="mt-12 grid gap-6 md:grid-cols-3">
-          {TESTIMONIALS.map((t, i) => (
-            <motion.figure
-              key={t.name}
-              initial="hidden"
-              whileInView="show"
-              viewport={{ once: true, margin: "-60px" }}
-              variants={fadeUp}
-              transition={{ duration: 0.4, delay: i * 0.08 }}
-              className="rounded-xl border bg-card p-6"
-            >
-              <blockquote className="text-sm leading-relaxed">&ldquo;{t.quote}&rdquo;</blockquote>
-              <figcaption className="mt-4 text-sm">
-                <span className="font-medium">{t.name}</span>
-                <span className="text-muted-foreground"> · {t.role}</span>
-              </figcaption>
-            </motion.figure>
           ))}
         </div>
       </div>
