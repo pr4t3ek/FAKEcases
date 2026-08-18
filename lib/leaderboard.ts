@@ -57,11 +57,29 @@ export function weekStartUtc(date: Date): Date {
   return d;
 }
 
-export type LeaderboardWindow = "week" | "all";
+/**
+ * Midnight UTC of the day containing `date`.
+ *
+ * UTC for the same reason `weekStartUtc` is, and it matters more here: a day
+ * boundary that moved with the reader's timezone would put two students on
+ * different boards for the same afternoon. It also has to agree with
+ * `lib/daily-unlock.ts`, which keys the day's question on the UTC calendar day —
+ * a daily board whose day started at a different hour from the daily question
+ * would rank people on a mix of two problems.
+ */
+export function dayStartUtc(date: Date): Date {
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  );
+}
+
+export type LeaderboardWindow = "day" | "week" | "all";
 
 /** The `achievedAt` filter for a window, or undefined for all-time. */
 export function windowFilter(window: LeaderboardWindow, now: Date = new Date()) {
-  return window === "week" ? { gte: weekStartUtc(now) } : undefined;
+  if (window === "day") return { gte: dayStartUtc(now) };
+  if (window === "week") return { gte: weekStartUtc(now) };
+  return undefined;
 }
 
 /**

@@ -107,7 +107,6 @@ export const questions: SeedQuestion[] = [
       "~1.3 cr population, ~65% tea drinkers ≈ 85 lakh, avg ~1.5 cups/day ≈ 1.3 cr cups; add offices/roadside/tourists → ~1.2–1.8 cr cups/day.",
     tags: "food,frequency,segmentation",
     // The guest tier's guesstimate.
-    freeTier: true,
   },
   {
     externalId: "autos-bangalore",
@@ -549,7 +548,6 @@ export const questions: SeedQuestion[] = [
     tags: "profitability,unit economics,delivery",
     // The guest tier's case: a profitability tree with a declared root cause, so
     // the sample includes a question that actually scores Diagnosis.
-    freeTier: true,
   },
   {
     externalId: "qual-ev-two-wheeler-entry",
@@ -622,7 +620,6 @@ export const questions: SeedQuestion[] = [
     tags: "product management,digital marketing,roas,cac,unit economics,coffee,simulation",
     // The guest tier's simulation — already the scenario the library shows
     // first, and the one written to be met cold.
-    freeTier: true,
   },
   {
     externalId: "ab-test-readout",

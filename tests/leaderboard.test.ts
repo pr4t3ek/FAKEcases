@@ -4,6 +4,7 @@ import {
   displayNameFor,
   formatEffort,
   weekStartUtc,
+  dayStartUtc,
   windowFilter,
 } from "@/lib/leaderboard";
 
@@ -67,11 +68,52 @@ describe("weekStartUtc", () => {
   });
 });
 
+describe("dayStartUtc", () => {
+  it("returns midnight UTC of that day", () => {
+    expect(dayStartUtc(new Date("2026-01-08T15:30:00Z")).toISOString()).toBe(
+      "2026-01-08T00:00:00.000Z",
+    );
+  });
+
+  it("is idempotent — midnight is its own day start", () => {
+    const midnight = new Date("2026-01-08T00:00:00Z");
+    expect(dayStartUtc(midnight).toISOString()).toBe(midnight.toISOString());
+  });
+
+  /**
+   * The daily board and the daily question must agree about when "today"
+   * starts. `lib/daily-unlock.ts` keys on the UTC calendar day, so a board
+   * whose day began at a different hour would rank the cohort on a mix of two
+   * problems — half on yesterday's question, half on today's.
+   */
+  it("starts the day on the same boundary the daily unlock uses", async () => {
+    const { dayKey } = await import("@/lib/daily-unlock");
+    const instant = new Date("2026-01-08T23:59:59Z");
+    expect(dayStartUtc(instant).toISOString().slice(0, 10)).toBe(dayKey(instant));
+
+    const justAfter = new Date("2026-01-09T00:00:01Z");
+    expect(dayStartUtc(justAfter).toISOString().slice(0, 10)).toBe(dayKey(justAfter));
+  });
+});
+
 describe("windowFilter", () => {
   it("bounds the weekly board and leaves all-time unbounded", () => {
     const now = new Date("2026-01-08T15:30:00Z");
     expect(windowFilter("week", now)).toEqual({ gte: new Date("2026-01-05T00:00:00.000Z") });
     expect(windowFilter("all", now)).toBeUndefined();
+  });
+
+  it("bounds the daily board to midnight UTC", () => {
+    const now = new Date("2026-01-08T15:30:00Z");
+    expect(windowFilter("day", now)).toEqual({ gte: new Date("2026-01-08T00:00:00.000Z") });
+  });
+
+  /** A day is inside its week, so the daily bound is never the looser of the two. */
+  it("bounds the day more tightly than the week", () => {
+    const now = new Date("2026-01-08T15:30:00Z");
+    const day = windowFilter("day", now)!.gte.getTime();
+    const week = windowFilter("week", now)!.gte.getTime();
+    expect(day).toBeGreaterThan(week);
   });
 });
 

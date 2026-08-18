@@ -47,8 +47,8 @@ export const tierAccess: Record<AccessTier, TierAccess> = {
       cta: "Sign up to unlock",
       href: "/signup",
       reason:
-        "You're browsing as a guest. One guesstimate, one case and one simulation are open — " +
-        "create a free account to unlock the rest and save your progress.",
+        "You're browsing as a guest. Create a free account to unlock today's " +
+        "questions — a new guesstimate and a new war room open every day.",
       unlocks: "with a free account",
     },
   },
@@ -80,8 +80,8 @@ export const tierAccess: Record<AccessTier, TierAccess> = {
       // catalogue it describes, so the finance scenarios shipped and the pitch
       // quietly under-sold the product at the moment someone decides to pay.
       reason:
-        "Your account opens the free set. Pro opens the whole library — all 24 guesstimates, " +
-        "both cases and all 20 war rooms.",
+        "Your account opens today's questions — a new pair every day. Pro opens the whole " +
+        "library at once: all 24 guesstimates, both cases and all 20 war rooms.",
       unlocks: "with Pro",
     },
   },
@@ -89,15 +89,22 @@ export const tierAccess: Record<AccessTier, TierAccess> = {
 };
 
 /**
- * How many of each type the guest tier is meant to get.
+ * How many questions ship permanently open.
  *
- * Documentation rather than enforcement: the flag on the row is what the gate
- * reads, so this is the intended shape of the shop window, checked by the seed
- * test rather than imposed at runtime. Flagging a second guesstimate is a valid
- * thing for an admin to do, and it should not need a code change.
+ * **None**, and that is the daily-unlock model rather than an oversight. A
+ * question opened by `Question.freeTier` is open to everyone forever; the day's
+ * grant (`lib/daily-unlock.ts`) opens two to signed-in accounts and rotates
+ * them. A permanent sample alongside that would be a second, competing answer
+ * to "what can this student do today", and — because `prisma/seed.ts` re-asserts
+ * the flag on every run — one left in the seed silently undoes an admin's "Lock
+ * everything" the next time anyone re-seeds.
+ *
+ * Still documentation rather than enforcement: the flag on the row is what the
+ * gate reads, and an admin turning one on from the panel is a legitimate thing
+ * to do. This records the shipped default, and the seed test holds the seed to it.
  */
 export const guestSampleSize = {
-  guesstimate: 1,
-  qualitative: 1,
-  simulation: 1,
+  guesstimate: 0,
+  qualitative: 0,
+  simulation: 0,
 } as const;

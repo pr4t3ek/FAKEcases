@@ -93,3 +93,42 @@ describe("dayKey", () => {
     expect(dayKey(new Date("2026-08-18T18:30:00Z"))).toBe("2026-08-18");
   });
 });
+
+/**
+ * How the grant interacts with the tier table.
+ *
+ * These are the three cases behind "other questions are not locked yet": a
+ * granted question opens, an ungranted one does not, and a **Pro account
+ * ignores the grant entirely** — which is correct, and is why testing a locked
+ * catalogue while signed in as the seeded demo account shows the whole library.
+ */
+describe("the daily grant against the tier gate", () => {
+  const locked = { id: "q-locked", freeTier: false };
+  const granted = { id: "q-today", freeTier: false };
+  const grant = { questionIds: ["q-today"] };
+
+  it("opens a granted question to a free account", async () => {
+    const { canOpen } = await import("@/lib/entitlements");
+    expect(canOpen("free", granted, grant)).toBe(true);
+  });
+
+  it("still refuses everything else", async () => {
+    const { canOpen } = await import("@/lib/entitlements");
+    expect(canOpen("free", locked, grant)).toBe(false);
+  });
+
+  /**
+   * The behaviour that made the feature look broken. Not a bug: `tierAccess.pro`
+   * is `content: "all"`, so `canOpen` returns before the grant is consulted.
+   * Pinned so nobody "fixes" it by accident while chasing a lock report.
+   */
+  it("is irrelevant to a Pro account, which opens everything", async () => {
+    const { canOpen } = await import("@/lib/entitlements");
+    expect(canOpen("pro", locked, { questionIds: [] })).toBe(true);
+  });
+
+  it("opens nothing to a guest, since their grant is empty", async () => {
+    const { canOpen, NO_GRANT } = await import("@/lib/entitlements");
+    expect(canOpen("guest", granted, NO_GRANT)).toBe(false);
+  });
+});
