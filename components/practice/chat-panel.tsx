@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, Lightbulb, Loader2, Pause, Play, SendHorizontal, WifiOff } from "lucide-react";
+import { ArrowDown, Lightbulb, Loader2, Pause, Play, SendHorizontal, Volume2, VolumeX, WifiOff } from "lucide-react";
 import { toast } from "sonner";
-import { aiModes, hintConfig, transcriptFor, type AiMode } from "@/lib/config";
+import { aiModes, hintConfig, speechConfig, transcriptFor, type AiMode } from "@/lib/config";
 import { readNdjson } from "@/lib/llm/stream";
 import { setMode as persistMode } from "@/app/actions/practice";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { DictationButton } from "./dictation-button";
+import { SpeakButton } from "./speak-button";
+import { useSpeechOutput } from "./use-speech-output";
 import { AssistantText } from "./assistant-text";
 import type { UiMessage } from "./types";
 
@@ -353,6 +355,59 @@ export function ChatPanel({
    * into the interview as well, so switching back showed the solution you had
    * just been handed. See `transcriptFor` for why a hint counts as interview.
    */
+  // ── Reading replies aloud ────────────────────────────────────────────────
+  const [autoSpeak, setAutoSpeak] = useState(false);
+  const [rate, setRate] = useState<number>(speechConfig.defaultRate);
+  const { supported: canSpeak, speakingId, toggle: toggleSpeech, speak } = useSpeechOutput(rate);
+
+  // Read in an effect, never during render: `localStorage` doesn't exist on the
+  // server, and reading it while rendering would disagree with the server's HTML.
+  useEffect(() => {
+    setAutoSpeak(localStorage.getItem("eq-tts-auto") === "1");
+    const saved = Number(localStorage.getItem("eq-tts-rate"));
+    if ((speechConfig.rates as readonly number[]).includes(saved)) setRate(saved);
+  }, []);
+
+  /**
+   * Which turns have streamed, and which have been read.
+   *
+   * Auto-speak fires on a message we WATCHED finish, not merely on one that is
+   * finished. Two things would otherwise be read aloud that nobody asked for:
+   * the transcript restored from history on page load, and the last turn of the
+   * other tab every time the mode switch changes which conversation is visible.
+   */
+  const streamedRef = useRef<Set<string>>(new Set());
+  const spokenRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    for (const m of visible) {
+      if (m.role !== "assistant") continue;
+      if (m.streaming) {
+        streamedRef.current.add(m.id);
+        continue;
+      }
+      if (!streamedRef.current.has(m.id) || spokenRef.current.has(m.id)) continue;
+
+      // Marked as handled whether or not it is spoken, so switching the toggle
+      // on later starts with the NEXT reply rather than the one already on screen.
+      spokenRef.current.add(m.id);
+      if (autoSpeak && canSpeak) speak(m.id, m.content);
+    }
+  });
+
+  function changeAutoSpeak(next: boolean) {
+    setAutoSpeak(next);
+    localStorage.setItem("eq-tts-auto", next ? "1" : "0");
+  }
+
+  /** Cycles the short list rather than opening a picker — four values, one click. */
+  function cycleRate() {
+    const rates = speechConfig.rates as readonly number[];
+    const next = rates[(rates.indexOf(rate) + 1) % rates.length];
+    setRate(next);
+    localStorage.setItem("eq-tts-rate", String(next));
+  }
+
   const visible = messages.filter((m) => transcriptFor(m.mode) === transcriptFor(mode));
 
   /** Paused, the composer opens — see `cancelStream`. */
@@ -377,6 +432,39 @@ export function ChatPanel({
             {m.label}
           </button>
         ))}
+
+        {/* Pushed to the far end: reading aloud is a preference, not a mode, and
+            sitting it beside the mode buttons would imply it is one. */}
+        <div className="ml-auto flex items-center gap-0.5">
+          {autoSpeak && canSpeak && (
+            <button
+              onClick={cycleRate}
+              title="Playback speed"
+              aria-label={`Playback speed ${rate}x`}
+              className="rounded-md px-1.5 py-1 text-[11px] font-medium tabular-nums text-muted-foreground hover:bg-accent"
+            >
+              {rate}&times;
+            </button>
+          )}
+          <button
+            onClick={() => changeAutoSpeak(!autoSpeak)}
+            disabled={!canSpeak}
+            title={
+              !canSpeak
+                ? "Reading aloud isn't available in this browser"
+                : autoSpeak
+                  ? "Stop reading replies aloud"
+                  : "Read replies aloud as they arrive"
+            }
+            aria-pressed={autoSpeak}
+            className={cn(
+              "rounded-md p-1.5 transition-colors disabled:opacity-40",
+              autoSpeak ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent",
+            )}
+          >
+            {autoSpeak ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
+          </button>
+        </div>
       </div>
 
       {/* Messages */}
@@ -428,6 +516,18 @@ export function ChatPanel({
                 <span className="mt-1.5 block text-[11px] text-destructive">
                   Cut off — send another message to continue.
                 </span>
+              )}
+
+              {/* Only once the turn has settled. A half-streamed reply would be
+                  read out as far as it had got and then stop mid-sentence. */}
+              {m.role === "assistant" && !m.streaming && (
+                <div className="-mb-1 mt-0.5 flex justify-end">
+                  <SpeakButton
+                    supported={canSpeak}
+                    speaking={speakingId === m.id}
+                    onToggle={() => toggleSpeech(m.id, m.content)}
+                  />
+                </div>
               )}
             </div>
           </div>

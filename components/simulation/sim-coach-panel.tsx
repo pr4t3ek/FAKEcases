@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { readNdjson } from "@/lib/llm/stream";
 import { cn } from "@/lib/utils";
 import { AssistantText } from "@/components/practice/assistant-text";
+import { SpeakButton } from "@/components/practice/speak-button";
+import { useSpeechOutput } from "@/components/practice/use-speech-output";
 
 interface CoachMessage {
   role: "user" | "assistant";
@@ -33,6 +35,7 @@ const SUGGESTIONS = [
  */
 export function SimCoachPanel({ runId, available }: { runId: string; available: boolean }) {
   const [messages, setMessages] = useState<CoachMessage[]>([]);
+  const { supported: canSpeak, speakingId, toggle: toggleSpeech } = useSpeechOutput();
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -133,6 +136,18 @@ export function SimCoachPanel({ runId, available }: { runId: string; available: 
                 <Badge variant="muted" className="ml-2">
                   offline coach
                 </Badge>
+              )}
+
+              {/* Click-to-play only. The auto-speak toggle lives on the practice
+                  chat, which is a mock interview; a debrief is read, not sat. */}
+              {m.role === "assistant" && !m.streaming && m.content && (
+                <div className="-mb-1 mt-0.5 flex justify-end">
+                  <SpeakButton
+                    supported={canSpeak}
+                    speaking={speakingId === `coach-${i}`}
+                    onToggle={() => toggleSpeech(`coach-${i}`, m.content)}
+                  />
+                </div>
               )}
             </div>
           ))}
