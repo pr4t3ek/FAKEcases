@@ -1,38 +1,24 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { BrandMark } from "@/components/brand-mark";
 
 /**
- * The wordmark, and the same tick that is in the browser tab.
+ * The header lockup: the mark beside one line of type.
  *
- * The mark is redrawn here rather than imported from `app/icon.svg`, and the
- * duplication is deliberate: that file is consumed by the browser's chrome,
- * which cannot read our CSS variables, so it carries literal colours. This one
- * sits inside the document and uses the tokens, so it stays right if the accent
- * ever moves. The two are the same geometry — change one, change the other.
+ * The horizontal form of the logo. `<BrandLockup />` is the stacked one, for the
+ * sign-in pages where there is room to introduce the product properly.
  *
- * "CLOSED" takes the accent for the same reason "IQ" used to: the second word is
- * the one doing the work in the name.
+ * No tile behind the mark any more — the artwork sets it straight on black, and
+ * on a near-black header that is what it should do here too. "CLOSED" takes the
+ * accent, as the stamp does in the full lockup.
  */
 export function Brand({ className, href = "/" }: { className?: string; href?: string }) {
   return (
     <Link
       href={href}
-      className={cn("inline-flex items-center gap-2 font-display font-semibold", className)}
+      className={cn("inline-flex items-center gap-2 font-display font-bold", className)}
     >
-      <span className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground">
-        <svg
-          viewBox="0 0 64 64"
-          className="h-5 w-5"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="7"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M17 33.5 L27.5 44 L47 22" />
-        </svg>
-      </span>
+      <BrandMark className="h-7 w-7" />
       <span className="tracking-tight">
         CASE <span className="text-primary">CLOSED</span>
       </span>

@@ -222,16 +222,34 @@ component being touched:
   not just the page. With no light palette left to fall back on, anything it forgot would print as
   a dark grey panel.
 
-### The mark, in two files that must agree
+### The logo, redrawn as vector
 
-`app/icon.svg` is the browser-tab icon; `components/brand.tsx` draws the same tick for the header.
-The geometry is duplicated rather than shared, and deliberately: the favicon is painted by the
-browser's chrome, outside the document, so it can read neither our CSS variables nor the page it
-belongs to and has to carry literal colours. The in-app one uses the tokens and follows the accent
-wherever it goes. Change one, change the other.
+The mark is a magnifier with a chess king inside it, over a stacked `CASE` /
+stamped `CLOSED` wordmark — the supplied artwork, rebuilt as SVG in the theme's
+colours (its amber is our accent) rather than dropped in as a raster. A PNG logo
+is soft at the sizes it appears at most — a 28px header, a 16px tab — heavy
+everywhere else, and cannot follow the accent if the palette ever moves.
 
-It is drawn for 16px first — one filled square, one thick tick, no counters and no hairlines,
-because everything finer than that turns to grey mush in a tab strip.
+It exists in three forms, which is the ordinary answer for a logo that has to
+work from a browser tab to a sign-in page rather than a compromise:
+
+| Form | Where | What it drops |
+|---|---|---|
+| `components/brand-lockup.tsx` | Sign-in pages | Nothing — mark, wordmark, stamp, padlock, tagline |
+| `components/brand.tsx` | Every header | The stacked wordmark; one line of type beside the mark |
+| `app/icon.svg` | Browser tab | The king — a figure inside the lens is 4px tall at 16px |
+
+**The words are HTML, not paths.** We already ship a heavy grotesk
+(`font-display`), so setting real text keeps the logo crisp on every screen,
+selectable and translatable, without a second copy of the alphabet in the bundle.
+
+**The tab icon inverts on purpose.** In the app the accent is the stroke on a
+near-black page; in the tab it is the *fill*, because a browser paints the icon
+against its own chrome — dark for about half of everyone — and a near-black mark
+disappears into a dark tab strip. It also carries literal colours rather than
+tokens, since a favicon lives outside the document and can read neither our CSS
+variables nor the page it belongs to. Keep it in step with `brand-mark.tsx` by
+hand.
 
 ### The fonts are in the repo on purpose
 

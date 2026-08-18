@@ -85,8 +85,8 @@ function Hero({ isAuthed }: { isAuthed: boolean }) {
               headline, and a rendering lottery in a tab strip or a search
               result — see the metadata in app/layout.tsx. */}
           <Badge variant="secondary" className="mb-5 w-fit gap-1.5">
-            <Sparkles className="h-3.5 w-3.5" /> Because &ldquo;It Depends&rdquo; isn&apos;t an
-            answer. 😏
+            <Sparkles className="h-3.5 w-3.5" /> Because &ldquo;It Depends&rdquo; Isn&apos;t an
+            Answer. 😏
           </Badge>
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
             Crack case interviews with an{" "}

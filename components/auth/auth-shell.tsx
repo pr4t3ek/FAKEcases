@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Brand } from "@/components/brand";
+import { BrandLockup } from "@/components/brand-lockup";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export function AuthShell({
@@ -20,6 +21,12 @@ export function AuthShell({
       </header>
       <main className="flex flex-1 items-center justify-center px-6 pb-16">
         <div className="w-full max-w-md">
+          {/* The full logo above the card, and the only place in the app that
+              gets it: these pages are where somebody meets the product, and
+              everywhere else is somewhere they are already working. Hidden on
+              short viewports, where a landscape phone would push the form
+              itself off the screen. */}
+          <BrandLockup className="mb-8 hidden sm:flex" />
           <Card className="shadow-lg">
             <CardHeader className="text-center">
               <CardTitle className="text-2xl">{title}</CardTitle>
