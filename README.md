@@ -96,6 +96,26 @@ token-by-token, and **falls back to the mock** when the provider is unavailable.
 OpenAI also work (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY`) but neither has a free tier. Keys stay
 **server-side** only.
 
+### NVIDIA NIM
+
+`NVIDIA_API_KEY` points the interviewer at the hosted catalogue on
+[build.nvidia.com](https://build.nvidia.com). It is OpenAI-compatible, so `lib/llm/nvidia.ts` is
+the same forty lines of JSON as every other adapter — no SDK, like the rest of `lib/llm`.
+
+Two things to know:
+
+- **It wins the auto-detection race, ahead of Gemini.** That is deliberate, and it is silent when
+  it is wrong: a machine holding both keys answers perfectly well on NVIDIA while you think you
+  are spending Gemini's free tier. Set `LLM_PROVIDER` explicitly if you keep more than one.
+- **Pick the model deliberately.** `NVIDIA_MODEL` takes the namespaced id from the model's page
+  (`meta/llama-3.1-8b-instruct`), kept separate from the shared `LLM_MODEL` so a name belonging to
+  another provider is never sent here. The default is a floor, not a recommendation — the
+  catalogue is large and moves.
+
+It is metered like any hosted provider, so the spend guards in `lib/config/practice.ts` apply. If
+you were hoping to reach NVIDIA by pointing `OLLAMA_BASE_URL` at it, that does not work: the
+Ollama adapter deliberately sends no `authorization` header, and NVIDIA needs a bearer token.
+
 ### Know the free-tier ceiling before you deploy
 
 Gemini's free-tier limits are **per API key, so they're shared by every user of the deployment** —
@@ -187,6 +207,7 @@ Framer Motion · Prisma (SQLite dev → Postgres/Supabase prod) · Recharts · V
 | Change what the post-signup step asks | `components/onboarding/welcome-steps.tsx` |
 | Change what a question may contain | `lib/question-schema.ts` (one contract for admin + import) |
 | Swap the LLM provider | env vars (`LLM_PROVIDER`, `*_API_KEY`) |
+| Use NVIDIA NIM's hosted models | `NVIDIA_API_KEY` + `NVIDIA_MODEL` (see above) |
 | Develop against a free local model | `LLM_PROVIDER=ollama` + `OLLAMA_MODEL` (see above) |
 | Tune LLM rate/spend limits | `lib/config/practice.ts` (`llmBudget`) |
 | Change the voice-input language | `lib/config/practice.ts` (`speechConfig.lang`) |

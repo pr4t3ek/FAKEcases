@@ -125,3 +125,72 @@ export function classifyOllamaError(
 
   return new LlmError("provider_error", `Ollama error: ${message}`, { cause: err });
 }
+
+/**
+ * Classify a failure from NVIDIA NIM.
+ *
+ * Hosted and metered, so unlike Ollama it *can* exhaust a quota — and unlike
+ * Gemini it separates the two cases by status rather than by prose: 429 is the
+ * rate limit, and a spent allowance arrives as 402/403 rather than as a 429 with
+ * a different message inside it. That is the distinction `runTurn` acts on, so
+ * it is worth reading off the status rather than guessing from the body.
+ *
+ * The messages name the fix for the same reason `classifyOllamaError`'s do: any
+ * provider failure silently degrades the turn to the mock, so the server log is
+ * the only place the real problem is visible.
+ */
+export function classifyNvidiaError(
+  err: unknown,
+  context: { model: string },
+): LlmError {
+  if (err instanceof LlmError) return err;
+
+  const message = err instanceof Error ? err.message : String(err);
+  const status = statusOf(err);
+
+  // `fetch` reports a network failure as an opaque "fetch failed" with the real
+  // reason on `cause`, the same shape the Ollama classifier handles.
+  const cause = err instanceof Error && err.cause instanceof Error ? err.cause.message : "";
+  const haystack = `${message} ${cause}`.toLowerCase();
+  if (haystack.includes("fetch failed") || haystack.includes("enotfound")) {
+    return new LlmError(
+      "provider_error",
+      `NVIDIA not reachable at integrate.api.nvidia.com — check network access. (${message})`,
+      { cause: err },
+    );
+  }
+
+  if (status === 401 || status === 403) {
+    return new LlmError(
+      "provider_error",
+      `NVIDIA rejected the key (${status}) — check NVIDIA_API_KEY. It should start with 'nvapi-'.`,
+      { cause: err },
+    );
+  }
+
+  // 404 here is a model id, not a route: the path is fixed and the id is the
+  // only part of the request an operator chose.
+  if (status === 404) {
+    return new LlmError(
+      "provider_error",
+      `NVIDIA has no model '${context.model}' — check NVIDIA_MODEL against the catalogue at build.nvidia.com.`,
+      { cause: err },
+    );
+  }
+
+  if (status === 402) {
+    return new LlmError("quota_exhausted", `NVIDIA credits exhausted: ${message}`, { cause: err });
+  }
+
+  if (status === 429) {
+    return new LlmError("rate_limited", `NVIDIA rate limited: ${message}`, { cause: err });
+  }
+
+  if (status !== undefined && status >= 500) {
+    return new LlmError("rate_limited", `NVIDIA unavailable (${status}): ${message}`, {
+      cause: err,
+    });
+  }
+
+  return new LlmError("provider_error", `NVIDIA error: ${message}`, { cause: err });
+}

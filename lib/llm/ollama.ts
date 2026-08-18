@@ -1,6 +1,7 @@
 import { env } from "@/lib/config";
 import { buildReplyMessages, buildHintMessages } from "./build-messages";
 import { classifyOllamaError, LlmError } from "./errors";
+import { parseSseDeltas } from "./openai-sse";
 import type { ConvMessage, InterviewerContext, LlmAdapter } from "./types";
 
 /**
@@ -34,63 +35,6 @@ function resolveBaseUrl(): string {
  */
 function resolveModel(): string {
   return env.llm.ollamaModel?.trim() || env.llm.model?.trim() || DEFAULT_OLLAMA_MODEL;
-}
-
-interface StreamChunk {
-  choices?: { delta?: { content?: string } }[];
-}
-
-/**
- * Pull text deltas out of an OpenAI-style SSE body.
- *
- * Split out and exported so the line handling — `data:` prefixes, the `[DONE]`
- * sentinel, and events straddling a chunk boundary — can be tested without a
- * server. A malformed line is skipped rather than thrown on, matching
- * `safeParse()` in `./stream`: one bad frame shouldn't kill a turn that is
- * otherwise streaming fine.
- */
-export async function* parseSseDeltas(
-  body: ReadableStream<Uint8Array>,
-): AsyncGenerator<string> {
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  function* linesFrom(text: string): Generator<string> {
-    buffer += text;
-    let newline: number;
-    while ((newline = buffer.indexOf("\n")) >= 0) {
-      const line = buffer.slice(0, newline).trim();
-      buffer = buffer.slice(newline + 1);
-      if (line) yield line;
-    }
-  }
-
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      for (const line of linesFrom(decoder.decode(value, { stream: true }))) {
-        if (!line.startsWith("data:")) continue;
-
-        const payload = line.slice(5).trim();
-        if (payload === "[DONE]") return;
-
-        let chunk: StreamChunk;
-        try {
-          chunk = JSON.parse(payload) as StreamChunk;
-        } catch {
-          continue;
-        }
-
-        const text = chunk.choices?.[0]?.delta?.content;
-        if (text) yield text;
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
 }
 
 async function* run(system: string, messages: ConvMessage[]): AsyncGenerator<string> {
