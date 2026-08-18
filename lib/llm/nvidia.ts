@@ -1,4 +1,4 @@
-import { env, maxOutputTokensWithReasoning } from "@/lib/config";
+import { env, withReasoningHeadroom } from "@/lib/config";
 import { buildReplyMessages, buildHintMessages } from "./build-messages";
 import { classifyNvidiaError, LlmError } from "./errors";
 import { parseSseDeltas } from "./openai-sse";
@@ -33,21 +33,20 @@ export const DEFAULT_NVIDIA_MODEL = "meta/llama-3.1-8b-instruct";
 const BASE_URL = "https://integrate.api.nvidia.com/v1";
 
 /**
- * Higher than the answer budget the other adapters ask for, and the reason is
- * the reasoning.
+ * Every request adds reasoning headroom on top of the turn's answer budget, and
+ * the reason is the reasoning.
  *
  * NVIDIA's catalogue is full of models that think before they answer, and the
- * thinking is billed against this same ceiling. At 1024 a Nemotron turn spent the
- * entire budget deliberating and the reply was cut off before the answer began —
- * the student got a truncated monologue and no question. `noThinkingKwargs()`
- * below asks for that to stop, but a model that ignores the flag still needs room
- * to think AND answer.
+ * thinking is billed against the same ceiling. At 1024 flat a Nemotron turn spent
+ * the entire budget deliberating and the reply was cut off before the answer
+ * began — the student got a truncated monologue and no question.
+ * `noThinkingKwargs()` below asks for that to stop, but a model that ignores the
+ * flag still needs room to think AND answer, so the headroom is unconditional.
  *
- * The number is unchanged; it is now the sum of the shared answer budget and the
- * headroom that buys the deliberation, so retuning `llmOutput.visibleAnswerTokens`
- * moves every provider together instead of leaving this one behind.
+ * See `withReasoningHeadroom` in lib/config/practice.ts: an ordinary turn lands
+ * on 3072, the ceiling this arrived at empirically, and Teacher mode gets more
+ * because its walkthrough is longer before a single token of thinking.
  */
-const MAX_OUTPUT_TOKENS = maxOutputTokensWithReasoning();
 
 /**
  * Ask a reasoning model not to reason.
@@ -75,7 +74,11 @@ function resolveModel(): string {
   return env.llm.nvidiaModel?.trim() || env.llm.model?.trim() || DEFAULT_NVIDIA_MODEL;
 }
 
-async function* run(system: string, messages: ConvMessage[]): AsyncGenerator<string> {
+async function* run(
+  system: string,
+  messages: ConvMessage[],
+  answerTokens: number,
+): AsyncGenerator<string> {
   const model = resolveModel();
   const apiKey = env.llm.nvidiaApiKey;
 
@@ -95,7 +98,7 @@ async function* run(system: string, messages: ConvMessage[]): AsyncGenerator<str
       },
       body: JSON.stringify({
         model,
-        max_tokens: MAX_OUTPUT_TOKENS,
+        max_tokens: withReasoningHeadroom(answerTokens),
         stream: true,
         chat_template_kwargs: noThinkingKwargs(),
         messages: [
@@ -130,11 +133,11 @@ export const nvidiaAdapter: LlmAdapter = {
     return resolveModel();
   },
   reply(ctx: InterviewerContext) {
-    const { system, messages } = buildReplyMessages(ctx);
-    return run(system, messages);
+    const { system, messages, maxTokens } = buildReplyMessages(ctx);
+    return run(system, messages, maxTokens);
   },
   hint(ctx: InterviewerContext, level: number) {
-    const { system, messages } = buildHintMessages(ctx, level);
-    return run(system, messages);
+    const { system, messages, maxTokens } = buildHintMessages(ctx, level);
+    return run(system, messages, maxTokens);
   },
 };

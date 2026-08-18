@@ -1,4 +1,4 @@
-import { hintConfig } from "@/lib/config";
+import { answerTokensForMode, hintConfig, llmOutput } from "@/lib/config";
 import {
   renderContextBlock,
   renderDataPack,
@@ -42,6 +42,15 @@ function teacherBlock(ctx: InterviewerContext): string {
 export function buildReplyMessages(ctx: InterviewerContext): {
   system: string;
   messages: ConvMessage[];
+  /**
+   * How much the model may write for this turn.
+   *
+   * Decided here because this is the one place that already knows which mode is
+   * speaking, and the answer differs by a factor of three: Teacher mode works
+   * the problem, everything else asks about it. An adapter adds reasoning
+   * headroom on top where it cannot prove the model's thinking is off.
+   */
+  maxTokens: number;
 } {
   if (ctx.simulation) {
     const system = `${simCoachRules(ctx.simulation.mentor)}\n\n${renderSimContextBlock(ctx.simulation)}${dataBlock(ctx)}`;
@@ -49,7 +58,9 @@ export function buildReplyMessages(ctx: InterviewerContext): {
     if (messages.length === 0) {
       messages.push({ role: "user", content: "Walk me through what I got wrong." });
     }
-    return { system, messages };
+    // The debrief coach answers in 2–4 short bullets whatever the picker was
+    // left on, so it takes the ordinary budget rather than the mode's.
+    return { system, messages, maxTokens: llmOutput.visibleAnswerTokens };
   }
 
   const system = `${systemPromptForMode(ctx.mode, ctx.answerMode)}\n\nCurrent state:\n${renderContextBlock(ctx)}${dataBlock(ctx)}${teacherBlock(ctx)}`;
@@ -58,16 +69,19 @@ export function buildReplyMessages(ctx: InterviewerContext): {
   if (messages.length === 0) {
     messages.push({ role: "user", content: "Let's begin. How should I approach this?" });
   }
-  return { system, messages };
+  return { system, messages, maxTokens: answerTokensForMode(ctx.mode) };
 }
 
 /** Build (system, messages) for a hint request. */
 export function buildHintMessages(
   ctx: InterviewerContext,
   level: number,
-): { system: string; messages: ConvMessage[] } {
+): { system: string; messages: ConvMessage[]; maxTokens: number } {
   const system = `${hintSystemPrompt(level, hintConfig.levels, ctx.answerMode)}\n\nCurrent state:\n${renderContextBlock(ctx)}${dataBlock(ctx)}`;
   const messages: ConvMessage[] = ctx.messages.filter((m) => m.role !== "system");
   messages.push({ role: "user", content: `Can I get a hint? (level ${level})` });
-  return { system, messages };
+  // A hint is 1–3 sentences by its own prompt, so it takes the ordinary budget
+  // even when the picker is sitting on Teacher — the mode the candidate happens
+  // to have selected does not make the hint longer.
+  return { system, messages, maxTokens: llmOutput.visibleAnswerTokens };
 }

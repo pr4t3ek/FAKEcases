@@ -97,13 +97,31 @@ export const llmBudget = {
  */
 export const llmOutput = {
   /**
-   * The answer itself. Sized generously against what the prompts ask for — four
-   * bullets of two short sentences is roughly 215 tokens — so this bites on a
-   * runaway reply and never on a well-behaved one.
+   * An ordinary turn: a Socratic question, a coach's nudge, a hint, or the war
+   * room's 2–4 bullets. Sized generously against what those prompts ask for —
+   * four bullets of two short sentences is roughly 215 tokens — so this bites on
+   * a runaway reply and never on a well-behaved one.
    *
-   * Raise this, and nothing else, if replies start arriving cut off mid-word.
+   * Raise this, and nothing else, if ordinary replies arrive cut off mid-word.
    */
   visibleAnswerTokens: 384,
+
+  /**
+   * Teacher mode, which is a different length of thing entirely.
+   *
+   * It is the one mode asked to *work the problem* — population, segmentation,
+   * frequency, quantity, and a worked estimate that has to land on the authored
+   * sample solution — so it writes a structured walkthrough where every other
+   * mode writes a question. Both `gemini.ts` and `ollama.ts` carried the same
+   * warning before this budget existed: **512 truncates Teacher mode
+   * mid-sentence**, which is why they sat at 1024 while the older adapters sat
+   * at 512. That number is restored here rather than rediscovered.
+   *
+   * Kept as its own budget rather than lifting `visibleAnswerTokens` to match,
+   * because that would hand the interviewer a ceiling four times what its own
+   * prompt asks for and give a runaway Socratic turn somewhere to run to.
+   */
+  teacherAnswerTokens: 1024,
 
   /**
    * Extra room for a model that thinks before it answers.
@@ -117,9 +135,23 @@ export const llmOutput = {
   reasoningHeadroomTokens: 2688,
 };
 
-/** The ceiling for an adapter that cannot prove the model's thinking is off. */
-export function maxOutputTokensWithReasoning(): number {
-  return llmOutput.visibleAnswerTokens + llmOutput.reasoningHeadroomTokens;
+/**
+ * The answer budget for one turn.
+ *
+ * Teacher mode explains; every other mode asks. Sizing them the same is what
+ * made a walkthrough arrive cut in half.
+ */
+export function answerTokensForMode(mode: string): number {
+  return mode === "teacher" ? llmOutput.teacherAnswerTokens : llmOutput.visibleAnswerTokens;
+}
+
+/**
+ * The same budget, plus room for a model whose private reasoning is billed
+ * against the same ceiling. For an ordinary turn this is 3072 — the number
+ * NVIDIA arrived at empirically, which `tests/nvidia.test.ts` holds it to.
+ */
+export function withReasoningHeadroom(answerTokens: number): number {
+  return answerTokens + llmOutput.reasoningHeadroomTokens;
 }
 
 /**

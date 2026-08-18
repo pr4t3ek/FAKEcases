@@ -1,4 +1,4 @@
-import { env, maxOutputTokensWithReasoning } from "@/lib/config";
+import { env, withReasoningHeadroom } from "@/lib/config";
 import { buildReplyMessages, buildHintMessages } from "./build-messages";
 import { classifyOllamaError, LlmError } from "./errors";
 import { parseSseDeltas } from "./openai-sse";
@@ -21,17 +21,14 @@ import type { ConvMessage, InterviewerContext, LlmAdapter } from "./types";
 export const DEFAULT_OLLAMA_MODEL = "qwen2.5:7b";
 const DEFAULT_BASE_URL = "http://localhost:11434/v1";
 
-/**
- * The answer budget plus room to think.
- *
- * A local catalogue carries reasoning models too, and nothing here asks them to
- * stop — there is no `noThinkingKwargs()` equivalent on this path — so the
- * headroom NVIDIA needed applies for the same reason: deliberation is billed
- * against this ceiling, and a model that spends it all thinking returns a
- * truncated monologue. Ollama bills nothing, so the only thing this trades is
- * latency on a turn that runs long, against a reply that arrives cut in half.
+/*
+ * Requests add reasoning headroom on top of the turn's answer budget, for the
+ * reason nvidia.ts gives at length: a local catalogue carries reasoning models
+ * too, nothing on this path asks them to stop, and deliberation is billed against
+ * the same ceiling as the answer. Ollama bills nothing, so the only thing the
+ * headroom trades is latency on a turn that runs long, against a reply that
+ * arrives cut in half.
  */
-const MAX_OUTPUT_TOKENS = maxOutputTokensWithReasoning();
 
 function resolveBaseUrl(): string {
   const raw = env.llm.ollamaBaseUrl?.trim() || DEFAULT_BASE_URL;
@@ -46,7 +43,11 @@ function resolveModel(): string {
   return env.llm.ollamaModel?.trim() || env.llm.model?.trim() || DEFAULT_OLLAMA_MODEL;
 }
 
-async function* run(system: string, messages: ConvMessage[]): AsyncGenerator<string> {
+async function* run(
+  system: string,
+  messages: ConvMessage[],
+  answerTokens: number,
+): AsyncGenerator<string> {
   const baseUrl = resolveBaseUrl();
   const model = resolveModel();
 
@@ -58,7 +59,7 @@ async function* run(system: string, messages: ConvMessage[]): AsyncGenerator<str
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         model,
-        max_tokens: MAX_OUTPUT_TOKENS,
+        max_tokens: withReasoningHeadroom(answerTokens),
         stream: true,
         messages: [
           { role: "system", content: system },
@@ -92,11 +93,11 @@ export const ollamaAdapter: LlmAdapter = {
     return resolveModel();
   },
   reply(ctx: InterviewerContext) {
-    const { system, messages } = buildReplyMessages(ctx);
-    return run(system, messages);
+    const { system, messages, maxTokens } = buildReplyMessages(ctx);
+    return run(system, messages, maxTokens);
   },
   hint(ctx: InterviewerContext, level: number) {
-    const { system, messages } = buildHintMessages(ctx, level);
-    return run(system, messages);
+    const { system, messages, maxTokens } = buildHintMessages(ctx, level);
+    return run(system, messages, maxTokens);
   },
 };

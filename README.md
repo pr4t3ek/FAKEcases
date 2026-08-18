@@ -144,11 +144,12 @@ The app is built to hit that ceiling gracefully rather than break:
 - **Exceeding either degrades to the mock**, badged "offline interviewer" in the chat, instead of
   erroring mid-session. Same for a rate limit or an outage.
 - Raise `llmBudget` when you move to a paid tier or a higher-quota model.
-- **How much the model may write** is `llmOutput` in the same file: one answer budget every
-  adapter asks for, sized to the "2–4 sentences" the prompts already request, so a model that
-  ignores the instruction is stopped by the ceiling rather than by whatever limit its adapter
-  happened to carry. If replies start arriving cut off mid-word, `visibleAnswerTokens` is the
-  one number to raise.
+- **How much the model may write** is `llmOutput` in the same file, and it is two budgets
+  because the modes are two lengths of thing. An ordinary turn — a Socratic question, a hint,
+  the war room's bullets — gets `visibleAnswerTokens`, sized to the "2–4 sentences" those
+  prompts already ask for. **Teacher mode gets `teacherAnswerTokens`**, because it is the one
+  mode asked to work the problem end to end and a walkthrough truncates at the width a question
+  fits in. Raise whichever one is arriving cut off mid-word; they move independently on purpose.
 
 **A reasoning model costs more than it looks.** Its private deliberation is billed against the
 same ceiling as the answer, and the app strips those `<think>` blocks before rendering — so a
