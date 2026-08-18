@@ -24,6 +24,13 @@
  * Deliberately conservative. Anything unrecognised is left exactly as it was:
  * a student mis-reading one stray backslash is a much smaller failure than the
  * app quietly rewriting a number.
+ *
+ * The one thing it is NOT conservative about is a reasoning block. A model that
+ * thinks out loud emits its deliberation in the same `content` stream as its
+ * answer, and that deliberation quotes the system prompt back — the hard rules,
+ * the ideal range, the sample solution. Leaking it does not just read badly, it
+ * hands the student the answer key. So `<think>` is removed unconditionally, and
+ * an unterminated one takes the rest of the reply with it.
  */
 
 /** LaTeX commands with an obvious single-character meaning. */
@@ -57,9 +64,49 @@ const SYMBOLS: Record<string, string> = {
  */
 const WRAPPERS = /\\(?:text|textbf|textit|mathrm|mathbf|mathit|operatorname)\s*\{([^{}]*)\}/g;
 
+/**
+ * Tags a reasoning model wraps its private deliberation in.
+ *
+ * `<think>` is the near-universal spelling; the others are the ones seen often
+ * enough to be worth matching. Case-insensitive, because models are inconsistent
+ * about it even within one reply.
+ */
+const THINK_TAGS = "think|thinking|reasoning|thought";
+
+const CLOSED_THINK = new RegExp(`<\\s*(${THINK_TAGS})\\s*>[\\s\\S]*?<\\s*/\\s*\\1\\s*>`, "gi");
+/** An opening tag with no partner: the reply was cut off mid-thought. */
+const UNCLOSED_THINK = new RegExp(`<\\s*(?:${THINK_TAGS})\\s*>[\\s\\S]*$`, "i");
+/** A stray closing tag, when the opener was lost to a trimmed transcript. */
+const ORPHAN_CLOSE = new RegExp(`^[\\s\\S]*?<\\s*/\\s*(?:${THINK_TAGS})\\s*>`, "i");
+
+/**
+ * Remove a model's private reasoning.
+ *
+ * Order matters. Closed blocks go first, so a well-formed reply with reasoning
+ * followed by an answer keeps the answer. Only then is a surviving opener treated
+ * as unterminated — checking that first would swallow the answer that came after
+ * a properly closed block.
+ *
+ * The orphan-close pass is last and is the one that recovers a truncated turn:
+ * when the opening tag has been lost, everything up to and including the closing
+ * tag is still reasoning.
+ *
+ * Exported for its own tests. A reply that was *entirely* reasoning correctly
+ * returns an empty string — `runTurn` treats an empty turn as a failed one, which
+ * is the honest outcome and far better than rendering the deliberation.
+ */
+export function stripReasoning(raw: string): string {
+  if (!raw.includes("<")) return raw;
+  return raw.replace(CLOSED_THINK, "").replace(UNCLOSED_THINK, "").replace(ORPHAN_CLOSE, "");
+}
+
 export function toReadableText(raw: string): string {
   if (!raw) return raw;
-  let out = raw;
+  // First, and before any rewriting: there is no point normalising LaTeX inside
+  // text that is about to be thrown away, and a think block routinely contains
+  // the sample solution.
+  let out = stripReasoning(raw);
+  if (!out.trim()) return "";
 
   // ── Maths delimiters ──────────────────────────────────────────────────────
   // Only the wrappers go; whatever sat inside is the actual content. Each takes

@@ -122,6 +122,26 @@ describe("nvidia adapter", () => {
     expect(body.messages[0].role).toBe("system");
   });
 
+  /**
+   * NVIDIA's catalogue is full of reasoning models, and their thinking is billed
+   * against the same `max_tokens` as the answer. A Nemotron turn spent the whole
+   * budget deliberating and was cut off before it asked anything — so the flag
+   * asking it not to think is part of the request contract, not a nicety.
+   *
+   * Belt and braces: `toReadableText` strips think blocks regardless, because a
+   * model that ignores this key does so silently.
+   */
+  it("asks the model not to think, and leaves room to answer if it does", async () => {
+    fetchMock.mockResolvedValue(sseResponse(frame("Hi")));
+    const { interviewerReplyStream, collectTurn } = await loadLlm();
+
+    await collectTurn(interviewerReplyStream(ctx()));
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.chat_template_kwargs).toEqual({ thinking: false });
+    expect(body.max_tokens).toBeGreaterThanOrEqual(3072);
+  });
+
   it("reassembles a frame split across chunk boundaries", async () => {
     const whole = frame("Segment by household.");
     const split = Math.floor(whole.length / 2);

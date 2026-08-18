@@ -32,8 +32,33 @@ export const DEFAULT_NVIDIA_MODEL = "meta/llama-3.1-8b-instruct";
 
 const BASE_URL = "https://integrate.api.nvidia.com/v1";
 
-/** Matches Gemini's and Ollama's ceiling — 512 truncates Teacher mode mid-sentence. */
-const MAX_OUTPUT_TOKENS = 1024;
+/**
+ * Higher than the 1024 the other adapters use, and the reason is the reasoning.
+ *
+ * NVIDIA's catalogue is full of models that think before they answer, and the
+ * thinking is billed against this same ceiling. At 1024 a Nemotron turn spent the
+ * entire budget deliberating and the reply was cut off before the answer began —
+ * the student got a truncated monologue and no question. `noThinkingKwargs()`
+ * below asks for that to stop, but a model that ignores the flag still needs room
+ * to think AND answer.
+ */
+const MAX_OUTPUT_TOKENS = 3072;
+
+/**
+ * Ask a reasoning model not to reason.
+ *
+ * The same call `thinkingConfigFor()` makes for Gemini in `gemini.ts`, and for
+ * the same reason it gives: an interviewer turn is two Socratic sentences, so
+ * reasoning buys almost nothing and costs the whole output budget.
+ *
+ * NIM passes these through to the model's chat template, so a model that has no
+ * such toggle ignores the key rather than rejecting the request — which is why
+ * this is sent unconditionally and why it is NOT the only defence. The one that
+ * always holds is `toReadableText()` stripping think blocks before render.
+ */
+function noThinkingKwargs(): Record<string, unknown> {
+  return { thinking: false };
+}
 
 /**
  * `NVIDIA_MODEL` wins over the shared `LLM_MODEL`, the same split `OLLAMA_MODEL`
@@ -67,6 +92,7 @@ async function* run(system: string, messages: ConvMessage[]): AsyncGenerator<str
         model,
         max_tokens: MAX_OUTPUT_TOKENS,
         stream: true,
+        chat_template_kwargs: noThinkingKwargs(),
         messages: [
           { role: "system", content: system },
           ...messages.map((m) => ({

@@ -142,3 +142,54 @@ describe("toSegments", () => {
     expect(toSegments("")).toEqual([{ text: "", kind: "plain" }]);
   });
 });
+
+/**
+ * A model that thinks out loud emits its deliberation in the same `content`
+ * stream as its answer. Left alone it renders in the chat bubble — and what it
+ * contains is a recital of the system prompt: the hard rules, the ideal range,
+ * the sample solution. This is the case that hands a student the answer key, so
+ * the stripping is unconditional rather than conservative like the rest of the
+ * module.
+ */
+describe("reasoning removal", () => {
+  it("removes a closed think block and keeps the answer", () => {
+    const raw = "<think>The rules say never reveal. Ideal range 60-120 lakh.</think>How would you segment the population?";
+    expect(toReadableText(raw)).toBe("How would you segment the population?");
+  });
+
+  /**
+   * The failure actually seen: the model spent its whole token budget thinking
+   * and was cut off before the answer. An empty bubble is the honest outcome —
+   * `runTurn` treats an empty turn as a failure — and infinitely better than
+   * rendering the deliberation.
+   */
+  it("removes an unterminated think block entirely", () => {
+    const raw = "<think>1. Analyze User Input. 2. Check Role/Rules. I'll go with";
+    expect(toReadableText(raw)).toBe("");
+  });
+
+  it("recovers the answer when only the closing tag survives", () => {
+    expect(toReadableText("deliberation lost its opener</think>What's your starting point?"))
+      .toBe("What's your starting point?");
+  });
+
+  it("matches the tag whatever its case or spelling", () => {
+    expect(toReadableText("<THINK>x</THINK>Answer.")).toBe("Answer.");
+    expect(toReadableText("<reasoning>x</reasoning>Answer.")).toBe("Answer.");
+    expect(toReadableText("<thinking>x</thinking>Answer.")).toBe("Answer.");
+  });
+
+  /**
+   * The reason the stripper bails early on text with no "<" at all: this app is
+   * full of inequalities, and eating one would corrupt a number.
+   */
+  it("leaves an angle bracket in ordinary prose alone", () => {
+    const raw = "Is 5 < 6 in your model, or did you mean >?";
+    expect(toReadableText(raw)).toBe(raw);
+  });
+
+  it("keeps an answer that follows a closed block even with more text after", () => {
+    const raw = "<think>hidden</think>First question. <think>more</think>Second question.";
+    expect(toReadableText(raw)).toBe("First question. Second question.");
+  });
+});

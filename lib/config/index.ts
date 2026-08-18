@@ -3,6 +3,7 @@ export * from "./env";
 export * from "./gamification";
 export * from "./evaluation";
 export * from "./practice";
+export * from "./reference-data";
 export * from "./profile";
 export * from "./simulation";
 export * from "./storage";
