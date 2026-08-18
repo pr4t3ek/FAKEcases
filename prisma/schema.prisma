@@ -74,20 +74,13 @@ model User {
   /// tutorial for anyone who filled in their profile.
   profileCompletedAt DateTime?
 
-  /// Curated college id from `lib/config/colleges.ts`, or null for "Other" /
-  /// not answered — in which case the written-in name is on `Profile`.
-  ///
-  /// On User rather than Profile, and indexed, because grouping by it is a
-  /// query rather than a display: a college leaderboard reads this beside
-  /// `skillRating`, which lives here too, so it stays a single indexed scan
-  /// with no join.
-  collegeId      String?
-
   /// PGP batch id from `lib/config/batches.ts` — "pgp1" or "pgp2".
   ///
-  /// Beside `collegeId` for the same reason it is on `User`: a board groups by
-  /// it, so it is a query rather than a display, and `globalStandings` already
-  /// reads this row.
+  /// On `User` rather than `Profile` because a board groups by it — a query
+  /// rather than a display — and `globalStandings` already reads this row. It is
+  /// the only affiliation a row carries now that the college question is gone:
+  /// one campus, so the institution is a constant (`INSTITUTION_NAME`) and the
+  /// batch is the part that differs.
   ///
   /// Nullable in the column even though the app requires an answer. Every row
   /// that existed before this field has none, and a `NOT NULL` here would make
@@ -95,6 +88,24 @@ model User {
   /// lib/batch-gate.ts is what makes it mandatory, and it can say what it wants
   /// rather than failing an insert.
   batch          String?
+
+  /// When this account asked to be made a professor, or null.
+  ///
+  /// The request, not the grant — `role` is the grant, and nothing a person can
+  /// set writes it. An explicit stamp rather than reading "did they pick
+  /// Professor as their occupation?" off `Profile`, because a decision needs a
+  /// state: a declined request inferred from a display field comes back as
+  /// pending on every admin visit, forever. Cleared when an admin approves or
+  /// declines, and when the person switches back to Student.
+  professorRequestedAt DateTime?
+
+  /// Set by an admin password reset; cleared when the person chooses a new one.
+  ///
+  /// A reset makes the password the account's own email address, which is a
+  /// value anyone holding a class roster can guess. This flag is what closes
+  /// that window: `requirePasswordChange` (lib/password-gate.ts) sends the
+  /// account to `/set-password` and nothing else opens until it is cleared.
+  mustChangePassword Boolean  @default(false)
 
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
@@ -111,7 +122,6 @@ model User {
   hostedRooms    SimRoom[]             @relation("HostedRooms")
   roomSeats      SimRoomMember[]
 
-  @@index([collegeId])
   @@index([batch])
 }
 
@@ -124,7 +134,7 @@ model User {
 /// sends, to render a header that needs none of them.
 ///
 /// So the split is by access pattern, not by how "profile-ish" a field feels:
-/// anything queried, ranked or filtered by stays on `User` (`collegeId`,
+/// anything queried, ranked or filtered by stays on `User` (`batch`,
 /// `skillRating`), and anything read only when someone opens their own profile
 /// lives here. `Progress` is the same shape for the same kind of reason.
 model Profile {
@@ -136,13 +146,12 @@ model Profile {
   city      String?
   bio       String?
 
-  /// One of PROFESSIONS in lib/config/profile.ts.
+  /// One of PROFESSIONS in lib/config/profile.ts — "student" or "professor".
+  ///
+  /// Display only, and it must stay that way: `User.role` is what grants
+  /// anything, and picking "professor" here only records a request on
+  /// `User.professorRequestedAt` for an admin to approve.
   profession String?
-  /// Written-in college, set only when `User.collegeId` is null. It deliberately
-  /// gets no grouping key: an uncurated name cannot be grouped reliably, which
-  /// is the whole reason the curated list exists.
-  collegeOther String?
-  gradYear  Int?
   /// One of EXPERIENCE_BANDS in lib/config/profile.ts.
   experience String?
 

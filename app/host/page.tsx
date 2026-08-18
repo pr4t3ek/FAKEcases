@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Presentation, Siren } from "lucide-react";
 import { requireHost } from "@/lib/auth";
+import { requirePasswordChange } from "@/lib/password-gate";
 import { listRoomsForHost } from "@/lib/rooms";
 import { AppHeader } from "@/components/app/app-header";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +20,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function HostPage() {
   const host = await requireHost();
+  requirePasswordChange(host);
   const rooms = await listRoomsForHost(host.id);
 
   return (

@@ -14,10 +14,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { AvatarPicker } from "@/components/profile/avatar-picker";
 import {
   BatchSelect,
-  CollegeSelect,
   ExperienceSelect,
   Field,
-  GradYearSelect,
   ProfessionSelect,
   TargetLevels,
 } from "@/components/profile/fields";
@@ -29,9 +27,6 @@ export interface ProfileFormValues {
   bio: string;
   profession: string;
   batch: string;
-  collegeId: string;
-  collegeOther: string;
-  gradYear: string;
   experience: string;
   targetLevels: InterviewLevel[];
   targetCompanies: string;
@@ -140,8 +135,7 @@ export function ProfileForm({
         <div>
           <h2 className="font-semibold">Background</h2>
           <p className="text-sm text-muted-foreground">
-            Where you&apos;re coming from. Your batch is required — it is on every leaderboard row;
-            the rest is optional.
+            Your batch is required — it is on every leaderboard row. The rest is optional.
           </p>
         </div>
 
@@ -152,13 +146,6 @@ export function ProfileForm({
 
         <div className="grid items-start gap-4 sm:grid-cols-2">
           <BatchSelect value={form.batch} onChange={(v) => set("batch", v)} />
-          <CollegeSelect
-            collegeId={form.collegeId}
-            collegeOther={form.collegeOther}
-            onCollegeId={(v) => set("collegeId", v)}
-            onCollegeOther={(v) => set("collegeOther", v)}
-          />
-          <GradYearSelect value={form.gradYear} onChange={(v) => set("gradYear", v)} />
         </div>
       </Card>
 

@@ -5,7 +5,6 @@ import { motion } from "framer-motion";
 import {
   ArrowRight,
   Brain,
-  Check,
   Compass,
   Gauge,
   MessageSquareText,
@@ -34,7 +33,6 @@ export function Landing({ isAuthed }: { isAuthed: boolean }) {
         <HowItWorks />
         <Features />
         <Testimonials />
-        <Pricing isAuthed={isAuthed} />
         <FinalCta isAuthed={isAuthed} />
       </main>
       <SiteFooter />
@@ -50,7 +48,6 @@ function SiteHeader({ isAuthed }: { isAuthed: boolean }) {
         <nav className="hidden items-center gap-8 text-sm text-muted-foreground md:flex">
           <a href="#how" className="hover:text-foreground">How it works</a>
           <a href="#features" className="hover:text-foreground">Features</a>
-          <a href="#pricing" className="hover:text-foreground">Pricing</a>
         </nav>
         <div className="flex items-center gap-2">
           <ThemeToggle />
@@ -307,86 +304,6 @@ function Testimonials() {
   );
 }
 
-const PLANS = [
-  {
-    name: "Free",
-    price: "₹0",
-    period: "forever",
-    features: ["Unlimited practice", "Guesstimates, cases and simulations", "AI interviewer + hints", "Scored evaluation & feedback", "Progress tracking & streaks"],
-    cta: "Start free",
-    href: "/library",
-    highlight: false,
-    // Everything the app does today is in this plan.
-    planned: false,
-  },
-  {
-    name: "Pro",
-    price: "₹499",
-    period: "per month",
-    features: ["Everything in Free", "Advanced analytics", "Mock interview sessions", "Company-specific sets", "Priority AI evaluations", "Interview readiness reports"],
-    cta: "Not available yet",
-    href: "/library",
-    highlight: true,
-    /**
-     * No payments are wired up. The card stays because it's the product's
-     * intended shape, but it must not read as purchasable — the button used to
-     * say "Go Pro" and quietly drop you into a free signup.
-     */
-    planned: true,
-  },
-];
-
-function Pricing({ isAuthed }: { isAuthed: boolean }) {
-  return (
-    <section id="pricing" className="py-20">
-      <div className="container">
-        <SectionHeading
-          eyebrow="Pricing"
-          title="Everything is free."
-          subtitle="Every question is free to practise. Pro is what's planned next — it isn't purchasable yet."
-        />
-        <div className="mx-auto mt-12 grid max-w-4xl gap-6 md:grid-cols-2">
-          {PLANS.map((p) => (
-            <div
-              key={p.name}
-              className={cn(
-                "relative rounded-2xl border bg-card p-8",
-                p.highlight && "border-primary shadow-lg ring-1 ring-primary/20",
-              )}
-            >
-              {p.planned && (
-                <Badge variant="muted" className="absolute -top-3 left-8">Planned</Badge>
-              )}
-              <h3 className="text-lg font-semibold">{p.name}</h3>
-              <div className="mt-4 flex items-baseline gap-1">
-                <span className="text-4xl font-bold">{p.price}</span>
-                <span className="text-sm text-muted-foreground">/{p.period}</span>
-              </div>
-              <ul className="mt-6 space-y-3 text-sm">
-                {p.features.map((f) => (
-                  <li key={f} className="flex items-start gap-2">
-                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-success" />
-                    <span>{f}</span>
-                  </li>
-                ))}
-              </ul>
-              {p.planned ? (
-                <Button className="mt-8 w-full" variant="outline" disabled>
-                  {p.cta}
-                </Button>
-              ) : (
-                <Button asChild className="mt-8 w-full">
-                  <Link href={isAuthed ? "/dashboard" : p.href}>{p.cta}</Link>
-                </Button>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 function FinalCta({ isAuthed }: { isAuthed: boolean }) {
   return (
     <section className="border-t py-20">
@@ -439,7 +356,6 @@ function SiteFooter() {
         </p>
         <div className="flex gap-6 text-sm text-muted-foreground">
           <a href="#features" className="hover:text-foreground">Features</a>
-          <a href="#pricing" className="hover:text-foreground">Pricing</a>
           <Link href="/login" className="hover:text-foreground">Sign in</Link>
         </div>
       </div>

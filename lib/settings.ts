@@ -10,10 +10,17 @@ import { llmBudget } from "@/lib/config";
  * deployment runs on the defaults until somebody deliberately changes one — and
  * what makes a bad edit recoverable by deleting a row rather than by shipping.
  *
- * Only the turn budgets are exposed today. They are here rather than in
- * `lib/config/practice.ts` alone because they are the numbers a professor has to
- * be able to move mid-term, when a class turns out to need more room than the
- * default allowed and the alternative is a redeploy between lectures.
+ * Two kinds live here. The turn budgets are the numbers a professor has to be
+ * able to move mid-term, when a class turns out to need more room than the
+ * default allowed and the alternative is a redeploy between lectures. The text
+ * settings are the strings a deployment has to be able to correct without one —
+ * today that is the address `/forgot-password` tells people to write to, which
+ * is a real person's mailbox and so will eventually change hands.
+ *
+ * Both sit in the same `AppSetting` table, whose `value` is a String column
+ * precisely so a non-numeric setting would not need a migration. The two key
+ * maps must not overlap; `SETTING_KEYS` and `TEXT_SETTING_KEYS` are asserted
+ * disjoint in the tests rather than left to whoever adds the third one.
  */
 
 /** The tunable keys, and the code default each falls back to. */
@@ -63,5 +70,59 @@ export async function saveSetting(key: SettingKey, value: number): Promise<void>
     where: { key },
     create: { key, value: String(value) },
     update: { value: String(value) },
+  });
+}
+
+// ── Text settings ───────────────────────────────────────────────────────────
+
+/**
+ * Strings an admin can change without a deploy.
+ *
+ * `adminContactEmail` is the address `/forgot-password` tells a locked-out
+ * student to write to. It is shipped with a working value so a fresh clone's
+ * reset instructions are never blank, and it is a setting rather than a constant
+ * because it is a person's mailbox: whoever administers the launch is not
+ * necessarily whoever administers it next term, and that change should be a
+ * field in the admin panel rather than a pull request.
+ */
+export const TEXT_SETTING_DEFAULTS = {
+  adminContactEmail: "anhxyamraj@gmail.com",
+} as const;
+
+export type TextSettingKey = keyof typeof TEXT_SETTING_DEFAULTS;
+export type TextSettings = Record<TextSettingKey, string>;
+
+export const TEXT_SETTING_KEYS = Object.keys(TEXT_SETTING_DEFAULTS) as TextSettingKey[];
+
+/**
+ * Every text tunable, with overrides applied.
+ *
+ * A blank row is IGNORED rather than served, for the same reason a bad number is
+ * in `loadSettings`: an empty contact address turns the reset instructions into
+ * a sentence with a hole in it, and the shipped value is both the safe direction
+ * and the recoverable one.
+ */
+export async function loadTextSettings(): Promise<TextSettings> {
+  const rows = await db.appSetting.findMany({
+    where: { key: { in: TEXT_SETTING_KEYS } },
+    select: { key: true, value: true },
+  });
+
+  const settings = { ...TEXT_SETTING_DEFAULTS } as TextSettings;
+  for (const row of rows) {
+    const value = row.value.trim();
+    if (!value) continue;
+    settings[row.key as TextSettingKey] = value;
+  }
+  return settings;
+}
+
+/** Write one text override. Validation lives at the action, which can report it. */
+export async function saveTextSetting(key: TextSettingKey, value: string): Promise<void> {
+  const trimmed = value.trim();
+  await db.appSetting.upsert({
+    where: { key },
+    create: { key, value: trimmed },
+    update: { value: trimmed },
   });
 }

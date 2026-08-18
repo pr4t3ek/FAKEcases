@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Siren } from "lucide-react";
 import { requireHost } from "@/lib/auth";
+import { requirePasswordChange } from "@/lib/password-gate";
 import { loadRoom, loadRoster } from "@/lib/rooms";
 import { roomIsOpen } from "@/lib/rooms/access";
 import { AppHeader } from "@/components/app/app-header";
@@ -35,6 +36,7 @@ export default async function HostConsolePage({
 }) {
   const { code } = await params;
   const host = await requireHost();
+  requirePasswordChange(host);
 
   const room = await loadRoom(code);
   // Ownership re-derived here as well as in every action. An admin passes, for

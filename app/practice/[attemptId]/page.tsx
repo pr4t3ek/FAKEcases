@@ -12,6 +12,7 @@ import { labelMatches, solutionWasRevealed } from "@/lib/evaluation";
 import { parseJson } from "@/lib/json";
 import { questionLeaderboard, questionStanding } from "@/lib/leaderboard";
 import { requireBatch } from "@/lib/batch-gate";
+import { requirePasswordChange } from "@/lib/password-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,9 @@ export default async function PracticePage({
   if (!user) redirect("/library");
   // A guest practising is exempt — see lib/batch-gate.ts. Anyone with an
   // account answers before the interviewer opens.
+  // A reset password opens nothing until it is replaced, so this runs ahead
+  // of every other gate.
+  requirePasswordChange(user);
   requireBatch(user);
 
   const attempt = await db.attempt.findUnique({
@@ -101,7 +105,6 @@ export default async function PracticePage({
           userId: r.userId,
           rank: r.rank,
           name: r.name,
-          college: r.college,
           batch: r.batch,
           value: r.score,
           detail: String(r.effort),

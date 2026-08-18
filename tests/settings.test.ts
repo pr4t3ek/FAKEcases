@@ -17,7 +17,14 @@ vi.mock("@/lib/db", () => ({
   db: { appSetting: { findMany: settingFindMany, upsert: vi.fn() } },
 }));
 
-const { loadSettings, SETTING_DEFAULTS } = await import("@/lib/settings");
+const {
+  loadSettings,
+  loadTextSettings,
+  SETTING_DEFAULTS,
+  SETTING_KEYS,
+  TEXT_SETTING_DEFAULTS,
+  TEXT_SETTING_KEYS,
+} = await import("@/lib/settings");
 
 describe("loadSettings", () => {
   beforeEach(() => settingFindMany.mockReset().mockResolvedValue([]));
@@ -67,5 +74,46 @@ describe("loadSettings", () => {
   /** The global cap ships off; that is a deliberate launch decision, not an oversight. */
   it("ships the deployment-wide cap disabled", () => {
     expect(SETTING_DEFAULTS.globalRequestsPerDay).toBe(0);
+  });
+});
+
+describe("loadTextSettings", () => {
+  beforeEach(() => settingFindMany.mockReset().mockResolvedValue([]));
+
+  /**
+   * Same ordering as the numeric side, and it matters more here: the default is
+   * an address students are told to write to, so a fresh clone must never render
+   * the reset instructions with a hole in them.
+   */
+  it("falls back to the shipped default when nothing is overridden", async () => {
+    expect(await loadTextSettings()).toEqual(TEXT_SETTING_DEFAULTS);
+  });
+
+  it("lets a row override the contact address", async () => {
+    settingFindMany.mockResolvedValue([
+      { key: "adminContactEmail", value: "prof@iimv.ac.in" },
+    ]);
+    expect((await loadTextSettings()).adminContactEmail).toBe("prof@iimv.ac.in");
+  });
+
+  it("ignores a blank row rather than serving an empty address", async () => {
+    settingFindMany.mockResolvedValue([{ key: "adminContactEmail", value: "   " }]);
+    expect((await loadTextSettings()).adminContactEmail).toBe(
+      TEXT_SETTING_DEFAULTS.adminContactEmail,
+    );
+  });
+});
+
+describe("the two key maps", () => {
+  /**
+   * Both sides share one `AppSetting` table keyed by `key`, so a name in both
+   * maps would have one loader parsing the other's value. Asserted rather than
+   * left to whoever adds the third setting.
+   */
+  it("never share a key", () => {
+    const numeric = new Set<string>(SETTING_KEYS);
+    for (const key of TEXT_SETTING_KEYS) {
+      expect(numeric.has(key), key).toBe(false);
+    }
   });
 });

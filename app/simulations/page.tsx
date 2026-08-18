@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Siren, Sparkles } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { requireBatch } from "@/lib/batch-gate";
+import { requirePasswordChange } from "@/lib/password-gate";
 import { isLocked, tierFor, upgradeFor, WALL_LOCKED, WALL_PARAM } from "@/lib/entitlements";
 import { dailyGrantFor } from "@/lib/daily-unlock";
 import { listCategories, listQuestions, listSectors } from "@/lib/questions";
@@ -30,7 +31,6 @@ function toBoardSide(board: Awaited<ReturnType<typeof globalBoard>>): BoardSide 
       userId: s.userId,
       rank: s.rank,
       name: s.name,
-      college: s.college,
       batch: s.batch,
       value: s.points,
       detail: `${s.solved} played`,
@@ -78,6 +78,7 @@ export default async function SimulationsPage({
   ]);
 
   // As on /library: asked before the catalogue, and never of a guest.
+  if (user) requirePasswordChange(user);
   if (user) requireBatch(user);
 
   // The war-room board, kept apart from the practice one: a simulation's score

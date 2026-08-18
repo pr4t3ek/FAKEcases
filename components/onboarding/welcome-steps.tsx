@@ -10,8 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
   BatchSelect,
-  CollegeSelect,
-  GradYearSelect,
   ProfessionSelect,
   TargetLevels,
 } from "@/components/profile/fields";
@@ -48,9 +46,6 @@ export function WelcomeSteps({
 
   const [batch, setBatch] = useState(initialBatch);
   const [profession, setProfession] = useState("");
-  const [collegeId, setCollegeId] = useState("");
-  const [collegeOther, setCollegeOther] = useState("");
-  const [gradYear, setGradYear] = useState("");
   const [targetLevels, setTargetLevels] = useState<InterviewLevel[]>([]);
 
   function finish() {
@@ -58,9 +53,6 @@ export function WelcomeSteps({
       const result = await completeOnboarding({
         batch,
         profession,
-        collegeId,
-        collegeOther,
-        gradYear,
         targetLevels,
       });
       if (!result.ok) {
@@ -98,13 +90,6 @@ export function WelcomeSteps({
         <div className="space-y-4">
           <BatchSelect value={batch} onChange={setBatch} />
           <ProfessionSelect value={profession} onChange={setProfession} />
-          <CollegeSelect
-            collegeId={collegeId}
-            collegeOther={collegeOther}
-            onCollegeId={setCollegeId}
-            onCollegeOther={setCollegeOther}
-          />
-          <GradYearSelect value={gradYear} onChange={setGradYear} />
         </div>
       ) : (
         <TargetLevels value={targetLevels} onChange={setTargetLevels} />

@@ -302,3 +302,58 @@ export function LimitsCard({ limits }: { limits: Record<string, number> }) {
     </Card>
   );
 }
+
+/**
+ * The address a locked-out student is told to write to.
+ *
+ * Lives beside `LimitsCard` because it is the same kind of thing: a value the
+ * person running the deployment has to be able to correct without a redeploy.
+ * This one is a mailbox rather than a number, so it will change hands — a
+ * professor takes over next term, or the launch moves to a shared address — and
+ * `/forgot-password` has to follow it.
+ */
+export function ContactEmailCard({ email }: { email: string }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [draft, setDraft] = useState(email);
+
+  function save() {
+    startTransition(async () => {
+      const result = await import("@/app/actions/admin").then((m) =>
+        m.updateContactEmail(draft),
+      );
+      if (!result.ok) {
+        toast.error(result.error ?? "That didn't work.");
+        return;
+      }
+      toast.success("Contact address updated");
+      router.refresh();
+    });
+  }
+
+  return (
+    <Card className="space-y-4 p-5">
+      <div>
+        <h2 className="font-semibold">Password-reset contact</h2>
+        <p className="text-sm text-muted-foreground">
+          Printed on <strong>/forgot-password</strong>, where students are told to write in from
+          their college address. Whoever reads this mailbox is who resets passwords, using the key
+          button on the Users tab.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <Input
+          type="email"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          className="h-8 min-w-0 flex-1"
+          placeholder="you@college.ac.in"
+        />
+        <Button size="sm" variant="secondary" disabled={pending || draft.trim() === email} onClick={save}>
+          Save
+        </Button>
+      </div>
+    </Card>
+  );
+}

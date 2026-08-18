@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Sparkles } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { requireBatch } from "@/lib/batch-gate";
+import { requirePasswordChange } from "@/lib/password-gate";
 import { isLocked, tierFor, upgradeFor, WALL_LOCKED, WALL_PARAM } from "@/lib/entitlements";
 import { dailyGrantFor } from "@/lib/daily-unlock";
 import { prefillLevel, targetLevelsFor } from "@/lib/profile";
@@ -38,6 +39,7 @@ export default async function LibraryPage({
   // Signed in and no batch yet: the question is asked before the catalogue is
   // browsed. Guests fall through — they are asked at signup, when their row
   // first becomes rankable.
+  if (user) requirePasswordChange(user);
   if (user) requireBatch(user);
 
   // Say what's actually in the list. The old copy called every question a

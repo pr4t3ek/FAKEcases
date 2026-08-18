@@ -11,6 +11,7 @@ import { validateAvatarDataUri } from "@/lib/avatar";
 import { getAvatarStore } from "@/lib/storage";
 import {
   onboardingSchema,
+  professorRequestFor,
   profileSchema,
   toProfileColumns,
 } from "@/lib/profile-schema";
@@ -74,11 +75,22 @@ export async function updateProfile(input: unknown): Promise<SaveResult> {
   if (!parsed.success) return { ok: false, error: firstError(parsed.error) };
 
   const { user: userColumns, profile } = toProfileColumns(parsed.data);
+  // Picking "Professor" records a request; it NEVER writes `role`. See
+  // `professorRequestFor` — a dropdown that granted the role would hand any
+  // student the classroom console and the roster behind it.
+  const requested = professorRequestFor(
+    parsed.data.profession,
+    user.role,
+    user.professorRequestedAt,
+  );
 
-  // One transaction: a saved name with an unsaved college is a profile that
+  // One transaction: a saved name with an unsaved batch is a profile that
   // disagrees with itself, and the user has no way to tell which half landed.
   await db.$transaction([
-    db.user.update({ where: { id: user.id }, data: userColumns }),
+    db.user.update({
+      where: { id: user.id },
+      data: { ...userColumns, ...(requested !== undefined ? { professorRequestedAt: requested } : {}) },
+    }),
     db.profile.upsert({
       where: { userId: user.id },
       update: profile,
@@ -105,11 +117,23 @@ export async function completeOnboarding(input: unknown): Promise<SaveResult> {
   if (!parsed.success) return { ok: false, error: firstError(parsed.error) };
 
   const { user: userColumns, profile } = toProfileColumns(parsed.data);
+  // Same rule as `updateProfile`, and it has to be applied in both places
+  // rather than in one shared write path: the two actions save different
+  // subsets, and this is the field they both carry.
+  const requested = professorRequestFor(
+    parsed.data.profession,
+    user.role,
+    user.professorRequestedAt,
+  );
 
   await db.$transaction([
     db.user.update({
       where: { id: user.id },
-      data: { ...userColumns, profileCompletedAt: new Date() },
+      data: {
+        ...userColumns,
+        profileCompletedAt: new Date(),
+        ...(requested !== undefined ? { professorRequestedAt: requested } : {}),
+      },
     }),
     db.profile.upsert({
       where: { userId: user.id },
@@ -189,6 +213,9 @@ const passwordChangeSchema = z.object({
   next: z.string().min(6, "Use at least 6 characters"),
 });
 
+/** The same rule without the current-password half. See `completeForcedPasswordChange`. */
+const forcedPasswordSchema = passwordChangeSchema.pick({ next: true });
+
 /**
  * Change the password.
  *
@@ -217,7 +244,48 @@ export async function changePassword(input: unknown): Promise<SaveResult> {
 
   await db.user.update({
     where: { id: user.id },
-    data: { passwordHash: hashPassword(parsed.data.next) },
+    // Clears the forced-change flag too: someone who arrived here from an admin
+    // reset and used the ordinary form has done exactly what the flag was
+    // asking for, and leaving it set would send them to `/set-password` to do
+    // it again.
+    data: { passwordHash: hashPassword(parsed.data.next), mustChangePassword: false },
+  });
+  return { ok: true };
+}
+
+/**
+ * Choose a password after an admin reset.
+ *
+ * No current-password field, and that is not a hole: the current password is the
+ * account's own email address, which the admin just told them and which
+ * `requirePasswordChange` treats as good for exactly one thing — reaching this
+ * form. Asking someone to retype a password they were handed thirty seconds ago
+ * verifies nothing; the session cookie is what proves who they are here, the
+ * same as it does for `changePassword`.
+ *
+ * **Refuses when the flag is not set**, so this is never a way to change a
+ * password without knowing the old one. Outside a reset, `changePassword` — and
+ * its current-password check — is the only route.
+ */
+export async function completeForcedPasswordChange(input: unknown): Promise<SaveResult> {
+  const user = await member();
+  if (!user) return { ok: false, error: "You need to be signed in." };
+  if (!user.mustChangePassword) {
+    return { ok: false, error: "Your password doesn't need changing." };
+  }
+
+  const parsed = forcedPasswordSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: firstError(parsed.error) };
+
+  // The reset made the email the password, so accepting it back would leave the
+  // account exactly as guessable as the gate exists to stop it being.
+  if (user.email && parsed.data.next.toLowerCase() === user.email.toLowerCase()) {
+    return { ok: false, error: "Pick something other than your email address." };
+  }
+
+  await db.user.update({
+    where: { id: user.id },
+    data: { passwordHash: hashPassword(parsed.data.next), mustChangePassword: false },
   });
   return { ok: true };
 }

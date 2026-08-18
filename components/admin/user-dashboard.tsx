@@ -6,6 +6,7 @@ import {
   CalendarPlus,
   CheckCircle2,
   Flame,
+  KeyRound,
   Loader2,
   TrendingUp,
   Trash2,
@@ -13,7 +14,14 @@ import {
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
-import { deleteUser, grantPro, revokePro, setUserRole } from "@/app/actions/admin";
+import {
+  declineProfessorRequest,
+  deleteUser,
+  grantPro,
+  resetUserPassword,
+  revokePro,
+  setUserRole,
+} from "@/app/actions/admin";
 import type { AdminUserRow, AdminUserStats } from "@/lib/admin-stats";
 import { PRO_PASS_DAYS, proDaysRemaining } from "@/lib/billing";
 import { USER_ROLES, type UserRole } from "@/lib/types";
@@ -159,10 +167,42 @@ function RoleCell({ user }: { user: AdminUserRow }) {
     return <span className="text-xs text-muted-foreground">Admin</span>;
   }
 
+  function decline() {
+    startTransition(async () => {
+      const result = await declineProfessorRequest(user.id);
+      if (!result.ok) {
+        toast.error(result.error ?? "That didn't work.");
+        return;
+      }
+      toast.success("Request declined");
+      router.refresh();
+    });
+  }
+
   const isProfessor = user.role === "professor";
 
   return (
     <div className="flex items-center justify-end gap-1.5">
+      {/* They asked, and nobody has answered. The badge is the whole reason the
+          request is stored: an occupation of "Professor" on a profile is a
+          sentence about a person, and this is a question waiting on the admin. */}
+      {user.professorRequested && !isProfessor && (
+        <Badge variant="warning" title="They picked Professor as their occupation and are waiting on a decision.">
+          Requested
+        </Badge>
+      )}
+      {user.professorRequested && !isProfessor && (
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={pending}
+          className="h-7 px-2 text-xs text-muted-foreground"
+          title="Turn down the request. Their occupation is left as they wrote it; only the pending question goes away."
+          onClick={decline}
+        >
+          Decline
+        </Button>
+      )}
       {isProfessor ? (
         <Button
           size="sm"
@@ -186,6 +226,86 @@ function RoleCell({ user }: { user: AdminUserRow }) {
           Make professor
         </Button>
       )}
+    </div>
+  );
+}
+
+/**
+ * Handing someone back their account.
+ *
+ * The whole password-reset flow, since no email provider is configured: the
+ * student writes in from their college address (`/forgot-password` tells them
+ * to), the admin clicks this, and the toast says what to put in the reply.
+ *
+ * Two clicks, and not the typed-email confirmation `DeleteCell` uses. The scale
+ * of the mistake sets the ceremony: a mis-click here locks one person out of
+ * their password for as long as it takes to tell them the new one, and a
+ * mis-click there destroys a history that cannot be rebuilt.
+ *
+ * The new password is deliberately guessable, which is safe only because
+ * `resetUserPassword` sets `mustChangePassword` in the same write — see
+ * lib/password-gate.ts.
+ */
+function ResetPasswordCell({ user }: { user: AdminUserRow }) {
+  const router = useRouter();
+  const [armed, setArmed] = useState(false);
+  const [pending, startTransition] = useTransition();
+
+  // Nothing signs in as a guest, and a row with no email has nothing to set the
+  // password to. The action refuses both; this keeps the button off the row.
+  if (user.segment !== "registered" || !user.email) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+
+  function reset() {
+    startTransition(async () => {
+      const result = await resetUserPassword(user.id);
+      setArmed(false);
+      if (!result.ok) {
+        toast.error(result.error ?? "That didn't work.");
+        return;
+      }
+      // Named in full, because the admin has to type it into a reply and the
+      // alternative is going to look it up and sending the wrong one.
+      toast.success(`Password is now ${result.password}`, {
+        description: "They'll be asked to choose a new one when they sign in.",
+      });
+      router.refresh();
+    });
+  }
+
+  return armed ? (
+    <div className="flex items-center justify-end gap-1.5">
+      <Button
+        size="sm"
+        variant="ghost"
+        disabled={pending}
+        className="h-7 px-2 text-xs text-destructive"
+        onClick={reset}
+      >
+        Confirm
+      </Button>
+      <Button
+        size="sm"
+        variant="ghost"
+        disabled={pending}
+        className="h-7 px-2 text-xs text-muted-foreground"
+        onClick={() => setArmed(false)}
+      >
+        Cancel
+      </Button>
+    </div>
+  ) : (
+    <div className="flex items-center justify-end">
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-7 px-2 text-xs"
+        title="Set their password to their own email address. They must choose a new one at their next sign-in."
+        onClick={() => setArmed(true)}
+      >
+        <KeyRound className="h-3.5 w-3.5" />
+      </Button>
     </div>
   );
 }
@@ -483,7 +603,10 @@ export function UserDashboard({ stats }: { stats: AdminUserStats }) {
                     </th>
                   ))}
                   {/* Outside COLUMNS deliberately: that array drives the sort,
-                      and there is nothing to sort a delete button by. */}
+                      and there is nothing to sort a button by. */}
+                  <th className="p-3 text-right font-medium">
+                    <span className="sr-only">Reset password</span>
+                  </th>
                   <th className="p-3 text-right font-medium">
                     <span className="sr-only">Delete</span>
                   </th>
@@ -526,6 +649,9 @@ export function UserDashboard({ stats }: { stats: AdminUserStats }) {
                     </td>
                     <td className="whitespace-nowrap p-3 text-muted-foreground">
                       {formatDate(u.createdAt)}
+                    </td>
+                    <td className="p-3">
+                      <ResetPasswordCell user={u} />
                     </td>
                     <td className="p-3">
                       <DeleteCell user={u} />

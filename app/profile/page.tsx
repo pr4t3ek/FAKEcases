@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
+import { requirePasswordChange } from "@/lib/password-gate";
 import { db } from "@/lib/db";
 import { initialsFor } from "@/lib/avatar";
 import { parseTargetLevels } from "@/lib/profile-schema";
-import { COLLEGE_OTHER } from "@/lib/config/colleges";
 import type { InterviewLevel } from "@/lib/types";
 import { AppHeader } from "@/components/app/app-header";
 import { ProfileForm } from "@/components/profile/profile-form";
@@ -19,14 +19,10 @@ export default async function ProfilePage() {
   // a sign-up one, and they are different answers.
   if (!user) redirect("/login");
   if (user.isGuest) redirect("/signup");
+  requirePasswordChange(user);
 
   const profile = await db.profile.findUnique({ where: { userId: user.id } });
 
-  // `collegeId` is null both when nothing was chosen and when "Other" was, so
-  // the written-in name is what tells the two apart on the way back into the
-  // form. Storing it that way is what keeps "has a real college" a single null
-  // check everywhere else.
-  const collegeId = user.collegeId ?? (profile?.collegeOther ? COLLEGE_OTHER : "");
 
   return (
     <div className="min-h-screen">
@@ -53,9 +49,6 @@ export default async function ProfilePage() {
               bio: profile?.bio ?? "",
               profession: profile?.profession ?? "",
               batch: user.batch ?? "",
-              collegeId,
-              collegeOther: profile?.collegeOther ?? "",
-              gradYear: profile?.gradYear ? String(profile.gradYear) : "",
               experience: profile?.experience ?? "",
               targetLevels: parseTargetLevels(profile?.targetLevels) as InterviewLevel[],
               targetCompanies: profile?.targetCompanies ?? "",
