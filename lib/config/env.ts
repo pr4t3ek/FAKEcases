@@ -3,9 +3,16 @@
  * Everything here is optional; sane local-first defaults are used when unset.
  */
 
-export type LlmProvider = "mock" | "gemini" | "anthropic" | "openai" | "ollama";
+export type LlmProvider = "mock" | "gemini" | "anthropic" | "openai" | "nvidia" | "ollama";
 
-const PROVIDERS: readonly LlmProvider[] = ["mock", "gemini", "anthropic", "openai", "ollama"];
+const PROVIDERS: readonly LlmProvider[] = [
+  "mock",
+  "gemini",
+  "anthropic",
+  "openai",
+  "nvidia",
+  "ollama",
+];
 
 /**
  * Providers that draw on a shared, metered quota.
@@ -20,8 +27,15 @@ function isProvider(value: string | undefined): value is LlmProvider {
 }
 
 /**
- * Gemini is checked first because it is the only provider with a free tier, and
- * so the default real provider. An explicit LLM_PROVIDER always wins.
+ * NVIDIA is checked first: it is this project's preferred hosted provider, so a
+ * deployment holding its key should use it rather than fall through to whatever
+ * else happens to be configured. Gemini follows, because it is the only one with
+ * a free tier and so the right default when no preference is expressed. An
+ * explicit LLM_PROVIDER always wins over the whole chain.
+ *
+ * The order is the only thing that decides a machine carrying two keys, and it
+ * is silent when it is wrong — both keys work, so the app answers normally on
+ * the provider you did not mean to pay for. Set LLM_PROVIDER when that matters.
  *
  * Ollama is deliberately absent from the sniffing chain: it has no API key to
  * detect, so it must be asked for by name (`LLM_PROVIDER=ollama`). That keeps the
@@ -32,6 +46,7 @@ function detectProvider(): LlmProvider {
   const explicit = process.env.LLM_PROVIDER?.toLowerCase();
   if (isProvider(explicit)) return explicit;
 
+  if (process.env.NVIDIA_API_KEY) return "nvidia";
   if (process.env.GEMINI_API_KEY) return "gemini";
   if (process.env.ANTHROPIC_API_KEY) return "anthropic";
   if (process.env.OPENAI_API_KEY) return "openai";
@@ -48,6 +63,14 @@ export const env = {
     geminiApiKey: process.env.GEMINI_API_KEY,
     anthropicApiKey: process.env.ANTHROPIC_API_KEY,
     openaiApiKey: process.env.OPENAI_API_KEY,
+    nvidiaApiKey: process.env.NVIDIA_API_KEY,
+    /**
+     * Separate from `model` for the reason `ollamaModel` is: `LLM_MODEL` is
+     * shared by every provider, and NVIDIA ids are namespaced
+     * (`meta/llama-3.1-8b-instruct`), so a name left over from another provider
+     * is never a valid one here.
+     */
+    nvidiaModel: process.env.NVIDIA_MODEL,
     /** Any OpenAI-compatible local server; Ollama's default port. */
     ollamaBaseUrl: process.env.OLLAMA_BASE_URL,
     /**
