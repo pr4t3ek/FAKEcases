@@ -5,14 +5,14 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Panel, PanelGroup, PanelResizeHandle, type ImperativePanelHandle } from "react-resizable-panels";
 import { toast } from "sonner";
-import { ArrowLeft, Clock, Minimize2, Pause, Play } from "lucide-react";
+import { ArrowLeft, Clock, Minimize2 } from "lucide-react";
 import { panelDefaults, treeFirstPanelDefaults, type AiMode } from "@/lib/config";
-import { setFinalEstimate as persistFinalEstimate } from "@/app/actions/practice";
+import { saveTime, setFinalEstimate as persistFinalEstimate } from "@/app/actions/practice";
 import { Brand } from "@/components/brand";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { SubmitResult } from "@/app/actions/submit";
 import { useMediaQuery } from "./use-media-query";
-import { formatElapsed, useAttemptTimer } from "./use-attempt-timer";
+import { formatElapsed, useElapsedTimer } from "./use-attempt-timer";
 import { AnswerBar, EstimateBar, ToolsPanel, unevidencedBranches } from "./tools-panel";
 import { FrameworkBuilder } from "./framework-builder";
 import { FloatingChat } from "./floating-chat";
@@ -82,11 +82,11 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
     setAutoTour(true);
   }, [qualitative, disabled, data.attemptId]);
 
-  const { elapsed, running, setRunning } = useAttemptTimer(
-    data.attemptId,
-    data.timeSpentSec,
-    disabled,
-  );
+  const elapsed = useElapsedTimer({
+    initial: data.timeSpentSec,
+    frozen: disabled,
+    onPersist: (sec) => saveTime(data.attemptId, sec),
+  });
 
   useEffect(() => {
     if (!fullscreen) return;
@@ -166,8 +166,6 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
       onFramework={setFramework}
       onChainResult={handleChainResult}
       elapsed={elapsed}
-      running={running}
-      onRunningChange={setRunning}
       disabled={disabled}
       onActiveTool={onActiveTool}
       activeTool={activeTool}
@@ -231,13 +229,6 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
           <span className="inline-flex shrink-0 items-center gap-1.5 text-sm tabular-nums text-muted-foreground">
             <Clock className="h-4 w-4" />
             {formatElapsed(elapsed)}
-            <button
-              onClick={() => setRunning(!running)}
-              className="ml-1 hover:text-foreground"
-              aria-label={running ? "Pause timer" : "Resume timer"}
-            >
-              {running ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-            </button>
           </span>
           <button
             onClick={() => setFullscreen(false)}

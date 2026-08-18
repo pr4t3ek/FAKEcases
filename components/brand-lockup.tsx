@@ -51,8 +51,7 @@ export function BrandLockup({
       </div>
 
       {tagline && (
-        <p className="mt-5 flex items-center gap-2 text-sm text-muted-foreground">
-          <span aria-hidden="true" className="h-px w-6 bg-muted-foreground/60" />
+        <p className="mt-5 text-sm text-muted-foreground">
           <span>
             Because <em className="font-medium not-italic text-primary">“It Depends”</em> Isn&apos;t
             an Answer. 😏

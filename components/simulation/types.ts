@@ -23,6 +23,8 @@ import type { BoardRow } from "@/components/leaderboard/leaderboard-table";
 export interface SimulationData {
   runId: string;
   isGuest: boolean;
+  /** Wall-clock seconds already spent here, so a reload resumes the clock. */
+  timeSpentSec: number;
   phase: SimPhase;
   scenario: ClientScenario;
   daysSpent: number;

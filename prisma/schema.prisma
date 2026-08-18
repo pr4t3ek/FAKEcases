@@ -554,6 +554,15 @@ model SimRun {
   /// a single read rather than a join on every render.
   daysSpent      Int       @default(0)
 
+  /// Wall-clock seconds spent in this war room, persisted every 15s.
+  ///
+  /// Display only, unlike `Attempt.timeSpentSec`, which is the practice
+  /// leaderboard's tiebreak. A war room is ranked on analyst-days — the budget
+  /// it spent, not the minutes somebody sat there — so this exists to answer
+  /// "how long have I been in here", and adding it to the ranking would be
+  /// scoring the same run twice on two different rulers.
+  timeSpentSec   Int       @default(0)
+
   /// JSON string[] — the cause ids currently named as suspects.
   ///
   /// Revisable throughout Investigate and settled when Commit opens: a

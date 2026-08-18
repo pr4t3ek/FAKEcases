@@ -1,13 +1,15 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isLocked, tierFor, upgradeFor } from "@/lib/entitlements";
-import { recommendQuestions } from "@/lib/questions";
+import { attemptStateByQuestion, recommendQuestions } from "@/lib/questions";
 import { dailyGrantFor, resolveDaily } from "@/lib/daily-unlock";
-import { simSummary } from "@/lib/simulations";
+import { simStateByQuestion, simSummary } from "@/lib/simulations";
 import { evaluationCategories } from "@/lib/config";
+import { isSimulation } from "@/lib/types";
 import { AppHeader } from "@/components/app/app-header";
 import { StatCards } from "@/components/dashboard/stat-cards";
 import { RankCard } from "@/components/dashboard/rank-card";
@@ -18,37 +20,12 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { QuestionCard } from "@/components/library/question-card";
-import {
-  GlobalLeaderboard,
-  type BoardSide,
-} from "@/components/dashboard/global-leaderboard";
-import { globalBoard } from "@/lib/leaderboard";
+import { QuestionBoard } from "@/components/leaderboard/question-board";
+import { questionLeaderboard } from "@/lib/leaderboard";
 import { requireBatch } from "@/lib/batch-gate";
 import { requirePasswordChange } from "@/lib/password-gate";
 
 export const dynamic = "force-dynamic";
-
-/**
- * Shape the standings for the client component.
- *
- * `solved` becomes the row's small print, so a high total is visibly the sum of
- * many first attempts rather than an unexplained number.
- */
-function toBoardSide(board: Awaited<ReturnType<typeof globalBoard>>): BoardSide {
-  return {
-    rows: board.top.map((s) => ({
-      userId: s.userId,
-      rank: s.rank,
-      name: s.name,
-      batch: s.batch,
-      value: s.points,
-      detail: `${s.solved} solved`,
-    })),
-    you: board.you
-      ? { rank: board.you.rank, total: board.total, points: board.you.points }
-      : null,
-  };
-}
 
 const SKILL_SHORT: Record<string, string> = {
   structuring: "Structure",
@@ -84,8 +61,8 @@ export default async function DashboardPage() {
     allAchievements,
     userAchievements,
     simStats,
-    dayBoard,
-    weekBoard,
+    attemptState,
+    simState,
   ] = await Promise.all([
       db.progress.findUnique({ where: { userId: user.id } }),
       db.attempt.findMany({
@@ -96,26 +73,37 @@ export default async function DashboardPage() {
       db.achievement.findMany(),
       db.userAchievement.findMany({ where: { userId: user.id } }),
       simSummary(user.id),
-      // Practice only. War rooms have their own board on /simulations — the two
-      // are scored on different rubrics, so one combined total measured nothing.
-      //
-      // Two windows, not three. All-time rewards whoever started earliest and is
-      // unreachable for anyone who joined last month; the cohort's board is the
-      // one that resets, so the dashboard asks for the two that do.
-      globalBoard(user.id, "day", "attempt"),
-      globalBoard(user.id, "week", "attempt"),
+      // One query each for the whole page's cards, as on /library and
+      // /simulations: what these decide is the label — "Practise again" on a
+      // question already attempted, "Resume this" on one left half-finished.
+      attemptStateByQuestion(user.id),
+      simStateByQuestion(user.id),
     ]);
 
   // Today's pair, read through the same resolver the admin panel shows, so the
   // two surfaces cannot disagree about what today is.
   const todayPicks = await resolveDaily();
   const todayIds = todayPicks.map((p) => p.questionId).filter((id): id is string => id !== null);
-  const todayQuestions = todayIds.length
+  const todayRows = todayIds.length
     ? await db.question.findMany({
         where: { id: { in: todayIds } },
         include: { category: true },
       })
     : [];
+  // Sorted back into `todayIds` order — `DAILY_SLOTS` is guesstimate first, war
+  // room second, and `findMany` returns rows in whatever order it likes. Without
+  // this the two columns below would swap sides from one day to the next.
+  const todayQuestions = todayIds
+    .map((id) => todayRows.find((q) => q.id === id))
+    .filter((q): q is (typeof todayRows)[number] => q !== undefined);
+
+  // Each question's own board, which is the one worth reading beneath it: not
+  // who has the most points overall, but who did best on this.
+  const todayBoards = Object.fromEntries(
+    await Promise.all(
+      todayQuestions.map(async (q) => [q.id, await questionLeaderboard(q.id)] as const),
+    ),
+  );
 
   // Deliberately locked, and deliberately not today's pair: this section is
   // "what is coming", and repeating a question already shown above it reads as
@@ -195,14 +183,42 @@ export default async function DashboardPage() {
             </span>
           </div>
           {todayQuestions.length ? (
-            <div className="grid gap-4 sm:grid-cols-2">
+            /* One column per question, each carrying its OWN board underneath.
+               A single cumulative board used to sit below both, which answered
+               "who has the most points overall" — a fair question, and not the
+               one somebody looking at today's guesstimate is asking. */
+            /* Card and board are direct grid children rather than a wrapped
+               pair, so the two cards share a row and the two boards share the
+               next one: prompts differ in length, and boards that started at
+               different heights read as two unrelated widgets. Column flow only
+               from `sm` up — stacked, it has to read card, board, card, board. */
+            <div className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-flow-col sm:grid-cols-2 sm:grid-rows-[auto_auto]">
               {todayQuestions.map((q) => (
-                <QuestionCard
-                  key={q.id}
-                  question={q}
-                  locked={isLocked(tierFor(user), q, grant)}
-                  upgrade={upgradeFor(tierFor(user))}
-                />
+                <Fragment key={q.id}>
+                  <QuestionCard
+                    question={q}
+                    locked={isLocked(tierFor(user), q, grant)}
+                    upgrade={upgradeFor(tierFor(user))}
+                    attemptState={attemptState[q.id] ?? null}
+                    simState={simState[q.id] ?? null}
+                  />
+                  <QuestionBoard
+                    className="mt-0"
+                    kind={isSimulation(q.type) ? "simulation" : "attempt"}
+                    userId={user.id}
+                    standing={null}
+                    rows={(todayBoards[q.id] ?? []).map((r) => ({
+                      userId: r.userId,
+                      rank: r.rank,
+                      name: r.name,
+                      batch: r.batch,
+                      value: r.score,
+                      // The tiebreak, formatted by `kind` inside the table:
+                      // minutes for an attempt, analyst-days for a war room.
+                      detail: String(r.effort),
+                    }))}
+                  />
+                </Fragment>
               ))}
             </div>
           ) : (
@@ -211,12 +227,6 @@ export default async function DashboardPage() {
             </p>
           )}
         </section>
-
-        <GlobalLeaderboard
-          day={toBoardSide(dayBoard)}
-          week={toBoardSide(weekBoard)}
-          currentUserId={user.id}
-        />
 
         <div className="grid gap-6 lg:grid-cols-3">
           <RankCard rank={user.rank} percentile={user.percentile} xp={user.xp} level={user.level} />
@@ -367,6 +377,8 @@ export default async function DashboardPage() {
                 question={q}
                 locked={isLocked(tierFor(user), q, grant)}
                 upgrade={upgradeFor(tierFor(user))}
+                attemptState={attemptState[q.id] ?? null}
+                simState={simState[q.id] ?? null}
               />
             ))}
           </div>
