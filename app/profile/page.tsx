@@ -52,6 +52,7 @@ export default async function ProfilePage() {
               city: profile?.city ?? "",
               bio: profile?.bio ?? "",
               profession: profile?.profession ?? "",
+              batch: user.batch ?? "",
               collegeId,
               collegeOther: profile?.collegeOther ?? "",
               gradYear: profile?.gradYear ? String(profile.gradYear) : "",

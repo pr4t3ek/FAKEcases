@@ -1,6 +1,7 @@
 "use client";
 
 import { COLLEGE_OTHER, collegesByKind } from "@/lib/config/colleges";
+import { BATCHES, batchOptionLabel } from "@/lib/config/batches";
 import {
   EXPERIENCE_BANDS,
   EXPERIENCE_LABELS,
@@ -68,6 +69,47 @@ export function ProfessionSelect({
         {PROFESSIONS.map((p) => (
           <option key={p} value={p}>
             {PROFESSION_LABELS[p]}
+          </option>
+        ))}
+      </select>
+    </Field>
+  );
+}
+
+/**
+ * Which PGP batch — the one field on either surface that has no "prefer not to
+ * say".
+ *
+ * The empty option is a placeholder rather than an answer: it carries no value,
+ * so submitting on it fails `profileCoreSchema` with "Choose your batch" instead
+ * of quietly storing nothing. Every other select here offers an opt-out because
+ * every other field is genuinely optional; this one appears on every board row,
+ * and a blank there is a row that cannot be read.
+ */
+export function BatchSelect({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <Field
+      label="Your batch"
+      htmlFor="batch"
+      hint="Shown next to your college on the leaderboard."
+    >
+      <select
+        id="batch"
+        className={selectClass}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        required
+      >
+        <option value="">Select your batch</option>
+        {BATCHES.map((b) => (
+          <option key={b.id} value={b.id}>
+            {batchOptionLabel(b)}
           </option>
         ))}
       </select>

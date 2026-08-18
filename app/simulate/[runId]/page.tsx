@@ -17,6 +17,7 @@ import {
 import { loadRun, outcomeFromResult, ownedInOrder, toRunState } from "@/lib/simulations";
 import { parseJson, parseJsonArray } from "@/lib/json";
 import { questionLeaderboard, questionStanding } from "@/lib/leaderboard";
+import { requireBatch } from "@/lib/batch-gate";
 import type { FeedbackItem, SimPhase } from "@/lib/types";
 import { SimulationScreen } from "@/components/simulation/simulation-screen";
 import { TurnaroundScreen } from "@/components/simulation/turnaround-screen";
@@ -61,6 +62,7 @@ export default async function SimulatePage({
   const { runId } = await params;
   const user = await getSessionUser();
   if (!user) redirect("/simulations");
+  requireBatch(user);
 
   const run = await loadRun(runId);
   if (!run || run.userId !== user.id) redirect("/simulations");
@@ -309,6 +311,7 @@ export default async function SimulatePage({
         rank: r.rank,
         name: r.name,
         college: r.college,
+        batch: r.batch,
         value: r.score,
         detail: String(r.effort),
       })),

@@ -83,6 +83,19 @@ model User {
   /// with no join.
   collegeId      String?
 
+  /// PGP batch id from `lib/config/batches.ts` — "pgp1" or "pgp2".
+  ///
+  /// Beside `collegeId` for the same reason it is on `User`: a board groups by
+  /// it, so it is a query rather than a display, and `globalStandings` already
+  /// reads this row.
+  ///
+  /// Nullable in the column even though the app requires an answer. Every row
+  /// that existed before this field has none, and a `NOT NULL` here would make
+  /// the migration the thing that decides who is locked out. `requireBatch` in
+  /// lib/batch-gate.ts is what makes it mandatory, and it can say what it wants
+  /// rather than failing an insert.
+  batch          String?
+
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -99,6 +112,7 @@ model User {
   roomSeats      SimRoomMember[]
 
   @@index([collegeId])
+  @@index([batch])
 }
 
 /// The parts of a person the app displays but never queries by.

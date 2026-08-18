@@ -14,6 +14,7 @@
 
 import { z } from "zod";
 import { COLLEGE_OTHER, isKnownCollege } from "@/lib/config/colleges";
+import { BATCH_IDS } from "@/lib/config/batches";
 import {
   EXPERIENCE_BANDS,
   PROFESSIONS,
@@ -92,6 +93,19 @@ export const profileCoreSchema = z.object({
   bio: optionalText(profileLimits.bio),
 
   profession: optionalEnum(PROFESSIONS),
+  /**
+   * Which PGP batch. **The one required field besides the name.**
+   *
+   * Not `optionalEnum` like its neighbours, and that is the whole point: every
+   * board row shows a batch, so a blank one is a row that cannot be read.
+   *
+   * One `errorMap` rather than `required_error` + `invalid_type_error`, because
+   * an unanswered select posts `""`, which zod reports as `invalid_enum_value`
+   * — covered by neither of those, and it defaults to "Invalid enum value.
+   * Expected 'pgp1' | 'pgp2'", which is not a sentence to show someone who
+   * simply has not picked yet.
+   */
+  batch: z.enum(BATCH_IDS, { errorMap: () => ({ message: "Choose your batch" }) }),
   /** A curated id, `COLLEGE_OTHER`, or blank. Checked in `refineProfile`. */
   collegeId: optionalText(64),
   collegeOther: optionalText(profileLimits.collegeOther),
@@ -133,13 +147,16 @@ export const profileSchema = profileCoreSchema.superRefine(refineProfile);
 /**
  * The subset the post-signup step asks for.
  *
- * `name` is already set at signup, so the step doesn't re-ask; everything else
- * is optional, because the whole flow is skippable and a half-answered step
- * must still save.
+ * `name` is already set at signup, so the step doesn't re-ask. Everything here
+ * is optional except `batch`, which the core schema requires — and that is what
+ * makes this step no longer entirely skippable. See `requireBatch` in
+ * lib/batch-gate.ts for the redirect that enforces the same rule from the other
+ * side; this is the half that stops a hand-rolled POST getting past it.
  */
 export const onboardingSchema = profileCoreSchema
   .pick({
     profession: true,
+    batch: true,
     collegeId: true,
     collegeOther: true,
     gradYear: true,
@@ -158,6 +175,11 @@ function emptyProfile(): ProfileCore {
     city: "",
     bio: "",
     profession: undefined,
+    // A placeholder for a required field, so this scaffold satisfies the type.
+    // It exists only to give `refineProfile` a whole object to check
+    // cross-field rules against, and no rule reads `batch`; the value is never
+    // returned to a caller and never reaches the database.
+    batch: BATCH_IDS[0],
     collegeId: "",
     collegeOther: "",
     gradYear: undefined,
@@ -180,8 +202,11 @@ export function toProfileColumns(data: Partial<ProfileCore>) {
   const chose = data.collegeId ?? "";
   const other = chose === COLLEGE_OTHER;
 
-  const user: { name?: string; collegeId?: string | null } = {};
+  const user: { name?: string; collegeId?: string | null; batch?: string } = {};
   if (data.name !== undefined) user.name = data.name;
+  // On `User` beside `collegeId`, not on `Profile`: both are grouped by rather
+  // than displayed, which is the split this function exists to apply.
+  if (data.batch !== undefined) user.batch = data.batch;
   if (data.collegeId !== undefined) user.collegeId = other || !chose ? null : chose;
 
   const profile: Record<string, string | number | null> = {};

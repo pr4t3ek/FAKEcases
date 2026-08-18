@@ -22,6 +22,7 @@
 
 import { db } from "@/lib/db";
 import { collegeById } from "@/lib/config/colleges";
+import { batchLabel } from "@/lib/config/batches";
 import { BENCHMARK_EMAIL_DOMAIN } from "@/lib/user-segment";
 
 /** Which exercise produced a ranked result. */
@@ -83,23 +84,35 @@ export function windowFilter(window: LeaderboardWindow, now: Date = new Date()) 
 }
 
 /**
- * How someone is named on a board: first name, plus their college when it is
- * one we can group by.
+ * How someone is named on a board: first name, their college when it is one we
+ * can group by, and their PGP batch.
  *
  * First name only, and never the email. A leaderboard is the one screen in the
  * app that shows one candidate to another, and a full name against a low score
  * is a cost the feature does not need to impose. "Other" colleges show no
  * affiliation at all, which is the honest consequence of the curated list —
  * a written-in name is grouped with nobody (see lib/config/colleges.ts).
+ *
+ * Batch is nullable here even though the app requires one, because a row can
+ * outlive the rule that produced it: accounts that ranked before the field
+ * existed have none until they next sign in and meet `requireBatch`. A board
+ * that refused to render those rows would be hiding real results to enforce a
+ * label.
+ *
+ * The single place a row's identity is assembled, which is why adding a field
+ * here reaches every board at once — the per-question board and the cumulative
+ * one both spread this.
  */
 export function displayNameFor(user: {
   name: string | null;
   collegeId: string | null;
-}): { name: string; college: string | null } {
+  batch: string | null;
+}): { name: string; college: string | null; batch: string | null } {
   const first = (user.name ?? "").trim().split(/\s+/)[0];
   return {
     name: first || "Learner",
     college: collegeById(user.collegeId)?.name ?? null,
+    batch: batchLabel(user.batch),
   };
 }
 
@@ -232,6 +245,8 @@ export interface LeaderboardRow {
   rank: number;
   name: string;
   college: string | null;
+  /** "PGP-1" / "PGP-2", or null for an account that predates the field. */
+  batch: string | null;
   score: number;
   effort: number;
   kind: string;
@@ -252,7 +267,7 @@ export async function questionLeaderboard(
     where: { questionId, user: rankableUser },
     orderBy: [{ score: "desc" }, { effort: "asc" }, { achievedAt: "asc" }],
     take: limit,
-    include: { user: { select: { id: true, name: true, collegeId: true } } },
+    include: { user: { select: { id: true, name: true, collegeId: true, batch: true } } },
   });
 
   return rows.map((r, i) => ({
@@ -316,6 +331,8 @@ export interface GlobalStanding {
   rank: number;
   name: string;
   college: string | null;
+  /** "PGP-1" / "PGP-2", or null for an account that predates the field. */
+  batch: string | null;
   points: number;
   solved: number;
 }
@@ -353,7 +370,7 @@ export async function globalStandings(
 
   const users = await db.user.findMany({
     where: { id: { in: grouped.map((g) => g.userId) } },
-    select: { id: true, name: true, collegeId: true },
+    select: { id: true, name: true, collegeId: true, batch: true },
   });
   const byId = new Map(users.map((u) => [u.id, u]));
 

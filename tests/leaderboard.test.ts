@@ -118,25 +118,41 @@ describe("windowFilter", () => {
 });
 
 describe("displayNameFor", () => {
+  /** A whole user, so a new field on the row cannot be forgotten in one case. */
+  const who = (over: Partial<Parameters<typeof displayNameFor>[0]> = {}) =>
+    displayNameFor({ name: "Ankit", collegeId: null, batch: null, ...over });
+
   it("shows the first name only — never the full name", () => {
-    expect(displayNameFor({ name: "Ankit Sharma", collegeId: null }).name).toBe("Ankit");
+    expect(who({ name: "Ankit Sharma" }).name).toBe("Ankit");
   });
 
   it("resolves a known college to its label", () => {
-    const { college } = displayNameFor({ name: "Ankit", collegeId: "iim-bangalore" });
-    expect(college).toBe("IIM Bangalore");
+    expect(who({ collegeId: "iim-bangalore" }).college).toBe("IIM Bangalore");
   });
 
   it("shows no affiliation for an unlisted college", () => {
     // "Other" is stored as a null id and grouped with nobody, so there is
     // nothing honest to print beside the name.
-    expect(displayNameFor({ name: "Ankit", collegeId: null }).college).toBeNull();
-    expect(displayNameFor({ name: "Ankit", collegeId: "not-a-real-id" }).college).toBeNull();
+    expect(who().college).toBeNull();
+    expect(who({ collegeId: "not-a-real-id" }).college).toBeNull();
+  });
+
+  it("resolves a batch to its short label — the years stay off the row", () => {
+    expect(who({ batch: "pgp1" }).batch).toBe("PGP-1");
+    expect(who({ batch: "pgp2" }).batch).toBe("PGP-2");
+  });
+
+  it("leaves the batch null rather than inventing one", () => {
+    // Two real cases: an account that ranked before the field existed, and a
+    // stored value that is no longer in the list. Both must render as nothing
+    // rather than as "PGP-undefined".
+    expect(who({ batch: null }).batch).toBeNull();
+    expect(who({ batch: "pgp3" }).batch).toBeNull();
   });
 
   it("falls back rather than rendering an empty row", () => {
-    expect(displayNameFor({ name: null, collegeId: null }).name).toBe("Learner");
-    expect(displayNameFor({ name: "   ", collegeId: null }).name).toBe("Learner");
+    expect(who({ name: null }).name).toBe("Learner");
+    expect(who({ name: "   " }).name).toBe("Learner");
   });
 });
 

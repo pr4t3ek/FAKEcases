@@ -294,11 +294,11 @@ kept, since a sizing answer read without them is unintelligible.
 ## Profile, and what it's for
 
 An account has a profile at `/profile`, reachable from the avatar in the header: photo, name,
-phone, city, a short bio, background (profession, college, graduation year, experience),
+batch, phone, city, a short bio, background (profession, college, graduation year, experience),
 goals, and a password change. Signing up lands on `/welcome`, a two-step version of the same
-questions that is **skippable in one click** — nothing in the app is ever gated on having
-answered. A dashboard nudge asks once more, and "Not now" is a real dismissal rather than a
-banner that comes back tomorrow.
+questions that is **skippable in one click except for the batch** — see below. A dashboard nudge
+asks once more about the rest, and "Not now" is a real dismissal rather than a banner that comes
+back tomorrow.
 
 **Only one section changes what the app does, and it says so.** Target roles reuse
 `INTERVIEW_LEVELS` — the same vocabulary the library already filters by — so they aren't a
@@ -328,8 +328,36 @@ spellings you thought of and fragments on the ones you didn't.
 So **"Other" is honest about its consequence**: it stores a null `collegeId` plus the
 written-in name, is shown on the profile, and is grouped with nobody. Adding a school to the
 list is a one-line change that promotes everyone who wrote it in. `collegeId` is indexed and
-sits on `User` beside `skillRating`, which is what a cohort ranking would need — that feature
-doesn't exist yet, and nothing in the UI claims it does.
+sits on `User` beside `skillRating` and `batch` — the leaderboard reads all three, which is why
+none of them live on `Profile`.
+
+### Batch is the one required answer
+
+`lib/config/batches.ts` holds the two PGP years — **PGP-1 (2026–28)** and **PGP-2 (2025–27)** —
+and `User.batch` stores the id. Every leaderboard row prints it beside the college, which is
+what makes the board answer the question a cohort actually asks: not just who is ahead, but
+whether they are your year or the year above.
+
+Because a blank there is a row nobody can read, this is the single field the app will not let
+you past. It is enforced twice, deliberately:
+
+- `profileCoreSchema` requires it, so `/welcome` and `/profile` refuse a save without one and a
+  hand-rolled POST gets the same refusal. `skipOnboarding` refuses too — the "Skip for now"
+  button is hidden until a batch is picked, but hiding a button is a courtesy, not a control.
+- `requireBatch` (`lib/batch-gate.ts`) redirects a signed-in account with no batch to `/welcome`
+  from `/dashboard`, `/library`, `/simulations`, `/practice/[attemptId]` and `/simulate/[runId]`.
+  That is what catches accounts created before the field existed; validation alone never reaches
+  them, because they never submit the form again.
+
+Two exemptions, both load-bearing. **Guests are never gated** — a class joins a room as guests by
+design, so gating them would break `/join` and `/room/[code]`, and a guest is filtered off every
+board anyway. **`/admin`, `/host` and `/profile` are not gated** — an admin who cannot open the
+admin panel cannot fix whatever locked them out, and a professor should not meet a form
+mid-lecture.
+
+The years are display text; the id (`pgp1`, `pgp2`) is what a row stores. A batch rolling over is
+a label edit in that one file, never an id change — an id carrying a year would orphan a cohort's
+worth of rows every September.
 
 ### Where an avatar actually goes
 
@@ -621,6 +649,44 @@ sync with the transcript.
 
 ---
 
+## Leaderboards
+
+The dashboard opens on **today's questions and then the practice leaderboard** — the two things a
+student can act on — with the charts, skills and history below them. The board has two windows:
+
+| Window | What it ranks | When it clears |
+|---|---|---|
+| **Today** | First-attempt scores earned today | Midnight UTC |
+| **This week** | First-attempt scores earned this week | Monday 00:00 UTC |
+
+**Today leads, and that is not cosmetic.** Under the daily unlock the whole cohort works the same
+guesstimate on the same day, so a daily board ranks people on one shared problem rather than on
+how much of the library they have got through — the only window where the comparison is
+genuinely like-for-like.
+
+**Both windows reset on their own.** `weekStartUtc` and `dayStartUtc` bound the query, so there
+is no cron to fail at midnight, nothing to backfill after downtime and nothing that can drift out
+of sync with the clock — the same reasoning as `User.proUntil` and the daily unlock. UTC
+throughout, and the day boundary is pinned by a test to the one `lib/daily-unlock.ts` uses:
+a board whose day started at a different hour would rank half the cohort on yesterday's question.
+
+**Only a first attempt is ranked, and points are the sum of those scores.** A replay is easier —
+you remember roughly where the ideal range was — so a second score never moves a standing, and
+the rule is enforced by `LeaderboardEntry`'s unique constraint rather than by a check each write
+path has to remember. Points are deliberately not XP: XP carries streak and daily bonuses, so an
+XP board would rank whoever practised *most* rather than whoever practised *best*, and would
+reward exactly the replaying the first-attempt rule refuses to count.
+
+A row is **first name, college · batch, points**. First name only and never the email: this is
+the one screen that shows one candidate to another, and a full name against a low score is a cost
+the feature does not need to impose. Someone outside the visible top slice sees their own
+position on a dashed line below it — shown to them, never listed publicly.
+
+War rooms keep their own board on `/simulations`, with this week and all time. A simulation's
+score and a guesstimate's come off different rubrics, so the sum of the two measured nothing.
+
+---
+
 ## Classroom rooms
 
 A professor runs a war room as a class exercise. They pick one from the catalogue, choose
@@ -722,6 +788,10 @@ deliberately unfinished, and it's better to say so than to let you find out:
   gateway is wired up, so the only way to grant one is Admin → Users. The landing page's Pro
   card stays disabled and says so. A gateway is a `PaymentProvider` and a webhook that calls
   the existing `grantPro`.
+- **`User.batch` was added with `prisma db push`**, like everything else here, so a deployed
+  Postgres wants a real `prisma migrate` for it. The column is nullable on purpose — existing
+  rows have no batch, and `requireBatch` asks them for one rather than a `NOT NULL` deciding who
+  is locked out.
 - **Dropping `User.plan` needs a migration in production.** It was replaced by `proUntil` and
   removed with `prisma db push --accept-data-loss`, which is fine on a local SQLite file
   where every row held the default. A deployed Postgres wants `prisma migrate` instead.
@@ -759,6 +829,11 @@ NDJSON stream protocol, the before/after-first-token fallback split, the spend g
 Ollama adapter's SSE parsing and error classification — and the voice layer's transcript
 assembly and error triage. Only the network boundary and the database are mocked, so the adapter
 wiring and error classification are exercised for real.
+
+The batch and the gate add two more, both pure: `tests/batches.test.ts` pins that the id never
+carries a year (so a batch rolling over stays a label edit), and `tests/batch-gate.test.ts` pins
+who `requireBatch` lets through — including the guest exemption a classroom depends on, which is
+the one that breaks `/join` if it is ever "tidied up".
 
 The profile layer adds three suites, all pure. `tests/avatar.test.ts` is the one worth reading:
 it pins that a payload declaring `image/jpeg` while carrying a shell script is refused, that an
@@ -817,7 +892,7 @@ Also useful: `pnpm typecheck` (strict, clean), `pnpm lint`, `pnpm build`.
 
 ## Deferred / future
 
-Stripe payments, PostHog analytics, whiteboard, peer leaderboard, adaptive difficulty,
+Stripe payments, PostHog analytics, whiteboard, adaptive difficulty,
 weekly report emails — each structured as an additive plug-in. The `case` value in
 `QUESTION_TYPES` is reserved for the full-length interview format and has no runtime yet, so the
 library filters it out and the admin panel doesn't offer it (see `PRACTISABLE_TYPES`).
