@@ -145,8 +145,8 @@ describe("loadUserAdminStats", () => {
       ...Array.from({ length: 40 }, (_, i) =>
         row({ email: `benchmark_${i}${BENCHMARK_EMAIL_DOMAIN}` }),
       ),
-      row({ email: "admin@estimateiq.app" }),
-      row({ email: "demo@estimateiq.app" }),
+      row({ email: "admin@caseclosed.app" }),
+      row({ email: "demo@caseclosed.app" }),
       row({ email: null, isGuest: true }),
     ]);
 

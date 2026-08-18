@@ -46,7 +46,7 @@ export function ImportPanel() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "estimateiq-questions-template.csv";
+    a.download = "case-closed-questions-template.csv";
     a.click();
     URL.revokeObjectURL(url);
   }

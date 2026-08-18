@@ -1,6 +1,6 @@
-# EstimateIQ — Architecture & Documentation
+# CASE CLOSED — Architecture & Documentation
 
-EstimateIQ is a **local-first, zero-key** Next.js app that lets MBA / consulting / PM
+CASE CLOSED is a **local-first, zero-key** Next.js app that lets MBA / consulting / PM
 candidates practise India-focused market-sizing guesstimates and business cases against
 an AI interviewer, then get a scored evaluation and gamified progress (XP, levels,
 streaks, percentile rank).

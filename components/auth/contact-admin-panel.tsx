@@ -28,7 +28,7 @@ export function ContactAdminPanel({ adminEmail }: { adminEmail: string }) {
           <p className="mt-1 text-muted-foreground">
             Email{" "}
             <a
-              href={`mailto:${adminEmail}?subject=EstimateIQ%20password%20reset`}
+              href={`mailto:${adminEmail}?subject=CASE%20CLOSED%20password%20reset`}
               className="break-all font-medium text-primary hover:underline"
             >
               {adminEmail}

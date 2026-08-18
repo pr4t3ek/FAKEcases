@@ -55,7 +55,7 @@ function detectProvider(): LlmProvider {
 
 export const env = {
   databaseUrl: process.env.DATABASE_URL ?? "file:./dev.db",
-  authSecret: process.env.AUTH_SECRET ?? "estimateiq-dev-secret-change-me",
+  authSecret: process.env.AUTH_SECRET ?? "case-closed-dev-secret-change-me",
 
   llm: {
     provider: detectProvider(),

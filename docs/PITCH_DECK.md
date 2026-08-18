@@ -1,4 +1,4 @@
-# EstimateIQ — Pitch Deck Kit
+# CASE CLOSED — Pitch Deck Kit
 
 Everything needed to build the deck: a slide-by-slide spec (headline, body, visual, speaker
 notes), a visual system, and copy-paste **prompts** — one master prompt that generates the
@@ -81,7 +81,7 @@ You are a presentation designer building a 16-slide seed-stage pitch deck for a 
 edtech product. Produce one slide per section below, in order.
 
 PRODUCT
-EstimateIQ — "Duolingo for consulting and PM interviews." A web app where MBA, consulting
+CASE CLOSED — "Duolingo for consulting and PM interviews." A web app where MBA, consulting
 and product-management candidates in India practise three things: market-sizing
 guesstimates, business cases, and decision simulations ("war rooms"). An AI interviewer
 runs the first two with Socratic questioning and escalating hints that never reveal the
@@ -112,7 +112,7 @@ SLIDES
    real interview is the only thing never practised. Peer mocks are unreliable and don't
    scale; a coach is ₹[COACH_HOURLY]/hour.
 3. Why today's options miss — a comparison table across: casebooks/PDFs, peer mock groups,
-   paid coaches, generic AI chat, EstimateIQ. Columns: gives feedback on reasoning,
+   paid coaches, generic AI chat, CASE CLOSED. Columns: gives feedback on reasoning,
    available on demand, India-specific content, consistent scoring, cost.
 4. The insight — an interview is not a quiz. It is a conversation about how you think,
    ending in a defensible number or a defensible recommendation. So the product grades the
@@ -183,7 +183,7 @@ one-liner to a colleague after the meeting.
 
 **Headline.** Crack case interviews with an AI interviewer, not an answer key.
 
-**Subhead.** EstimateIQ — India-focused guesstimates, business cases and decision simulations
+**Subhead.** CASE CLOSED — India-focused guesstimates, business cases and decision simulations
 for MBA, consulting and PM candidates.
 
 **Body.** Presenter name · date · one contact line. Nothing else.
@@ -198,7 +198,7 @@ will listen to them answer one. We built the listener."
 
 **Prompt.**
 ```text
-A minimal dark title slide, background #0B1220. Centred white wordmark "EstimateIQ" in Inter
+A minimal dark title slide, background #0B1220. Centred white wordmark "CASE CLOSED" in Inter
 Bold, and beneath it in #64748B: "Duolingo for consulting and PM interviews". Behind the text,
 at 20% opacity, a wide screenshot of a two-panel web app — a chat conversation on the left, a
 node-and-branch tree diagram on the right. A thin #2563EB underline accent below the wordmark.
@@ -253,7 +253,7 @@ slide that earns the right to the rest of the deck.
 
 **Body.** A comparison table — five rows, five columns:
 
-| | Casebook / PDF | Peer mock | Paid coach | Generic AI chat | **EstimateIQ** |
+| | Casebook / PDF | Peer mock | Paid coach | Generic AI chat | **CASE CLOSED** |
 |---|---|---|---|---|---|
 | Feedback on your *reasoning* | ✗ | ~ | ✓ | ~ | **✓** |
 | Available on demand | ✓ | ✗ | ✗ | ✓ | **✓** |
@@ -267,7 +267,7 @@ is precisely the failure — it solves it for you, praises the answer, and score
 prompts are built around never revealing the answer early, and that behaviour is pinned by a
 test.
 
-**Visual.** The table, with the EstimateIQ column filled Primary at 8% tint and its header in
+**Visual.** The table, with the CASE CLOSED column filled Primary at 8% tint and its header in
 Primary bold. Ticks in Success, crosses in Muted (not red — you're not attacking alternatives,
 you're locating yourself).
 

@@ -56,9 +56,16 @@ const interTightExt = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "EstimateIQ — Master consulting guesstimates",
+  /*
+   * The tab is a narrow place — a pinned tab shows about twelve characters — so
+   * the name goes first and the tagline follows it, rather than a sentence that
+   * truncates before it says anything. The emoji stays out of the title and
+   * lives on the landing page instead: it is a wink in a headline and a
+   * rendering lottery in a tab strip and a search result.
+   */
+  title: "CASE CLOSED — Because “It Depends” Isn't an Answer",
   description:
-    "Practice guesstimates interactively with an AI interviewer that guides you like a McKinsey/BCG/Bain interviewer — Socratic hints, structured frameworks, and detailed evaluation.",
+    "Practice India-focused guesstimates, business cases and product decision simulations with an AI interviewer that questions you like a McKinsey/BCG/Bain panel — Socratic hints, structured frameworks and a detailed evaluation. Because “It Depends” isn't an answer.",
 };
 
 export default function RootLayout({

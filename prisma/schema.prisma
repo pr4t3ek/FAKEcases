@@ -1,4 +1,4 @@
-// EstimateIQ data model.
+// CASE CLOSED data model.
 // Provider is SQLite for local-first dev; swap to postgresql for Supabase/prod
 // by changing `provider` + DATABASE_URL. SQLite doesn't support Prisma enums,
 // so enum-like columns are String with allowed values enforced in TS

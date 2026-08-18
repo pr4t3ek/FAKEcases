@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Case Closed">
+  <!--
+    The tab icon, and the same mark the header wears (components/brand.tsx).
+
+    Drawn for 16px first: one filled square, one thick tick, nothing else. A
+    favicon is read at a size where strokes thinner than about 3% of the box, and
+    any counter smaller than a couple of pixels, turn to grey mush — so the tick
+    is 7/64 wide with round joins and the square keeps a generous corner rather
+    than fine detail.
+
+    The accent is the FILL rather than the stroke, which is the opposite of what
+    reads best on our own near-black page and the right way round here: a browser
+    paints this against its own tab strip, which is dark for about half of
+    everyone, and a near-black square simply disappears into it. A cyan tile
+    holds its edge on either.
+
+    Colours are literal rather than themed because a favicon lives outside the
+    document and can read neither our CSS variables nor the page it belongs to.
+  -->
+  <rect width="64" height="64" rx="14" fill="#00C2FF" />
+  <path
+    d="M17 33.5 L27.5 44 L47 22"
+    fill="none"
+    stroke="#0A0A0A"
+    stroke-width="7"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

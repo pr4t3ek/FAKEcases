@@ -1,4 +1,6 @@
-# EstimateIQ
+# CASE CLOSED
+
+*Because "It Depends" isn't an answer.* 😏
 
 **Duolingo for consulting and PM interviews.** An interactive web app where MBA / consulting / PM
 candidates practise **India-focused** market-sizing guesstimates, business cases and product
@@ -74,13 +76,13 @@ evaluation → sign up to save**. Or sign in with the seeded accounts:
 
 | Account | Email | Password |
 |---|---|---|
-| Demo user | `demo@estimateiq.app` | `demo1234` |
-| Admin | `admin@estimateiq.app` | `admin1234` |
+| Demo user | `demo@caseclosed.app` | `demo1234` |
+| Admin | `admin@caseclosed.app` | `admin1234` |
 
 **Testing a locked catalogue? Not with these two.** `demo` and `prof` are seeded with a live
 Pro pass, re-asserted on every `pnpm db:seed` (`prisma/seed.ts`), and Pro means `content: "all"`
 — the daily unlock never applies to them, so the library correctly looks wide open. Use a plain
-account you signed up yourself, or `admin@estimateiq.app`, which is deliberately left on the
+account you signed up yourself, or `admin@caseclosed.app`, which is deliberately left on the
 free tier so both sides of the gate are reachable on a fresh install.
 
 **Deploying publicly?** These passwords are in this file, so change them before the URL goes
@@ -219,6 +221,17 @@ component being touched:
   `@media print` flips the whole surface set — cards, borders, muted text and the signal colours,
   not just the page. With no light palette left to fall back on, anything it forgot would print as
   a dark grey panel.
+
+### The mark, in two files that must agree
+
+`app/icon.svg` is the browser-tab icon; `components/brand.tsx` draws the same tick for the header.
+The geometry is duplicated rather than shared, and deliberately: the favicon is painted by the
+browser's chrome, outside the document, so it can read neither our CSS variables nor the page it
+belongs to and has to carry literal colours. The in-app one uses the tokens and follows the accent
+wherever it goes. Change one, change the other.
+
+It is drawn for 16px first — one filled square, one thick tick, no counters and no hairlines,
+because everything finer than that turns to grey mush in a tab strip.
 
 ### The fonts are in the repo on purpose
 
@@ -532,8 +545,8 @@ attempts, one simulation run — are gone: two walls with two different messages
 could be turned away from a question they had never opened, and the reason to sign up is
 saving your work rather than a play counter.
 
-Seeded so both sides are reachable on a fresh clone: `demo@estimateiq.app` carries a 30-day
-pass and sees everything; `admin@estimateiq.app` has none and hits the paywall. A re-seed
+Seeded so both sides are reachable on a fresh clone: `demo@caseclosed.app` carries a 30-day
+pass and sees everything; `admin@caseclosed.app` has none and hits the paywall. A re-seed
 re-asserts both, so a pass granted while testing doesn't leave you without an account that can
 see the locked state.
 
@@ -768,7 +781,7 @@ at `/join` — **no account needed** — and each plays their own run at their o
 professor watches a live roster: who's in, what phase they're on, analyst-days burned, final
 score and band.
 
-Seeded to try immediately: `prof@estimateiq.app` / `prof1234`.
+Seeded to try immediately: `prof@caseclosed.app` / `prof1234`.
 
 **Who can host.** `User.role` gained a third value, `professor`, granted from **Admin → Users**.
 It opens rooms and nothing else — every admin gate in the app still tests `role === "admin"`
