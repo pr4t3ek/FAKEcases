@@ -3,6 +3,7 @@ import {
   evaluationCategories,
   readinessForScore,
   accuracyTolerance,
+  rubric,
   type ReadinessBand,
 } from "@/lib/config";
 import { branchDiscussed, diagnosisTrail, type DiagnosisNode } from "@/lib/diagnosis";
@@ -79,6 +80,23 @@ export function solutionWasRevealed(
  */
 const HINT_PENALTY = 12;
 const SOLUTION_REVEAL_PENALTY = 36;
+
+/**
+ * Sum the components a candidate actually earned, on the 0–100 scale.
+ *
+ * `false` is accepted alongside a number so a component can be written as
+ * `condition && points` and read as the sentence it is — "segmented, so 18" —
+ * rather than as a ternary with a `: 0` limb on every line. A negative is a
+ * penalty and subtracts.
+ *
+ * The clamp has no floor above zero, which is the point of the rubric: nothing
+ * is owed for turning up, so an attempt that earned no component scores 0
+ * rather than the 25–35 the old baselines guaranteed.
+ */
+function earned(...components: (number | false)[]): number {
+  const total = components.reduce<number>((sum, c) => sum + (c === false ? 0 : c), 0);
+  return Math.round(clamp(total, 0, 100));
+}
 
 /**
  * A null score means "this category was never in play for this attempt", which
@@ -331,59 +349,97 @@ export function evaluate(input: EvaluationInput): EvaluationResult {
   const accuracy = computeAccuracy(finalEstimate, idealLow, idealHigh);
   const userMsgCount = userMessageText.length;
 
-  const structuring = clamp(
-    40 + Math.min(frameworkCount, 5) * 11 + (hasSegmentation ? 8 : 0),
-    30,
-    95,
+  // Clauses that explain rather than assert — the same test the case scorer
+  // applies, reused here so "said why" means one thing across both modes.
+  const reasonedCount = userMessageText.reduce(
+    (n, message) => n + reasonedFragments(message).length,
+    0,
   );
-  const segmentation = clamp(
-    (hasSegmentation ? 68 : 36) + Math.min(frameworkCount, 4) * 5,
-    28,
-    95,
+  const landedNear = accuracy === "hit" || accuracy === "near";
+
+  // Every category below is bought from zero and clamped 0–100 — see `rubric`
+  // for why there is no baseline and no floor.
+  const structuring = earned(
+    Math.min(frameworkCount, rubric.structuring.maxNodes) * rubric.structuring.perNode,
+    hasSegmentation && rubric.structuring.segmented,
   );
-  const logic = clamp(
-    50 +
-      (frameworkCount >= 2 ? 15 : 0) +
-      (calculationCount > 0 ? 12 : 0) +
-      (assumptionCount >= 2 ? 8 : 0),
-    30,
-    92,
+  const segmentation = earned(
+    hasSegmentation && rubric.segmentation.segmented,
+    Math.min(frameworkCount, rubric.segmentation.maxNodes) * rubric.segmentation.perNode,
   );
-  // Derived figures are far more numerous than the handful people used to log
-  // by hand, so the count contribution is capped and most of the headroom sits
-  // in justifying them — otherwise a filled-in tree alone would max this out.
-  const assumptionsScore = clamp(
-    35 +
-      Math.min(assumptionCount, 6) * 5 +
-      quantifiedRatio * 15 +
-      justifiedRatio * 25 -
-      weakAssumptions * 8,
-    25,
-    95,
+  const logic = earned(
+    frameworkCount >= 2 && rubric.logic.hasTree,
+    calculationCount > 0 && rubric.logic.showedWork,
+    assumptionCount >= 2 && rubric.logic.hasAssumptions,
+    landedNear && rubric.logic.landedNear,
+    frameworkCount >= 4 && rubric.logic.deepTree,
   );
-  const calculation =
-    accuracy === "hit"
-      ? clamp(80 + (calculationCount > 0 ? 8 : 0), 70, 95)
-      : accuracy === "near"
-        ? accuracyTolerance.nearScore
-        : accuracy === "far"
-          ? accuracyTolerance.farScore
-          : calculationCount > 0
-            ? 52
-            : 40;
-  const communication = clamp(45 + Math.min(userMsgCount, 6) * 7, 35, 90);
-  const business = clamp(
-    48 + (hasSegmentation ? 8 : 0) + (businessNuance ? 20 : 0),
-    30,
-    92,
+  /*
+   * Derived figures are far more numerous than the handful people used to log by
+   * hand, so the count contribution is capped and most of the headroom sits in
+   * justifying them — otherwise a filled-in tree alone would max this out.
+   *
+   * The ratios are then scaled by how many figures there are to take a ratio of.
+   * A ratio is a proportion, and a proportion of one is 1.0 — so a candidate who
+   * typed a single sentence with a number in it ("16 crore GB per day", which
+   * `rateAssumption` reads as justified because of the "per") would otherwise
+   * collect the entire quantified and justified bonus for it. Scaling by
+   * coverage means those bonuses are earned across the estimate rather than by
+   * one lucky fragment, and a full tree is unaffected.
+   */
+  const assumptionCoverage =
+    Math.min(assumptionCount, rubric.assumptions.maxCounted) / rubric.assumptions.maxCounted;
+  const assumptionsScore = earned(
+    Math.min(assumptionCount, rubric.assumptions.maxCounted) *
+      rubric.assumptions.perAssumption,
+    quantifiedRatio * rubric.assumptions.quantifiedRatio * assumptionCoverage,
+    justifiedRatio * rubric.assumptions.justifiedRatio * assumptionCoverage,
+    -weakAssumptions * rubric.assumptions.weakPenalty,
   );
-  const confidence = clamp(
-    80 -
-      hintsUsed * HINT_PENALTY -
-      (solutionRevealed ? SOLUTION_REVEAL_PENALTY : 0) +
-      (finalEstimate != null ? 8 : 0),
-    30,
-    92,
+  /*
+   * A number nothing supports is a guess, however well it landed.
+   *
+   * Accuracy on its own used to be worth 80, which is what let an empty attempt
+   * that typed a lucky figure outscore a built estimate that missed. So the
+   * accuracy points are capped when there is neither a calculation nor a single
+   * derived figure behind the answer, and the rest of the category is bought by
+   * showing the arithmetic.
+   *
+   * The threshold is two figures rather than one on purpose — see
+   * `rubric.substantiationThreshold`.
+   */
+  const substantiated =
+    calculationCount > 0 || assumptionCount >= rubric.substantiationThreshold;
+  const accuracyPoints = Math.min(
+    rubric.calculation[accuracy],
+    substantiated ? Infinity : rubric.calculation.unsubstantiatedCap,
+  );
+  const calculation = earned(
+    accuracyPoints,
+    Math.min(calculationCount, rubric.calculation.maxCalculations) *
+      rubric.calculation.perCalculation,
+  );
+  const communication = earned(
+    Math.min(userMsgCount, rubric.communication.maxMessages) *
+      rubric.communication.perMessage,
+    Math.min(reasonedCount, rubric.communication.maxReasonedClauses) *
+      rubric.communication.perReasonedClause,
+    justifiedRatio >= rubric.communication.justifiedThreshold &&
+      rubric.communication.justifiedRatio,
+  );
+  const business = earned(
+    businessNuance && rubric.business.nuance,
+    hasSegmentation && rubric.business.segmented,
+    assumptionCount >= 3 && rubric.business.hasAssumptions,
+    landedNear && rubric.business.landedNear,
+  );
+  const confidence = earned(
+    finalEstimate != null && rubric.confidence.committed,
+    assumptionCount >= 3 && rubric.confidence.hasAssumptions,
+    calculationCount > 0 && rubric.confidence.showedWork,
+    userMsgCount >= 3 && rubric.confidence.discussed,
+    -hintsUsed * HINT_PENALTY,
+    solutionRevealed && -SOLUTION_REVEAL_PENALTY,
   );
 
   const scores: EvaluationScores = {

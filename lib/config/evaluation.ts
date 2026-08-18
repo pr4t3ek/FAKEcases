@@ -84,6 +84,128 @@ export const accuracyTolerance = {
   withinRange: 100,
   /** Within this multiplicative factor of the nearest bound => partial. */
   nearFactor: 2, // within 2x
-  nearScore: 65,
-  farScore: 30,
 };
+
+/**
+ * The guesstimate rubric, as points earned rather than a mark awarded.
+ *
+ * **Every category starts at zero and is bought.** The previous shape was a
+ * generous baseline plus a small bonus — 40 for structuring, 50 for logic, 48
+ * for business sense, each on a floor of 25–35 — so an attempt that segmented
+ * nothing, logged nothing and showed no working still totalled about 52 and was
+ * told it was "Intermediate". A rubric that pays for turning up cannot then
+ * claim the score means anything, and the report is the whole product here.
+ *
+ * So each number below stands for one aspect of the exercise, the components sum
+ * to roughly 100 when all of them are covered, and the sum is clamped to 0–100
+ * with no floor underneath. Doing nothing scores nothing; covering everything
+ * reaches the top of the scale, which the old 90–95 ceilings did not allow
+ * either.
+ *
+ * These are deliberately whole numbers a professor can retune without reading
+ * the scorer — the same posture as the turn budgets in `./practice.ts`.
+ */
+export const rubric = {
+  /** Does a tree exist at all, and does it break the problem up? */
+  structuring: {
+    perNode: 13,
+    maxNodes: 6,
+    segmented: 18,
+  },
+
+  /** Did they split the population into groups that behave differently? */
+  segmentation: {
+    segmented: 45,
+    perNode: 11,
+    maxNodes: 5,
+  },
+
+  /** Does the chain of reasoning hold together end to end? */
+  logic: {
+    hasTree: 25, // >= 2 nodes
+    showedWork: 25, // any calculation
+    hasAssumptions: 20, // >= 2 derived figures
+    landedNear: 20, // hit or near
+    deepTree: 10, // >= 4 nodes
+  },
+
+  /**
+   * Figures, and — the part that is actually scarce — their basis.
+   *
+   * Most of the headroom sits in `justified` rather than `perAssumption`,
+   * because derived figures are numerous (every filled tree box is one) and
+   * saying where a number came from is the thing an interviewer listens for.
+   */
+  assumptions: {
+    perAssumption: 8,
+    maxCounted: 6,
+    quantifiedRatio: 25,
+    justifiedRatio: 30,
+    weakPenalty: 10,
+  },
+
+  /**
+   * How many committed figures count as having worked the problem at all.
+   *
+   * Two, not one, and the difference is the whole guard. A candidate who types
+   * their answer as a sentence — "16 crore GB per day" — has produced exactly
+   * one quantified fragment, and it reads as justified to `rateAssumption`
+   * because of the "per". Treating that as substantiation would hand the full
+   * accuracy points back to the bare number this rubric exists to stop scoring.
+   */
+  substantiationThreshold: 2,
+
+  /**
+   * Accuracy, and whether the number was actually arrived at.
+   *
+   * `unsubstantiatedCap` is the load-bearing one. Landing in the ideal range
+   * used to be worth 80 on its own, so a lucky guess outranked a carefully built
+   * estimate that missed — which is exactly the complaint this rubric answers. A
+   * figure with no calculation and no stated assumption behind it is not a
+   * demonstrated estimate, so it is capped here regardless of where it landed,
+   * and the rest of the category is bought by showing the arithmetic.
+   */
+  calculation: {
+    hit: 60,
+    near: 35,
+    far: 12,
+    none: 0,
+    unsubstantiatedCap: 20,
+    perCalculation: 10,
+    maxCalculations: 4,
+  },
+
+  /** Did they talk through it, and explain rather than assert? */
+  communication: {
+    perMessage: 12,
+    maxMessages: 5,
+    perReasonedClause: 10,
+    maxReasonedClauses: 2,
+    justifiedRatio: 20,
+    /** `justifiedRatio` is paid once this share of figures carries a basis. */
+    justifiedThreshold: 0.25,
+  },
+
+  /** Judgement beyond the base case — the demand a naive tree misses. */
+  business: {
+    nuance: 45,
+    segmented: 25,
+    hasAssumptions: 15, // >= 3 derived figures
+    landedNear: 15,
+  },
+
+  /**
+   * Committing to a defensible answer, less what it took to get there.
+   *
+   * Deliberately **no "worked without hints" bonus**: it would survive a Teacher
+   * mode reveal and let a walked-through attempt outscore one that merely
+   * exhausted the hint ladder, which is the one ordering this category exists to
+   * express (see `SOLUTION_REVEAL_PENALTY` in lib/evaluation.ts).
+   */
+  confidence: {
+    committed: 30, // gave a final estimate
+    hasAssumptions: 25, // >= 3 derived figures
+    showedWork: 20, // any calculation
+    discussed: 25, // >= 3 messages
+  },
+} as const;

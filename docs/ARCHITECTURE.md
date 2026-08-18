@@ -772,6 +772,22 @@ Structure is worth less on a case — the frameworks recur, so reproducing one i
 skill — and Diagnosis carries that weight instead, because localising the problem inside
 a known tree is the hard part.
 
+**A guesstimate category is earned from zero, not awarded from a baseline.** Each one in
+`evaluate()` is a sum of components from `rubric` (`lib/config/evaluation.ts`), clamped to
+0–100 with no floor: so many points per framework node, so many for segmenting, for
+showing arithmetic, for saying where a figure came from. An attempt that does none of it
+scores 0 rather than the ~52 the old baselines guaranteed, and covering every aspect
+reaches the high 90s, which the old 90–95 ceilings did not allow.
+
+Two guards stop a bare answer buying its way back up. **An unsubstantiated estimate is
+capped** — landing in the ideal range is worth 60, but only 20 when there is neither a
+calculation nor two committed figures behind it, because a number nobody worked for is a
+guess however well it lands. And the **quantified/justified ratios are scaled by coverage**,
+so a single sentence with a number in it collects a sixth of that bonus rather than all of
+it on a proportion of one. The case scorer (`evaluateQualitative()`) keeps its original
+baselines; only guesstimates were retuned, and stored evaluations were not rescored, so
+attempts submitted before the change keep the scores they were given.
+
 **Help is priced, not free.** Hints cost Confidence as they escalate, and Teacher mode —
 the one AI mode whose prompt actually works the problem — costs the equivalent of the
 whole hint ladder. A guided tree isn't scored on structure at all, because the app built

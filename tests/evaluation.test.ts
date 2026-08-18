@@ -220,3 +220,105 @@ describe("rateAssumption", () => {
     expect(rateAssumption("x", "").rating).toBe("Weak");
   });
 });
+
+/**
+ * The rubric grades coverage, not attendance.
+ *
+ * Every category used to open with a baseline of 35–50 on a floor of 25–35, so
+ * an attempt that segmented nothing, logged nothing and showed no working still
+ * totalled about 52 and was told it was "Intermediate". These pin the shape that
+ * replaced it: nothing is owed for turning up, and the top of the scale is
+ * reachable only by covering every aspect.
+ */
+describe("earned coverage", () => {
+  /** No tree, nothing said, no arithmetic, no answer. */
+  const nothing: EvaluationInput = {
+    ...base,
+    framework: [],
+    calculationCount: 0,
+    userMessageText: [],
+    finalEstimate: null,
+  };
+
+  /** The bare number: typed as a sentence, nothing behind it, lands in range. */
+  const bareNumber: EvaluationInput = {
+    ...base,
+    framework: [],
+    calculationCount: 0,
+    userMessageText: ["16 crore GB per day"],
+  };
+
+  const complete: EvaluationInput = {
+    ...base,
+    framework: [
+      { label: "Urban population", value: "4cr" },
+      { label: "Adults", value: "68%" },
+      { label: "Smartphone users", value: "75%" },
+      { label: "Daily active", value: "60%" },
+      { label: "Sessions/day", value: "3" },
+      { label: "GB per session", value: "0.2", multiplier: "2" },
+    ],
+    calculationCount: 5,
+    userMessageText: [
+      "I'll split urban and rural because data pricing differs sharply between them",
+      "Assuming 68% are adults, since the census age split puts under-18s at about a third",
+      "Smartphone penetration is roughly 75% in urban India based on TRAI's subscriber report",
+      "Daily active is about 60% of that, which means 1.8cr users driven by cheap data",
+      "Add institutional and corporate bulk demand, plus a festival season uplift",
+    ],
+  };
+
+  it("scores an empty attempt at zero, with no floor underneath any category", () => {
+    const r = evaluate(nothing);
+    for (const [key, score] of Object.entries(r.scores)) {
+      if (score == null) continue; // diagnosis never applies to an estimate
+      expect(score, key).toBe(0);
+    }
+    expect(r.overall).toBe(0);
+  });
+
+  // The complaint this rubric answers: a number that happened to land in the
+  // ideal range used to score 80 on Calculation Accuracy on its own, which
+  // carried the whole attempt to "Intermediate".
+  it("does not reward a lucky number with nothing behind it", () => {
+    const r = evaluate(bareNumber);
+    expect(r.accuracyHit).toBe(true);
+    expect(r.scores.calculation).toBeLessThanOrEqual(20);
+    expect(r.overall!).toBeLessThan(25);
+    expect(r.readiness).toBe("Beginner");
+  });
+
+  it("pays for the same estimate once it is actually worked", () => {
+    const guessed = evaluate(bareNumber);
+    const worked = evaluate({ ...bareNumber, calculationCount: 4 });
+    expect(worked.scores.calculation).toBeGreaterThan(guessed.scores.calculation!);
+    expect(worked.scores.calculation).toBeGreaterThanOrEqual(90);
+  });
+
+  // One quantified sentence is a proportion of one, so an unscaled ratio would
+  // hand over the entire quantified-and-justified bonus for it.
+  it("does not let a single quantified fragment collect the whole ratio bonus", () => {
+    expect(evaluate(bareNumber).scores.assumptions).toBeLessThan(30);
+  });
+
+  it("reaches the top of the scale when every aspect is covered", () => {
+    const r = evaluate(complete);
+    expect(r.overall!).toBeGreaterThanOrEqual(90);
+    expect(r.readiness).toBe("Interview Ready");
+  });
+
+  it("rises with each aspect the candidate adds", () => {
+    const bare = evaluate(bareNumber).overall!;
+    const structured = evaluate({ ...bareNumber, framework: base.framework }).overall!;
+    const calculated = evaluate({
+      ...bareNumber,
+      framework: base.framework,
+      calculationCount: 3,
+    }).overall!;
+    const explained = evaluate(complete).overall!;
+
+    expect(structured).toBeGreaterThan(bare);
+    expect(calculated).toBeGreaterThan(structured);
+    expect(explained).toBeGreaterThan(calculated);
+  });
+});
