@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { JoinRoomDialog } from "@/components/rooms/join-room-dialog";
 
 /**
  * War rooms have their own route.
@@ -53,6 +54,12 @@ export function NavLinks({ isAdmin, canHost }: { isAdmin: boolean; canHost: bool
           </Link>
         );
       })}
+
+      {/* Last, and a dialog rather than a link. Everyone sees it: a professor
+          may sit in a colleague's room, and there is nothing to gate — the
+          password is the gate. It has no active state because it navigates
+          nowhere until a room is actually joined. */}
+      <JoinRoomDialog />
     </nav>
   );
 }

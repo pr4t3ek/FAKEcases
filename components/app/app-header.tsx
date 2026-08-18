@@ -7,6 +7,7 @@ import { Brand } from "@/components/brand";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NavLinks } from "@/components/app/nav-links";
 import { AccountMenu } from "@/components/app/account-menu";
+import { JoinRoomDialog } from "@/components/rooms/join-room-dialog";
 import { RankBadge } from "@/components/rank-badge";
 import { Button } from "@/components/ui/button";
 
@@ -45,6 +46,10 @@ export function AppHeader({ user }: { user: User | null }) {
             />
           ) : (
             <>
+              {/* Guests never see `NavLinks` at all, and a class joins as guests
+                  by design — so without this the students the feature is for
+                  would be the only people with no way in. */}
+              <JoinRoomDialog variant="button" className="hidden sm:inline-flex" />
               <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
                 <Link href="/login">Sign in</Link>
               </Button>
