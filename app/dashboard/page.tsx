@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, PlayCircle } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isLocked, tierFor, upgradeFor } from "@/lib/entitlements";
@@ -23,6 +23,7 @@ import {
   type BoardSide,
 } from "@/components/dashboard/global-leaderboard";
 import { globalBoard } from "@/lib/leaderboard";
+import { requireBatch } from "@/lib/batch-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,7 @@ function toBoardSide(board: Awaited<ReturnType<typeof globalBoard>>): BoardSide 
       rank: s.rank,
       name: s.name,
       college: s.college,
+      batch: s.batch,
       value: s.points,
       detail: `${s.solved} solved`,
     })),
@@ -64,6 +66,9 @@ export default async function DashboardPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
   if (user.isGuest) redirect("/signup");
+  // Before anything is loaded: every board below this line shows a batch, and
+  // the dashboard is where a student who has never been asked lands first.
+  requireBatch(user);
 
   // Resolved before everything else because the recommendation query needs it.
   // The same grant the gates use, so a card that reads as open here is one
@@ -73,13 +78,11 @@ export default async function DashboardPage() {
   const [
     progress,
     submitted,
-    inProgress,
     allAchievements,
     userAchievements,
     simStats,
     dayBoard,
     weekBoard,
-    allTimeBoard,
   ] = await Promise.all([
       db.progress.findUnique({ where: { userId: user.id } }),
       db.attempt.findMany({
@@ -87,20 +90,17 @@ export default async function DashboardPage() {
         include: { question: true, evaluation: true },
         orderBy: { submittedAt: "asc" },
       }),
-      db.attempt.findMany({
-        where: { userId: user.id, status: "in_progress" },
-        include: { question: { include: { category: true } } },
-        orderBy: { updatedAt: "desc" },
-        take: 3,
-      }),
       db.achievement.findMany(),
       db.userAchievement.findMany({ where: { userId: user.id } }),
       simSummary(user.id),
       // Practice only. War rooms have their own board on /simulations — the two
       // are scored on different rubrics, so one combined total measured nothing.
+      //
+      // Two windows, not three. All-time rewards whoever started earliest and is
+      // unreachable for anyone who joined last month; the cohort's board is the
+      // one that resets, so the dashboard asks for the two that do.
       globalBoard(user.id, "day", "attempt"),
       globalBoard(user.id, "week", "attempt"),
-      globalBoard(user.id, "all", "attempt"),
     ]);
 
   // Today's pair, read through the same resolver the admin panel shows, so the
@@ -178,6 +178,43 @@ export default async function DashboardPage() {
 
         <StatCards stats={stats} />
 
+        {/* Today's questions.
+            Directly under the stat boxes, because it is the only thing on this
+            page the student can act on: the catalogue is locked and this pair is
+            what the day's grant opens. Rendered with the same `QuestionCard` as
+            the library rather than a bespoke tile, so "open" means the same
+            thing on both. */}
+        <section>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="font-semibold">Today&apos;s questions</h2>
+            <span className="text-xs text-muted-foreground">
+              New pair every day
+            </span>
+          </div>
+          {todayQuestions.length ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {todayQuestions.map((q) => (
+                <QuestionCard
+                  key={q.id}
+                  question={q}
+                  locked={isLocked(tierFor(user), q, grant)}
+                  upgrade={upgradeFor(tierFor(user))}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+              Nothing is unlocked today yet. Check back shortly.
+            </p>
+          )}
+        </section>
+
+        <GlobalLeaderboard
+          day={toBoardSide(dayBoard)}
+          week={toBoardSide(weekBoard)}
+          currentUserId={user.id}
+        />
+
         <div className="grid gap-6 lg:grid-cols-3">
           <RankCard rank={user.rank} percentile={user.percentile} xp={user.xp} level={user.level} />
           <Card className="p-5 lg:col-span-2">
@@ -220,37 +257,6 @@ export default async function DashboardPage() {
             <Achievements achievements={achievements} />
           </div>
         </div>
-
-        <GlobalLeaderboard
-          day={toBoardSide(dayBoard)}
-          week={toBoardSide(weekBoard)}
-          all={toBoardSide(allTimeBoard)}
-          currentUserId={user.id}
-        />
-
-        {/* Continue practice */}
-        {inProgress.length > 0 && (
-          <section>
-            <h2 className="mb-3 font-semibold">Continue practice</h2>
-            <div className="space-y-2">
-              {inProgress.map((a) => (
-                <Card key={a.id} className="flex items-center justify-between p-4">
-                  <div className="min-w-0">
-                    <div className="truncate font-medium">{a.question.title}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {a.question.category.name} · {a.question.difficulty}
-                    </div>
-                  </div>
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/practice/${a.id}`}>
-                      <PlayCircle className="h-4 w-4" /> Resume
-                    </Link>
-                  </Button>
-                </Card>
-              ))}
-            </div>
-          </section>
-        )}
 
         {/* Product simulations.
             A separate card rather than more numbers in StatCards: a simulation
@@ -334,37 +340,6 @@ export default async function DashboardPage() {
               rank.
             </p>
           </Card>
-        </section>
-
-        {/* Recommended */}
-        {/* Today's questions.
-            Above everything else because it is the only thing on this page the
-            student can act on: the catalogue is locked and this pair is what the
-            day's grant opens. Rendered with the same `QuestionCard` as the library
-            rather than a bespoke tile, so "open" means the same thing on both. */}
-        <section className="mb-8">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-semibold">Today&apos;s questions</h2>
-            <span className="text-xs text-muted-foreground">
-              New pair every day
-            </span>
-          </div>
-          {todayQuestions.length ? (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {todayQuestions.map((q) => (
-                <QuestionCard
-                  key={q.id}
-                  question={q}
-                  locked={isLocked(tierFor(user), q, grant)}
-                  upgrade={upgradeFor(tierFor(user))}
-                />
-              ))}
-            </div>
-          ) : (
-            <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-              Nothing is unlocked today yet. Check back shortly.
-            </p>
-          )}
         </section>
 
         <section>

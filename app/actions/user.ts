@@ -123,10 +123,19 @@ export async function completeOnboarding(input: unknown): Promise<SaveResult> {
   return { ok: true };
 }
 
-/** Dismiss the questions without answering them. */
+/**
+ * Dismiss the questions without answering them.
+ *
+ * **Except the batch.** Everything this step asks is optional and always has
+ * been, but a board row now carries a batch, and one that skips the question
+ * leaves a row nobody can read. So the skip refuses while `batch` is null
+ * rather than pretending to succeed — the button that calls this is hidden in
+ * the same state, and this is what stops a hand-rolled POST walking past it.
+ */
 export async function skipOnboarding(): Promise<SaveResult> {
   const user = await member();
   if (!user) return { ok: false, error: "You need to be signed in." };
+  if (!user.batch) return { ok: false, error: "Choose your batch first." };
   if (user.profileCompletedAt) return { ok: true };
 
   await db.user.update({

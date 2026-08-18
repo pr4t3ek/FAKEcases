@@ -14,6 +14,7 @@ const base = (over: Record<string, unknown> = {}) => ({
   city: "",
   bio: "",
   profession: "",
+  batch: "pgp1",
   collegeId: "",
   collegeOther: "",
   gradYear: "",
@@ -30,8 +31,28 @@ const errorOf = (over: Record<string, unknown>) => {
 };
 
 describe("profileSchema", () => {
-  it("accepts a profile with nothing filled in but a name", () => {
+  it("accepts a profile with nothing filled in but a name and a batch", () => {
     expect(parse().success).toBe(true);
+  });
+
+  /**
+   * The one field besides the name that a save cannot omit: it shows on every
+   * leaderboard row, and a blank there is a row nobody can read.
+   */
+  it("refuses a profile with no batch, in the words the form shows", () => {
+    expect(errorOf({ batch: "" })).toBe("Choose your batch");
+    expect(errorOf({ batch: undefined })).toBe("Choose your batch");
+  });
+
+  it("refuses a batch that isn't one of the two", () => {
+    // Same message for an unknown id as for a blank one: both mean "that is not
+    // an answer", and zod's default here names the internal ids.
+    expect(errorOf({ batch: "pgp3" })).toBe("Choose your batch");
+  });
+
+  it("accepts either real batch", () => {
+    expect(parse({ batch: "pgp1" }).success).toBe(true);
+    expect(parse({ batch: "pgp2" }).success).toBe(true);
   });
 
   it("requires a name, since it is what the whole app greets you by", () => {
@@ -103,8 +124,14 @@ describe("profileSchema", () => {
 });
 
 describe("onboardingSchema", () => {
-  it("accepts an entirely empty answer, because every step is skippable", () => {
-    expect(onboardingSchema.safeParse({}).success).toBe(true);
+  it("accepts an answer that fills in nothing but the batch", () => {
+    // Everything else on this step stays skippable; the batch is the one thing
+    // it now has to come back with.
+    expect(onboardingSchema.safeParse({ batch: "pgp2" }).success).toBe(true);
+  });
+
+  it("refuses an empty answer, because the batch is required on both surfaces", () => {
+    expect(onboardingSchema.safeParse({}).success).toBe(false);
   });
 
   it("applies the same college rule the full profile does", () => {
@@ -115,6 +142,17 @@ describe("onboardingSchema", () => {
 });
 
 describe("toProfileColumns", () => {
+  /**
+   * Beside `collegeId` on `User` rather than on `Profile`, because a board
+   * groups by it. Getting this wrong puts the batch on a table the leaderboard
+   * query never reads.
+   */
+  it("sends the batch to User, not to Profile", () => {
+    const { user, profile } = toProfileColumns({ batch: "pgp2" });
+    expect(user.batch).toBe("pgp2");
+    expect(profile.batch).toBeUndefined();
+  });
+
   it("sends a curated college to User and nothing to the write-in", () => {
     const { user, profile } = toProfileColumns({ collegeId: "iim-bangalore" });
     expect(user.collegeId).toBe("iim-bangalore");

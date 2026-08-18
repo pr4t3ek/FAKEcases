@@ -18,7 +18,8 @@ export interface BoardSide {
 }
 
 /**
- * The cumulative board — today, this week, all time.
+ * The cumulative board — today, this week and all time, in whichever
+ * combination the caller has data for.
  *
  * Every window is loaded on the server and switched client-side: they are a
  * handful of rows each, and making the tab a fetch would put a spinner on the
@@ -36,8 +37,10 @@ export interface BoardSide {
  * month, so it makes a poor default anywhere — it is kept because long-run
  * effort deserves somewhere to show, not because it is the number to return for.
  *
- * `day` is optional so a surface that has not wired one up keeps working
- * unchanged, tabs and default included.
+ * `day` and `all` are both optional, so a surface renders exactly the windows it
+ * has: the dashboard passes today and this week and gets two tabs, /simulations
+ * passes this week and all time and gets the two it always had. A tab is never
+ * shown for a window whose data was not sent.
  */
 export function GlobalLeaderboard({
   day,
@@ -61,7 +64,8 @@ export function GlobalLeaderboard({
   /** Omit to render only the weekly and all-time windows. */
   day?: BoardSide;
   week: BoardSide;
-  all: BoardSide;
+  /** Omit to render only the daily and weekly windows. */
+  all?: BoardSide;
   currentUserId: string;
   title?: string;
   unit?: string;
@@ -70,7 +74,7 @@ export function GlobalLeaderboard({
   emptyAllTime?: string;
 }) {
   const [window, setWindow] = useState<LeaderboardTab>(day ? "day" : "week");
-  const side = window === "day" ? (day ?? week) : window === "week" ? week : all;
+  const side = window === "day" ? (day ?? week) : window === "all" ? (all ?? week) : week;
   const emptyMessage =
     window === "day" ? emptyToday : window === "week" ? emptyThisWeek : emptyAllTime;
   const inTop = side.rows.some((r) => r.userId === currentUserId);
@@ -86,7 +90,7 @@ export function GlobalLeaderboard({
           <TabsList>
             {day && <TabsTrigger value="day">Today</TabsTrigger>}
             <TabsTrigger value="week">This week</TabsTrigger>
-            <TabsTrigger value="all">All time</TabsTrigger>
+            {all && <TabsTrigger value="all">All time</TabsTrigger>}
           </TabsList>
         </Tabs>
       </div>
@@ -94,6 +98,12 @@ export function GlobalLeaderboard({
       <p className="mb-3 text-xs text-muted-foreground">
         Points are the sum of your <strong className="text-foreground">first-attempt</strong> scores
         on each {unit}. Replaying one you have already ranked does not add any.
+        {/* Said out loud because a board that resets silently reads as a board
+            that lost your score. Both windows roll over on the same UTC
+            boundaries the queries use — see `weekStartUtc` in
+            lib/leaderboard.ts. */}
+        {window === "day" && " Today's board clears at midnight UTC."}
+        {window === "week" && " The weekly board clears every Monday, 00:00 UTC."}
       </p>
 
       <LeaderboardTable

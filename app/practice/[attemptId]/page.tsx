@@ -11,6 +11,7 @@ import { diagnosisTrail } from "@/lib/diagnosis";
 import { labelMatches, solutionWasRevealed } from "@/lib/evaluation";
 import { parseJson } from "@/lib/json";
 import { questionLeaderboard, questionStanding } from "@/lib/leaderboard";
+import { requireBatch } from "@/lib/batch-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,9 @@ export default async function PracticePage({
   const { attemptId } = await params;
   const user = await getSessionUser();
   if (!user) redirect("/library");
+  // A guest practising is exempt — see lib/batch-gate.ts. Anyone with an
+  // account answers before the interviewer opens.
+  requireBatch(user);
 
   const attempt = await db.attempt.findUnique({
     where: { id: attemptId },
@@ -98,6 +102,7 @@ export default async function PracticePage({
           rank: r.rank,
           name: r.name,
           college: r.college,
+          batch: r.batch,
           value: r.score,
           detail: String(r.effort),
         }))}

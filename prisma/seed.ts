@@ -114,6 +114,11 @@ async function main() {
       onboardedAt: new Date(),
       profileCompletedAt: new Date(),
       collegeId: "iim-bangalore",
+      // Set in `create` only, like `collegeId` beside it — a re-seed must not
+      // overwrite a batch someone corrected by hand. Every seeded login gets
+      // one so no documented account meets `requireBatch` on first sign-in;
+      // demo is PGP-2 because its profile bio already says second year.
+      batch: "pgp2",
       // A live Pro pass, so a fresh clone has one account that sees the whole
       // library and one (admin, below) that hits the paywall — both states
       // reachable without granting anything first.
@@ -156,6 +161,7 @@ async function main() {
       role: "admin",
       passwordHash: hashPassword("admin1234"),
       onboardedAt: new Date(),
+      batch: "pgp1",
     },
   });
   // Professor — the classroom host. Given a live Pro pass on purpose: hosting is
@@ -173,6 +179,10 @@ async function main() {
       passwordHash: hashPassword("prof1234"),
       onboardedAt: new Date(),
       profileCompletedAt: new Date(),
+      // Neither a professor nor an admin is really a PGP student; the field has
+      // only the two values, so they carry one and it shows on no board they do
+      // not rank on.
+      batch: "pgp1",
       proUntil: new Date(Date.now() + 30 * DAY_MS),
     },
   });

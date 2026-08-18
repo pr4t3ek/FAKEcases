@@ -15,6 +15,15 @@ export interface BoardRow {
   rank: number;
   name: string;
   college: string | null;
+  /**
+   * "PGP-1" / "PGP-2", or null for an account that predates the field.
+   *
+   * Required on the type rather than optional, so a new board has to decide what
+   * to pass. An optional one would let a caller drop the batch silently, and a
+   * board missing half its labels looks like a data problem rather than a
+   * forgotten line.
+   */
+  batch: string | null;
   /** The headline number: a score on a question board, points on the global one. */
   value: number;
   /** Small print under the value — "3 analyst-days", "12 solved". */
@@ -77,8 +86,13 @@ export function LeaderboardTable({
                 {row.name}
                 {isYou && <span className="ml-1.5 text-xs text-primary">you</span>}
               </div>
-              {row.college && (
-                <div className="truncate text-xs text-muted-foreground">{row.college}</div>
+              {/* College and batch share the sub-line the college used to have
+                  to itself. Joined by · only when both are present, so a row
+                  with one of them never renders a stray separator. */}
+              {(row.college || row.batch) && (
+                <div className="truncate text-xs text-muted-foreground">
+                  {[row.college, row.batch].filter(Boolean).join(" · ")}
+                </div>
               )}
             </div>
             <div className="shrink-0 text-right">
