@@ -1,6 +1,6 @@
 # Retention
 
-Why people would come back to EstimateIQ on day 8, and what has to be built for that to be
+Why people would come back to CASE CLOSED on day 8, and what has to be built for that to be
 true. For the system these changes sit inside, see [`ARCHITECTURE.md`](./ARCHITECTURE.md);
 for what has already landed, [`CHANGES.md`](./CHANGES.md).
 
@@ -54,7 +54,7 @@ things, none of which is content volume:
 3. **Loss aversion** — a streak you can lose, and can protect.
 4. **Leagues** — a weekly, resetting, social comparison.
 
-EstimateIQ has the raw material for all four and uses none of it.
+CASE CLOSED has the raw material for all four and uses none of it.
 
 There is also a driver specific to this audience that a language app doesn't have. These are
 placement-season candidates, and the question they actually care about is *"am I interview-
@@ -66,7 +66,7 @@ honest and the strongest reason to return that this product will ever have.
 
 ## 2. Lever 0 — instrumentation, before anything else
 
-EstimateIQ is pre-launch. That means every lever below is a **guess**, and the point of
+CASE CLOSED is pre-launch. That means every lever below is a **guess**, and the point of
 instrumenting first is not dashboards, it is making the guesses falsifiable before they
 calcify into features nobody measures.
 

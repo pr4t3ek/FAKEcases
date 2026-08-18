@@ -1,4 +1,4 @@
-/** India-only seed content for EstimateIQ. All figures in Indian context / ₹. */
+/** India-only seed content for CASE CLOSED. All figures in Indian context / ₹. */
 
 export const categories = [
   { slug: "market-sizing", name: "Market Sizing", icon: "PieChart", order: 1 },

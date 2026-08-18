@@ -8,7 +8,7 @@ const db = new PrismaClient();
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 async function main() {
-  console.log("🌱 Seeding EstimateIQ (India-only content)…");
+  console.log("🌱 Seeding CASE CLOSED (India-only content)…");
 
   // Categories
   const categoryBySlug = new Map<string, string>();
@@ -101,14 +101,14 @@ async function main() {
   // install can see a populated one and the target-level personalisation
   // without anybody typing anything.
   const demo = await db.user.upsert({
-    where: { email: "demo@estimateiq.app" },
+    where: { email: "demo@caseclosed.app" },
     // `update` is otherwise empty on purpose — a re-seed must not wipe the XP
     // and streak someone built up demoing. The pass is the exception: it is
     // seeded state rather than earned state, and it expires, so a re-seed has
     // to put it back or the demo account silently stops being Pro.
     update: { proUntil: new Date(Date.now() + 30 * DAY_MS) },
     create: {
-      email: "demo@estimateiq.app",
+      email: "demo@caseclosed.app",
       name: "Demo User",
       passwordHash: hashPassword("demo1234"),
       onboardedAt: new Date(),
@@ -148,13 +148,13 @@ async function main() {
   // the empty state, the dashboard nudge and the paywall are all reachable on a
   // fresh install without having to delete the demo user's data first.
   await db.user.upsert({
-    where: { email: "admin@estimateiq.app" },
+    where: { email: "admin@caseclosed.app" },
     // Cleared on every re-seed, the mirror of demo's pass being re-asserted.
     // The two accounts exist to show both sides of the paywall, and a pass
     // granted while testing would otherwise leave no account that can see it.
     update: { role: "admin", proUntil: null },
     create: {
-      email: "admin@estimateiq.app",
+      email: "admin@caseclosed.app",
       name: "Admin",
       role: "admin",
       passwordHash: hashPassword("admin1234"),
@@ -168,10 +168,10 @@ async function main() {
   // make the feature look broken on a fresh clone rather than gated. The pass is
   // re-asserted on every re-seed for the same reason demo's is.
   await db.user.upsert({
-    where: { email: "prof@estimateiq.app" },
+    where: { email: "prof@caseclosed.app" },
     update: { role: "professor", proUntil: new Date(Date.now() + 30 * DAY_MS) },
     create: {
-      email: "prof@estimateiq.app",
+      email: "prof@caseclosed.app",
       name: "Prof. Iyer",
       role: "professor",
       passwordHash: hashPassword("prof1234"),
@@ -185,8 +185,8 @@ async function main() {
     },
   });
   console.log(
-    "  ✓ demo@estimateiq.app (demo1234) + admin@estimateiq.app (admin1234)" +
-      " + prof@estimateiq.app (prof1234)",
+    "  ✓ demo@caseclosed.app (demo1234) + admin@caseclosed.app (admin1234)" +
+      " + prof@caseclosed.app (prof1234)",
   );
 
   // Benchmark cohort for rank cold-start: synthetic users with a skill-rating
@@ -195,6 +195,29 @@ async function main() {
   // The email domain is how everything downstream tells these apart from real
   // accounts — the admin Users tab keeps them out of its headline counts — so it
   // comes from the shared constant rather than being spelled out here.
+  /*
+   * Clear out benchmark rows from before the rename.
+   *
+   * These accounts are recognised by their email domain, not by a column, and
+   * the domain moved with the product's name. The loop below upserts by email,
+   * so without this a re-seed would leave forty `@seed.estimateiq` rows behind
+   * beside forty new ones — and the old ones would no longer match
+   * `BENCHMARK_EMAIL_DOMAIN`, so `userSegment` would start counting synthetic
+   * cold-start accounts as registered people in the admin panel and the rank
+   * population.
+   *
+   * Safe to delete rather than migrate: they hold nothing but a skill rating,
+   * and this loop rebuilds them. Harmless once no database has one — it matches
+   * nothing and costs one query a seed.
+   */
+  const LEGACY_BENCHMARK_DOMAIN = "@seed.estimateiq";
+  const stale = await db.user.deleteMany({
+    where: { email: { endsWith: LEGACY_BENCHMARK_DOMAIN } },
+  });
+  if (stale.count) {
+    console.log(`  ✓ removed ${stale.count} benchmark users from the old domain`);
+  }
+
   const benchmarkCount = 40;
   for (let i = 0; i < benchmarkCount; i++) {
     // spread ratings ~35..92 with a gentle bell-ish shape

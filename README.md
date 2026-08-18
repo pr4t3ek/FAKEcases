@@ -1,4 +1,6 @@
-# EstimateIQ
+# CASE CLOSED
+
+*Because "It Depends" isn't an answer.* 😏
 
 **Duolingo for consulting and PM interviews.** An interactive web app where MBA / consulting / PM
 candidates practise **India-focused** market-sizing guesstimates, business cases and product
@@ -74,13 +76,13 @@ evaluation → sign up to save**. Or sign in with the seeded accounts:
 
 | Account | Email | Password |
 |---|---|---|
-| Demo user | `demo@estimateiq.app` | `demo1234` |
-| Admin | `admin@estimateiq.app` | `admin1234` |
+| Demo user | `demo@caseclosed.app` | `demo1234` |
+| Admin | `admin@caseclosed.app` | `admin1234` |
 
 **Testing a locked catalogue? Not with these two.** `demo` and `prof` are seeded with a live
 Pro pass, re-asserted on every `pnpm db:seed` (`prisma/seed.ts`), and Pro means `content: "all"`
 — the daily unlock never applies to them, so the library correctly looks wide open. Use a plain
-account you signed up yourself, or `admin@estimateiq.app`, which is deliberately left on the
+account you signed up yourself, or `admin@caseclosed.app`, which is deliberately left on the
 free tier so both sides of the gate are reachable on a fresh install.
 
 **Deploying publicly?** These passwords are in this file, so change them before the URL goes
@@ -192,6 +194,77 @@ which names the fix (`is ollama serve running?` / `run ollama pull <model>`).
 
 Next.js 15 (App Router) · React 19 · TypeScript (strict) · Tailwind + shadcn-style UI ·
 Framer Motion · Prisma (SQLite dev → Postgres/Supabase prod) · Recharts · Vitest.
+
+---
+
+## Look and feel
+
+**One theme, and it is dark.** Near-black surfaces, an electric cyan accent, a tight grotesk and
+sharp corners. There is no light mode and no toggle: a second palette is a second thing to keep
+looking right, for nobody.
+
+Everything routes through tokens, which is why the whole product changed colour without a
+component being touched:
+
+- **`app/globals.css` holds one `:root` palette.** `tailwind.config.ts` maps every Tailwind colour
+  to it, and the Recharts callers read the same variables (`hsl(var(--primary))`), so the graphs
+  followed too. Across `app/` and `components/` there are exactly two hardcoded colours, both
+  modal scrims.
+- **One number controls the cornering.** `--radius` is `0.25rem`, and `rounded-xl`/`2xl`/`3xl` are
+  derived from it in the Tailwind config rather than left on Tailwind's defaults — otherwise the
+  nineteen places using them would stay soft while everything around them sharpened.
+  `rounded-full` is untouched, because a pill with a 4px corner is a rectangle.
+- **`--primary-foreground` must stay dark.** The accent is bright enough that white on it is
+  unreadable, and every filled button in the app is `bg-primary text-primary-foreground`. A test
+  pins it (`tests/theme.test.ts`).
+- **Printing still goes to white.** The evaluation report is a document people hand over, so
+  `@media print` flips the whole surface set — cards, borders, muted text and the signal colours,
+  not just the page. With no light palette left to fall back on, anything it forgot would print as
+  a dark grey panel.
+
+### The logo, redrawn as vector
+
+The mark is a magnifier with a chess king inside it, over a stacked `CASE` /
+stamped `CLOSED` wordmark — the supplied artwork, rebuilt as SVG in the theme's
+colours (its amber is our accent) rather than dropped in as a raster. A PNG logo
+is soft at the sizes it appears at most — a 28px header, a 16px tab — heavy
+everywhere else, and cannot follow the accent if the palette ever moves.
+
+It exists in three forms, which is the ordinary answer for a logo that has to
+work from a browser tab to a sign-in page rather than a compromise:
+
+| Form | Where | What it drops |
+|---|---|---|
+| `components/brand-lockup.tsx` | Sign-in pages | Nothing — mark, wordmark, stamp, padlock, tagline |
+| `components/brand.tsx` | Every header | The stacked wordmark; one line of type beside the mark |
+| `app/icon.svg` | Browser tab | The king — a figure inside the lens is 4px tall at 16px |
+
+**The words are HTML, not paths.** We already ship a heavy grotesk
+(`font-display`), so setting real text keeps the logo crisp on every screen,
+selectable and translatable, without a second copy of the alphabet in the bundle.
+
+**The tab icon inverts on purpose.** In the app the accent is the stroke on a
+near-black page; in the tab it is the *fill*, because a browser paints the icon
+against its own chrome — dark for about half of everyone — and a near-black mark
+disappears into a dark tab strip. It also carries literal colours rather than
+tokens, since a favicon lives outside the document and can read neither our CSS
+variables nor the page it belongs to. Keep it in step with `brand-mark.tsx` by
+hand.
+
+### The fonts are in the repo on purpose
+
+Inter for body, **Inter Tight** for headings (applied to every `h1`–`h3` by one rule in
+`globals.css`, not by a class on each heading), loaded with `next/font/local` from `app/fonts/`.
+
+Self-hosted rather than `next/font/google` because that fetches at build time, and a project that
+advertises "no external services" should not need the network to rebuild.
+
+**Each face ships twice, and the second file is not a mistake.** Google's `latin` subset does not
+contain U+20B9 — the rupee sign — which appears on nearly every screen here. It lives in
+`latin-ext`, so both subsets are declared and both sit in the Tailwind font stack; the browser
+resolves per glyph, taking ₹ from the second file and everything else from the first. Listing two
+`src` entries in one `@font-face` would *not* do this: multiple sources there are fallbacks for a
+failed download, not for a missing glyph.
 
 ---
 
@@ -490,8 +563,8 @@ attempts, one simulation run — are gone: two walls with two different messages
 could be turned away from a question they had never opened, and the reason to sign up is
 saving your work rather than a play counter.
 
-Seeded so both sides are reachable on a fresh clone: `demo@estimateiq.app` carries a 30-day
-pass and sees everything; `admin@estimateiq.app` has none and hits the paywall. A re-seed
+Seeded so both sides are reachable on a fresh clone: `demo@caseclosed.app` carries a 30-day
+pass and sees everything; `admin@caseclosed.app` has none and hits the paywall. A re-seed
 re-asserts both, so a pass granted while testing doesn't leave you without an account that can
 see the locked state.
 
@@ -726,7 +799,7 @@ at `/join` — **no account needed** — and each plays their own run at their o
 professor watches a live roster: who's in, what phase they're on, analyst-days burned, final
 score and band.
 
-Seeded to try immediately: `prof@estimateiq.app` / `prof1234`.
+Seeded to try immediately: `prof@caseclosed.app` / `prof1234`.
 
 **Who can host.** `User.role` gained a third value, `professor`, granted from **Admin → Users**.
 It opens rooms and nothing else — every admin gate in the app still tests `role === "admin"`
@@ -867,6 +940,12 @@ NDJSON stream protocol, the before/after-first-token fallback split, the spend g
 Ollama adapter's SSE parsing and error classification — and the voice layer's transcript
 assembly and error triage. Only the network boundary and the database are mocked, so the adapter
 wiring and error classification are exercised for real.
+
+`tests/theme.test.ts` reads `app/globals.css` as text, because a palette rewrite fails quietly:
+a token Tailwind maps but the CSS no longer defines resolves to `hsl()` of nothing, which paints
+transparent — an invisible border, or a card that is suddenly the page colour. It also pins the
+one contrast pairing a reasonable-looking edit can break (dark text on the bright accent) and that
+the print block flips every surface.
 
 The batch, the gates and the professor request add four more, all pure: `tests/batches.test.ts`
 pins that the id never carries a year (so a batch rolling over stays a label edit),

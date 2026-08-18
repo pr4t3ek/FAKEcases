@@ -16,7 +16,7 @@
  * as a constant that both the writer and every reader import.
  */
 
-export const BENCHMARK_EMAIL_DOMAIN = "@seed.estimateiq";
+export const BENCHMARK_EMAIL_DOMAIN = "@seed.caseclosed";
 
 export const USER_SEGMENTS = ["registered", "guest", "benchmark"] as const;
 export type UserSegment = (typeof USER_SEGMENTS)[number];

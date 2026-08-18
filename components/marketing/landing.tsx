@@ -14,7 +14,6 @@ import {
   Layers,
 } from "lucide-react";
 import { Brand } from "@/components/brand";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -50,8 +49,7 @@ function SiteHeader({ isAuthed }: { isAuthed: boolean }) {
           <a href="#features" className="hover:text-foreground">Features</a>
         </nav>
         <div className="flex items-center gap-2">
-          <ThemeToggle />
-          {isAuthed ? (
+            {isAuthed ? (
             <Button asChild size="sm">
               <Link href="/dashboard">Dashboard</Link>
             </Button>
@@ -83,8 +81,12 @@ function Hero({ isAuthed }: { isAuthed: boolean }) {
           transition={{ duration: 0.5 }}
           className="flex flex-col justify-center"
         >
+          {/* The tagline, and the one place the emoji is used: it is a wink in a
+              headline, and a rendering lottery in a tab strip or a search
+              result — see the metadata in app/layout.tsx. */}
           <Badge variant="secondary" className="mb-5 w-fit gap-1.5">
-            <Sparkles className="h-3.5 w-3.5" /> Duolingo for consulting and PM interviews
+            <Sparkles className="h-3.5 w-3.5" /> Because &ldquo;It Depends&rdquo; Isn&apos;t an
+            Answer. 😏
           </Badge>
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
             Crack case interviews with an{" "}
@@ -352,7 +354,7 @@ function SiteFooter() {
       <div className="container flex flex-col items-center justify-between gap-4 sm:flex-row">
         <Brand />
         <p className="text-sm text-muted-foreground">
-          © {new Date().getFullYear()} EstimateIQ · Built for MBA interview prep.
+          © {new Date().getFullYear()} CASE CLOSED · Built for MBA interview prep.
         </p>
         <div className="flex gap-6 text-sm text-muted-foreground">
           <a href="#features" className="hover:text-foreground">Features</a>

@@ -112,7 +112,7 @@ counts, a 30-day signups chart, a rank distribution, and a searchable, sortable,
 user table.
 
 The thing that shaped the design: **a fresh install has 42 users and 40 of them are fake.**
-`prisma/seed.ts` mints 40 synthetic `benchmark_N@seed.estimateiq` accounts purely to give
+`prisma/seed.ts` mints 40 synthetic `benchmark_N@seed.caseclosed` accounts purely to give
 the percentile rank a cold-start population. Reporting 42 users would be off by twenty
 times. `lib/user-segment.ts` classifies every row as `registered` / `guest` / `benchmark`,
 `lib/admin-stats.ts` excludes benchmark rows from every headline number, and the tab says

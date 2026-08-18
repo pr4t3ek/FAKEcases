@@ -21,6 +21,32 @@ const config: Config = {
       screens: { "2xl": "1400px" },
     },
     extend: {
+      fontFamily: {
+        /*
+         * Two entries per face, and the second is not a typo. Google's `latin`
+         * subset omits U+20B9 — the rupee sign, which this app prints on nearly
+         * every screen — so each family ships a `latin-ext` companion and the
+         * browser resolves it per glyph, taking ₹ from the second and the rest
+         * from the first. See app/layout.tsx.
+         */
+        sans: [
+          "var(--font-sans)",
+          "var(--font-sans-ext)",
+          "ui-sans-serif",
+          "system-ui",
+          "-apple-system",
+          "Segoe UI",
+          "sans-serif",
+        ],
+        display: [
+          "var(--font-display)",
+          "var(--font-display-ext)",
+          "var(--font-sans)",
+          "ui-sans-serif",
+          "system-ui",
+          "sans-serif",
+        ],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -64,10 +90,23 @@ const config: Config = {
           foreground: "hsl(var(--warning-foreground))",
         },
       },
+      /*
+       * `lg`/`md`/`sm` came off the token already; `xl` and up did not, so the
+       * nineteen places that say `rounded-xl`, `rounded-2xl` or `rounded-3xl`
+       * used to ignore a change to `--radius` and stay soft while everything
+       * around them sharpened. Deriving them here keeps the whole app's
+       * cornering a single number.
+       *
+       * `rounded-full` is deliberately untouched: those are avatars, pills and
+       * badges, and a pill with a 4px corner is just a small rectangle.
+       */
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        xl: "calc(var(--radius) + 2px)",
+        "2xl": "calc(var(--radius) + 4px)",
+        "3xl": "calc(var(--radius) + 8px)",
       },
       keyframes: {
         "accordion-down": {

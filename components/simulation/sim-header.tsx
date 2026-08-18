@@ -2,7 +2,6 @@
 
 import { Beaker, Clock } from "lucide-react";
 import { Brand } from "@/components/brand";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { SIM_PHASES, type SimPhase } from "@/lib/types";
@@ -101,8 +100,7 @@ export function SimHeader({
           <Badge variant="muted" className="sm:hidden">
             {remaining}d
           </Badge>
-          <ThemeToggle />
-        </div>
+          </div>
       </div>
     </header>
   );

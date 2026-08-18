@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Case Closed">
+  <!--
+    The tab icon: the same magnifier as `components/brand-mark.tsx`, with the
+    chess king dropped.
+
+    Drawn for 16px first. A figure inside the lens is four pixels tall there and
+    reads as a smudge, so the small mark keeps only what survives: one ring, one
+    handle, both heavy. Simplifying a mark at small sizes is the ordinary answer,
+    not a compromise.
+
+    The accent is the FILL rather than the stroke, which is the opposite of the
+    in-app mark and the right way round here: a browser paints this against its
+    own tab strip, which is dark for about half of everyone, and a near-black
+    square disappears into it. A cyan tile holds its edge on either.
+
+    Colours are literal because a favicon lives outside the document and can read
+    neither our CSS variables nor the page it belongs to. Keep it in step with
+    brand-mark.tsx by hand.
+  -->
+  <rect width="64" height="64" rx="14" fill="#00C2FF" />
+  <circle cx="28.5" cy="28.5" r="14" fill="none" stroke="#0A0A0A" stroke-width="6.5" />
+  <path
+    d="M39 39 L50.5 50.5"
+    fill="none"
+    stroke="#0A0A0A"
+    stroke-width="8"
+    stroke-linecap="round"
+  />
+</svg>
