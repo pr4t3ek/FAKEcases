@@ -1,4 +1,4 @@
-import { env } from "@/lib/config";
+import { env, maxOutputTokensWithReasoning } from "@/lib/config";
 import { buildReplyMessages, buildHintMessages } from "./build-messages";
 import { classifyNvidiaError, LlmError } from "./errors";
 import { parseSseDeltas } from "./openai-sse";
@@ -33,7 +33,8 @@ export const DEFAULT_NVIDIA_MODEL = "meta/llama-3.1-8b-instruct";
 const BASE_URL = "https://integrate.api.nvidia.com/v1";
 
 /**
- * Higher than the 1024 the other adapters use, and the reason is the reasoning.
+ * Higher than the answer budget the other adapters ask for, and the reason is
+ * the reasoning.
  *
  * NVIDIA's catalogue is full of models that think before they answer, and the
  * thinking is billed against this same ceiling. At 1024 a Nemotron turn spent the
@@ -41,8 +42,12 @@ const BASE_URL = "https://integrate.api.nvidia.com/v1";
  * the student got a truncated monologue and no question. `noThinkingKwargs()`
  * below asks for that to stop, but a model that ignores the flag still needs room
  * to think AND answer.
+ *
+ * The number is unchanged; it is now the sum of the shared answer budget and the
+ * headroom that buys the deliberation, so retuning `llmOutput.visibleAnswerTokens`
+ * moves every provider together instead of leaving this one behind.
  */
-const MAX_OUTPUT_TOKENS = 3072;
+const MAX_OUTPUT_TOKENS = maxOutputTokensWithReasoning();
 
 /**
  * Ask a reasoning model not to reason.

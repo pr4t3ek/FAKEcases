@@ -1,5 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
-import { env } from "@/lib/config";
+import { env, llmOutput, maxOutputTokensWithReasoning } from "@/lib/config";
 import { buildReplyMessages, buildHintMessages } from "./build-messages";
 import { classifyGeminiError, LlmError } from "./errors";
 import type { ConvMessage, InterviewerContext, LlmAdapter } from "./types";
@@ -7,10 +7,21 @@ import type { ConvMessage, InterviewerContext, LlmAdapter } from "./types";
 export const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
 /**
- * Teacher mode writes a full structured walkthrough; 512 (what the older
- * adapters used) truncates it mid-sentence.
+ * The ceiling for one turn, which depends on whether this model is thinking.
+ *
+ * Gemini bills reasoning against `maxOutputTokens`, so the two cases are
+ * genuinely different budgets rather than one number with a margin. A flash
+ * model has thinking switched off outright (`thinkingConfigFor`), so the whole
+ * allowance is the answer and the shared budget is exactly right. A Pro model
+ * cannot have it switched off, so it needs the same headroom NVIDIA does — and
+ * gets it here for the first time, which fixes the truncation this adapter was
+ * previously one long deliberation away from.
  */
-const MAX_OUTPUT_TOKENS = 1024;
+function maxOutputTokensFor(model: string): number {
+  return thinkingConfigFor(model) === undefined
+    ? maxOutputTokensWithReasoning()
+    : llmOutput.visibleAnswerTokens;
+}
 
 /**
  * Synthetic opener used when the stored history starts with an assistant turn.
@@ -101,7 +112,7 @@ async function* run(system: string, messages: ConvMessage[]): AsyncGenerator<str
       contents: toGeminiContents(messages),
       config: {
         systemInstruction: system,
-        maxOutputTokens: MAX_OUTPUT_TOKENS,
+        maxOutputTokens: maxOutputTokensFor(model),
         thinkingConfig: thinkingConfigFor(model),
       },
     });

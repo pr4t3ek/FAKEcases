@@ -1,4 +1,4 @@
-import { env } from "@/lib/config";
+import { env, llmOutput } from "@/lib/config";
 import { buildReplyMessages, buildHintMessages } from "./build-messages";
 import type { InterviewerContext, LlmAdapter } from "./types";
 
@@ -17,7 +17,7 @@ async function call(system: string, messages: { role: string; content: string }[
     },
     body: JSON.stringify({
       model: env.llm.model ?? DEFAULT_MODEL,
-      max_tokens: 512,
+      max_tokens: llmOutput.visibleAnswerTokens,
       messages: [
         { role: "system", content: system },
         ...messages.map((m) => ({

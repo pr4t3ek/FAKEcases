@@ -1,4 +1,4 @@
-import { env } from "@/lib/config";
+import { env, maxOutputTokensWithReasoning } from "@/lib/config";
 import { buildReplyMessages, buildHintMessages } from "./build-messages";
 import { classifyOllamaError, LlmError } from "./errors";
 import { parseSseDeltas } from "./openai-sse";
@@ -21,8 +21,17 @@ import type { ConvMessage, InterviewerContext, LlmAdapter } from "./types";
 export const DEFAULT_OLLAMA_MODEL = "qwen2.5:7b";
 const DEFAULT_BASE_URL = "http://localhost:11434/v1";
 
-/** Matches Gemini's ceiling — 512 truncates Teacher mode mid-sentence. */
-const MAX_OUTPUT_TOKENS = 1024;
+/**
+ * The answer budget plus room to think.
+ *
+ * A local catalogue carries reasoning models too, and nothing here asks them to
+ * stop — there is no `noThinkingKwargs()` equivalent on this path — so the
+ * headroom NVIDIA needed applies for the same reason: deliberation is billed
+ * against this ceiling, and a model that spends it all thinking returns a
+ * truncated monologue. Ollama bills nothing, so the only thing this trades is
+ * latency on a turn that runs long, against a reply that arrives cut in half.
+ */
+const MAX_OUTPUT_TOKENS = maxOutputTokensWithReasoning();
 
 function resolveBaseUrl(): string {
   const raw = env.llm.ollamaBaseUrl?.trim() || DEFAULT_BASE_URL;
