@@ -247,6 +247,37 @@ the same zero-key stance as the rest of the app. Two limitations are worth stati
 The language is `en-IN` (`lib/config/practice.ts`, `speechConfig`), and that isn't cosmetic —
 every question here is India-focused, and `en-US` transcribes "two lakh" as "two lack".
 
+
+## Voice output
+
+Every interviewer reply carries a small speaker button, and the chat header has a toggle that
+reads new replies aloud as they arrive, plus a speed control. Both settings persist.
+
+It uses the browser's built-in `speechSynthesis` — no key, no cost, no dependency, the same
+zero-key stance as voice input. Two things are worth knowing, and the first contradicts what
+you just read above:
+
+- **This is NOT Chrome-and-Edge-only.** `SpeechRecognition` (input) is; `speechSynthesis`
+  (output) is implemented in Firefox and Safari too. Voice output reaches browsers voice input
+  cannot, so don't carry the dictation caveat over to it.
+- **Auto-speak waits for the reply to finish.** Replies stream token by token, and speech
+  queues whole utterances, so speaking each delta would stutter and interleave. It also only
+  fires for turns that streamed in front of you — reopening an attempt does not read the whole
+  past transcript aloud, and switching between the Interviewer and Teacher tabs does not read
+  the other conversation's last turn.
+
+The voice is chosen automatically for `en-IN` where the platform has one, falling back to any
+English voice and then to the platform default (`speechConfig.lang`, `lib/config/practice.ts`).
+There is no voice picker on purpose: the installed list differs wildly per OS, so a dropdown
+looks broken on a machine with one voice. Speed is the setting people actually change, and
+that one is exposed.
+
+What gets spoken is the text as rendered, not as the model wrote it — `toSpeakableText`
+reuses the same normalisation the bubble uses, so LaTeX, markdown markers and any reasoning
+block are gone before anything is said. Emoji are dropped too (a hint is stored as
+"💡 Hint 3: …" and would otherwise be read as "light bulb"), while ₹ and × are deliberately
+kept, since a sizing answer read without them is unintelligible.
+
 ---
 
 ## Profile, and what it's for

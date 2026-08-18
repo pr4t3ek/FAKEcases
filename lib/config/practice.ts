@@ -54,6 +54,22 @@ export const speechConfig = {
    * en-US transcribes "two lakh" as "two lack" and mangles Indian place names.
    */
   lang: "en-IN",
+
+  /**
+   * Playback speeds offered for reading replies aloud.
+   *
+   * A short list rather than a slider: these are the steps people actually pick,
+   * and a continuous control invites fiddling with a number nobody can hear the
+   * difference in. 1 is the voice's natural rate.
+   */
+  rates: [0.75, 1, 1.25, 1.5] as const,
+
+  /**
+   * Natural speed. An interviewer's turn is two sentences, so there is nothing
+   * to skim past — the students who change this are the ones who find their
+   * platform voice slow, and they can.
+   */
+  defaultRate: 1,
 };
 
 /** Default practice-screen panel widths (percent). User-resizable + persisted. */

@@ -1,11 +1,16 @@
 import { speechConfig } from "@/lib/config";
 import { browserRecogniser } from "./browser";
-import type { SpeechRecogniser } from "./types";
+import { browserSpeaker } from "./browser-tts";
+import type { SpeechRecogniser, SpeechSpeaker } from "./types";
 
 export type {
   SpeechErrorCode,
   SpeechHandlers,
   SpeechRecogniser,
+  SpeakErrorCode,
+  SpeakHandlers,
+  SpeakOptions,
+  SpeechSpeaker,
 } from "./types";
 
 /**
@@ -28,5 +33,19 @@ export function getRecogniser(): SpeechRecogniser {
     case "browser":
     default:
       return browserRecogniser;
+  }
+}
+
+/**
+ * Pick the speech-output provider, exactly as `getRecogniser()` picks the input
+ * one. One case today; the switch is where a hosted TTS arrives without any call
+ * site changing — `lib/speech/<name>.ts` implementing `SpeechSpeaker`, an
+ * `app/api/speak/route.ts` holding the key server-side, and a `case` here.
+ */
+export function getSpeaker(): SpeechSpeaker {
+  switch (speechConfig.provider) {
+    case "browser":
+    default:
+      return browserSpeaker;
   }
 }
