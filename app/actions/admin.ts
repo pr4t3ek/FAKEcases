@@ -4,9 +4,15 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+import { hashPassword } from "@/lib/password";
 import { deleteAccount } from "@/lib/account-deletion";
 import { DAILY_SLOTS, pinDaily, unpinDaily, type DailySlot } from "@/lib/daily-unlock";
-import { SETTING_DEFAULTS, saveSetting, type SettingKey } from "@/lib/settings";
+import {
+  SETTING_DEFAULTS,
+  saveSetting,
+  saveTextSetting,
+  type SettingKey,
+} from "@/lib/settings";
 import { PRO_PASS_DAYS, nextProUntil } from "@/lib/billing";
 import { FEEDBACK_STATUSES, USER_ROLES, isUserRole } from "@/lib/types";
 import { isRealUser } from "@/lib/user-segment";
@@ -187,7 +193,14 @@ export async function setUserRole(userId: string, role: string): Promise<SaveRes
   // one is a grant that evaporates without saying so.
   if (target.isGuest) return { ok: false, error: "Guests can't hold a role." };
 
-  await db.user.update({ where: { id: userId }, data: { role } });
+  await db.user.update({
+    where: { id: userId },
+    // A decision on the role settles any request that was pending, whichever way
+    // it went: granting it answers the ask, and taking it back answers a fresh
+    // one made by someone who already holds it. A stamp left behind would sit in
+    // the queue forever, since nothing else clears it.
+    data: { role, professorRequestedAt: null },
+  });
   revalidatePath("/admin");
   // The nav's Host link and the catalogue's "Host this in class" control are
   // both keyed off the role, so both have to re-render for the person whose
@@ -195,6 +208,75 @@ export async function setUserRole(userId: string, role: string): Promise<SaveRes
   revalidatePath("/simulations");
   revalidatePath("/host");
   return { ok: true };
+}
+
+/**
+ * Turn down a professor request without granting anything.
+ *
+ * The counterpart to `setUserRole("professor")`, and the reason the request is
+ * a column rather than an inference off the profile's occupation field: a "no"
+ * has to be recordable. Without this, declining would mean either leaving the
+ * row in the queue forever or asking the person to edit their own profile back.
+ *
+ * Their occupation is left exactly as they wrote it. It is display text about
+ * who they are, and correcting somebody's self-description because you turned
+ * down their access request is not the admin's business.
+ */
+export async function declineProfessorRequest(userId: string): Promise<SaveResult> {
+  await assertAdmin();
+
+  const target = await db.user.findUnique({
+    where: { id: userId },
+    select: { professorRequestedAt: true },
+  });
+  if (!target) return { ok: false, error: "No such user." };
+  if (!target.professorRequestedAt) return { ok: true };
+
+  await db.user.update({ where: { id: userId }, data: { professorRequestedAt: null } });
+  revalidatePath("/admin");
+  return { ok: true };
+}
+
+/**
+ * Reset someone's password to their own email address.
+ *
+ * The whole reset flow, since no email provider is configured: a student writes
+ * in from their college address, an admin clicks this, and the admin replies
+ * telling them to sign in with their email as the password.
+ *
+ * **The new password is guessable by design**, so it is paired with
+ * `mustChangePassword`: `requirePasswordChange` (lib/password-gate.ts) then lets
+ * that account reach `/set-password` and nothing else until it picks a real one.
+ * Setting one without the other would leave an account whose password is public
+ * knowledge open for as long as the person did not get round to changing it.
+ *
+ * Returns the email so the panel's toast can state what the password now is —
+ * the admin has to type it into a reply, and making them go and look it up is
+ * how they end up sending the wrong one.
+ */
+export async function resetUserPassword(
+  userId: string,
+): Promise<SaveResult & { password?: string }> {
+  await assertAdmin();
+
+  const target = await db.user.findUnique({
+    where: { id: userId },
+    select: { email: true, isGuest: true, passwordHash: true },
+  });
+  if (!target) return { ok: false, error: "No such user." };
+  // Both of these are accounts nobody signs in to: a guest has no credentials at
+  // all, and a row with no email has nothing to set the password to and no
+  // address to tell.
+  if (target.isGuest || !target.email) {
+    return { ok: false, error: "That account can't sign in with a password." };
+  }
+
+  await db.user.update({
+    where: { id: userId },
+    data: { passwordHash: hashPassword(target.email), mustChangePassword: true },
+  });
+  revalidatePath("/admin");
+  return { ok: true, password: target.email };
 }
 
 /**
@@ -361,6 +443,26 @@ export async function updateLimit(key: string, value: number): Promise<SaveResul
 
   await saveSetting(key as SettingKey, Math.floor(value));
   revalidatePath("/admin");
+  return { ok: true };
+}
+
+/**
+ * Change the address `/forgot-password` tells locked-out students to write to.
+ *
+ * Editable rather than shipped, because it is a person's mailbox: whoever
+ * administers this launch is not necessarily whoever administers it next term,
+ * and a handover should not be a deploy. The shipped default keeps a fresh
+ * clone's instructions from being blank.
+ */
+export async function updateContactEmail(email: string): Promise<SaveResult> {
+  await assertAdmin();
+
+  const parsed = z.string().trim().email("That doesn't look like an email address").safeParse(email);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
+
+  await saveTextSetting("adminContactEmail", parsed.data);
+  revalidatePath("/admin");
+  revalidatePath("/forgot-password");
   return { ok: true };
 }
 

@@ -14,7 +14,6 @@ export interface BoardRow {
   userId: string;
   rank: number;
   name: string;
-  college: string | null;
   /**
    * "PGP-1" / "PGP-2", or null for an account that predates the field.
    *
@@ -86,13 +85,10 @@ export function LeaderboardTable({
                 {row.name}
                 {isYou && <span className="ml-1.5 text-xs text-primary">you</span>}
               </div>
-              {/* College and batch share the sub-line the college used to have
-                  to itself. Joined by · only when both are present, so a row
-                  with one of them never renders a stray separator. */}
-              {(row.college || row.batch) && (
-                <div className="truncate text-xs text-muted-foreground">
-                  {[row.college, row.batch].filter(Boolean).join(" · ")}
-                </div>
+              {/* The batch alone, where the college used to sit beside it: one
+                  campus, so the college said the same thing on every row. */}
+              {row.batch && (
+                <div className="truncate text-xs text-muted-foreground">{row.batch}</div>
               )}
             </div>
             <div className="shrink-0 text-right">

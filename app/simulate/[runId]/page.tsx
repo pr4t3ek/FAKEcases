@@ -18,6 +18,7 @@ import { loadRun, outcomeFromResult, ownedInOrder, toRunState } from "@/lib/simu
 import { parseJson, parseJsonArray } from "@/lib/json";
 import { questionLeaderboard, questionStanding } from "@/lib/leaderboard";
 import { requireBatch } from "@/lib/batch-gate";
+import { requirePasswordChange } from "@/lib/password-gate";
 import type { FeedbackItem, SimPhase } from "@/lib/types";
 import { SimulationScreen } from "@/components/simulation/simulation-screen";
 import { TurnaroundScreen } from "@/components/simulation/turnaround-screen";
@@ -62,6 +63,9 @@ export default async function SimulatePage({
   const { runId } = await params;
   const user = await getSessionUser();
   if (!user) redirect("/simulations");
+  // A reset password opens nothing until it is replaced, so this runs ahead
+  // of every other gate.
+  requirePasswordChange(user);
   requireBatch(user);
 
   const run = await loadRun(runId);
@@ -310,7 +314,6 @@ export default async function SimulatePage({
         userId: r.userId,
         rank: r.rank,
         name: r.name,
-        college: r.college,
         batch: r.batch,
         value: r.score,
         detail: String(r.effort),

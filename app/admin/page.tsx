@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
+import { requirePasswordChange } from "@/lib/password-gate";
 import { db } from "@/lib/db";
 import { loadUserAdminStats } from "@/lib/admin-stats";
 import { loadAdminScenarios } from "@/lib/scenario-store";
@@ -16,15 +17,23 @@ import { ImportPanel } from "@/components/admin/import-panel";
 import { FeedbackQueue } from "@/components/admin/feedback-queue";
 import { UserDashboard } from "@/components/admin/user-dashboard";
 import { ScenarioManager } from "@/components/admin/scenario-manager";
-import { DailyManager, LimitsCard } from "@/components/admin/daily-manager";
+import {
+  ContactEmailCard,
+  DailyManager,
+  LimitsCard,
+} from "@/components/admin/daily-manager";
 import { DAILY_SLOTS, dayKey, resolveDaily } from "@/lib/daily-unlock";
-import { loadSettings } from "@/lib/settings";
+import { loadSettings, loadTextSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
   const user = await getSessionUser();
   if (!user || user.role !== "admin") redirect("/login");
+  // Gated here, unlike `requireBatch`: an admin whose own password was reset is
+  // exactly who must not carry on using a password anyone could guess, and the
+  // way out (`/set-password`) needs no permission at all.
+  requirePasswordChange(user);
 
   const [questions, categories, feedback, openCount, userStats, simScenarios] = await Promise.all([
     db.question.findMany({ include: { category: true }, orderBy: { createdAt: "desc" } }),
@@ -48,9 +57,12 @@ export default async function AdminPage() {
   const week = Array.from({ length: 7 }, (_, i) =>
     dayKey(new Date(Date.now() + i * 86_400_000)),
   );
-  const [weekPicks, limits] = await Promise.all([
+  const professorRequests = userStats.users.filter((u) => u.professorRequested && u.role === "user").length;
+
+  const [weekPicks, limits, text] = await Promise.all([
     Promise.all(week.map(async (day) => ({ day, picks: await resolveDaily(day) }))),
     loadSettings(),
+    loadTextSettings(),
   ]);
 
   const titleOf = new Map(questions.map((q) => [q.id, q.title]));
@@ -83,7 +95,15 @@ export default async function AdminPage() {
         {/* Users leads: it's the overview, and the content tabs are a click away. */}
         <Tabs defaultValue="users" className="mt-6">
           <TabsList className="flex-wrap">
-            <TabsTrigger value="users">Users</TabsTrigger>
+            <TabsTrigger value="users">
+              Users
+              {/* Badged like the feedback queue beside it, and for the same
+                  reason: a professor request is a question waiting on the admin,
+                  and a queue nobody is told about is a queue nobody works. */}
+              {professorRequests > 0 && (
+                <Badge variant="warning" className="ml-1">{professorRequests}</Badge>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="questions">Questions</TabsTrigger>
             <TabsTrigger value="daily">Daily</TabsTrigger>
             <TabsTrigger value="categories">Categories</TabsTrigger>
@@ -143,6 +163,7 @@ export default async function AdminPage() {
               totalCount={questions.length}
             />
             <LimitsCard limits={limits} />
+            <ContactEmailCard email={text.adminContactEmail} />
           </TabsContent>
 
           <TabsContent value="categories" className="mt-4">

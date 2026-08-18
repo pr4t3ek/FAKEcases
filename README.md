@@ -294,8 +294,8 @@ kept, since a sizing answer read without them is unintelligible.
 ## Profile, and what it's for
 
 An account has a profile at `/profile`, reachable from the avatar in the header: photo, name,
-batch, phone, city, a short bio, background (profession, college, graduation year, experience),
-goals, and a password change. Signing up lands on `/welcome`, a two-step version of the same
+batch, phone, city, a short bio, background (student or professor, experience), goals, and a
+password change. Signing up lands on `/welcome`, a two-step version of the same
 questions that is **skippable in one click except for the batch** — see below. A dashboard nudge
 asks once more about the rest, and "Not now" is a real dismissal rather than a banner that comes
 back tomorrow.
@@ -317,26 +317,25 @@ survey answer, they're a filter:
 Everything else on the page is display-only, and the copy says that too rather than implying
 the phone number does something.
 
-### College is a curated list, on purpose
+### One campus, so nobody is asked which
 
-`lib/config/colleges.ts` holds ~60 Indian institutions grouped into IIMs, IITs, business
-schools and universities, and `User.collegeId` stores the id. Free text was the alternative
-and it quietly destroys the thing the field is for: "IIM-B", "IIM Bangalore" and "iim blr" are
-one school and three groups. Normalising on save only moves the problem — it collapses the
-spellings you thought of and fragments on the ones you didn't.
+`INSTITUTION_NAME` in `lib/config/profile.ts` is the whole college model: this runs for
+**IIM Visakhapatnam**, so the institution is a constant rather than a question. The curated
+60-college list, `User.collegeId`, the written-in "Other" and the college line on every
+leaderboard row are all gone — a field whose answer is the same for everyone is a question that
+costs a signup step and a column that says nothing.
 
-So **"Other" is honest about its consequence**: it stores a null `collegeId` plus the
-written-in name, is shown on the profile, and is grouped with nobody. Adding a school to the
-list is a one-line change that promotes everyone who wrote it in. `collegeId` is indexed and
-sits on `User` beside `skillRating` and `batch` — the leaderboard reads all three, which is why
-none of them live on `Profile`.
+What survives is the constant, because the copy still has to name the campus: "your official
+IIM Visakhapatnam email address" is the entire check on a password reset. A second campus would
+be a bigger change than editing that line, and deliberately so — it needs the question, the
+column and the row back.
 
 ### Batch is the one required answer
 
 `lib/config/batches.ts` holds the two PGP years — **PGP-1 (2026–28)** and **PGP-2 (2025–27)** —
-and `User.batch` stores the id. Every leaderboard row prints it beside the college, which is
-what makes the board answer the question a cohort actually asks: not just who is ahead, but
-whether they are your year or the year above.
+and `User.batch` stores the id. Every leaderboard row prints it, and with the college gone it is
+the only affiliation a row carries: the board answers not just who is ahead, but whether they are
+your year or the year above.
 
 Because a blank there is a row nobody can read, this is the single field the app will not let
 you past. It is enforced twice, deliberately:
@@ -358,6 +357,38 @@ mid-lecture.
 The years are display text; the id (`pgp1`, `pgp2`) is what a row stores. A batch rolling over is
 a label edit in that one file, never an id change — an id carrying a year would orphan a cohort's
 worth of rows every September.
+
+### Professor is a request, not a dropdown
+
+Occupation has two values, Student and Professor, and **picking Professor grants nothing**. It
+stamps `User.professorRequestedAt` — a request — and the admin panel's Users tab badges it and
+offers Approve (the existing "Make professor" button) or Decline. `role` is the grant and no
+action a person can reach ever writes it; a dropdown that did would hand any student the
+classroom console and the roster of names, emails and scores behind it.
+
+A stored request rather than reading "did they pick Professor?" off the profile, because a
+decision needs a state: a declined request inferred from a display field comes back as pending on
+every admin visit, forever. Declining leaves their occupation exactly as they wrote it — that is
+a sentence about who they are, not an access claim to correct.
+
+### Locked out: the reset path
+
+There is no reset email, so the flow is a person:
+
+1. The student writes to the address on `/forgot-password` **from their official college email
+   address** — that address is the only check, and the page says so. It is an admin-editable
+   setting (Admin → Daily → Password-reset contact), not a constant, because it is somebody's
+   mailbox and mailboxes change hands.
+2. The admin clicks the key icon on their row in Admin → Users. The password becomes **the
+   account's own email address**, and the reply tells them so.
+3. `mustChangePassword` is set in the same write, so `requirePasswordChange`
+   (`lib/password-gate.ts`) lets that account reach `/set-password` and nothing else until it
+   picks a real password — which cannot be their email again.
+
+That gate is deliberately wider than `requireBatch`: the batch gate exempts `/admin`, `/host` and
+`/profile` so nobody is locked out of the surface that fixes their problem, and this one exempts
+nothing, because the way out needs no permission and the point is that a guessable password opens
+nothing at all.
 
 ### Where an avatar actually goes
 
@@ -770,9 +801,16 @@ the limitations below first.
 This is built and tuned as a **portfolio / demo** app. It runs end to end, but some surfaces are
 deliberately unfinished, and it's better to say so than to let you find out:
 
-- **Password reset doesn't send anything.** `/forgot-password` is UI only — no email provider is
-  wired up, and there's no admin reset either, so a forgotten password means a new account.
-  Someone who still knows their password can change it at `/profile`.
+- **Password reset is a person, not an email.** No email provider is wired up, so
+  `/forgot-password` tells the student to write to the admin from their official college address;
+  the admin resets them from the Users tab, and the account's password becomes its own email until
+  `/set-password` takes a real one. Between those two moments the account is guessable by anyone
+  who knows the address — tell them promptly, and see "Locked out: the reset path" above.
+- **Dropped columns need a migration in production.** `Profile.gradYear`, `User.collegeId` and
+  `Profile.collegeOther` went with `prisma db push --accept-data-loss`, which is fine on a local
+  SQLite file where the launch hasn't happened. A deployed Postgres wants `prisma migrate`, and
+  the same goes for the columns added beside them (`batch`, `professorRequestedAt`,
+  `mustChangePassword`).
 - **Changing a password doesn't sign out other devices.** `verify()` ignores the timestamp in
   the session token and there's no revocation list, so existing sessions survive a change until
   their cookie expires. The form says so under the button. Fixing it properly is a
@@ -830,10 +868,12 @@ Ollama adapter's SSE parsing and error classification — and the voice layer's 
 assembly and error triage. Only the network boundary and the database are mocked, so the adapter
 wiring and error classification are exercised for real.
 
-The batch and the gate add two more, both pure: `tests/batches.test.ts` pins that the id never
-carries a year (so a batch rolling over stays a label edit), and `tests/batch-gate.test.ts` pins
-who `requireBatch` lets through — including the guest exemption a classroom depends on, which is
-the one that breaks `/join` if it is ever "tidied up".
+The batch, the gates and the professor request add four more, all pure: `tests/batches.test.ts`
+pins that the id never carries a year (so a batch rolling over stays a label edit),
+`tests/batch-gate.test.ts` and `tests/password-gate.test.ts` pin who each gate lets through —
+including the guest exemption a classroom depends on, which is the one that breaks `/join` if it
+is ever "tidied up" — and `professorRequestFor`'s cases in `tests/profile-schema.test.ts` pin the
+three-way answer that keeps a partial save from cancelling a request somebody is waiting on.
 
 The profile layer adds three suites, all pure. `tests/avatar.test.ts` is the one worth reading:
 it pins that a payload declaring `image/jpeg` while carrying a shell script is refused, that an

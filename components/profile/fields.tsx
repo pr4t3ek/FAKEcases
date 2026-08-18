@@ -1,24 +1,21 @@
 "use client";
 
-import { COLLEGE_OTHER, collegesByKind } from "@/lib/config/colleges";
 import { BATCHES, batchOptionLabel } from "@/lib/config/batches";
 import {
   EXPERIENCE_BANDS,
   EXPERIENCE_LABELS,
   PROFESSIONS,
   PROFESSION_LABELS,
-  gradYearRange,
   profileLimits,
 } from "@/lib/config";
 import { INTERVIEW_LEVELS, INTERVIEW_LEVEL_LABELS, type InterviewLevel } from "@/lib/types";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 /**
  * The inputs shared by the profile page and the post-signup step.
  *
  * They live together because both surfaces write the same columns through the
- * same schema, and a college select that behaves one way at `/welcome` and
+ * same schema, and a batch select that behaves one way at `/welcome` and
  * another at `/profile` is the drift `lib/profile-schema.ts` exists to prevent.
  *
  * Native `<select>` throughout, matching `filter-bar.tsx` and
@@ -50,6 +47,14 @@ export function Field({
   );
 }
 
+/**
+ * Student or professor.
+ *
+ * The hint is load-bearing rather than decorative. Picking Professor sends a
+ * request to an admin and grants nothing on its own (`professorRequestFor` in
+ * lib/profile-schema.ts), and a dropdown that looked like it handed out
+ * classroom access would be read as broken by everyone it did not let in.
+ */
 export function ProfessionSelect({
   value,
   onChange,
@@ -58,7 +63,15 @@ export function ProfessionSelect({
   onChange: (v: string) => void;
 }) {
   return (
-    <Field label="What are you doing right now?" htmlFor="profession">
+    <Field
+      label="What are you doing right now?"
+      htmlFor="profession"
+      hint={
+        value === "professor"
+          ? "An admin has to approve this before you can open classroom rooms — picking it here just asks."
+          : undefined
+      }
+    >
       <select
         id="profession"
         className={selectClass}
@@ -97,7 +110,7 @@ export function BatchSelect({
     <Field
       label="Your batch"
       htmlFor="batch"
-      hint="Shown next to your college on the leaderboard."
+      hint="Shown on the leaderboard."
     >
       <select
         id="batch"
@@ -110,91 +123,6 @@ export function BatchSelect({
         {BATCHES.map((b) => (
           <option key={b.id} value={b.id}>
             {batchOptionLabel(b)}
-          </option>
-        ))}
-      </select>
-    </Field>
-  );
-}
-
-export function CollegeSelect({
-  collegeId,
-  collegeOther,
-  onCollegeId,
-  onCollegeOther,
-}: {
-  collegeId: string;
-  collegeOther: string;
-  onCollegeId: (v: string) => void;
-  onCollegeOther: (v: string) => void;
-}) {
-  const groups = collegesByKind();
-  return (
-    <div className="space-y-2">
-      <Field
-        label="College or university"
-        htmlFor="collegeId"
-        hint={
-          collegeId === COLLEGE_OTHER
-            ? "Written-in colleges aren't grouped with anyone else's — pick from the list when yours appears."
-            : undefined
-        }
-      >
-        <select
-          id="collegeId"
-          className={selectClass}
-          value={collegeId}
-          onChange={(e) => onCollegeId(e.target.value)}
-        >
-          <option value="">Prefer not to say</option>
-          {groups.map((g) => (
-            <optgroup key={g.kind} label={g.label}>
-              {g.colleges.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-          <option value={COLLEGE_OTHER}>Other — not on this list</option>
-        </select>
-      </Field>
-
-      {collegeId === COLLEGE_OTHER && (
-        <Input
-          aria-label="Your college"
-          placeholder="Type your college's name"
-          maxLength={profileLimits.collegeOther}
-          value={collegeOther}
-          onChange={(e) => onCollegeOther(e.target.value)}
-        />
-      )}
-    </div>
-  );
-}
-
-export function GradYearSelect({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  const { min, max } = gradYearRange;
-  // Newest first: far more people are graduating soon than graduated in 1978.
-  const years = Array.from({ length: max - min + 1 }, (_, i) => max - i);
-  return (
-    <Field label="Graduation year" htmlFor="gradYear">
-      <select
-        id="gradYear"
-        className={selectClass}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      >
-        <option value="">Prefer not to say</option>
-        {years.map((y) => (
-          <option key={y} value={y}>
-            {y}
           </option>
         ))}
       </select>

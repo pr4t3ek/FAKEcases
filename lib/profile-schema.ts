@@ -13,14 +13,8 @@
  */
 
 import { z } from "zod";
-import { COLLEGE_OTHER, isKnownCollege } from "@/lib/config/colleges";
 import { BATCH_IDS } from "@/lib/config/batches";
-import {
-  EXPERIENCE_BANDS,
-  PROFESSIONS,
-  gradYearRange,
-  profileLimits,
-} from "@/lib/config";
+import { EXPERIENCE_BANDS, PROFESSIONS, profileLimits } from "@/lib/config";
 import { INTERVIEW_LEVELS } from "@/lib/types";
 
 const blank = (v: unknown) => v === "" || v === null || v === undefined;
@@ -34,23 +28,6 @@ const blank = (v: unknown) => v === "" || v === null || v === undefined;
  */
 const optionalText = (max: number) =>
   z.preprocess((v) => (blank(v) ? "" : v), z.string().trim().max(max).default(""));
-
-/**
- * A year that may be absent.
- *
- * `z.coerce.number()` turns `""` into `0`, which is exactly how a blank field
- * became a real value elsewhere in this codebase (see the ideal-range bug in
- * `lib/question-schema.ts`). Blanks are mapped to undefined first.
- */
-const optionalYear = z.preprocess(
-  (v) => (blank(v) ? undefined : v),
-  z.coerce
-    .number()
-    .int()
-    .min(gradYearRange.min, `Graduation year must be ${gradYearRange.min} or later`)
-    .max(gradYearRange.max, `Graduation year must be ${gradYearRange.max} or earlier`)
-    .optional(),
-);
 
 const optionalEnum = <T extends readonly [string, ...string[]]>(values: T) =>
   z.preprocess((v) => (blank(v) ? undefined : v), z.enum(values).optional());
@@ -106,10 +83,6 @@ export const profileCoreSchema = z.object({
    * simply has not picked yet.
    */
   batch: z.enum(BATCH_IDS, { errorMap: () => ({ message: "Choose your batch" }) }),
-  /** A curated id, `COLLEGE_OTHER`, or blank. Checked in `refineProfile`. */
-  collegeId: optionalText(64),
-  collegeOther: optionalText(profileLimits.collegeOther),
-  gradYear: optionalYear,
   experience: optionalEnum(EXPERIENCE_BANDS),
 
   targetLevels: levelList,
@@ -119,30 +92,15 @@ export const profileCoreSchema = z.object({
 export type ProfileCore = z.infer<typeof profileCoreSchema>;
 
 /**
- * Cross-field rules, exported so both callers apply exactly the same ones.
+ * The full profile.
+ *
+ * An alias of the core rather than a `superRefine` on top of it: the only
+ * cross-field rule this schema ever had was the college one ("Other" needs a
+ * written-in name), and the college question is gone — one campus, so
+ * `INSTITUTION_NAME` is a constant and nobody is asked. The alias stays so every
+ * call site keeps naming the thing it validates against.
  */
-export function refineProfile(data: ProfileCore, ctx: z.RefinementCtx): void {
-  const at = (path: keyof ProfileCore, message: string) =>
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message });
-
-  if (!data.collegeId) {
-    // Nothing chosen. A written-in name with no "Other" selected is a form bug
-    // rather than a save — dropping it silently would lose what they typed.
-    if (data.collegeOther) at("collegeId", "Choose “Other” to write in a college");
-    return;
-  }
-
-  if (data.collegeId === COLLEGE_OTHER) {
-    if (!data.collegeOther) at("collegeOther", "Write in the name of your college");
-    return;
-  }
-
-  if (!isKnownCollege(data.collegeId)) {
-    at("collegeId", "That college isn't on the list");
-  }
-}
-
-export const profileSchema = profileCoreSchema.superRefine(refineProfile);
+export const profileSchema = profileCoreSchema;
 
 /**
  * The subset the post-signup step asks for.
@@ -153,61 +111,26 @@ export const profileSchema = profileCoreSchema.superRefine(refineProfile);
  * lib/batch-gate.ts for the redirect that enforces the same rule from the other
  * side; this is the half that stops a hand-rolled POST getting past it.
  */
-export const onboardingSchema = profileCoreSchema
-  .pick({
-    profession: true,
-    batch: true,
-    collegeId: true,
-    collegeOther: true,
-    gradYear: true,
-    targetLevels: true,
-  })
-  .superRefine((data, ctx) =>
-    refineProfile({ ...emptyProfile(), ...data } as ProfileCore, ctx),
-  );
+export const onboardingSchema = profileCoreSchema.pick({
+  profession: true,
+  batch: true,
+  targetLevels: true,
+});
 
 export type OnboardingInput = z.infer<typeof onboardingSchema>;
-
-function emptyProfile(): ProfileCore {
-  return {
-    name: "placeholder",
-    phone: "",
-    city: "",
-    bio: "",
-    profession: undefined,
-    // A placeholder for a required field, so this scaffold satisfies the type.
-    // It exists only to give `refineProfile` a whole object to check
-    // cross-field rules against, and no rule reads `batch`; the value is never
-    // returned to a caller and never reaches the database.
-    batch: BATCH_IDS[0],
-    collegeId: "",
-    collegeOther: "",
-    gradYear: undefined,
-    experience: undefined,
-    targetLevels: [],
-    targetCompanies: "",
-  };
-}
 
 /**
  * Split validated input into the two rows it lands in.
  *
- * `collegeId` goes to `User` because it is grouped by; everything else goes to
- * `Profile` because it is only ever displayed. `COLLEGE_OTHER` is a form value,
- * not a stored one — it becomes a null id plus the written-in name, which is
- * what makes "has a real college" a single `collegeId != null` check rather
- * than a string comparison every reader has to remember.
+ * `batch` goes to `User` because a board groups by it; everything else goes to
+ * `Profile` because it is only ever displayed. The split is by access pattern,
+ * not by how "profile-ish" a field feels — the same rule the schema comment on
+ * `model Profile` states.
  */
 export function toProfileColumns(data: Partial<ProfileCore>) {
-  const chose = data.collegeId ?? "";
-  const other = chose === COLLEGE_OTHER;
-
-  const user: { name?: string; collegeId?: string | null; batch?: string } = {};
+  const user: { name?: string; batch?: string } = {};
   if (data.name !== undefined) user.name = data.name;
-  // On `User` beside `collegeId`, not on `Profile`: both are grouped by rather
-  // than displayed, which is the split this function exists to apply.
   if (data.batch !== undefined) user.batch = data.batch;
-  if (data.collegeId !== undefined) user.collegeId = other || !chose ? null : chose;
 
   const profile: Record<string, string | number | null> = {};
   const put = (key: string, value: string | undefined) => {
@@ -220,11 +143,43 @@ export function toProfileColumns(data: Partial<ProfileCore>) {
   put("profession", data.profession);
   put("experience", data.experience);
   put("targetCompanies", data.targetCompanies);
-  if (data.collegeId !== undefined) profile.collegeOther = other ? data.collegeOther || null : null;
-  if (data.gradYear !== undefined) profile.gradYear = data.gradYear ?? null;
   if (data.targetLevels !== undefined) profile.targetLevels = JSON.stringify(data.targetLevels);
 
   return { user, profile };
+}
+
+/**
+ * What saying "I'm a professor" on the profile does to the account.
+ *
+ * **Never the role.** It writes `User.professorRequestedAt`, a request an admin
+ * approves from the Users tab; the occupation itself is display text. A dropdown
+ * that granted the role would let any student open classroom rooms and read a
+ * roster of names, emails and scores.
+ *
+ * Pure, and separate from the action that writes it, so the rule can be tested
+ * without a database — the same arrangement as everything else in this file.
+ *
+ * Returns `undefined` when the column should be left exactly as it is, which is
+ * not the same as `null`:
+ *
+ *   - Already a professor or an admin: there is nothing to ask for. This is what
+ *     stops an admin editing their own profile from queueing themselves up in
+ *     their own approval list.
+ *   - Occupation left blank: they did not answer, which is not a withdrawal — a
+ *     partial save must not silently cancel a request they are waiting on.
+ *   - Asking again while a request is already pending: keep the original stamp,
+ *     so the queue stays ordered by when people actually asked.
+ */
+export function professorRequestFor(
+  profession: string | undefined,
+  role: string,
+  existing: Date | null,
+  now: Date = new Date(),
+): Date | null | undefined {
+  if (role !== "user") return undefined;
+  if (!profession) return undefined;
+  if (profession !== "professor") return existing ? null : undefined;
+  return existing ?? now;
 }
 
 /** Read the stored JSON back, tolerating anything that isn't a level list. */

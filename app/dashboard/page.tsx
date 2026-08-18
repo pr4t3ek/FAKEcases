@@ -24,6 +24,7 @@ import {
 } from "@/components/dashboard/global-leaderboard";
 import { globalBoard } from "@/lib/leaderboard";
 import { requireBatch } from "@/lib/batch-gate";
+import { requirePasswordChange } from "@/lib/password-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +40,6 @@ function toBoardSide(board: Awaited<ReturnType<typeof globalBoard>>): BoardSide 
       userId: s.userId,
       rank: s.rank,
       name: s.name,
-      college: s.college,
       batch: s.batch,
       value: s.points,
       detail: `${s.solved} solved`,
@@ -68,6 +68,9 @@ export default async function DashboardPage() {
   if (user.isGuest) redirect("/signup");
   // Before anything is loaded: every board below this line shows a batch, and
   // the dashboard is where a student who has never been asked lands first.
+  // A reset password opens nothing until it is replaced, so this runs ahead
+  // of every other gate.
+  requirePasswordChange(user);
   requireBatch(user);
 
   // Resolved before everything else because the recommendation query needs it.

@@ -54,6 +54,13 @@ export interface AdminUserRow {
    * against now, never a stored value.
    */
   proUntil: string | null;
+  /**
+   * They asked to be made a professor and nobody has decided yet.
+   *
+   * A boolean rather than the timestamp: the table shows a badge, and the column
+   * exists to be answered rather than to be read as a date.
+   */
+  professorRequested: boolean;
 }
 
 export interface AdminUserStats {
@@ -148,6 +155,7 @@ export async function loadUserAdminStats(now: Date = new Date()): Promise<AdminU
     streak: u.streak,
     rank: u.rank,
     proUntil: u.proUntil ? u.proUntil.toISOString() : null,
+    professorRequested: u.professorRequestedAt !== null,
     attempts: u._count.attempts,
     // Progress only exists once something has been submitted, and an avgScore
     // of 0 there means "no graded attempts", not "scored zero".

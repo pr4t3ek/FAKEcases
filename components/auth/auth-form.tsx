@@ -60,13 +60,6 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
         {pending && <Loader2 className="animate-spin" />}
         {mode === "login" ? "Sign in" : "Create free account"}
       </Button>
-
-      {mode === "login" && (
-        <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-          Demo login: <span className="font-mono">demo@estimateiq.app</span> /{" "}
-          <span className="font-mono">demo1234</span>
-        </div>
-      )}
     </form>
   );
 }

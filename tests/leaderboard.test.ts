@@ -120,21 +120,14 @@ describe("windowFilter", () => {
 describe("displayNameFor", () => {
   /** A whole user, so a new field on the row cannot be forgotten in one case. */
   const who = (over: Partial<Parameters<typeof displayNameFor>[0]> = {}) =>
-    displayNameFor({ name: "Ankit", collegeId: null, batch: null, ...over });
+    displayNameFor({ name: "Ankit", batch: null, ...over });
 
   it("shows the first name only — never the full name", () => {
     expect(who({ name: "Ankit Sharma" }).name).toBe("Ankit");
   });
 
-  it("resolves a known college to its label", () => {
-    expect(who({ collegeId: "iim-bangalore" }).college).toBe("IIM Bangalore");
-  });
-
-  it("shows no affiliation for an unlisted college", () => {
-    // "Other" is stored as a null id and grouped with nobody, so there is
-    // nothing honest to print beside the name.
-    expect(who().college).toBeNull();
-    expect(who({ collegeId: "not-a-real-id" }).college).toBeNull();
+  it("carries no college — one campus, so the batch is the whole affiliation", () => {
+    expect(who({ batch: "pgp1" })).toEqual({ name: "Ankit", batch: "PGP-1" });
   });
 
   it("resolves a batch to its short label — the years stay off the row", () => {

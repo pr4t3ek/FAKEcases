@@ -113,11 +113,10 @@ async function main() {
       passwordHash: hashPassword("demo1234"),
       onboardedAt: new Date(),
       profileCompletedAt: new Date(),
-      collegeId: "iim-bangalore",
-      // Set in `create` only, like `collegeId` beside it — a re-seed must not
-      // overwrite a batch someone corrected by hand. Every seeded login gets
-      // one so no documented account meets `requireBatch` on first sign-in;
-      // demo is PGP-2 because its profile bio already says second year.
+      // Set in `create` only — a re-seed must not overwrite a batch someone
+      // corrected by hand. Every seeded login gets one so no documented account
+      // meets `requireBatch` on first sign-in; demo is PGP-2 because its
+      // profile bio already says second year.
       batch: "pgp2",
       // A live Pro pass, so a fresh clone has one account that sees the whole
       // library and one (admin, below) that hits the paywall — both states
@@ -138,8 +137,7 @@ async function main() {
       userId: demo.id,
       city: "Bengaluru",
       bio: "Second-year PGP, targeting consulting. Weakest on market sizing.",
-      profession: "student-mba",
-      gradYear: new Date().getFullYear() + 1,
+      profession: "student",
       experience: "0-2",
       targetLevels: JSON.stringify(["McKinsey", "BCG"]),
       targetCompanies: "McKinsey, BCG, Bain",

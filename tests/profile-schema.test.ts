@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   onboardingSchema,
   parseTargetLevels,
+  professorRequestFor,
   profileSchema,
   toProfileColumns,
 } from "@/lib/profile-schema";
-import { COLLEGE_OTHER } from "@/lib/config/colleges";
-import { gradYearRange, profileLimits } from "@/lib/config";
+import { profileLimits } from "@/lib/config";
 
 const base = (over: Record<string, unknown> = {}) => ({
   name: "Ankit Rai",
@@ -15,9 +15,6 @@ const base = (over: Record<string, unknown> = {}) => ({
   bio: "",
   profession: "",
   batch: "pgp1",
-  collegeId: "",
-  collegeOther: "",
-  gradYear: "",
   experience: "",
   targetLevels: [],
   targetCompanies: "",
@@ -57,39 +54,6 @@ describe("profileSchema", () => {
 
   it("requires a name, since it is what the whole app greets you by", () => {
     expect(parse({ name: "   " }).success).toBe(false);
-  });
-
-  /**
-   * The bug this closes, inherited from `lib/question-schema.ts`: a blank
-   * number field run through `z.coerce.number()` becomes a real 0, which here
-   * would be a profile claiming to have graduated in the year zero.
-   */
-  it("leaves a blank graduation year absent rather than storing it as zero", () => {
-    const result = parse({ gradYear: "" });
-    expect(result.success).toBe(true);
-    if (result.success) expect(result.data.gradYear).toBeUndefined();
-  });
-
-  it("rejects a graduation year outside the window the form offers", () => {
-    expect(parse({ gradYear: String(gradYearRange.max + 1) }).success).toBe(false);
-    expect(parse({ gradYear: String(gradYearRange.min - 1) }).success).toBe(false);
-    expect(parse({ gradYear: String(gradYearRange.max) }).success).toBe(true);
-  });
-
-  it("requires the written-in college when Other is chosen", () => {
-    expect(errorOf({ collegeId: COLLEGE_OTHER })).toMatch(/Write in the name/);
-    expect(parse({ collegeId: COLLEGE_OTHER, collegeOther: "Some College" }).success).toBe(true);
-  });
-
-  it("refuses a written-in college that nobody chose Other for", () => {
-    // Otherwise the text would be silently discarded on save, which looks like
-    // the field simply not working.
-    expect(errorOf({ collegeOther: "Some College" })).toMatch(/Choose/);
-  });
-
-  it("rejects a college id that is not on the curated list", () => {
-    expect(errorOf({ collegeId: "iim-atlantis" })).toMatch(/isn't on the list/);
-    expect(parse({ collegeId: "iim-bangalore" }).success).toBe(true);
   });
 
   it("rejects a target level outside INTERVIEW_LEVELS", () => {
@@ -134,10 +98,10 @@ describe("onboardingSchema", () => {
     expect(onboardingSchema.safeParse({}).success).toBe(false);
   });
 
-  it("applies the same college rule the full profile does", () => {
-    // The point of sharing `refineProfile`: a field cannot validate one way at
+  it("applies the same batch rule the full profile does", () => {
+    // The point of sharing one core: a field cannot validate one way at
     // /welcome and another at /profile.
-    expect(onboardingSchema.safeParse({ collegeId: COLLEGE_OTHER }).success).toBe(false);
+    expect(onboardingSchema.safeParse({ batch: "pgp3" }).success).toBe(false);
   });
 });
 
@@ -151,26 +115,6 @@ describe("toProfileColumns", () => {
     const { user, profile } = toProfileColumns({ batch: "pgp2" });
     expect(user.batch).toBe("pgp2");
     expect(profile.batch).toBeUndefined();
-  });
-
-  it("sends a curated college to User and nothing to the write-in", () => {
-    const { user, profile } = toProfileColumns({ collegeId: "iim-bangalore" });
-    expect(user.collegeId).toBe("iim-bangalore");
-    expect(profile.collegeOther).toBeNull();
-  });
-
-  /**
-   * "Other" is a form value, never a stored one. Keeping it out of the column
-   * is what lets every reader ask `collegeId != null` instead of remembering to
-   * also exclude a magic string.
-   */
-  it("stores Other as a null id plus the written-in name", () => {
-    const { user, profile } = toProfileColumns({
-      collegeId: COLLEGE_OTHER,
-      collegeOther: "Some College",
-    });
-    expect(user.collegeId).toBeNull();
-    expect(profile.collegeOther).toBe("Some College");
   });
 
   it("writes null rather than an empty string for a field left blank", () => {
@@ -187,9 +131,9 @@ describe("toProfileColumns", () => {
   it("leaves a field out entirely when the caller didn't submit it", () => {
     // The onboarding step posts a subset, and an absent field must not be
     // read as a request to clear the value already stored.
-    const { user, profile } = toProfileColumns({ profession: "working" });
-    expect(profile.profession).toBe("working");
-    expect("collegeId" in user).toBe(false);
+    const { user, profile } = toProfileColumns({ profession: "professor" });
+    expect(profile.profession).toBe("professor");
+    expect("batch" in user).toBe(false);
     expect("bio" in profile).toBe(false);
   });
 });
@@ -210,5 +154,49 @@ describe("parseTargetLevels", () => {
 
   it("ignores stored JSON that isn't an array at all", () => {
     expect(parseTargetLevels('{"a":1}')).toEqual([]);
+  });
+});
+
+/**
+ * The rule that keeps a dropdown from handing out classroom access.
+ *
+ * `undefined` means "leave the column alone" and is not the same as `null`,
+ * which withdraws a pending request — the difference is the whole reason this
+ * returns three things rather than a date or nothing.
+ */
+describe("professorRequestFor", () => {
+  const now = new Date("2026-08-18T00:00:00Z");
+
+  it("stamps a request when a plain user says they are a professor", () => {
+    expect(professorRequestFor("professor", "user", null, now)).toEqual(now);
+  });
+
+  it("never touches the column for someone who already holds the role", () => {
+    // Including admins: an admin editing their own profile must not appear in
+    // their own approval queue.
+    expect(professorRequestFor("professor", "professor", null, now)).toBeUndefined();
+    expect(professorRequestFor("professor", "admin", null, now)).toBeUndefined();
+  });
+
+  it("keeps the original stamp when someone asks again", () => {
+    // Otherwise re-saving a profile would push them to the back of a queue
+    // ordered by when people actually asked.
+    const asked = new Date("2026-08-01T00:00:00Z");
+    expect(professorRequestFor("professor", "user", asked, now)).toEqual(asked);
+  });
+
+  it("withdraws the request when they switch back to Student", () => {
+    const asked = new Date("2026-08-01T00:00:00Z");
+    expect(professorRequestFor("student", "user", asked, now)).toBeNull();
+  });
+
+  it("does nothing when there was no request to withdraw", () => {
+    expect(professorRequestFor("student", "user", null, now)).toBeUndefined();
+  });
+
+  it("treats an unanswered occupation as silence, not as a withdrawal", () => {
+    // A partial save must not cancel a request somebody is waiting on.
+    const asked = new Date("2026-08-01T00:00:00Z");
+    expect(professorRequestFor(undefined, "user", asked, now)).toBeUndefined();
   });
 });

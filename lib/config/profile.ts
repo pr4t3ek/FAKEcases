@@ -13,21 +13,39 @@
  * agree eventually don't.
  */
 
-export const PROFESSIONS = [
-  "student-ug",
-  "student-mba",
-  "working",
-  "between-roles",
-  "other",
-] as const;
+/**
+ * The institution this deployment is run for.
+ *
+ * A constant rather than a question, because the app is launched inside one
+ * college: asking sixty people to pick their college from a list of one is
+ * ceremony, and printing the same name on every leaderboard row is a column that
+ * says nothing. It survives as a constant because the copy still has to name the
+ * campus — "your official <name> email address" is the whole check on a password
+ * reset.
+ *
+ * A second campus is a bigger change than editing this line, and deliberately
+ * so: it would need the college question, the column and the board row back.
+ */
+export const INSTITUTION_NAME = "IIM Visakhapatnam";
+
+/**
+ * What someone is here as.
+ *
+ * Two values, because a single-campus launch has two kinds of people in it. The
+ * five-way list this replaces ("undergraduate", "working professional", …) was
+ * asking a public product's question.
+ *
+ * **Picking `professor` grants nothing.** It records a request an admin has to
+ * approve — see `professorRequestFor` in lib/profile-schema.ts and the Users tab
+ * of the admin panel. A role that a dropdown could award itself would let any
+ * student open classroom rooms.
+ */
+export const PROFESSIONS = ["student", "professor"] as const;
 export type Profession = (typeof PROFESSIONS)[number];
 
 export const PROFESSION_LABELS: Record<Profession, string> = {
-  "student-ug": "Undergraduate student",
-  "student-mba": "MBA / PGP student",
-  working: "Working professional",
-  "between-roles": "Between roles",
-  other: "Something else",
+  student: "Student",
+  professor: "Professor",
 };
 
 export const EXPERIENCE_BANDS = ["0", "0-2", "3-5", "6-10", "10+"] as const;
@@ -41,25 +59,12 @@ export const EXPERIENCE_LABELS: Record<ExperienceBand, string> = {
   "10+": "10+ years",
 };
 
-/**
- * Graduation year bounds.
- *
- * A range rather than a free number so a typo lands as a validation error
- * instead of a profile claiming a 1902 graduation. The forward window covers a
- * first-year undergraduate; the backward one covers a mid-career candidate.
- */
-export const gradYearRange = {
-  min: new Date().getFullYear() - 50,
-  max: new Date().getFullYear() + 8,
-};
-
 /** Free-text caps. Not a security boundary so much as a blast radius. */
 export const profileLimits = {
   name: 60,
   phone: 20,
   city: 60,
   bio: 280,
-  collegeOther: 100,
   targetCompanies: 200,
   /** How many interview levels one person may be preparing for at once. */
   targetLevels: 4,
