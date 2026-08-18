@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Siren, Sparkles } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { isLocked, tierFor, upgradeFor, WALL_LOCKED, WALL_PARAM } from "@/lib/entitlements";
+import { dailyGrantFor } from "@/lib/daily-unlock";
 import { listCategories, listQuestions, listSectors } from "@/lib/questions";
 import { simStateByQuestion } from "@/lib/simulations";
 import { canHostRooms } from "@/lib/types";
@@ -85,11 +86,15 @@ export default async function SimulationsPage({
     : [null, null];
 
   const tier = tierFor(user);
+  // The same grant the server gate uses, so a card that reads as open is one
+  // `startAttempt` will actually open — the disagreement `lib/entitlements.ts`
+  // exists to prevent.
+  const grant = await dailyGrantFor(user);
   const upgrade = upgradeFor(tier);
   // Professors and admins get a "host this in class" control on each unlocked
   // card. Read here rather than inside the card so the card stays a pure view.
   const canHost = !!user && canHostRooms(user.role);
-  const openCount = questions.filter((q) => !isLocked(tier, q)).length;
+  const openCount = questions.filter((q) => !isLocked(tier, q, grant)).length;
   const lockedCount = questions.length - openCount;
 
   // One query for the grid — see `simStateByQuestion`. Skipped for a visitor with
@@ -175,7 +180,7 @@ export default async function SimulationsPage({
               <QuestionCard
                 key={q.id}
                 question={q}
-                locked={isLocked(tier, q)}
+                locked={isLocked(tier, q, grant)}
                 upgrade={upgrade}
                 simState={simState[q.id] ?? null}
                 canHost={canHost}

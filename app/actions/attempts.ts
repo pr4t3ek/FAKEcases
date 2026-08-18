@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getOrCreateGuest } from "@/lib/auth";
+import { dailyGrantFor } from "@/lib/daily-unlock";
 import { canOpen, tierFor, wallRedirect } from "@/lib/entitlements";
 import { interviewerReply, isRealProvider } from "@/lib/llm";
 import { recordLlmCall } from "@/lib/llm/budget";
@@ -82,7 +83,11 @@ export async function startAttempt(
   // already in progress stays openable even if the question is un-flagged
   // underneath it, because stranding someone's half-built tree to enforce a
   // merchandising decision is not a trade worth making.
-  if (!canOpen(tierFor(user), question)) redirect(wallRedirect());
+  // The daily unlock is what opens anything at all now that the catalogue is
+  // locked, and it is account-only — `dailyGrantFor` returns NO_GRANT for a
+  // guest, which is the single line that makes "sign up to practise" true.
+  const grant = await dailyGrantFor(user);
+  if (!canOpen(tierFor(user), question, grant)) redirect(wallRedirect());
 
   // Fixed at creation and never changed afterwards: if the tree mode could be
   // switched mid-attempt, "solo" would mean nothing — you could flip to guided,

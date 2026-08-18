@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { loadInterviewerContext } from "@/lib/practice-context";
 import { interviewerReplyStream, isRealProvider } from "@/lib/llm";
-import { checkBudget, recordLlmCall } from "@/lib/llm/budget";
+import { BUDGET_MESSAGE, checkBudget, isRefusal, recordLlmCall, turnsRemaining } from "@/lib/llm/budget";
 import { ndjsonResponse, type StreamLine } from "@/lib/llm/stream";
 import { aiModes, type SelectableMode } from "@/lib/config";
 import type { AiMode } from "@/lib/config";
@@ -38,6 +38,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  // Checked BEFORE the message is persisted, unlike the quota guards below. A
+  // refused turn must not consume one: writing the row first would spend the
+  // student's last turn on a message the interviewer never answered.
+  const gate = await checkBudget(user.id, new Date(), attemptId);
+  if (!gate.ok && isRefusal(gate.reason)) {
+    return NextResponse.json(
+      { error: BUDGET_MESSAGE[gate.reason!], code: gate.reason, remaining: gate.remaining ?? 0 },
+      { status: 429 },
+    );
+  }
+
   // Persist the user's message, then generate the interviewer's reply.
   await db.message.create({
     data: { attemptId, role: "user", mode, content },
@@ -46,7 +57,11 @@ export async function POST(req: Request) {
   const loaded = await loadInterviewerContext(attemptId, mode as AiMode);
   if (!loaded) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const budget = await checkBudget(user.id);
+  // Re-read now the message exists, so the quota guards count it and the
+  // remaining-turns figure the client is sent matches what the next request
+  // will enforce.
+  const budget = await checkBudget(user.id, new Date(), attemptId);
+  const remaining = await turnsRemaining(attemptId);
   const turn = interviewerReplyStream(loaded.ctx, { budgetBlocked: !budget.ok });
 
   return ndjsonResponse(async function* (): AsyncGenerator<StreamLine> {
@@ -70,6 +85,6 @@ export async function POST(req: Request) {
     }
 
     if (interrupted) yield { t: "error", code: interrupted };
-    yield { t: "done", provider, model, fallbackReason };
+    yield { t: "done", provider, model, fallbackReason, remaining };
   });
 }

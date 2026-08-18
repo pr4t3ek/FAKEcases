@@ -62,6 +62,7 @@ import {
 import { applySimulationRewards } from "@/lib/gamification";
 import { recordFirstResult } from "@/lib/leaderboard";
 import { roomGrantFor, seatFor } from "@/lib/rooms";
+import { dailyGrantFor } from "@/lib/daily-unlock";
 
 export interface SimActionResult {
   ok: boolean;
@@ -140,7 +141,8 @@ export async function startSimulation(questionId: string): Promise<void> {
   const resumable = await findResumableRun(user.id, question.id);
   if (resumable) redirect(`/simulate/${resumable}`);
 
-  if (!canOpen(tierFor(user), question)) redirect(wallRedirect("simulation"));
+  const grant = await dailyGrantFor(user);
+  if (!canOpen(tierFor(user), question, grant)) redirect(wallRedirect("simulation"));
 
   const runId = await openSimulationRun({
     userId: user.id,

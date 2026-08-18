@@ -234,6 +234,7 @@ model Question {
   @@index([difficulty])
   @@index([interviewLevel])
   @@index([sector])
+  dailyUnlocks    DailyUnlock[]
 }
 
 /// A user's FIRST result on a question — the only row a leaderboard ranks.
@@ -800,4 +801,53 @@ model SimScenarioOverride {
   updatedBy   User?    @relation(fields: [updatedById], references: [id], onDelete: SetNull)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+/// A question deliberately opened for one calendar day.
+///
+/// The cohort works one guesstimate and one war room a day, so the catalogue is
+/// otherwise locked and this is the thing that opens it. A row here is an
+/// admin's PIN — "on the 4th, everyone does the Mumbai umbrellas one".
+///
+/// Its absence is not a gap. `lib/daily-unlock.ts` falls back to a pick derived
+/// from the date itself, so a day nobody pinned still opens something, and the
+/// professor is never the single point of failure for the class having work.
+/// That fallback is computed at read time rather than written by a scheduled
+/// job, for the reason `User.proUntil` gives about Pro: a value derived from the
+/// clock cannot fall out of sync with it, and there is no cron to fail.
+model DailyUnlock {
+  id         String   @id @default(cuid())
+  /// "YYYY-MM-DD", UTC. A string rather than a DateTime because the thing being
+  /// identified is a CALENDAR DAY, and a timestamp invites a timezone to turn
+  /// one day into two.
+  day        String
+  /// "guesstimate" | "simulation" — one slot of each per day.
+  type       String
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  createdAt  DateTime @default(now())
+
+  /// One pin per slot per day. An upsert against this is what makes re-pinning
+  /// a day a correction rather than a second, competing answer.
+  @@unique([day, type])
+  @@index([day])
+}
+
+/// An admin-editable override of a value that also has a default in code.
+///
+/// Same shape and same reasoning as `SimScenarioOverride`: the shipped value
+/// lives in `lib/config`, a row here overrides it, and an EMPTY TABLE IS A
+/// WORKING APP. That ordering matters at launch — the deployment runs on the
+/// defaults until someone deliberately changes one, and a bad edit is undone by
+/// deleting a row rather than by a redeploy.
+///
+/// Used for the turn budgets, which a professor has to be able to retune mid-term
+/// when a class turns out to need more room than the default allowed.
+model AppSetting {
+  key       String   @id
+  /// Stored as text and parsed by the reader, so a future non-numeric setting
+  /// does not need a migration.
+  value     String
+  updatedAt DateTime @updatedAt
 }

@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { turnsRemaining } from "@/lib/llm/budget";
 import { getSessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { PracticeScreen } from "@/components/practice/practice-screen";
@@ -159,6 +160,7 @@ export default async function PracticePage({
     finalAnswer: attempt.finalAnswer,
     treeMode: (attempt.treeMode as TreeMode | null) ?? null,
     hintsUsed: attempt.hintsUsed,
+    initialRemaining: await turnsRemaining(attempt.id),
     timeSpentSec: attempt.timeSpentSec,
   };
 
