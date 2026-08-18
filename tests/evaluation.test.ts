@@ -307,6 +307,29 @@ describe("earned coverage", () => {
     expect(r.readiness).toBe("Interview Ready");
   });
 
+  /*
+   * The reveal outranks the rubric, however well the attempt scored.
+   *
+   * The existing Teacher-mode tests use the modest `base` fixture, where a leak
+   * would surface a middling number. Now that full coverage reaches the high
+   * 90s, an attempt that was walked through and then scored would publish a
+   * near-perfect result into readiness, rank and the leaderboard — so the case
+   * worth pinning is the strong one, not the average one.
+   */
+  it("withholds the total from a walked-through attempt even when every aspect is covered", () => {
+    const cold = evaluate(complete);
+    const told = evaluate({ ...complete, solutionRevealed: true });
+
+    expect(cold.overall!).toBeGreaterThanOrEqual(90);
+    expect(told.overall).toBeNull();
+    expect(told.readiness).toBeNull();
+
+    // The categories survive — they are the teaching, and the report still
+    // shows them under a "Not scored" headline.
+    expect(told.scores.structuring).toBeTypeOf("number");
+    expect(told.scores.calculation).toBeTypeOf("number");
+  });
+
   it("rises with each aspect the candidate adds", () => {
     const bare = evaluate(bareNumber).overall!;
     const structured = evaluate({ ...bareNumber, framework: base.framework }).overall!;
