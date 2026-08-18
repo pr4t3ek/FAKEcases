@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { Brand } from "@/components/brand";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export function AuthShell({
@@ -18,7 +17,6 @@ export function AuthShell({
     <div className="relative flex min-h-screen flex-col">
       <header className="flex items-center justify-between p-6">
         <Brand />
-        <ThemeToggle />
       </header>
       <main className="flex flex-1 items-center justify-center px-6 pb-16">
         <div className="w-full max-w-md">

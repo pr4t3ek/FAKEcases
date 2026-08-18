@@ -195,6 +195,48 @@ Framer Motion · Prisma (SQLite dev → Postgres/Supabase prod) · Recharts · V
 
 ---
 
+## Look and feel
+
+**One theme, and it is dark.** Near-black surfaces, an electric cyan accent, a tight grotesk and
+sharp corners. There is no light mode and no toggle: a second palette is a second thing to keep
+looking right, for nobody.
+
+Everything routes through tokens, which is why the whole product changed colour without a
+component being touched:
+
+- **`app/globals.css` holds one `:root` palette.** `tailwind.config.ts` maps every Tailwind colour
+  to it, and the Recharts callers read the same variables (`hsl(var(--primary))`), so the graphs
+  followed too. Across `app/` and `components/` there are exactly two hardcoded colours, both
+  modal scrims.
+- **One number controls the cornering.** `--radius` is `0.25rem`, and `rounded-xl`/`2xl`/`3xl` are
+  derived from it in the Tailwind config rather than left on Tailwind's defaults — otherwise the
+  nineteen places using them would stay soft while everything around them sharpened.
+  `rounded-full` is untouched, because a pill with a 4px corner is a rectangle.
+- **`--primary-foreground` must stay dark.** The accent is bright enough that white on it is
+  unreadable, and every filled button in the app is `bg-primary text-primary-foreground`. A test
+  pins it (`tests/theme.test.ts`).
+- **Printing still goes to white.** The evaluation report is a document people hand over, so
+  `@media print` flips the whole surface set — cards, borders, muted text and the signal colours,
+  not just the page. With no light palette left to fall back on, anything it forgot would print as
+  a dark grey panel.
+
+### The fonts are in the repo on purpose
+
+Inter for body, **Inter Tight** for headings (applied to every `h1`–`h3` by one rule in
+`globals.css`, not by a class on each heading), loaded with `next/font/local` from `app/fonts/`.
+
+Self-hosted rather than `next/font/google` because that fetches at build time, and a project that
+advertises "no external services" should not need the network to rebuild.
+
+**Each face ships twice, and the second file is not a mistake.** Google's `latin` subset does not
+contain U+20B9 — the rupee sign — which appears on nearly every screen here. It lives in
+`latin-ext`, so both subsets are declared and both sit in the Tailwind font stack; the browser
+resolves per glyph, taking ₹ from the second file and everything else from the first. Listing two
+`src` entries in one `@font-face` would *not* do this: multiple sources there are fallbacks for a
+failed download, not for a missing glyph.
+
+---
+
 ## Where to change common things
 
 | I want to… | Edit |
@@ -867,6 +909,12 @@ NDJSON stream protocol, the before/after-first-token fallback split, the spend g
 Ollama adapter's SSE parsing and error classification — and the voice layer's transcript
 assembly and error triage. Only the network boundary and the database are mocked, so the adapter
 wiring and error classification are exercised for real.
+
+`tests/theme.test.ts` reads `app/globals.css` as text, because a palette rewrite fails quietly:
+a token Tailwind maps but the CSS no longer defines resolves to `hsl()` of nothing, which paints
+transparent — an invisible border, or a card that is suddenly the page colour. It also pins the
+one contrast pairing a reasonable-looking edit can break (dark text on the bright accent) and that
+the print block flips every surface.
 
 The batch, the gates and the professor request add four more, all pure: `tests/batches.test.ts`
 pins that the id never carries a year (so a batch rolling over stays a label edit),

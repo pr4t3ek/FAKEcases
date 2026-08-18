@@ -17,7 +17,6 @@ import { formatIndianNumber, toIndianWords, cn } from "@/lib/utils";
 import type { AnswerMode, FeedbackItem } from "@/lib/types";
 import { startAttempt } from "@/app/actions/attempts";
 import { Brand } from "@/components/brand";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -146,8 +145,7 @@ export function EvaluationReport({
           <Button variant="outline" size="sm" onClick={() => window.print()}>
             <Download className="h-4 w-4" /> Export PDF
           </Button>
-          <ThemeToggle />
-        </div>
+          </div>
       </header>
 
       <main className="container max-w-3xl py-8">

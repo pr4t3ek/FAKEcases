@@ -14,7 +14,6 @@ import {
   Layers,
 } from "lucide-react";
 import { Brand } from "@/components/brand";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -50,8 +49,7 @@ function SiteHeader({ isAuthed }: { isAuthed: boolean }) {
           <a href="#features" className="hover:text-foreground">Features</a>
         </nav>
         <div className="flex items-center gap-2">
-          <ThemeToggle />
-          {isAuthed ? (
+            {isAuthed ? (
             <Button asChild size="sm">
               <Link href="/dashboard">Dashboard</Link>
             </Button>

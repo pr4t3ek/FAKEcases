@@ -4,7 +4,6 @@ import type { User } from "@prisma/client";
 import { initialsFor } from "@/lib/avatar";
 import { canHostRooms } from "@/lib/types";
 import { Brand } from "@/components/brand";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { NavLinks } from "@/components/app/nav-links";
 import { AccountMenu } from "@/components/app/account-menu";
 import { JoinRoomDialog } from "@/components/rooms/join-room-dialog";
@@ -35,8 +34,7 @@ export function AppHeader({ user }: { user: User | null }) {
               <RankBadge rank={user!.rank} />
             </div>
           )}
-          <ThemeToggle />
-          {isMember ? (
+            {isMember ? (
             <AccountMenu
               name={user!.name}
               email={user!.email}

@@ -2,79 +2,72 @@
 @tailwind components;
 @tailwind utilities;
 
+/**
+ * One palette, and it is dark.
+ *
+ * There is no light theme and no toggle: this deployment is a single dark
+ * product, so a second palette would be a second thing to keep looking right for
+ * nobody. `<html class="dark">` is still set in app/layout.tsx — a few
+ * components carry `dark:` variants — but nothing reads a `.dark` block here,
+ * because `:root` already *is* the dark one.
+ *
+ * Neutral near-black rather than the navy it used to be (`222 47% 7%`). A hue in
+ * the background is what made the old dark mode read as "the blue app at night";
+ * taking it out is most of what makes this read as a dark product instead.
+ */
+
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
+    --background: 0 0% 4%;
+    --foreground: 0 0% 98%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    /* One step off the page, so a card is a surface rather than an outline. */
+    --card: 0 0% 7%;
+    --card-foreground: 0 0% 98%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover: 0 0% 7%;
+    --popover-foreground: 0 0% 98%;
 
-    --primary: 221 83% 53%;
-    --primary-foreground: 210 40% 98%;
+    /*
+     * The accent, and the one token with a hard constraint attached: it is
+     * bright enough that `--primary-foreground` has to be near-black. Every
+     * filled button, the brand tile and the landing page's closing panel put
+     * that foreground on this background, and white on electric cyan is
+     * unreadable at any size.
+     */
+    --primary: 195 100% 50%;
+    --primary-foreground: 0 0% 4%;
 
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
+    --secondary: 0 0% 12%;
+    --secondary-foreground: 0 0% 98%;
 
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
+    --muted: 0 0% 11%;
+    --muted-foreground: 0 0% 64%;
 
-    --accent: 210 40% 96%;
-    --accent-foreground: 222 47% 11%;
+    --accent: 0 0% 14%;
+    --accent-foreground: 0 0% 98%;
 
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 210 40% 98%;
+    /*
+     * The three signal colours, lifted and desaturated for a near-black ground.
+     * They are not decoration: they carry the readiness badges on every report
+     * screen and the good/bad direction on every simulation metric, so they have
+     * to stay legible against `--card` as well as against the page.
+     */
+    --destructive: 0 84% 62%;
+    --destructive-foreground: 0 0% 4%;
 
-    --success: 142 71% 45%;
-    --success-foreground: 210 40% 98%;
+    --success: 152 76% 50%;
+    --success-foreground: 0 0% 4%;
 
-    --warning: 38 92% 50%;
-    --warning-foreground: 222 47% 11%;
+    --warning: 42 96% 58%;
+    --warning-foreground: 0 0% 4%;
 
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 221 83% 53%;
+    --border: 0 0% 16%;
+    --input: 0 0% 18%;
+    --ring: 195 100% 50%;
 
-    --radius: 0.65rem;
-  }
-
-  .dark {
-    --background: 222 47% 7%;
-    --foreground: 210 40% 98%;
-
-    --card: 222 47% 9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222 47% 9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 217 91% 60%;
-    --primary-foreground: 222 47% 11%;
-
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217 33% 15%;
-    --muted-foreground: 215 20% 65%;
-
-    --accent: 217 33% 17%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 63% 45%;
-    --destructive-foreground: 210 40% 98%;
-
-    --success: 142 65% 45%;
-    --success-foreground: 210 40% 98%;
-
-    --warning: 38 92% 55%;
-    --warning-foreground: 222 47% 11%;
-
-    --border: 217 33% 20%;
-    --input: 217 33% 20%;
-    --ring: 217 91% 60%;
+    /* Sharp. The soft 0.65rem is the other half of what read as a generic SaaS. */
+    --radius: 0.25rem;
   }
 }
 
@@ -86,13 +79,62 @@
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+  /*
+   * Every heading in the app, in one rule rather than a class on each of them.
+   * `font-display` is the tighter grotesk (see app/layout.tsx); the tracking
+   * goes with it, because that face is drawn to be set tight and looks
+   * unfinished at default spacing. Components that already say `tracking-tight`
+   * are now saying it twice, which is harmless.
+   */
+  h1,
+  h2,
+  h3 {
+    @apply font-display tracking-tight;
+  }
 }
 
-/* Print: clean evaluation report as a PDF (browser print-to-PDF) */
+/*
+ * Print: clean evaluation report as a PDF (browser print-to-PDF).
+ *
+ * The whole surface set flips, not just the page. This used to override
+ * `--background` and `--foreground` alone, which was half a fix while a light
+ * theme still existed to fall back on — now there is only the dark palette, so
+ * anything left un-flipped prints as a dark grey panel with grey text on it, and
+ * a candidate's evaluation is a document people actually hand over.
+ *
+ * The signal colours are darkened rather than dropped: a readiness badge is the
+ * first thing read on the page, and it is `--success-foreground` on `--success`,
+ * which has to invert with everything else.
+ */
 @media print {
   :root {
     --background: 0 0% 100%;
     --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 196 100% 33%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 20% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 20% 96%;
+    --muted-foreground: 215 16% 40%;
+    --accent: 210 20% 96%;
+    --accent-foreground: 222 47% 11%;
+
+    --destructive: 0 72% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 152 65% 32%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 40%;
+    --warning-foreground: 0 0% 100%;
+
+    --border: 214 25% 85%;
+    --input: 214 25% 85%;
   }
   body {
     background: #fff;

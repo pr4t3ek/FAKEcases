@@ -9,7 +9,6 @@ import { ArrowLeft, Clock, Minimize2, Pause, Play } from "lucide-react";
 import { panelDefaults, treeFirstPanelDefaults, type AiMode } from "@/lib/config";
 import { setFinalEstimate as persistFinalEstimate } from "@/app/actions/practice";
 import { Brand } from "@/components/brand";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { SubmitResult } from "@/app/actions/submit";
 import { useMediaQuery } from "./use-media-query";
@@ -325,8 +324,7 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
               Sign up to save progress
             </Link>
           )}
-          <ThemeToggle />
-        </div>
+          </div>
       </header>
 
       {isWide ? (
