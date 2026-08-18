@@ -415,6 +415,7 @@ export default async function SimulatePage({
   // source. See lib/sim/redact.ts and tests/sim-redact.test.ts.
   const data: SimulationData = {
     runId: run.id,
+    timeSpentSec: run.timeSpentSec,
     isGuest: user.isGuest,
     phase: run.phase as SimPhase,
     scenario: toClientScenario(scenario, {
