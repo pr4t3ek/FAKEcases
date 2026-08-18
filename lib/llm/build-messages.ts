@@ -10,9 +10,18 @@ import {
 } from "./prompts";
 import type { InterviewerContext, ConvMessage } from "./types";
 
-/** The case's authored facts, appended so the model reports rather than invents. */
-function dataBlock(ctx: InterviewerContext): string {
-  const pack = ctx.dataPack?.length ? renderDataPack(ctx.dataPack) : "";
+/**
+ * The authored facts, appended so the model reports rather than invents.
+ *
+ * `withholding` is passed by each call site rather than read off `ctx.mode`,
+ * because the war-room coach's context is built with `mode: "teacher"`
+ * (`lib/simulation-context.ts`) — sniffing the mode here would quietly change
+ * the coach's prompt as well as the teacher's.
+ */
+function dataBlock(ctx: InterviewerContext, withholding: boolean): string {
+  const pack = ctx.dataPack?.length
+    ? renderDataPack(ctx.dataPack, { withholding })
+    : "";
   return pack ? `\n\n${pack}` : "";
 }
 
@@ -53,7 +62,7 @@ export function buildReplyMessages(ctx: InterviewerContext): {
   maxTokens: number;
 } {
   if (ctx.simulation) {
-    const system = `${simCoachRules(ctx.simulation.mentor)}\n\n${renderSimContextBlock(ctx.simulation)}${dataBlock(ctx)}`;
+    const system = `${simCoachRules(ctx.simulation.mentor)}\n\n${renderSimContextBlock(ctx.simulation)}${dataBlock(ctx, true)}`;
     const messages = ctx.messages.filter((m) => m.role !== "system");
     if (messages.length === 0) {
       messages.push({ role: "user", content: "Walk me through what I got wrong." });
@@ -63,7 +72,7 @@ export function buildReplyMessages(ctx: InterviewerContext): {
     return { system, messages, maxTokens: llmOutput.visibleAnswerTokens };
   }
 
-  const system = `${systemPromptForMode(ctx.mode, ctx.answerMode)}\n\nCurrent state:\n${renderContextBlock(ctx)}${dataBlock(ctx)}${teacherBlock(ctx)}`;
+  const system = `${systemPromptForMode(ctx.mode, ctx.answerMode)}\n\nCurrent state:\n${renderContextBlock(ctx)}${dataBlock(ctx, ctx.mode !== "teacher")}${teacherBlock(ctx)}`;
   const messages = ctx.messages.filter((m) => m.role !== "system");
   // Ensure there is at least one user message to respond to.
   if (messages.length === 0) {
@@ -77,7 +86,7 @@ export function buildHintMessages(
   ctx: InterviewerContext,
   level: number,
 ): { system: string; messages: ConvMessage[]; maxTokens: number } {
-  const system = `${hintSystemPrompt(level, hintConfig.levels, ctx.answerMode)}\n\nCurrent state:\n${renderContextBlock(ctx)}${dataBlock(ctx)}`;
+  const system = `${hintSystemPrompt(level, hintConfig.levels, ctx.answerMode)}\n\nCurrent state:\n${renderContextBlock(ctx)}${dataBlock(ctx, true)}`;
   const messages: ConvMessage[] = ctx.messages.filter((m) => m.role !== "system");
   messages.push({ role: "user", content: `Can I get a hint? (level ${level})` });
   // A hint is 1–3 sentences by its own prompt, so it takes the ordinary budget

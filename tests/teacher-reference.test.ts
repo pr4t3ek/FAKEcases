@@ -110,3 +110,71 @@ describe("questions with no authored answer", () => {
     expect(system).toContain("showing the reasoning and a sample estimate");
   });
 });
+
+/*
+ * The interviewer's posture toward the authored facts is "state one only when
+ * asked, never volunteer, never reveal the list". That is right while the
+ * exercise is running and contradicts Teacher mode, which is told in the same
+ * prompt to walk through population and segmentation — that is, to volunteer
+ * exactly these figures.
+ */
+describe("the data pack's posture", () => {
+  const facts = [
+    { topic: ["india", "population"], fact: "India's population is about 140 crore." },
+    { topic: ["urban", "rural"], fact: "Roughly 35% of India lives in urban areas." },
+  ];
+  const withFacts = (over: Partial<InterviewerContext> = {}) =>
+    ctx({ dataPack: facts, ...over });
+
+  it("keeps the interviewer withholding until asked", () => {
+    const { system } = buildReplyMessages(withFacts({ mode: "interviewer" }));
+    expect(system).toContain("Never volunteer one unprompted");
+  });
+
+  it("lets Teacher mode build the walkthrough out of them", () => {
+    const { system } = buildReplyMessages(withFacts({ mode: "teacher" }));
+    expect(system).not.toContain("Never volunteer one unprompted");
+    expect(system).not.toContain("ONLY when the candidate asks");
+    expect(system).toContain("Use these freely");
+  });
+
+  // The ban that always holds: a made-up figure is worse than no figure in any
+  // mode, and it is the reason the pack is handed over at all.
+  it("never lets any mode invent a figure", () => {
+    for (const mode of ["interviewer", "coach", "teacher"] as const) {
+      const { system } = buildReplyMessages(withFacts({ mode }));
+      expect(system, mode).toContain("never invent a fact that is not here");
+    }
+  });
+
+  // A hint escalates but never states the answer, so it keeps the interviewer's
+  // posture even when the picker is sitting on Teacher.
+  it("does not open the list to a hint asked from inside teacher mode", () => {
+    const { system } = buildHintMessages(withFacts({ mode: "teacher" }), 3);
+    expect(system).toContain("Never volunteer one unprompted");
+    expect(system).not.toContain("Use these freely");
+  });
+
+  /*
+   * The war-room coach's context is built with `mode: "teacher"`
+   * (lib/simulation-context.ts), so a check that read `ctx.mode` instead of
+   * being told would have changed the coach's prompt as a side effect. This is
+   * the test that catches that.
+   */
+  it("leaves the war-room coach's prompt exactly as it was", () => {
+    const { system } = buildReplyMessages(
+      withFacts({
+        mode: "teacher",
+        simulation: {
+          scenarioTitle: "Liquidity", company: "Chalo", trueCauseLabels: ["supply"],
+          causalChain: ["drivers left"], whereTheLeverageWas: "supply",
+          studentDiagnosis: ["demand"], studentAllocation: [], outcomeSummary: "missed",
+          scores: [{ label: "Diagnosis", value: 40 }], strongAnswer: ["Fund supply"],
+          facts: [],
+        } as NonNullable<InterviewerContext["simulation"]>,
+      }),
+    );
+    expect(system).toContain("Never volunteer one unprompted");
+    expect(system).not.toContain("Use these freely");
+  });
+});

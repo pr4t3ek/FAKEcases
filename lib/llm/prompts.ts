@@ -127,13 +127,37 @@ export function renderSimContextBlock(sim: NonNullable<InterviewerContext["simul
   ].join("\n\n");
 }
 
-export function renderDataPack(facts: { topic: string[]; fact: string }[]): string {
+/**
+ * `withholding` is the interviewer's posture, and it is the wrong one for a
+ * teacher.
+ *
+ * The heading used to be the only one: "state one ONLY when the candidate asks
+ * about that topic… never volunteer one unprompted, never reveal the whole
+ * list". That is exactly right while the exercise is running, and it contradicts
+ * Teacher mode outright — the same prompt tells it to walk through population,
+ * segmentation and frequency, which is to say it must volunteer precisely these
+ * figures. A model handed both instructions has to pick one, and which one it
+ * picks is not a thing to leave to chance.
+ *
+ * So the two bans are separated. Never inventing a figure always holds, in both
+ * headings. Never *volunteering* one holds only while the candidate is still
+ * being examined.
+ *
+ * The caller passes this rather than reading `ctx.mode`, because the war-room
+ * coach's context is built with `mode: "teacher"`
+ * (`lib/simulation-context.ts`) and sniffing the mode here would change its
+ * prompt too.
+ */
+export function renderDataPack(
+  facts: { topic: string[]; fact: string }[],
+  { withholding = true }: { withholding?: boolean } = {},
+): string {
   if (!facts.length) return "";
   const lines = facts.map((f) => `- [${f.topic.join(", ")}] ${f.fact}`);
-  return [
-    "DATA YOU HOLD. State one of these ONLY when the candidate asks about that topic, and quote the figure exactly as written. Never volunteer one unprompted, never reveal the whole list, and never invent a fact that is not here:",
-    ...lines,
-  ].join("\n");
+  const heading = withholding
+    ? "DATA YOU HOLD. State one of these ONLY when the candidate asks about that topic, and quote the figure exactly as written. Never volunteer one unprompted, never reveal the whole list, and never invent a fact that is not here:"
+    : "DATA YOU HOLD. Use these freely — they are the figures this walkthrough should be built from. Quote each one exactly as written, prefer them to a number of your own, and never invent a fact that is not here:";
+  return [heading, ...lines].join("\n");
 }
 
 /**
