@@ -190,6 +190,7 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
       messages={messages}
       mode={mode}
       hintsUsed={hintsUsed}
+      initialRemaining={data.initialRemaining}
       disabled={disabled}
       onMessages={setMessages}
       onMode={setMode}

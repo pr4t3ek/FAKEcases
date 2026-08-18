@@ -26,6 +26,12 @@ export type StreamLine =
       fallbackReason?: FallbackReason;
       hintsUsed?: number;
       level?: number;
+      /**
+       * Turns left on this attempt after the one just served, or null when the
+       * per-attempt budget is disabled. Sent on the stream rather than fetched
+       * separately so the composer's counter cannot lag the gate that enforces it.
+       */
+      remaining?: number | null;
     }
   /** The turn failed or was cut short. May follow deltas (partial answer). */
   | { t: "error"; code: LlmErrorCode | "interrupted"; message?: string };

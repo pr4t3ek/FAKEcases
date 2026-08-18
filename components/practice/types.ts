@@ -80,5 +80,11 @@ export interface PracticeData {
   /** Null on numeric attempts; fixed for the life of a qualitative one. */
   treeMode: TreeMode | null;
   hintsUsed: number;
+  /**
+   * Turns left on this attempt at page load, or null when the per-attempt
+   * budget is disabled. Resolved on the server so the counter is correct before
+   * the first message rather than after it.
+   */
+  initialRemaining: number | null;
   timeSpentSec: number;
 }

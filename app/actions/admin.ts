@@ -5,6 +5,8 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { deleteAccount } from "@/lib/account-deletion";
+import { DAILY_SLOTS, pinDaily, unpinDaily, type DailySlot } from "@/lib/daily-unlock";
+import { SETTING_DEFAULTS, saveSetting, type SettingKey } from "@/lib/settings";
 import { PRO_PASS_DAYS, nextProUntil } from "@/lib/billing";
 import { FEEDBACK_STATUSES, USER_ROLES, isUserRole } from "@/lib/types";
 import { isRealUser } from "@/lib/user-segment";
@@ -277,4 +279,106 @@ export async function setFeedbackStatus(id: string, status: string) {
   }
   await db.questionFeedback.update({ where: { id }, data: { status } });
   revalidatePath("/admin");
+}
+
+// ── The daily unlock ────────────────────────────────────────────────────────
+
+const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+function isSlot(value: string): value is DailySlot {
+  return (DAILY_SLOTS as readonly string[]).includes(value);
+}
+
+/**
+ * Pin a question to a calendar day.
+ *
+ * Pinning is always OPTIONAL — `lib/daily-unlock.ts` derives a pick from the
+ * date when no pin exists, so an admin who sets nothing still has a class with
+ * work. This is for the days they care about: the one that follows the lecture,
+ * or the one before the exam.
+ */
+export async function setDailyUnlock(
+  day: string,
+  slot: string,
+  questionId: string,
+): Promise<SaveResult> {
+  await assertAdmin();
+
+  if (!DAY_PATTERN.test(day)) return { ok: false, error: "Pick a date." };
+  if (!isSlot(slot)) return { ok: false, error: "Unknown slot." };
+
+  const question = await db.question.findUnique({
+    where: { id: questionId },
+    select: { type: true },
+  });
+  if (!question) return { ok: false, error: "No such question." };
+  // A war room pinned into the guesstimate slot would unlock, and then confuse
+  // everyone about why the day's "guesstimate" opens a four-phase simulation.
+  if (question.type !== slot) {
+    return { ok: false, error: `That question isn't a ${slot}.` };
+  }
+
+  await pinDaily(day, slot, questionId);
+  revalidatePath("/admin");
+  revalidatePath("/library");
+  revalidatePath("/simulations");
+  return { ok: true };
+}
+
+/** Drop a pin, handing the day back to the automatic rotation. */
+export async function clearDailyUnlock(day: string, slot: string): Promise<SaveResult> {
+  await assertAdmin();
+  if (!isSlot(slot)) return { ok: false, error: "Unknown slot." };
+
+  await unpinDaily(day, slot);
+  revalidatePath("/admin");
+  revalidatePath("/library");
+  revalidatePath("/simulations");
+  return { ok: true };
+}
+
+// ── Tunable limits ──────────────────────────────────────────────────────────
+
+/**
+ * Change one of the turn budgets without a deploy.
+ *
+ * The reason these are editable at all: a class turns out to need more room than
+ * the default allowed, and the alternative is a redeploy between lectures.
+ *
+ * 0 means "disabled" for every one of them, which is why the floor is 0 rather
+ * than 1 — and why the copy in the admin panel has to say so, since a limit of
+ * zero reads like "nobody may send anything".
+ */
+export async function updateLimit(key: string, value: number): Promise<SaveResult> {
+  await assertAdmin();
+
+  if (!Object.prototype.hasOwnProperty.call(SETTING_DEFAULTS, key)) {
+    return { ok: false, error: "Unknown setting." };
+  }
+  if (!Number.isFinite(value) || value < 0) {
+    return { ok: false, error: "Use a whole number, 0 or more." };
+  }
+
+  await saveSetting(key as SettingKey, Math.floor(value));
+  revalidatePath("/admin");
+  return { ok: true };
+}
+
+// ── Bulk lock ───────────────────────────────────────────────────────────────
+
+/**
+ * Lock or unlock the whole catalogue in one action.
+ *
+ * Forty-six clicks is not a control, it is a chore with a mistake in it — and
+ * "lock everything, then let the daily rotation open one a day" is the launch
+ * configuration, so it should be one button rather than an afternoon.
+ */
+export async function setAllFreeTier(freeTier: boolean): Promise<SaveResult> {
+  await assertAdmin();
+
+  await db.question.updateMany({ data: { freeTier } });
+  revalidatePath("/admin");
+  revalidatePath("/library");
+  revalidatePath("/simulations");
+  return { ok: true };
 }

@@ -16,6 +16,9 @@ import { ImportPanel } from "@/components/admin/import-panel";
 import { FeedbackQueue } from "@/components/admin/feedback-queue";
 import { UserDashboard } from "@/components/admin/user-dashboard";
 import { ScenarioManager } from "@/components/admin/scenario-manager";
+import { DailyManager, LimitsCard } from "@/components/admin/daily-manager";
+import { DAILY_SLOTS, dayKey, resolveDaily } from "@/lib/daily-unlock";
+import { loadSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +42,35 @@ export default async function AdminPage() {
     loadAdminScenarios(),
   ]);
 
+  // Seven days from today, each resolved the way a student's gate resolves it —
+  // pin if there is one, otherwise the pick derived from the date. Nothing here
+  // is written; the whole week is computed.
+  const week = Array.from({ length: 7 }, (_, i) =>
+    dayKey(new Date(Date.now() + i * 86_400_000)),
+  );
+  const [weekPicks, limits] = await Promise.all([
+    Promise.all(week.map(async (day) => ({ day, picks: await resolveDaily(day) }))),
+    loadSettings(),
+  ]);
+
+  const titleOf = new Map(questions.map((q) => [q.id, q.title]));
+  const dailyRows = weekPicks.flatMap(({ day, picks }) =>
+    picks.map((p) => ({
+      day,
+      slot: p.slot as string,
+      questionId: p.questionId,
+      questionTitle: p.questionId ? (titleOf.get(p.questionId) ?? "(missing)") : null,
+      pinned: p.pinned,
+    })),
+  );
+
+  const pickable = (type: string) =>
+    questions
+      .filter((q) => q.type === type)
+      .map((q) => ({ id: q.id, title: q.title, type: q.type, difficulty: q.difficulty }));
+
+  const lockedCount = questions.filter((q) => !q.freeTier).length;
+
   return (
     <div className="min-h-screen">
       <AppHeader user={user} />
@@ -53,6 +85,7 @@ export default async function AdminPage() {
           <TabsList className="flex-wrap">
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="questions">Questions</TabsTrigger>
+            <TabsTrigger value="daily">Daily</TabsTrigger>
             <TabsTrigger value="categories">Categories</TabsTrigger>
             <TabsTrigger value="import">Import</TabsTrigger>
             <TabsTrigger value="simulations">
@@ -99,6 +132,17 @@ export default async function AdminPage() {
               }))}
               categories={categories.map((c) => ({ id: c.id, name: c.name }))}
             />
+          </TabsContent>
+
+          <TabsContent value="daily" className="mt-4 space-y-4">
+            <DailyManager
+              rows={dailyRows}
+              guesstimates={pickable("guesstimate")}
+              warRooms={pickable(DAILY_SLOTS[1])}
+              lockedCount={lockedCount}
+              totalCount={questions.length}
+            />
+            <LimitsCard limits={limits} />
           </TabsContent>
 
           <TabsContent value="categories" className="mt-4">

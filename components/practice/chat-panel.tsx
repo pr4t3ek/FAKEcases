@@ -32,6 +32,7 @@ export function ChatPanel({
   messages,
   mode,
   hintsUsed,
+  initialRemaining,
   disabled,
   onMessages,
   onMode,
@@ -41,6 +42,8 @@ export function ChatPanel({
   messages: UiMessage[];
   mode: AiMode;
   hintsUsed: number;
+  /** Turns left when the page loaded; null when the budget is off. */
+  initialRemaining: number | null;
   disabled: boolean;
   onMessages: (updater: (m: UiMessage[]) => UiMessage[]) => void;
   onMode: (m: AiMode) => void;
@@ -216,6 +219,13 @@ export function ChatPanel({
       // Pre-stream rejections (auth, validation, ownership) are still plain JSON.
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
+        // A spent turn budget is the student's own doing and was visible on the
+        // counter, so it is reported as itself rather than as "the interviewer
+        // couldn't respond" — and the counter is corrected, since the server
+        // just told us authoritatively where it stands.
+        if (res.status === 429 && typeof data.remaining === "number") {
+          setRemaining(data.remaining);
+        }
         throw new Error(data.error ?? "Request failed");
       }
 
@@ -224,7 +234,7 @@ export function ChatPanel({
         { id, role: "assistant", content: seed, hintLevel, mode: turnMode, streaming: true },
       ]);
 
-      let result: { hintsUsed?: number } | null = null;
+      let result: { hintsUsed?: number; remaining?: number | null } | null = null;
 
       for await (const line of readNdjson(res)) {
         if (line.t === "delta") {
@@ -245,7 +255,8 @@ export function ChatPanel({
           );
         } else if (line.t === "done") {
           patch(id, (m) => ({ ...m, provider: line.provider, streaming: false }));
-          result = { hintsUsed: line.hintsUsed };
+          result = { hintsUsed: line.hintsUsed, remaining: line.remaining };
+          if (line.remaining !== undefined) setRemaining(line.remaining);
         }
       }
 
@@ -355,6 +366,16 @@ export function ChatPanel({
    * into the interview as well, so switching back showed the solution you had
    * just been handed. See `transcriptFor` for why a hint counts as interview.
    */
+  /**
+   * Turns left on this attempt, or null when the budget is disabled.
+   *
+   * Seeded from the server so it is right before the first message, then kept
+   * current from the `done` line of each stream rather than counted locally —
+   * the number on screen and the number the gate enforces come from the same
+   * query, so they cannot drift.
+   */
+  const [remaining, setRemaining] = useState<number | null>(initialRemaining);
+
   // ── Reading replies aloud ────────────────────────────────────────────────
   const [autoSpeak, setAutoSpeak] = useState(false);
   const [rate, setRate] = useState<number>(speechConfig.defaultRate);
@@ -560,6 +581,27 @@ export function ChatPanel({
           <span className="text-xs text-muted-foreground">
             Hints used: {hintsUsed}/{hintConfig.levels}
           </span>
+          {/* A budget you discover by hitting it is a bug report; one you can see
+              is a constraint you plan around, which is the whole point of having
+              it. Muted until it is nearly gone, then loud enough to change what
+              the next message says. */}
+          {remaining !== null && (
+            <span
+              className={cn(
+                "ml-auto text-xs tabular-nums",
+                remaining === 0
+                  ? "font-medium text-destructive"
+                  : remaining <= 3
+                    ? "font-medium text-warning"
+                    : "text-muted-foreground",
+              )}
+              title="Turns left on this question. Submit when you're ready — you don't have to use them all."
+            >
+              {remaining === 0
+                ? "No turns left — submit your answer"
+                : `${remaining} turn${remaining === 1 ? "" : "s"} left`}
+            </span>
+          )}
         </div>
         {/* Scrolled away from the newest text. The transcript stops following
             while you are up here, so this is how you re-attach it — the same

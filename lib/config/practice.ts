@@ -33,10 +33,43 @@ export const hintConfig = {
  * gemini-2.5-flash-lite. Raise this if you move to a paid tier or a lighter model.
  */
 export const llmBudget = {
-  /** Per-user rolling-window cap. */
+  /**
+   * Turns one student may take on ONE question.
+   *
+   * A budget rather than a guard. An interviewer who will answer forever invites
+   * thinking out loud at the model's expense; a known ceiling makes a candidate
+   * decide what to ask before asking it, which is the skill being practised.
+   *
+   * Unlike the two caps below, exceeding this REFUSES rather than degrading to
+   * the mock — see `lib/llm/budget.ts` for why the two failures deserve
+   * different answers.
+   */
+  messagesPerAttempt: 10,
+
+  /**
+   * Turns a minute, across everything that student is doing.
+   *
+   * Aimed at the held-down Enter key, not at a fast thinker: nobody composes
+   * four considered answers in sixty seconds.
+   */
+  messagesPerMinute: 4,
+
+  /** Per-user rolling-window cap. Degrades to the mock rather than refusing. */
   userMessagesPerHour: 40,
-  /** Deployment-wide daily cap on real provider calls (UTC days). */
-  globalRequestsPerDay: 200,
+
+  /**
+   * Deployment-wide daily cap on real provider calls (UTC days). **0 disables
+   * it**, which is the shipped default.
+   *
+   * Off because the per-student budgets above are the ones that were asked for,
+   * and a shared ceiling punishes the student who arrives at four o'clock for
+   * the enthusiasm of the one who arrived at nine. Kept rather than deleted
+   * because it is the only thing standing between a busy afternoon and an
+   * exhausted provider balance — 100 students at 10 turns is 1,000 requests with
+   * nothing else to stop them. Set it from the admin panel the first time the
+   * spend looks wrong; no deploy needed.
+   */
+  globalRequestsPerDay: 0,
 };
 
 /**

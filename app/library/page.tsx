@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Sparkles } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { isLocked, tierFor, upgradeFor, WALL_LOCKED, WALL_PARAM } from "@/lib/entitlements";
+import { dailyGrantFor } from "@/lib/daily-unlock";
 import { prefillLevel, targetLevelsFor } from "@/lib/profile";
 import { attemptStateByQuestion, listCategories, listQuestions, listSectors } from "@/lib/questions";
 import { answerModeFor, type InterviewLevel } from "@/lib/types";
@@ -53,6 +54,10 @@ export default async function LibraryPage({
   // visitor who hasn't clicked anything yet — `tierFor` reads that as a guest,
   // which is what they are about to become.
   const tier = tierFor(user);
+  // The same grant the server gate uses, so a card that reads as open is one
+  // `startAttempt` will actually open — the disagreement `lib/entitlements.ts`
+  // exists to prevent.
+  const grant = await dailyGrantFor(user);
   const upgrade = upgradeFor(tier);
 
   // Goals shape the first view rather than only sitting on the profile. The
@@ -63,7 +68,7 @@ export default async function LibraryPage({
     sp.level && targets.includes(sp.level as InterviewLevel)
       ? (sp.level as InterviewLevel)
       : null;
-  const openCount = questions.filter((q) => !isLocked(tier, q)).length;
+  const openCount = questions.filter((q) => !isLocked(tier, q, grant)).length;
   const lockedCount = questions.length - openCount;
 
   // One query for the whole grid. Empty for a visitor who has not started
@@ -132,7 +137,7 @@ export default async function LibraryPage({
               <QuestionCard
                 key={q.id}
                 question={q}
-                locked={isLocked(tier, q)}
+                locked={isLocked(tier, q, grant)}
                 upgrade={upgrade}
                 attemptState={attemptState[q.id] ?? null}
               />
