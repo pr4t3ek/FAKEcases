@@ -5,6 +5,7 @@ import { getSessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isLocked, tierFor, upgradeFor } from "@/lib/entitlements";
 import { recommendQuestions } from "@/lib/questions";
+import { dailyGrantFor, resolveDaily } from "@/lib/daily-unlock";
 import { simSummary } from "@/lib/simulations";
 import { evaluationCategories } from "@/lib/config";
 import { AppHeader } from "@/components/app/app-header";
@@ -64,11 +65,15 @@ export default async function DashboardPage() {
   if (!user) redirect("/login");
   if (user.isGuest) redirect("/signup");
 
+  // Resolved before everything else because the recommendation query needs it.
+  // The same grant the gates use, so a card that reads as open here is one
+  // `startAttempt` will actually open.
+  const grant = await dailyGrantFor(user);
+
   const [
     progress,
     submitted,
     inProgress,
-    recommended,
     allAchievements,
     userAchievements,
     simStats,
@@ -87,7 +92,6 @@ export default async function DashboardPage() {
         orderBy: { updatedAt: "desc" },
         take: 3,
       }),
-      recommendQuestions(user.id, tierFor(user), 3),
       db.achievement.findMany(),
       db.userAchievement.findMany({ where: { userId: user.id } }),
       simSummary(user.id),
@@ -96,6 +100,25 @@ export default async function DashboardPage() {
       globalBoard(user.id, "week", "attempt"),
       globalBoard(user.id, "all", "attempt"),
     ]);
+
+  // Today's pair, read through the same resolver the admin panel shows, so the
+  // two surfaces cannot disagree about what today is.
+  const todayPicks = await resolveDaily();
+  const todayIds = todayPicks.map((p) => p.questionId).filter((id): id is string => id !== null);
+  const todayQuestions = todayIds.length
+    ? await db.question.findMany({
+        where: { id: { in: todayIds } },
+        include: { category: true },
+      })
+    : [];
+
+  // Deliberately locked, and deliberately not today's pair: this section is
+  // "what is coming", and repeating a question already shown above it reads as
+  // a bug rather than as emphasis.
+  const recommended = await recommendQuestions(user.id, tierFor(user), 3, grant, {
+    includeLocked: true,
+    exclude: todayIds,
+  });
 
   const stats = {
     totalSolved: progress?.totalSolved ?? 0,
@@ -311,19 +334,57 @@ export default async function DashboardPage() {
         </section>
 
         {/* Recommended */}
+        {/* Today's questions.
+            Above everything else because it is the only thing on this page the
+            student can act on: the catalogue is locked and this pair is what the
+            day's grant opens. Rendered with the same `QuestionCard` as the library
+            rather than a bespoke tile, so "open" means the same thing on both. */}
+        <section className="mb-8">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="font-semibold">Today&apos;s questions</h2>
+            <span className="text-xs text-muted-foreground">
+              New pair every day
+            </span>
+          </div>
+          {todayQuestions.length ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {todayQuestions.map((q) => (
+                <QuestionCard
+                  key={q.id}
+                  question={q}
+                  locked={isLocked(tierFor(user), q, grant)}
+                  upgrade={upgradeFor(tierFor(user))}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+              Nothing is unlocked today yet. Check back shortly.
+            </p>
+          )}
+        </section>
+
         <section>
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-semibold">Recommended for you</h2>
+            <h2 className="font-semibold">Also in the library</h2>
             <Link href="/library" className="text-sm text-primary hover:underline">
               Browse all <ArrowRight className="inline h-3 w-3" />
             </Link>
           </div>
+          {/* Renamed from "Recommended for you", which was a promise the
+              catalogue can no longer keep: with everything but today's pair
+              locked, most of what is recommended is something the student
+              cannot open yet. Naming it honestly turns a row of dead ends into
+              a row of things to look forward to. */}
+          <p className="mb-3 text-sm text-muted-foreground">
+            These open on another day — the rotation reaches every question.
+          </p>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {recommended.map((q) => (
               <QuestionCard
                 key={q.id}
                 question={q}
-                locked={isLocked(tierFor(user), q)}
+                locked={isLocked(tierFor(user), q, grant)}
                 upgrade={upgradeFor(tierFor(user))}
               />
             ))}

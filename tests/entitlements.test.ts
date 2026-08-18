@@ -244,50 +244,35 @@ describe("PRACTICE_TYPES", () => {
   });
 });
 
-describe("the seeded shop window", () => {
-  const practisable = seedQuestions.filter((q) => (q.type ?? "guesstimate") !== "case");
-  const flagged = practisable.filter((q) => q.freeTier);
+describe("the seeded catalogue ships fully locked", () => {
+  const flagged = seedQuestions.filter((q) => q.freeTier);
 
-  function kindOf(q: { type?: string }): "simulation" | "qualitative" | "guesstimate" {
-    if (isSimulation(q.type ?? "guesstimate")) return "simulation";
-    return answerModeFor(q.type ?? "guesstimate") === "qualitative"
-      ? "qualitative"
-      : "guesstimate";
-  }
-
-  it("opens exactly the intended number of each kind to a guest", () => {
-    for (const [kind, expected] of Object.entries(guestSampleSize)) {
-      expect(flagged.filter((q) => kindOf(q) === kind), kind).toHaveLength(expected);
-    }
+  /**
+   * The regression this exists for, and it is a silent one.
+   *
+   * `prisma/seed.ts` re-asserts `freeTier` on UPDATE, deliberately — the seed is
+   * the authority on what ships free. So a single `freeTier: true` left in the
+   * data undoes an admin's "Lock everything" the next time anyone re-seeds to
+   * pick up new content, and nothing says so: the catalogue simply has three
+   * questions open again and the daily unlock stops being the only way in.
+   */
+  it("flags no question as permanently free", () => {
+    expect(flagged.map((q) => q.externalId)).toEqual([]);
   });
 
-  it("flags nothing outside the three kinds the guest tier covers", () => {
-    expect(flagged).toHaveLength(
-      Object.values(guestSampleSize).reduce((a, b) => a + b, 0),
-    );
+  it("matches what the tier table documents", () => {
+    expect(Object.values(guestSampleSize).every((n) => n === 0)).toBe(true);
   });
 
-  it("leaves a guest something to do in every format", () => {
-    // The failure this guards against is a seed edit that locks the library
-    // completely: "Start practising" on the landing page would then lead to a
-    // page of locked cards.
-    for (const kind of Object.keys(guestSampleSize)) {
-      expect(flagged.some((q) => kindOf(q) === kind), kind).toBe(true);
-    }
-  });
-
-  it("gives the guest a case that can actually score Diagnosis", () => {
-    // A case with no declared rootCause works, but scores nothing on the
-    // dimension the format exists to teach — a poor advertisement for it.
-    const guestCase = flagged.find((q) => kindOf(q) === "qualitative");
-    expect(guestCase?.rootCause).toBeTruthy();
-  });
-
-  it("gives the guest an Easy simulation", () => {
-    // The hard scenarios withhold their metric map on purpose. Meeting one cold
-    // as your first contact with the format is the wrong first impression.
-    const guestSim = flagged.find((q) => kindOf(q) === "simulation");
-    expect(guestSim?.difficulty).toBe("Easy");
+  /**
+   * With nothing permanently open, a guest's wall banner is the only thing that
+   * explains what an account buys — so it must not still promise the three
+   * questions the old shop window used to hand out.
+   */
+  it("does not promise a guest questions that are no longer open", () => {
+    const reason = tierAccess.guest.upgrade?.reason ?? "";
+    expect(reason).not.toMatch(/one guesstimate/i);
+    expect(reason).toMatch(/every day/i);
   });
 });
 

@@ -77,6 +77,17 @@ evaluation → sign up to save**. Or sign in with the seeded accounts:
 | Demo user | `demo@estimateiq.app` | `demo1234` |
 | Admin | `admin@estimateiq.app` | `admin1234` |
 
+**Testing a locked catalogue? Not with these two.** `demo` and `prof` are seeded with a live
+Pro pass, re-asserted on every `pnpm db:seed` (`prisma/seed.ts`), and Pro means `content: "all"`
+— the daily unlock never applies to them, so the library correctly looks wide open. Use a plain
+account you signed up yourself, or `admin@estimateiq.app`, which is deliberately left on the
+free tier so both sides of the gate are reachable on a fresh install.
+
+**Deploying publicly?** These passwords are in this file, so change them before the URL goes
+out — `admin` in particular opens the whole admin panel. Changing them by hand sticks:
+`passwordHash` is written only when the account is first created, never on a re-seed. Roles and
+Pro passes *are* re-asserted every time, so a re-seed puts demo and prof back on Pro.
+
 Useful scripts: `pnpm typecheck` · `pnpm build` · `pnpm test` · `pnpm db:reset`.
 
 ---

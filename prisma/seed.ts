@@ -49,6 +49,15 @@ async function main() {
         // Re-asserted on update: the seed is the authority on what ships free,
         // so a re-seed puts the shop window back where the repo says it should
         // be rather than leaving an admin's experiment in place.
+        //
+        // Under the daily unlock the repo says NOTHING ships free, and no row in
+        // `seed-data.ts` carries the flag any more. A permanently-open sample
+        // would be a second answer to "what can this student do today", competing
+        // with the day's grant — and because this line runs on every re-seed, a
+        // single `freeTier: true` left in the data would silently undo an admin's
+        // "Lock everything" the next time anyone re-seeded to pick up new content.
+        // That is exactly what happened. Set the flag from the admin panel if you
+        // want a permanent taster; do not put it back here.
         freeTier: q.freeTier ?? false,
         source: "seed",
       },

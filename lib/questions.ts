@@ -2,6 +2,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { attemptStateFromRows, type AttemptQuestionState } from "@/lib/attempt-state";
 import { tierAccess, type AccessTier } from "@/lib/config";
+import { NO_GRANT, type AccessGrant } from "@/lib/entitlements";
 import { targetLevelsFor } from "@/lib/profile";
 import {
   questionCoreSchema,
@@ -153,13 +154,48 @@ export async function getQuestion(id: string) {
  *
  * `tier` is required rather than defaulted: recommending something the user
  * cannot open is a worse failure than not recommending at all, and a default
- * would make the safe case the one you have to remember to ask for. It is
- * inert today — the dashboard turns guests away at the door — but it is the
- * surface that would start handing out locked cards the moment `free` becomes
- * a restricted tier.
+ * would make the safe case the one you have to remember to ask for. That stopped
+ * being hypothetical when the daily unlock locked the catalogue — this now
+ * really does hand out locked cards, and `grant` is what keeps the two-a-day a
+ * student can actually open at the top of the list.
+ *
+ * `grant` defaults to `NO_GRANT`, matching `canOpen` and `isLocked`, so every
+ * existing caller behaves exactly as it did.
  */
-export async function recommendQuestions(userId: string, tier: AccessTier, limit = 3) {
-  const reachable = tierAccess[tier].content === "all" ? {} : { freeTier: true };
+export interface RecommendOptions {
+  /**
+   * Recommend things the user CANNOT open yet.
+   *
+   * The dashboard's "Also in the library" section wants exactly this: under the
+   * daily unlock almost everything is locked, and a section that only ever
+   * showed openable questions would be empty every day. Rendered as locked
+   * cards, they read as what is coming rather than as dead ends.
+   */
+  includeLocked?: boolean;
+  /**
+   * Ids to leave out. The dashboard passes today's pair, which it has already
+   * shown above — the same question in both sections reads as a bug.
+   */
+  exclude?: readonly string[];
+}
+
+export async function recommendQuestions(
+  userId: string,
+  tier: AccessTier,
+  limit = 3,
+  grant: AccessGrant = NO_GRANT,
+  options: RecommendOptions = {},
+) {
+  // "Free-tier OR granted", not "free-tier" — on a locked catalogue the first
+  // clause matches nothing, and without the second this returns an empty list
+  // and the dashboard recommends the student nothing at all.
+  const reachable = options.includeLocked
+    ? {}
+    : tierAccess[tier].content === "all"
+      ? {}
+      : grant.questionIds.length
+        ? { OR: [{ freeTier: true }, { id: { in: [...grant.questionIds] } }] }
+        : { freeTier: true };
   const targets = await targetLevelsFor(userId);
   const progress = await db.progress.findUnique({ where: { userId } });
   const attempted = await db.attempt.findMany({
@@ -175,6 +211,10 @@ export async function recommendQuestions(userId: string, tier: AccessTier, limit
   const attemptedIds = new Set([
     ...attempted.map((a) => a.questionId),
     ...simmed.map((s) => s.questionId),
+    // Folded in here rather than added as another `where` clause: this set is
+    // already consulted by every preference pass, so one insertion covers them
+    // all and there is no pass left to forget.
+    ...(options.exclude ?? []),
   ]);
 
   let weakCategoryId: string | undefined;
