@@ -1592,20 +1592,253 @@ describe("balance-sheet-leverage: the numbers the primer promises", () => {
   });
 });
 
+describe("capital-allocation-ask: the numbers the primer promises", () => {
+  const scenario = getScenario("capital-allocation-ask");
+  if (!scenario) throw new Error("scenario missing");
+  const v = resolveDrivers(scenario.drivers);
+  const CRORE = 10_000_000;
+
+  /** FY25, as the statement panels publish it. Not modelled — the run starts at FY26. */
+  const FY25 = { revenue: 320, ebitda: 50, ebit: 35, interest: 5, capitalEmployed: 150 };
+
+  it("posts a record EBITDA on a rising EBITDA margin", () => {
+    expect(v.ebitda / CRORE).toBeCloseTo(67.5, 2);
+    expect(v.ebitda / (FY25.ebitda * CRORE) - 1).toBeCloseTo(0.35, 2);
+    // The trap, stated as arithmetic: the margin the CEO is proud of really did
+    // improve. Every operating measure on this board is genuinely better.
+    expect(v.ebitdaMargin).toBeCloseTo(0.169, 3);
+    expect(v.ebitdaMargin).toBeGreaterThan(FY25.ebitda / FY25.revenue);
+  });
+
+  it("turns 35% of EBITDA growth into 14% of EBIT growth", () => {
+    // Depreciation and interest are what EBITDA is defined to exclude, and they
+    // are the entire cost of the expansion.
+    expect(v.depreciation / CRORE).toBeCloseTo(27.5, 2);
+    expect(v.ebit / CRORE).toBeCloseTo(40.0, 2);
+    expect(v.ebit / (FY25.ebit * CRORE) - 1).toBeCloseTo(0.14, 2);
+    expect(v.interest / CRORE).toBeCloseTo(35.0, 1);
+    expect(v.netProfit / CRORE).toBeCloseTo(3.75, 1);
+  });
+
+  it("cuts the return to a third on a margin that barely moved", () => {
+    expect(v.capitalEmployed / CRORE).toBeCloseTo(450.0, 2);
+    expect(v.roce).toBeCloseTo(0.0889, 4);
+    expect(v.ebitMargin).toBeCloseTo(0.100, 3);
+    expect(v.capitalTurnover).toBeCloseTo(0.889, 3);
+    // ROCE is margin × turnover, which is the move the scenario teaches.
+    expect(v.ebitMargin * v.capitalTurnover).toBeCloseTo(v.roce, 6);
+
+    // FY25: 10.9% × 2.13 = 23.3%. The margin fell nine-tenths of a point; the
+    // turnover fell 58%. The problem is entirely in the denominator.
+    const priorMargin = FY25.ebit / FY25.revenue;
+    const priorTurnover = FY25.revenue / FY25.capitalEmployed;
+    expect(priorMargin * priorTurnover).toBeCloseTo(0.233, 3);
+    expect(v.ebitMargin - priorMargin).toBeCloseTo(-0.009, 3);
+    expect(v.capitalTurnover / priorTurnover - 1).toBeCloseTo(-0.583, 2);
+  });
+
+  /**
+   * The assertion this scenario exists for, and the one that separates it from
+   * `balance-sheet-leverage`: the AVERAGE return grades the past, and the
+   * INCREMENTAL return is the forecast for the next rupee. Here they are 8.9%
+   * and 1.7%, and only one of them answers the question on the table.
+   */
+  it("earns 1.7% on the capital the expansion added, against debt at 10.1%", () => {
+    const addedCapital = v.capitalEmployed - FY25.capitalEmployed * CRORE;
+    const addedEbit = v.ebit - FY25.ebit * CRORE;
+    expect(addedCapital / CRORE).toBeCloseTo(300.0, 2);
+    expect(addedEbit / CRORE).toBeCloseTo(5.0, 2);
+
+    const incremental = addedEbit / addedCapital;
+    expect(incremental).toBeCloseTo(0.0167, 4);
+    expect(incremental).toBeLessThan(v.interestRate);
+    // And a long way below the average return, which is what makes quoting the
+    // average a way of not answering the question.
+    expect(incremental).toBeLessThan(v.roce / 4);
+  });
+
+  it("opens with the return below the cost of the capital", () => {
+    expect(v.costOfCapital).toBeCloseTo(0.11, 4);
+    expect(v.roceSpread).toBeCloseTo(-0.0211, 4);
+    expect(v.roceSpread).toBeLessThan(0);
+    expect(v.roceSpread).toBeCloseTo(v.roce - v.costOfCapital, 10);
+  });
+
+  it("breaches the interest-cover covenant that gates the ask", () => {
+    expect(v.interestCover).toBeCloseTo(1.14, 2);
+    expect(v.interestCover).toBeLessThan(2);
+    expect(FY25.ebit / FY25.interest).toBeCloseTo(7.0, 2);
+    expect(v.debtToEquity).toBeCloseTo(3.34, 2);
+  });
+
+  /** The authored balance sheet has to balance, or the panel teaches nonsense. */
+  it("publishes a balance sheet whose two sides agree", () => {
+    const panel = scenario.dashboard.find((p) => p.id === "p-ca-balance");
+    expect(panel?.kind).toBe("statement");
+    if (panel?.kind !== "statement") throw new Error("not a statement panel");
+
+    const lineOf = (label: string) => {
+      const line = panel.sections.flatMap((sec) => sec.lines).find((l) => l.label === label);
+      if (!line) throw new Error(`no line "${label}"`);
+      return line;
+    };
+    for (const period of ["value", "priorValue"] as const) {
+      const assets = lineOf("Total assets")[period]!;
+      const claims = lineOf("Total liabilities and equity")[period]!;
+      expect(assets / CRORE).toBeCloseTo(claims / CRORE, 2);
+    }
+    expect(v.totalAssets / CRORE).toBeCloseTo(lineOf("Total assets").value / CRORE, 2);
+  });
+
+  /**
+   * The trap, and the single assertion that must never be allowed to go soft.
+   *
+   * The acquisition is modelled on the pitch deck's OWN generous numbers, so it
+   * is not a strawman — and it still lowers the north star, because 8.0% is
+   * below the 10.1% it would be borrowed at. Doing more of a thing that returns
+   * less than it costs is how one bad expansion becomes two.
+   */
+  it("makes the acquisition destroy value on the deck's own numbers", () => {
+    const bought = resolveDrivers(scenario.drivers, {
+      longTermDebt: 1.43478,
+      revenue: 1.1375,
+      opex: 1.06162,
+      depreciation: 1.145455,
+    });
+
+    // ₹100 crore of capital for ₹8 crore of operating profit.
+    const addedCapital = bought.capitalEmployed - v.capitalEmployed;
+    const addedEbit = bought.ebit - v.ebit;
+    expect(addedCapital / CRORE).toBeCloseTo(100.0, 1);
+    expect(addedEbit / CRORE).toBeCloseTo(8.0, 1);
+    expect(addedEbit / addedCapital).toBeCloseTo(0.08, 2);
+    expect(addedEbit / addedCapital).toBeLessThan(v.interestRate);
+
+    // So the group return falls rather than rises, and so does the covenant.
+    expect(bought.roce).toBeLessThan(v.roce);
+    expect(bought.roceSpread).toBeLessThan(v.roceSpread);
+    expect(bought.interestCover).toBeLessThan(v.interestCover);
+
+    // And through the engine: funding it is worse than holding the capacity.
+    const iv = scenario.interventions.find((i) => i.id === "iv-acquire")!;
+    const outcome = runOutcome(scenario, [
+      { interventionId: "iv-acquire", sprints: iv.cost.sprints, rupees: iv.cost.rupees },
+    ]);
+    expect(finalValue(outcome.paths, "roceSpread")).toBeLessThan(
+      finalValue(outcome.doNothing, "roceSpread"),
+    );
+  });
+
+  /**
+   * The two defensible-looking moves that fix the ratio they aim at and leave
+   * the return exactly where it was, because capital employed is equity PLUS
+   * debt. Deccan asserts the same property about a different pair; it is
+   * re-pinned here because these are this scenario's decoys and a retune of one
+   * board must not be able to quietly break the other.
+   */
+  it("lets refinancing fix debt service and move the return by nothing", () => {
+    const refi = resolveDrivers(scenario.drivers, {
+      currentPortionLtd: 0.30,
+      longTermDebt: 1.21913,
+      interestRate: 1.0693,
+    });
+    // Debt-neutral by construction: the effects only move it between columns.
+    expect(refi.totalDebt / CRORE).toBeCloseTo(v.totalDebt / CRORE, 1);
+    expect(refi.capitalEmployed / CRORE).toBeCloseTo(v.capitalEmployed / CRORE, 1);
+    expect(refi.roce).toBeCloseTo(v.roce, 6);
+    expect(refi.roceSpread).toBeCloseTo(v.roceSpread, 6);
+    // The repayment cliff goes away — that is what a longer tenor buys.
+    expect(refi.currentPortionLtd).toBeLessThan(v.currentPortionLtd * 0.4);
+    // And interest cover, which never contained principal, gets slightly WORSE,
+    // so the covenant gating the acquisition is untouched by the refinancing.
+    expect(refi.interestCover).toBeLessThan(v.interestCover);
+    expect(refi.interestCover).toBeLessThan(2);
+  });
+
+  it("lets the rights issue clear the gearing and move the return by zero", () => {
+    const rights = resolveDrivers(scenario.drivers, {
+      equity: 1.77071,
+      longTermDebt: 0.65217,
+    });
+    expect(rights.debtToEquity).toBeCloseTo(1.45, 2);
+    expect(rights.debtToEquity).toBeLessThan(v.debtToEquity / 2);
+    expect(rights.interestCover).toBeGreaterThan(v.interestCover);
+    expect(rights.netProfit).toBeGreaterThan(v.netProfit);
+    // ₹80 crore crossed from one side of capital employed to the other.
+    expect(rights.capitalEmployed / CRORE).toBeCloseTo(v.capitalEmployed / CRORE, 1);
+    expect(rights.roce).toBeCloseTo(v.roce, 6);
+    expect(rights.roceSpread).toBeCloseTo(v.roceSpread, 6);
+  });
+
+  it("beats every decoy by working on the capital turnover", () => {
+    const best = runOutcome(scenario, scenario.bestAllocation);
+    expect(finalValue(best.paths, "roceSpread")).toBeGreaterThan(0);
+    expect(finalValue(best.paths, "capitalTurnover")).toBeGreaterThan(
+      finalValue(best.doNothing, "capitalTurnover"),
+    );
+
+    for (const id of [
+      "iv-acquire",
+      "iv-refinance",
+      "iv-equity",
+      "iv-price-up",
+      "iv-working-capital",
+    ]) {
+      const iv = scenario.interventions.find((i) => i.id === id)!;
+      const alone = runOutcome(scenario, [
+        { interventionId: id, sprints: iv.cost.sprints, rupees: iv.cost.rupees },
+      ]);
+      expect(finalValue(alone.paths, "roceSpread"), `${id} beats the answer`).toBeLessThan(
+        finalValue(best.paths, "roceSpread"),
+      );
+    }
+  });
+
+  it("defines the capital vocabulary before deciding a capital question", () => {
+    const terms = scenario.teaching!.primer.terms.map((t) => t.term);
+    for (const expected of [
+      "Capital employed",
+      "ROCE",
+      "Cost of capital",
+      "The spread",
+      "Incremental return on capital",
+      "Interest cover",
+      "Debt service cover",
+      "Capital turnover",
+      "Margin x turnover",
+    ]) {
+      expect(terms).toContain(expected);
+    }
+  });
+
+  it("keeps the metric map hidden, because the shape is the answer", () => {
+    expect(scenario.teaching?.showMetricMap).toBe(false);
+  });
+});
+
 /**
- * The finance track as a track, rather than as three scenarios that happen to
+ * The finance track as a track, rather than as four scenarios that happen to
  * be about money. These are the promises the sequence makes.
  */
 describe("the finance track", () => {
-  const slugs = ["pnl-profit-squeeze", "cash-conversion-cycle", "balance-sheet-leverage"];
+  const slugs = [
+    "pnl-profit-squeeze",
+    "cash-conversion-cycle",
+    "balance-sheet-leverage",
+    "capital-allocation-ask",
+  ];
 
   it("runs easiest first and stays contiguous in the library", () => {
     const order = listScenarios().map((s) => s.slug);
     const at = slugs.map((s) => order.indexOf(s));
     expect(at.every((i) => i >= 0)).toBe(true);
-    expect(at[1]).toBe(at[0] + 1);
-    expect(at[2]).toBe(at[1] + 1);
-    expect(slugs.map((s) => getScenario(s)!.difficulty)).toEqual(["Easy", "Easy", "Medium"]);
+    for (let i = 1; i < at.length; i++) expect(at[i]).toBe(at[i - 1] + 1);
+    expect(slugs.map((s) => getScenario(s)!.difficulty)).toEqual([
+      "Easy",
+      "Easy",
+      "Medium",
+      "Hard",
+    ]);
   });
 
   it("is debriefed by a CFO rather than by a product leader", () => {
@@ -1626,6 +1859,10 @@ describe("the finance track", () => {
     expect(kindsFor("pnl-profit-squeeze")).toContain("pnl");
     expect(kindsFor("cash-conversion-cycle")).toContain("cashflow");
     expect(kindsFor("balance-sheet-leverage")).toContain("balance");
+    // The capstone shows both, because deciding whether to commit the next
+    // rupee needs the trading year and the capital behind it in one place.
+    expect(kindsFor("capital-allocation-ask")).toContain("pnl");
+    expect(kindsFor("capital-allocation-ask")).toContain("balance");
   });
 });
 

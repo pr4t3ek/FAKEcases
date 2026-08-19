@@ -610,12 +610,20 @@ guesstimate and implied the two were interchangeable. They have their own leader
 reason: a war room is scored on a different rubric, so adding its score to a practice score — which
 the cumulative board used to do — produced a number that measured nothing.
 
-Nineteen scenarios ship today, easiest first — which is the order the library shows them in. Eleven
+Twenty scenarios ship today, easiest first — which is the order the library shows them in, except
+that a track stays contiguous rather than being broken up to keep the difficulties in line. Eleven
 teach product and marketing economics; four are an **analytics track**, filed under Data &
-Analytics; three are a **finance track**, one per financial statement, filed under Finance; and the
-last is the catalogue's only **turnaround**, a different exercise from everything above it. A
-twentieth simulation, the buyback contract, runs on its own multi-period simulator rather than as a
-war room — see below.
+Analytics; four are a **finance track**, filed under Finance — one per financial statement, then a
+capstone on the decision the three of them equip you to take; and the last is the catalogue's only
+**turnaround**, a different exercise from everything above it. A twenty-first simulation, the
+buyback contract, runs on its own multi-period simulator rather than as a war room — see below.
+
+The **finance track** is a sequence too. Kirti teaches a candidate to read a P&L; Nirmal shows them
+that statement cannot say whether the company can pay anybody; Deccan adds the capital neither of
+the first two can see. Pragati is the capstone, and the only one whose question is about a decision
+that has not been taken yet — which is why it turns on the *incremental* return on capital rather
+than the average return Deccan teaches. An average return grades what a company has already built;
+an incremental one is the forecast for the next rupee, and they can point in opposite directions.
 
 The **analytics track** is a sequence rather than four scenarios that share a subject. Rangoli
 teaches a candidate to read one comparison; Sahyog shows them that a comparison between groups
@@ -637,6 +645,7 @@ together at the easy end, ahead of the finance block.
 | **Kirti Apparel** — revenue up 22%, profit down 62% | Easy | Reading a P&L: revenue, COGS, gross margin, opex, EBITDA, depreciation, net profit — and that a consolidated statement is an average of two businesses until you split it like-for-like |
 | **Nirmal Pipes** — a record profit and no money for payroll | Easy | Cash flow and working capital: DSO, DIO, DPO, the cash conversion cycle, and the one plank bridging EBITDA to cash |
 | **Deccan Ceramics** — record EBITDA, and the bank wants a word | Medium | The balance sheet: current and quick ratios, debt to equity, interest cover, ROCE and the DuPont split — and that refinancing and a rights issue both fix a ratio and move the return by nothing |
+| **Pragati Precision** — record EBITDA, and the CEO wants a hundred crore more | Hard | Capital allocation: incremental return against average return, cost of capital and the economic spread, interest cover against debt service cover — and that the number which decides the next rupee is not the one on the pitch deck |
 | **Suraksha Home** — match the competitor's price cut? | Medium | Contribution per unit, break-even volume on a price change, price elasticity, trade promotion |
 | **Ujala Solar** — planned 10.8 lakh, sold 4.3 lakh | Medium | TAM / SAM / SOM, and channel economics on net rather than gross revenue |
 | **Ghar Sewa** — both sides grew, both sides are angry | Medium | Match rate, liquidity, utilisation, GMV, take rate — and that a platform-level average hides the only markets that matter |
@@ -657,7 +666,9 @@ primer that opens before the run and reopens from the header, and a **metric map
 driver graph showing how every number is built from the ones under it, with live values. Showing
 the map is opt-in per scenario, and that gate matters in both directions — on NukkadEats, Lekha and
 Setu the *shape* of the model is part of what the candidate has to work out, so the map stays hidden
-while the primer still ships.
+while the primer still ships. Pragati hides it for the same reason: on the finance capstone, finding
+that a return splits into a margin and a turnover — and that the marginal one is a different number
+from the average — is the exercise.
 
 `difficulty` is enforced rather than promised: `validateScenario` rejects an `Easy` scenario with
 more than six drilldowns, more than five interventions, a cause tree deeper than one level, a
