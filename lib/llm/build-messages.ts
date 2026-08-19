@@ -4,6 +4,8 @@ import {
   renderDataPack,
   renderTeacherReference,
   renderSimContextBlock,
+  renderJudgeBlock,
+  FRAMEWORK_JUDGE_RULES,
   systemPromptForMode,
   hintSystemPrompt,
   simCoachRules,
@@ -61,6 +63,21 @@ export function buildReplyMessages(ctx: InterviewerContext): {
    */
   maxTokens: number;
 } {
+  /*
+   * The structure judge replaces the prompt rather than extending it — it is
+   * grading a finished tree, not interviewing anyone — so it branches ahead of
+   * everything else and takes no data pack, no history and no reference
+   * solution. Its budget is the ordinary one: the reply is two lines by
+   * construction.
+   */
+  if (ctx.judge) {
+    return {
+      system: `${FRAMEWORK_JUDGE_RULES}\n\n${renderJudgeBlock(ctx.judge)}`,
+      messages: [{ role: "user", content: "Score this framework." }],
+      maxTokens: llmOutput.visibleAnswerTokens,
+    };
+  }
+
   if (ctx.simulation) {
     const system = `${simCoachRules(ctx.simulation.mentor)}\n\n${renderSimContextBlock(ctx.simulation)}${dataBlock(ctx, true)}`;
     const messages = ctx.messages.filter((m) => m.role !== "system");
