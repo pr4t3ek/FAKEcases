@@ -1,5 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
-import { env } from "@/lib/config";
+import { env, withReasoningHeadroom } from "@/lib/config";
 import { buildReplyMessages, buildHintMessages } from "./build-messages";
 import { classifyGeminiError, LlmError } from "./errors";
 import type { ConvMessage, InterviewerContext, LlmAdapter } from "./types";
@@ -7,10 +7,24 @@ import type { ConvMessage, InterviewerContext, LlmAdapter } from "./types";
 export const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
 /**
- * Teacher mode writes a full structured walkthrough; 512 (what the older
- * adapters used) truncates it mid-sentence.
+ * The ceiling for one turn, which depends on whether this model is thinking.
+ *
+ * Gemini bills reasoning against `maxOutputTokens`, so the two cases are
+ * genuinely different budgets rather than one number with a margin. A flash
+ * model has thinking switched off outright (`thinkingConfigFor`), so the whole
+ * allowance goes to the answer. A Pro model cannot have it switched off, so it
+ * needs the same headroom NVIDIA does — and gets it here for the first time,
+ * which fixes the truncation this adapter was previously one long deliberation
+ * away from.
+ *
+ * `answerTokens` arrives from `buildReplyMessages`, so Teacher mode's
+ * walkthrough is sized as a walkthrough and a Socratic turn as a question.
  */
-const MAX_OUTPUT_TOKENS = 1024;
+function maxOutputTokensFor(model: string, answerTokens: number): number {
+  return thinkingConfigFor(model) === undefined
+    ? withReasoningHeadroom(answerTokens)
+    : answerTokens;
+}
 
 /**
  * Synthetic opener used when the stored history starts with an assistant turn.
@@ -86,7 +100,11 @@ function thinkingConfigFor(model: string): { thinkingBudget: number } | undefine
   return /-pro\b/.test(model) ? undefined : { thinkingBudget: 0 };
 }
 
-async function* run(system: string, messages: ConvMessage[]): AsyncGenerator<string> {
+async function* run(
+  system: string,
+  messages: ConvMessage[],
+  answerTokens: number,
+): AsyncGenerator<string> {
   const apiKey = env.llm.geminiApiKey;
   if (!apiKey) {
     throw new LlmError("provider_error", "GEMINI_API_KEY not set");
@@ -101,7 +119,7 @@ async function* run(system: string, messages: ConvMessage[]): AsyncGenerator<str
       contents: toGeminiContents(messages),
       config: {
         systemInstruction: system,
-        maxOutputTokens: MAX_OUTPUT_TOKENS,
+        maxOutputTokens: maxOutputTokensFor(model, answerTokens),
         thinkingConfig: thinkingConfigFor(model),
       },
     });
@@ -121,11 +139,11 @@ export const geminiAdapter: LlmAdapter = {
     return resolveModel();
   },
   reply(ctx: InterviewerContext) {
-    const { system, messages } = buildReplyMessages(ctx);
-    return run(system, messages);
+    const { system, messages, maxTokens } = buildReplyMessages(ctx);
+    return run(system, messages, maxTokens);
   },
   hint(ctx: InterviewerContext, level: number) {
-    const { system, messages } = buildHintMessages(ctx, level);
-    return run(system, messages);
+    const { system, messages, maxTokens } = buildHintMessages(ctx, level);
+    return run(system, messages, maxTokens);
   },
 };

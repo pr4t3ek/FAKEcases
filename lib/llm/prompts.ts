@@ -127,12 +127,94 @@ export function renderSimContextBlock(sim: NonNullable<InterviewerContext["simul
   ].join("\n\n");
 }
 
-export function renderDataPack(facts: { topic: string[]; fact: string }[]): string {
+/**
+ * `withholding` is the interviewer's posture, and it is the wrong one for a
+ * teacher.
+ *
+ * The heading used to be the only one: "state one ONLY when the candidate asks
+ * about that topic… never volunteer one unprompted, never reveal the whole
+ * list". That is exactly right while the exercise is running, and it contradicts
+ * Teacher mode outright — the same prompt tells it to walk through population,
+ * segmentation and frequency, which is to say it must volunteer precisely these
+ * figures. A model handed both instructions has to pick one, and which one it
+ * picks is not a thing to leave to chance.
+ *
+ * So the two bans are separated. Never inventing a figure always holds, in both
+ * headings. Never *volunteering* one holds only while the candidate is still
+ * being examined.
+ *
+ * The caller passes this rather than reading `ctx.mode`, because the war-room
+ * coach's context is built with `mode: "teacher"`
+ * (`lib/simulation-context.ts`) and sniffing the mode here would change its
+ * prompt too.
+ */
+export function renderDataPack(
+  facts: { topic: string[]; fact: string }[],
+  { withholding = true }: { withholding?: boolean } = {},
+): string {
   if (!facts.length) return "";
   const lines = facts.map((f) => `- [${f.topic.join(", ")}] ${f.fact}`);
+  const heading = withholding
+    ? "DATA YOU HOLD. State one of these ONLY when the candidate asks about that topic, and quote the figure exactly as written. Never volunteer one unprompted, never reveal the whole list, and never invent a fact that is not here:"
+    : "DATA YOU HOLD. Use these freely — they are the figures this walkthrough should be built from. Quote each one exactly as written, prefer them to a number of your own, and never invent a fact that is not here:";
+  return [heading, ...lines].join("\n");
+}
+
+/**
+ * The authored answer, for Teacher mode and nothing else.
+ *
+ * Teacher mode is the one mode whose job is to work the problem, and until now
+ * it was asked to do that with no anchor at all: `sampleSolution`, the ideal
+ * range and `betterApproach` all reached `QuestionContext` and none of them
+ * reached the prompt. So the model derived a fresh answer every time, and the
+ * same question taught a different number on each retry — while the evaluation
+ * screen went on showing the one authored figure as "Sample solution". Handing
+ * it the stored answer is what makes the lesson stable, and it is the same
+ * posture as `renderDataPack`: the question row holds the truth, not the model.
+ *
+ * **Kept out of `renderContextBlock` on purpose.** That block is shared with
+ * `buildHintMessages`, and a hint prompt is explicitly forbidden from stating
+ * the final number — a candidate sitting in Teacher mode who then asks for a
+ * hint would otherwise have the answer handed to the hint prompt as well. This
+ * is appended by `buildReplyMessages` alone, only when the mode is `teacher`,
+ * so no other prompt in the app can see it.
+ *
+ * The instruction travels with the data rather than sitting in `MODE_PROMPTS`,
+ * and that is deliberate: `sampleSolution` and `betterApproach` both default to
+ * `""` in the schema, so a mode prompt that said "teach toward the reference
+ * below" would be promising a block that an unauthored question never produces.
+ * Keeping the two together means this is purely additive — a question with
+ * nothing authored builds a byte-identical prompt to the one it built before.
+ */
+export function renderTeacherReference(ctx: InterviewerContext): string {
+  const q = ctx.question;
+  const numeric = ctx.answerMode !== "qualitative";
+  const lines: string[] = [];
+
+  if (q.sampleSolution.trim()) {
+    lines.push(
+      `- ${numeric ? "Sample solution" : "Sample recommendation"}: ${q.sampleSolution.trim()}`,
+    );
+  }
+  if (numeric && q.idealLow != null && q.idealHigh != null) {
+    const unit = q.unit?.trim() ? ` ${q.unit.trim()}` : "";
+    lines.push(
+      `- Accepted range: ${q.idealLow.toLocaleString("en-IN")} to ${q.idealHigh.toLocaleString("en-IN")}${unit}`,
+    );
+  }
+  if (q.betterApproach.trim()) {
+    lines.push(`- The approach to demonstrate: ${q.betterApproach.trim()}`);
+  }
+  if (!lines.length) return "";
+
+  const close = numeric
+    ? "Finish on the sample solution's figure, inside the accepted range where one is given, and choose your intermediate assumptions so the arithmetic reaches it. Never present a different final number."
+    : "Close on the sample recommendation. Never land on a different one.";
+
   return [
-    "DATA YOU HOLD. State one of these ONLY when the candidate asks about that topic, and quote the figure exactly as written. Never volunteer one unprompted, never reveal the whole list, and never invent a fact that is not here:",
+    "REFERENCE SOLUTION — the authored answer for this question. It is the same on every retry, so teach toward it rather than deriving a new one, and never say that you were given it:",
     ...lines,
+    close,
   ].join("\n");
 }
 

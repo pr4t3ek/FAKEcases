@@ -5,7 +5,11 @@ import type { InterviewerContext, LlmAdapter } from "./types";
 const DEFAULT_MODEL = "gpt-4o-mini";
 const API_URL = "https://api.openai.com/v1/chat/completions";
 
-async function call(system: string, messages: { role: string; content: string }[]): Promise<string> {
+async function call(
+  system: string,
+  messages: { role: string; content: string }[],
+  maxTokens: number,
+): Promise<string> {
   const apiKey = env.llm.openaiApiKey;
   if (!apiKey) throw new Error("OPENAI_API_KEY not set");
 
@@ -17,7 +21,7 @@ async function call(system: string, messages: { role: string; content: string }[
     },
     body: JSON.stringify({
       model: env.llm.model ?? DEFAULT_MODEL,
-      max_tokens: 512,
+      max_tokens: maxTokens,
       messages: [
         { role: "system", content: system },
         ...messages.map((m) => ({
@@ -51,11 +55,11 @@ export const openaiAdapter: LlmAdapter = {
     return env.llm.model?.trim() || DEFAULT_MODEL;
   },
   reply(ctx: InterviewerContext) {
-    const { system, messages } = buildReplyMessages(ctx);
-    return once(call(system, messages));
+    const { system, messages, maxTokens } = buildReplyMessages(ctx);
+    return once(call(system, messages, maxTokens));
   },
   hint(ctx: InterviewerContext, level: number) {
-    const { system, messages } = buildHintMessages(ctx, level);
-    return once(call(system, messages));
+    const { system, messages, maxTokens } = buildHintMessages(ctx, level);
+    return once(call(system, messages, maxTokens));
   },
 };

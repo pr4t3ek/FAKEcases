@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { completeOnboarding, skipOnboarding } from "@/app/actions/user";
+import { completeOnboarding } from "@/app/actions/user";
 import type { InterviewLevel } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -17,16 +17,18 @@ import {
 /**
  * The two questions asked after signing up.
  *
- * **One field is required and the rest are not**, which is a change from "skip
- * anything": the batch appears on every leaderboard row beside the college, so
- * an unanswered one is a row nobody can read. "Skip for now" is hidden until a
- * batch is picked rather than disabled with an explanation, because a button
- * that refuses is worse than a button that is not offered yet — and
- * `skipOnboarding` refuses the same case server-side, so hiding it is a
- * courtesy rather than the control.
+ * **There is no way out of the step but through it**, and so no skip button.
+ * The batch appears on every leaderboard row, so an unanswered one is a row
+ * nobody can read; it was already the one answer that could not be given up,
+ * and offering to dismiss a step that then refuses to be dismissed only put a
+ * control on screen for the state it could not serve. `completeOnboarding` is
+ * the single exit, and someone who closes the tab is sent back here by
+ * `requireBatch` rather than landing anywhere useful.
  *
- * Everything else keeps the original posture: someone who signed up to try a
- * case gets to go and try the case, and the dashboard nudge asks once more.
+ * **One field is required and the rest are not.** Profession and target levels
+ * can be left as they are — Finish saves whatever has been filled in — so
+ * someone who signed up to try a case still gets to go and try the case, and
+ * the dashboard nudge asks once more for what this didn't get.
  *
  * `initialBatch` is passed because this step is now also where an existing
  * account is sent when it has no batch — the pre-batch accounts that
@@ -63,13 +65,6 @@ export function WelcomeSteps({
     });
   }
 
-  function skip() {
-    startTransition(async () => {
-      await skipOnboarding();
-      router.push("/dashboard");
-    });
-  }
-
   return (
     <Card className="space-y-6 p-6">
       <div>
@@ -81,7 +76,7 @@ export function WelcomeSteps({
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
           {step === 0
-            ? "Two quick questions so the library knows who it's talking to. Your batch is the only one we need — skip the rest."
+            ? "Two quick questions so the library knows who it's talking to. Your batch is the only one we need — the rest are optional."
             : "Pick the interviews you're aiming at. The library sorts to these first, and the dashboard recommends against them."}
         </p>
       </div>
@@ -95,35 +90,25 @@ export function WelcomeSteps({
         <TargetLevels value={targetLevels} onChange={setTargetLevels} />
       )}
 
-      <div className="flex items-center justify-between gap-3">
-        {/* Hidden rather than disabled while the required answer is missing —
-            and it sits in an empty span so the primary button stays where it
-            was, on the right. */}
-        <span>
-          {batch && (
-            <Button variant="ghost" onClick={skip} disabled={pending}>
-              Skip for now
-            </Button>
-          )}
-        </span>
-
-        <div className="flex gap-2">
-          {step === 1 && (
-            <Button variant="outline" onClick={() => setStep(0)} disabled={pending}>
-              Back
-            </Button>
-          )}
-          {step === 0 ? (
-            <Button onClick={() => setStep(1)} disabled={pending || !batch}>
-              Next <ArrowRight className="h-4 w-4" />
-            </Button>
-          ) : (
-            <Button onClick={finish} disabled={pending}>
-              {pending && <Loader2 className="h-4 w-4 animate-spin" />}
-              Finish
-            </Button>
-          )}
-        </div>
+      {/* One group, right-aligned. The row used to be `justify-between` to hold
+          the skip button out on the left; with it gone there is nothing to
+          space against. */}
+      <div className="flex justify-end gap-2">
+        {step === 1 && (
+          <Button variant="outline" onClick={() => setStep(0)} disabled={pending}>
+            Back
+          </Button>
+        )}
+        {step === 0 ? (
+          <Button onClick={() => setStep(1)} disabled={pending || !batch}>
+            Next <ArrowRight className="h-4 w-4" />
+          </Button>
+        ) : (
+          <Button onClick={finish} disabled={pending}>
+            {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+            Finish
+          </Button>
+        )}
       </div>
     </Card>
   );

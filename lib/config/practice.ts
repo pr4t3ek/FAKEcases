@@ -73,6 +73,88 @@ export const llmBudget = {
 };
 
 /**
+ * How much the model may write in one turn.
+ *
+ * Every prompt in the app already asks for brevity — `BASE_INTERVIEWER_RULES`
+ * says "keep responses short (2–4 sentences)", `simCoachRules` asks for "2–4
+ * short bullets" — and until now nothing enforced it. The ceiling that would was
+ * set five different ways across the adapters (512, 512, 1024, 1024, 3072), none
+ * of them from config, so a model that ignored the instruction ran to whichever
+ * limit its adapter happened to carry. This is that limit, in one place.
+ *
+ * **Two numbers rather than one, because a flat cap would break reasoning
+ * models.** They bill their private deliberation against the same ceiling as the
+ * answer, and `lib/llm/plain-text.ts` strips those `<think>` blocks before render
+ * — so the student never sees them, but they are paid for and they consume the
+ * budget the answer needs. NVIDIA learned this the hard way at 1024: a Nemotron
+ * turn spent the whole allowance deliberating and the reply was cut off before
+ * the answer began (see `lib/llm/nvidia.ts`, and the test that pins it).
+ *
+ * So an adapter asks for `visibleAnswerTokens`, plus `reasoningHeadroomTokens`
+ * when it cannot prove the model's thinking is off. Gemini can prove it for
+ * non-Pro models (`thinkingBudget: 0`); NVIDIA and Ollama cannot, so they keep
+ * the room.
+ */
+export const llmOutput = {
+  /**
+   * An ordinary turn: a Socratic question, a coach's nudge, a hint, or the war
+   * room's 2–4 bullets. Sized generously against what those prompts ask for —
+   * four bullets of two short sentences is roughly 215 tokens — so this bites on
+   * a runaway reply and never on a well-behaved one.
+   *
+   * Raise this, and nothing else, if ordinary replies arrive cut off mid-word.
+   */
+  visibleAnswerTokens: 384,
+
+  /**
+   * Teacher mode, which is a different length of thing entirely.
+   *
+   * It is the one mode asked to *work the problem* — population, segmentation,
+   * frequency, quantity, and a worked estimate that has to land on the authored
+   * sample solution — so it writes a structured walkthrough where every other
+   * mode writes a question. Both `gemini.ts` and `ollama.ts` carried the same
+   * warning before this budget existed: **512 truncates Teacher mode
+   * mid-sentence**, which is why they sat at 1024 while the older adapters sat
+   * at 512. That number is restored here rather than rediscovered.
+   *
+   * Kept as its own budget rather than lifting `visibleAnswerTokens` to match,
+   * because that would hand the interviewer a ceiling four times what its own
+   * prompt asks for and give a runaway Socratic turn somewhere to run to.
+   */
+  teacherAnswerTokens: 1024,
+
+  /**
+   * Extra room for a model that thinks before it answers.
+   *
+   * The sum is what matters: 384 + 2688 = 3072, which is the ceiling NVIDIA
+   * arrived at empirically and `tests/nvidia.test.ts` holds it to. Kept as an
+   * addend rather than a second absolute so the two move together — lifting the
+   * answer budget should not quietly shrink the room a reasoning model has to
+   * reach it.
+   */
+  reasoningHeadroomTokens: 2688,
+};
+
+/**
+ * The answer budget for one turn.
+ *
+ * Teacher mode explains; every other mode asks. Sizing them the same is what
+ * made a walkthrough arrive cut in half.
+ */
+export function answerTokensForMode(mode: string): number {
+  return mode === "teacher" ? llmOutput.teacherAnswerTokens : llmOutput.visibleAnswerTokens;
+}
+
+/**
+ * The same budget, plus room for a model whose private reasoning is billed
+ * against the same ceiling. For an ordinary turn this is 3072 — the number
+ * NVIDIA arrived at empirically, which `tests/nvidia.test.ts` holds it to.
+ */
+export function withReasoningHeadroom(answerTokens: number): number {
+  return answerTokens + llmOutput.reasoningHeadroomTokens;
+}
+
+/**
  * Voice input for the chat composer.
  *
  * `NEXT_PUBLIC_` because the recogniser is chosen in the browser — a server-only

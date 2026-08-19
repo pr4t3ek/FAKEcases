@@ -5,7 +5,11 @@ import type { InterviewerContext, LlmAdapter } from "./types";
 const DEFAULT_MODEL = "claude-sonnet-4-5";
 const API_URL = "https://api.anthropic.com/v1/messages";
 
-async function call(system: string, messages: { role: string; content: string }[]): Promise<string> {
+async function call(
+  system: string,
+  messages: { role: string; content: string }[],
+  maxTokens: number,
+): Promise<string> {
   const apiKey = env.llm.anthropicApiKey;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set");
 
@@ -18,7 +22,7 @@ async function call(system: string, messages: { role: string; content: string }[
     },
     body: JSON.stringify({
       model: env.llm.model ?? DEFAULT_MODEL,
-      max_tokens: 512,
+      max_tokens: maxTokens,
       system,
       messages: messages.map((m) => ({
         role: m.role === "assistant" ? "assistant" : "user",
@@ -53,11 +57,11 @@ export const anthropicAdapter: LlmAdapter = {
     return env.llm.model?.trim() || DEFAULT_MODEL;
   },
   reply(ctx: InterviewerContext) {
-    const { system, messages } = buildReplyMessages(ctx);
-    return once(call(system, messages));
+    const { system, messages, maxTokens } = buildReplyMessages(ctx);
+    return once(call(system, messages, maxTokens));
   },
   hint(ctx: InterviewerContext, level: number) {
-    const { system, messages } = buildHintMessages(ctx, level);
-    return once(call(system, messages));
+    const { system, messages, maxTokens } = buildHintMessages(ctx, level);
+    return once(call(system, messages, maxTokens));
   },
 };
