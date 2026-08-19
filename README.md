@@ -129,6 +129,10 @@ It is metered like any hosted provider, so the spend guards in `lib/config/pract
 you were hoping to reach NVIDIA by pointing `OLLAMA_BASE_URL` at it, that does not work: the
 Ollama adapter deliberately sends no `authorization` header, and NVIDIA needs a bearer token.
 
+To keep sessions running on a local model when NVIDIA is out of credit, rate limited or returning
+nothing, put one behind it with `LLM_FALLBACK_PROVIDER=ollama` — see
+[Keeping a second engine behind the first](#keeping-a-second-engine-behind-the-first).
+
 ### Know the free-tier ceiling before you deploy
 
 Gemini's free-tier limits are **per API key, so they're shared by every user of the deployment** —
@@ -201,6 +205,43 @@ Three things worth knowing:
 If Ollama isn't running or the model was never pulled, the turn falls back to the mock like any
 other provider failure — so watch for the "offline interviewer" badge, and check the server log,
 which names the fix (`is ollama serve running?` / `run ollama pull <model>`).
+
+### Keeping a second engine behind the first
+
+`LLM_FALLBACK_PROVIDER` names an engine to try when the configured one cannot answer, so a turn
+NVIDIA can't serve reaches a real model instead of the offline mock:
+
+```bash
+LLM_PROVIDER=nvidia
+LLM_FALLBACK_PROVIDER=ollama
+```
+
+The chain is **provider → fallback → mock**, and each link is tried only when the one in front of
+it produces no text at all: a rejected key, spent credits, a rate limit that survives its one
+retry, an unreachable host, or a `200` that streams nothing back. Any provider name works on
+either side — `gemini` in front of `ollama` walks the same code — and naming the same provider
+twice, or `mock`, is ignored, since neither adds a link the chain doesn't already have.
+
+Four things worth knowing:
+
+- **Nothing changes unless you set it.** Unset — the shipped default — the mock is the only
+  stand-in, exactly as before.
+- **It is never auto-detected**, for the reason Ollama itself isn't: a fallback silently routes
+  real student turns to a different engine, so it has to be asked for by name. Pointing it at a
+  local server that happens to be down just costs one failed request before the mock.
+- **A reply that has already started streaming is never finished by the other engine.** Falling
+  forward mid-paragraph would change voice and reasoning halfway through an answer the student is
+  already reading, which is worse than an obviously truncated one — so that turn is marked
+  `interrupted` and stops. The chain only ever helps *before* the first token.
+- **Stand-in turns are labelled**, in the chat as a "backup model" badge (distinct from the mock's
+  "offline interviewer") and in `Message.provider` as `ollama (fallback)` — so a turn the fallback
+  answered is never recorded as one NVIDIA did.
+
+The spend guards follow the engine actually being asked. A metered fallback behind a local
+primary turns them **on** (`LLM_PROVIDER=ollama` + a hosted fallback bills real money the moment
+the local server goes down), and a *blocked* budget now degrades to an unmetered fallback rather
+than to the mock — a local model draws on none of the quota being protected, so it is a strictly
+better answer than the offline one.
 
 ---
 
@@ -307,6 +348,7 @@ failed download, not for a missing glyph.
 | Swap the LLM provider | env vars (`LLM_PROVIDER`, `*_API_KEY`) |
 | Use NVIDIA NIM's hosted models | `NVIDIA_API_KEY` + `NVIDIA_MODEL` (see above) |
 | Develop against a free local model | `LLM_PROVIDER=ollama` + `OLLAMA_MODEL` (see above) |
+| Keep a second engine behind the first | `LLM_FALLBACK_PROVIDER=ollama` (see above) |
 | Tune LLM rate/spend limits | `lib/config/practice.ts` (`llmBudget`) |
 | Change the voice-input language | `lib/config/practice.ts` (`speechConfig.lang`) |
 | Add an achievement | `prisma/seed-data.ts` + award rule in `lib/gamification.ts` |
@@ -964,8 +1006,8 @@ deliberately unfinished, and it's better to say so than to let you find out:
 matcher, the priced-help rules, the mock interviewer's **no-early-reveal** behaviour,
 gamification/rank math and the rank population filter, the calculator engine, the question
 authoring contract, the framework save payload, the LLM layer — Gemini message mapping, the
-NDJSON stream protocol, the before/after-first-token fallback split, the spend guards, and the
-Ollama adapter's SSE parsing and error classification — and the voice layer's transcript
+NDJSON stream protocol, the before/after-first-token fallback split, the provider→fallback→mock
+chain, the spend guards, and the Ollama adapter's SSE parsing and error classification — and the voice layer's transcript
 assembly and error triage. Only the network boundary and the database are mocked, so the adapter
 wiring and error classification are exercised for real.
 

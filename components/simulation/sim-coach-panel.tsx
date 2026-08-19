@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { readNdjson } from "@/lib/llm/stream";
+import { fallbackEngine, isMockProvider, readNdjson } from "@/lib/llm/stream";
 import { cn } from "@/lib/utils";
 import { AssistantText } from "@/components/practice/assistant-text";
 import { SpeakButton } from "@/components/practice/speak-button";
@@ -132,9 +132,20 @@ export function SimCoachPanel({ runId, available }: { runId: string; available: 
                 m.content
               )}
               {!m.content && m.streaming && "…"}
-              {m.role === "assistant" && m.provider?.startsWith("mock") && !m.streaming && (
+              {m.role === "assistant" && isMockProvider(m.provider) && !m.streaming && (
                 <Badge variant="muted" className="ml-2">
                   offline coach
+                </Badge>
+              )}
+              {/* A real model answered, just not the configured one — see the
+                  matching badge on the practice chat. */}
+              {m.role === "assistant" && fallbackEngine(m.provider) && !m.streaming && (
+                <Badge
+                  variant="muted"
+                  className="ml-2"
+                  title={`Answered by ${fallbackEngine(m.provider)}, the backup model — the main provider wasn't available.`}
+                >
+                  backup model
                 </Badge>
               )}
 
