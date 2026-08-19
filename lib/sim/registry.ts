@@ -30,17 +30,22 @@ import { setuRoadmapValue } from "./scenarios/setu-roadmap-value";
 import { pnlProfitSqueeze } from "./scenarios/pnl-profit-squeeze";
 import { cashConversionCycle } from "./scenarios/cash-conversion-cycle";
 import { balanceSheetLeverage } from "./scenarios/balance-sheet-leverage";
+import { capitalAllocationAsk } from "./scenarios/capital-allocation-ask";
 import { cashRunwayTurnaround } from "./scenarios/cash-runway-turnaround";
 
 // Easiest first: this is the order the library shows them in, and a beginner
 // meeting the track for the first time should not land on the hardest one.
 //
-// The three finance scenarios sit together rather than being interleaved by
+// The four finance scenarios sit together rather than being interleaved by
 // topic, because they are a sequence: the P&L one teaches a student to read a
 // statement, the cash flow one shows them that statement cannot tell them
 // whether the company can pay anybody, and the balance sheet one adds the
-// capital neither of the first two can see. Kept contiguous, and still in
-// difficulty order — Easy, Easy, Medium, ahead of the Medium block.
+// capital neither of the first two can see. The fourth is not a fourth
+// statement — it is the decision the first three equip you to take, which is
+// whether to commit the next rupee of capital at all. Kept contiguous, and
+// still in difficulty order — Easy, Easy, Medium, Hard — with the Hard one
+// last in the block rather than last overall, because the turnaround below is
+// a different exercise rather than a harder war room.
 const ALL: SimScenario[] = [
   adFunnelRoas,
   // The analytics track, kept contiguous for the same reason the finance three
@@ -58,6 +63,7 @@ const ALL: SimScenario[] = [
   pnlProfitSqueeze,
   cashConversionCycle,
   balanceSheetLeverage,
+  capitalAllocationAsk,
   pricingElasticity,
   marketSizingGtm,
   marketplaceLiquidity,

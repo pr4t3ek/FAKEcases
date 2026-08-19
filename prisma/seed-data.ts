@@ -895,6 +895,32 @@ export const questions: SeedQuestion[] = [
     tags: "finance,accounting,balance sheet,ratio analysis,roce,dupont,liquidity,leverage,covenant,manufacturing,simulation",
   },
   /**
+   * The finance track's capstone, and the only row in it whose question is
+   * about a decision that has not been taken yet.
+   *
+   * The three above read statements that have already been printed. This one
+   * hands the candidate a Rs 100 crore facility request due at a bank the next
+   * morning, so the exercise is a forecast rather than a diagnosis — which is
+   * why the metric that settles it is the INCREMENTAL return on capital rather
+   * than the average one its sibling teaches.
+   */
+  {
+    externalId: "capital-allocation-ask",
+    title: "Pragati Precision: record EBITDA, and the CEO wants a hundred crore more",
+    prompt:
+      "An auto-components maker posted its best ever EBITDA — up 35% on revenue past ₹400 crore — and the CEO walks into a bank tomorrow to request a ₹100 crore facility to buy a competitor. The deck contains no return calculation and nobody has read the covenant page. You have 6 analyst-days before the meeting, then 5 people-weeks and ₹18 crore.",
+    category: "finance",
+    sector: "automotive",
+    difficulty: "Hard",
+    interviewLevel: "Big4",
+    type: "simulation",
+    betterApproach:
+      "Judge an expansion on the capital it consumed, not on the profit it added, and judge the NEXT one on what the last one returned. An average return grades everything a company has ever built; the incremental return — the change in operating profit divided by the change in capital employed — is the honest forecast of what the next rupee will earn, and the two can point in opposite directions. Then check separately whether the money is even available, because a covenant decides that before a return does.",
+    sampleSolution:
+      "ROCE fell from 23.3% to 8.9% and the decomposition puts it in the denominator: the EBIT margin moved 10.9% to 10.0% while capital turnover fell 2.13 to 0.89. The number that answers the question is the incremental one — ₹5 crore of extra operating profit on ₹300 crore of new capital is 1.7%, against debt costing 10.1% — because the new stamping line runs at 38% against a plan of 75% after its OEM platform slipped a model year. On the deck's own generous numbers the acquisition returns 8.0% on ₹100 crore, taking group ROCE to 8.7% and interest cover from 1.14x to 1.06x, and clause 14.3 bars incremental debt below 2.00x interest cover, so the facility cannot be written at all. The instructive traps are that refinancing to ten years fixes debt service cover and moves ROCE by nothing — and does not move interest cover either, because principal was never in that ratio — and that an ₹80 crore rights issue more than halves gearing and moves ROCE by exactly zero, because capital employed is equity plus debt.",
+    tags: "finance,accounting,capital allocation,roce,incremental return,cost of capital,interest coverage,covenant,dupont,m&a,automotive,manufacturing,simulation",
+  },
+  /**
    * The catalogue's first TURNAROUND, and the only row here whose scenario does
    * not run the war-room format.
    *

@@ -134,6 +134,10 @@ const EXPECTED: Record<string, string> = {
   "Nirmal Pipes: a record profit and no money for payroll": "Factory",
   // "ceramic" beats "bank" — the bank is in the sentence, not in the subject.
   "Deccan Ceramics: our best ever EBITDA, and the bank wants a word": "Factory",
+  // Nothing in the title is a subject rule, so this reaches Factory through
+  // "manufacturing" in the tags — the same card its finance-track siblings get,
+  // and the right one: the subject is a stamping plant, not the bank meeting.
+  "Pragati Precision: record EBITDA, and the CEO wants a hundred crore more": "Factory",
   "Meraki Textiles: twelve months, one supplier, and a clause you can abuse once": "Shirt",
   "Sutradhar: four quarters of cash and three ways to spend it": "Package",
   // No subject rule matches these four, so they exercise the Category.icon

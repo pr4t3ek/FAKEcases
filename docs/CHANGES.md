@@ -874,3 +874,62 @@ this container is on 10.33.
 
 `pnpm approve-builds` writes `allowBuilds` on pnpm 11, so running it produces this file
 rather than fighting it.
+
+### 22. The finance track's capstone: deciding whether to commit the next rupee
+
+Entry 13 shipped three finance scenarios, one per financial statement. All three ask a
+candidate to read something that has already been printed. Nothing in the catalogue asked
+them to decide something that had not happened yet, and the decision a finance education
+is actually *for* is whether to commit capital.
+
+- **`capital-allocation-ask`** (Hard) — Pragati Precision, record EBITDA and a CEO who
+  walks into a bank tomorrow to request ₹100 crore for an acquisition. Revenue up 25%,
+  EBITDA up 35%, EBIT up 14%, capital employed up 200% and interest up 600%. ROCE 23.3% →
+  8.9%, interest cover 7.0× → 1.14× against a 2.00× covenant.
+
+The reason it is not a second Deccan Ceramics, which it superficially resembles: Deccan
+turns on the **average** return, and this one turns on the **incremental** return.
+
+    change in EBIT / change in capital employed = ₹5 cr / ₹300 cr = 1.7%
+
+against debt costing 10.1%. The average ROCE of 8.9% is the kinder number and it is kinder
+only because the legacy business holds it up; the marginal return is what a marginal
+deployment will actually earn. That distinction is the whole scenario, and no other
+scenario in the catalogue makes it. Deccan asks *why is our record EBITDA a problem?*
+This asks *should we do it again?*
+
+Three authored decoys carry the lesson, and each is a defensible idea rather than a
+strawman:
+
+- **The acquisition** is modelled on the pitch deck's own generous numbers — ₹100 crore
+  buys ₹55 crore of revenue and ₹8 crore of EBIT, absorbed into existing overhead. An 8%
+  return sounds respectable and is below the 10.1% it would be funded at, so it takes
+  group ROCE to 8.7% and interest cover to 1.06×. It has to stay attractive and it has to
+  lose; `tests/sim-scenario.test.ts` asserts both.
+- **Refinancing** five-year money to ten years fixes debt service cover and moves the
+  return by nothing, because a liability changing its due date does not change how much
+  capital is employed. The sharper half: it does not move *interest* cover either, because
+  principal was never in that ratio — so the covenant gating the ask survives the fix
+  aimed at it.
+- **A ₹80 crore rights issue** takes gearing from 3.34× to 1.45×, nearly doubles interest
+  cover, and moves ROCE by zero to six decimal places, because capital employed is equity
+  *plus* debt.
+
+The north star is a new shape: `roceSpread`, a `difference` between ROCE and a `constant`
+cost of capital. It scores identically to ROCE — a constant offset — but the outcome
+report then shows the number the scenario is about. A bare 8.9% invites "single digits,
+could be better"; −2.1% does not. `constant` also means `validateScenario` refuses any
+intervention aimed at it, so nobody can close the gap by improving their own cost of
+capital instead of earning a return.
+
+Incremental ROCE is deliberately **not** in the driver graph. It is expressible with
+`lagged` drivers, but as a quotient it blows up when capital employed falls — which is
+precisely what the correct answer does. It lives in the primer, a drilldown panel, the
+debrief and the coach facts, where it is stable.
+
+No engine, schema or component change: the war-room format, the `statement` panel kind,
+`constant` drivers and the `unactionable` escape all already existed. Supporting edits are
+the registry line, the seed row, the Pro pitch count in `lib/config/access.ts` (prose that
+quotes the catalogue back at the buyer, so it moves with it), and a regenerated
+`tests/fixtures/sim-golden.json` — which reported exactly one changed slug, confirming no
+existing scenario's projection moved.
