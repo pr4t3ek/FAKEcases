@@ -72,10 +72,15 @@ const PUSH_SEGMENT = [
   "Good. Now, is this population homogeneous for this problem, or should you break it into segments first?",
 ];
 
-const PROBE_FREQUENCY = [
-  "You've segmented well. Now what assumptions are you making about how often this is bought or used?",
-  "Nice segmentation. What's your assumption on frequency or usage rate, and why?",
-  "Good split. How frequently does each segment consume or replace this? Where does that number come from?",
+/*
+ * Renamed from PROBE_FREQUENCY, because it used to announce that frequency was
+ * the next step — which is a line of the answer on most market-sizing
+ * questions. It now asks what is still missing and lets the candidate name it.
+ */
+const PROBE_NEXT_ASSUMPTION = [
+  "You've segmented well. What else do you need to know about each segment before this becomes a number?",
+  "Nice segmentation. Are those segments enough on their own to reach an estimate, or is something still missing?",
+  "Good split. What's the next assumption this needs, and where would you get it from?",
 ];
 
 const CHALLENGE_ASSUMPTION = [
@@ -91,7 +96,7 @@ const PUSH_CALC = [
 ];
 
 const SANITY_CHECK = [
-  "You've reached an estimate. How confident are you? Did you miss any segment — for instance institutional or bulk demand?",
+  "You've reached an estimate. How confident are you? Is there a buyer of this you haven't counted?",
   "Okay, you have a number. Does it pass a sanity check? Is there a segment you've overlooked?",
   "Good — now stress-test it. What would make this too high or too low, and did you round consistently?",
 ];
@@ -99,7 +104,7 @@ const SANITY_CHECK = [
 const STUCK_NUDGE = [
   "Take a step back. What's the single biggest driver of this number, and can you estimate that first?",
   "Don't worry about precision yet. What's the population or base you're starting from?",
-  "Let's simplify. Break it into: who uses it, how many there are, and how often. Start with the first.",
+  "Let's simplify. What's the smallest piece of this you could estimate with confidence? Start there and build outward.",
 ];
 
 const ACK_QUESTION = [
@@ -244,9 +249,9 @@ function replyInterviewer(ctx: InterviewerContext): string {
     return pick(PUSH_SEGMENT, seedFor(ctx, "seg"));
   }
 
-  // Has segmentation but few assumptions -> probe frequency/rate
+  // Has segmentation but few assumptions -> ask what the segments still need
   if (ctx.assumptions.length < 2) {
-    return pick(PROBE_FREQUENCY, seedFor(ctx, "freq"));
+    return pick(PROBE_NEXT_ASSUMPTION, seedFor(ctx, "freq"));
   }
 
   // Has structure + assumptions: sometimes challenge an assumption, else push calc
@@ -374,17 +379,44 @@ export function mockHintText(ctx: InterviewerContext, level: number): string {
     );
   }
   if (level < maxLevel) {
+    // The DIMENSION, never the splits. "Segment by age" is a hint; "segment
+    // into adults and children, then apply a replacement rate" is two steps of
+    // the answer.
     return pick(
       [
-        "Break the population into meaningful segments, then apply a usage or purchase rate to each.",
-        "Consider frequency: how often is this bought or replaced per year? Multiply that through your target segment.",
-        "Split into who owns it vs how often they replace it — those are two different assumptions.",
+        "There's one attribute that changes how much of this a person uses. Name it, and let your next split run along it.",
+        "Which dimension separates the heavy users from the light ones here? That's the split worth making first.",
+        "Your population isn't homogeneous. What's the single characteristic that makes it not homogeneous for this product?",
       ],
       seedFor(ctx, "hint2"),
     );
   }
-  // Final hint: near-complete direction using the better-approach, but no final number.
-  return `Here's the structure to use: ${q.betterApproach} Now put your own numbers to each step — I'll still let you compute the final figure yourself.`;
+
+  /*
+   * The last rung, and the one this whole ladder was rebuilt for.
+   *
+   * It used to be `Here's the structure to use: ${q.betterApproach}` — the
+   * authored answer structure, printed verbatim. On a market-sizing question
+   * the decomposition IS the answer, so that left the candidate nothing to do
+   * but arithmetic, on the rung they had paid the whole ladder of Confidence
+   * to reach.
+   *
+   * What replaces it is the next step for where this candidate actually is,
+   * read off the same predicates `replyInterviewer` uses. So the rung still
+   * escalates — it is the only one that names a step outright — but it
+   * escalates in CONCRETENESS rather than in how much of the chain it gives
+   * away, and it never reaches past the step the candidate is stuck before.
+   */
+  if (ctx.finalEstimate != null) {
+    return "You have a number, so the next step is to test it. Take the assumption you were least sure of, halve it, and see whether your conclusion survives.";
+  }
+  if (!hasSegmentation(ctx)) {
+    return "Your next step is the split. Find the one way this population doesn't behave the same for this product, divide on that, and stop there — get the split down before you touch any rates.";
+  }
+  if (ctx.assumptions.length < 2) {
+    return "You have your segments, so the next step is a rate. Take one segment, put a number on how much or how often, and say where that number came from.";
+  }
+  return "You have segments and you have rates. The next step is to multiply through segment by segment and add them up — do it out loud, so you can see which line ends up dominating.";
 }
 
 /**
