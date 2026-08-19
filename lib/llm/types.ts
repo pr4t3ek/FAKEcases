@@ -54,6 +54,22 @@ export interface SimCoachContext {
   facts: { topic: string[]; fact: string }[];
 }
 
+/**
+ * A finished framework, for the structure judge.
+ *
+ * Present only at submit time, and like `SimCoachContext` it changes the whole
+ * prompt rather than adding to it — the model is not interviewing here, it is
+ * reading a tree and saying whether it decomposes this question.
+ */
+export interface FrameworkJudgeContext {
+  questionTitle: string;
+  questionPrompt: string;
+  /** The tree, flattened depth-first with indentation carrying the hierarchy. */
+  nodes: { depth: number; label: string; value?: string | null; rate?: string | null }[];
+  finalEstimate: number | null;
+  unit: string | null;
+}
+
 /** Everything an adapter needs to produce the next interviewer turn. */
 export interface InterviewerContext {
   question: QuestionContext;
@@ -79,6 +95,13 @@ export interface InterviewerContext {
    * prompt through that one function, so none of them change.
    */
   simulation?: SimCoachContext;
+  /**
+   * Set only when scoring a submitted framework. Like `simulation`, it replaces
+   * the prompt rather than extending it, and it rides the existing context for
+   * the same reason: every adapter builds through `buildReplyMessages`, so none
+   * of them change.
+   */
+  judge?: FrameworkJudgeContext;
 }
 
 /**

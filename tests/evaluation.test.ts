@@ -345,3 +345,144 @@ describe("earned coverage", () => {
     expect(explained).toBeGreaterThan(calculated);
   });
 });
+
+/**
+ * A node is a step, not a row.
+ *
+ * Six labels with nothing in any box scored 96 on Problem Structuring and 100 on
+ * Segmentation, because `hasSegmentation` meant "there are two or more nodes"
+ * and the categories counted rows. Structure now has to be evidenced: a figure
+ * this app can parse, a real branch, or shares of a parent.
+ */
+describe("what the tree actually says", () => {
+  const bare = {
+    ...base,
+    framework: [],
+    calculationCount: 0,
+    userMessageText: [],
+    finalEstimate: null,
+  };
+  /** Labels only — the reported attempt. */
+  const junk = ["asd", "qwe", "zxc", "hjk", "bnm", "poi"].map((label, i) => ({
+    id: `n${i}`,
+    parentId: null,
+    label,
+  }));
+
+  it("scores a tree of empty labels at zero, not 96 and 100", () => {
+    const r = evaluate({ ...bare, framework: junk });
+    expect(r.scores.structuring).toBe(0);
+    expect(r.scores.segmentation).toBe(0);
+    // The same flag was paying Logic and Business Sense too.
+    expect(r.scores.logic).toBe(0);
+    expect(r.scores.business).toBe(0);
+  });
+
+  it("does not read 'there are two boxes' as 'they segmented'", () => {
+    const twoLabels = evaluate({ ...bare, framework: junk.slice(0, 2) });
+    expect(twoLabels.scores.segmentation).toBe(0);
+  });
+
+  it("counts a grouping node that has children but no figure of its own", () => {
+    // `parseNode`'s own docs call this out: "Segment by Income" holds no value,
+    // only its children do. Requiring a figure on every node would fail it.
+    const grouped = evaluate({
+      ...bare,
+      framework: [
+        { id: "r", parentId: null, label: "Segment by income" },
+        { id: "a", parentId: "r", label: "Low income", value: "60%" },
+        { id: "b", parentId: "r", label: "High income", value: "40%" },
+      ],
+    });
+    expect(grouped.scores.structuring!).toBeGreaterThan(0);
+    expect(grouped.scores.segmentation!).toBeGreaterThan(0);
+  });
+
+  it("treats a real split as segmentation even with no keyword anywhere", () => {
+    const split = evaluate({
+      ...bare,
+      framework: [
+        { id: "r", parentId: null, label: "Households", value: "3cr" },
+        { id: "a", parentId: "r", label: "Metro", value: "30%" },
+        { id: "b", parentId: "r", label: "Non-metro", value: "70%" },
+      ],
+    });
+    expect(split.scores.segmentation!).toBeGreaterThan(0);
+  });
+
+  // Branches claiming more than the whole is double counting, and the
+  // arithmetic is wrong however it is read. Falling short is not penalised —
+  // see `sharesOvershoot`.
+  it("charges for sibling shares that exceed their parent", () => {
+    const tree = (a: string, b: string) => [
+      { id: "r", parentId: null, label: "Population", value: "4cr" },
+      { id: "x", parentId: "r", label: "Adults", value: a },
+      { id: "y", parentId: "r", label: "Children", value: b },
+    ];
+    const sane = evaluate({ ...bare, framework: tree("60%", "40%") });
+    const overshoot = evaluate({ ...bare, framework: tree("80%", "50%") });
+    const narrowed = evaluate({ ...bare, framework: tree("25%", "35%") });
+
+    expect(overshoot.scores.structuring!).toBeLessThan(sane.scores.structuring!);
+    expect(narrowed.scores.structuring!).toBe(sane.scores.structuring!);
+  });
+});
+
+/**
+ * The model's read of the tree, which is the only thing that can catch labels
+ * that are plausible but wrong. Arithmetic cannot read.
+ */
+describe("the structure verdict", () => {
+  const tree = {
+    ...base,
+    framework: [
+      { id: "r", parentId: null, label: "Urban population", value: "4cr" },
+      { id: "a", parentId: "r", label: "Adults", value: "65%" },
+      { id: "b", parentId: "r", label: "Children", value: "35%" },
+    ],
+  };
+
+  it("changes nothing when there is no verdict — the offline path is the default", () => {
+    const offline = evaluate(tree);
+    const undef = evaluate({ ...tree, structureCoherence: undefined });
+    expect(undef.scores).toEqual(offline.scores);
+    expect(undef.overall).toBe(offline.overall);
+  });
+
+  it("cuts the structural categories hard when the model says nonsense", () => {
+    const good = evaluate({ ...tree, structureCoherence: 90 });
+    const bad = evaluate({ ...tree, structureCoherence: 5 });
+    expect(bad.scores.structuring!).toBeLessThan(good.scores.structuring!);
+    expect(bad.scores.segmentation!).toBeLessThan(good.scores.segmentation!);
+    expect(bad.scores.logic).toBeLessThan(good.scores.logic);
+    expect(bad.scores.business).toBeLessThan(good.scores.business);
+  });
+
+  /*
+   * The verdict is about the TREE. Figures committed, arithmetic shown and
+   * things said still happened, whatever the model thinks of the decomposition.
+   */
+  it("leaves the categories that are evidence of work alone", () => {
+    const good = evaluate({ ...tree, structureCoherence: 95 });
+    const bad = evaluate({ ...tree, structureCoherence: 5 });
+    expect(bad.scores.assumptions).toBe(good.scores.assumptions);
+    expect(bad.scores.calculation).toBe(good.scores.calculation);
+    expect(bad.scores.communication).toBe(good.scores.communication);
+    expect(bad.scores.confidence).toBe(good.scores.confidence);
+  });
+
+  // Banded, so the same tree resubmitted to a model that says 61 one run and 68
+  // the next does not come back with two different scores.
+  it("is stable across scores inside one band", () => {
+    const a = evaluate({ ...tree, structureCoherence: 35 });
+    const b = evaluate({ ...tree, structureCoherence: 65 });
+    expect(a.scores).toEqual(b.scores);
+  });
+
+  it("ignores a nonsensical verdict rather than acting on it", () => {
+    const plain = evaluate(tree);
+    for (const bogus of [NaN, Infinity]) {
+      expect(evaluate({ ...tree, structureCoherence: bogus }).scores).toEqual(plain.scores);
+    }
+  });
+});

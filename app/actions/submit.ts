@@ -13,6 +13,9 @@ import { applyAttemptRewards } from "@/lib/gamification";
 import { recordFirstResult } from "@/lib/leaderboard";
 import { parseJson } from "@/lib/json";
 import { answerModeFor, type TreeMode } from "@/lib/types";
+import { flattenForJudge, judgeFramework } from "@/lib/framework-judge";
+import { checkBudget } from "@/lib/llm/budget";
+import { structureJudgement } from "@/lib/config";
 
 export interface SubmitResult {
   ok: boolean;
@@ -70,6 +73,37 @@ export async function submitAttempt(attemptId: string): Promise<SubmitResult> {
   }));
 
   const answerMode = answerModeFor(attempt.question.type);
+
+  /*
+   * Ask the model whether the tree decomposes the question.
+   *
+   * Deterministic rules cannot read labels, so a candidate can fill six boxes
+   * with plausible words and score on structure alone. This closes that, and
+   * everything about it fails soft: `judgeFramework` returns null on a missing
+   * key, a refused budget, a dead provider, an unparseable reply or a mock
+   * standing in, and `evaluate()` then scores exactly as it does offline.
+   *
+   * Numeric only. A case is graded on its diagnosis, which `evaluateQualitative`
+   * already scores against the authored root cause — a second opinion about the
+   * shape of its tree would be answering a question nobody asked.
+   *
+   * One call per submission, not per turn: a tenth of what the chat already
+   * spends on an attempt.
+   */
+  const verdict =
+    answerMode === "numeric" && framework.length > 0
+      ? await judgeFramework(
+          {
+            questionTitle: attempt.question.title,
+            questionPrompt: attempt.question.prompt,
+            nodes: flattenForJudge(framework),
+            finalEstimate: attempt.finalEstimate,
+            unit: attempt.question.unit,
+          },
+          { budgetBlocked: !(await checkBudget(user.id)).ok },
+        )
+      : null;
+
   const result =
     answerMode === "qualitative"
       ? evaluateQualitative({
@@ -94,6 +128,7 @@ export async function submitAttempt(attemptId: string): Promise<SubmitResult> {
           userMessageText,
           hintsUsed: attempt.hintsUsed,
           solutionRevealed,
+          structureCoherence: verdict?.coherence,
         });
 
   await db.evaluation.create({
@@ -111,7 +146,25 @@ export async function submitAttempt(attemptId: string): Promise<SubmitResult> {
       business: result.scores.business,
       confidence: result.scores.confidence,
       accuracyHit: result.accuracyHit,
-      feedback: JSON.stringify(result.feedback),
+      /*
+       * The judge's sentence rides in the existing feedback column rather than a
+       * new one — no migration, and it belongs beside the other feedback anyway.
+       * It is prepended because it explains the categories a reader sees first,
+       * and it is only shown when the model actually said something: a verdict
+       * with no reason silently changes a score, which is the one thing a report
+       * must not do.
+       */
+      feedback: JSON.stringify(
+        verdict?.reason
+          ? [
+              {
+                tone: verdict.coherence < structureJudgement.looseBelow ? "warning" : "positive",
+                text: verdict.reason,
+              },
+              ...result.feedback,
+            ]
+          : result.feedback,
+      ),
       betterApproach: attempt.question.betterApproach,
       sampleSolution: attempt.question.sampleSolution,
     },

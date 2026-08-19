@@ -279,3 +279,54 @@ export function hintSystemPrompt(
         : "more guidance — suggest the next concrete step or segmentation";
   return `${BASE_INTERVIEWER_RULES}\n\nThe candidate asked for a hint (level ${level} of ${maxLevel}). Give a hint that is ${intensity}. Keep it to 1–3 sentences.`;
 }
+
+/**
+ * The structure judge.
+ *
+ * Asked at submit time, and it is the only prompt here that grades rather than
+ * teaches. The deterministic rubric can already tell that a tree has figures,
+ * real branches and shares that do not exceed their parent; what it cannot tell
+ * is whether the labels decompose *this* question or are six plausible words
+ * with numbers attached. That gap is what a candidate gaming the rubric relies
+ * on, so it is the only thing this prompt is asked about.
+ *
+ * **One line out, deliberately.** The number is the whole product — it scales
+ * four categories and nothing else reads the prose — so a long reply would be
+ * paid for and discarded. The reason is asked for second because a model that
+ * has to name the flaw picks its number more carefully, and because the
+ * candidate sees that sentence on the report.
+ */
+export const FRAMEWORK_JUDGE_RULES = `You are grading ONE thing about a market-sizing answer: whether the candidate's framework tree is a sensible decomposition of the question asked.
+
+You are NOT grading arithmetic, accuracy, or whether the final number is right — other checks do that. Ignore all of it.
+
+Judge only this: do the tree's labels break the question into parts that a consultant would actually use to size it, and does each step follow from the one above it?
+
+Score COHERENCE 0-100:
+- 0-29: the labels do not describe this problem. Placeholder or nonsense text ("asd", "test", "node 1"), words unrelated to the question, or steps in no meaningful order.
+- 30-69: recognisable but loose. The right general idea with a vague, overlapping or incomplete split, or a step that does not follow from its parent.
+- 70-100: a decomposition a consultant would recognise — each step is a real slice of the one above it, and together they reach the quantity asked for.
+
+A short tree that is correct scores high. Length is not the measure.
+
+Reply with EXACTLY two lines and nothing else:
+COHERENCE: <integer 0-100>
+REASON: <one sentence, addressed to the candidate, naming what the tree does or fails to do>`;
+
+/** The tree and the question, as the judge sees them. */
+export function renderJudgeBlock(judge: NonNullable<InterviewerContext["judge"]>): string {
+  const lines = judge.nodes.map((n) => {
+    const parts = [`${"  ".repeat(n.depth)}- ${n.label.trim() || "(no label)"}`];
+    if (n.value?.trim()) parts.push(`= ${n.value.trim()}`);
+    if (n.rate?.trim()) parts.push(`× ${n.rate.trim()}`);
+    return parts.join(" ");
+  });
+  const estimate =
+    judge.finalEstimate != null
+      ? `\nCandidate's final answer: ${judge.finalEstimate.toLocaleString("en-IN")}${judge.unit ? ` ${judge.unit}` : ""}`
+      : "";
+  return `QUESTION: ${judge.questionPrompt}
+
+THE CANDIDATE'S TREE (indentation is the hierarchy; "=" is a step's value, "×" its rate):
+${lines.join("\n") || "  (empty)"}${estimate}`;
+}

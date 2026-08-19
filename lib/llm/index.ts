@@ -15,6 +15,7 @@ export type {
   ConvMessage,
   QuestionContext,
   SimCoachContext,
+  FrameworkJudgeContext,
 } from "./types";
 export { mockAdapter } from "./mock";
 

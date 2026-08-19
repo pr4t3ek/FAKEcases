@@ -4,10 +4,12 @@ import {
   readinessForScore,
   accuracyTolerance,
   rubric,
+  structureJudgement,
   type ReadinessBand,
 } from "@/lib/config";
 import { branchDiscussed, diagnosisTrail, type DiagnosisNode } from "@/lib/diagnosis";
 import { clamp } from "@/lib/utils";
+import { parseNode, shareTotalFor, sharesOvershoot } from "@/lib/framework-value";
 import type { AnswerMode, AssumptionRating, FeedbackItem, TreeMode } from "@/lib/types";
 
 export interface FrameworkNodeInput {
@@ -43,6 +45,22 @@ export interface EvaluationInput {
   hintsUsed: number;
   /** The candidate asked Teacher mode to work the problem — see `solutionWasRevealed`. */
   solutionRevealed?: boolean;
+  /**
+   * What the model made of the tree, 0–100, or absent.
+   *
+   * Deterministic rules can tell that a tree has figures, real branches and
+   * coherent shares. They cannot tell whether the labels describe a sensible
+   * decomposition of *this* question, and that gap is what a candidate gaming
+   * the rubric relies on. `lib/framework-judge.ts` asks; the answer arrives here
+   * as a plain number so this function stays pure and synchronous.
+   *
+   * **Absent is not zero.** No key, no budget, a provider that failed or a reply
+   * that would not parse all leave this undefined, and the deterministic score
+   * then stands unmultiplied — an app that scores differently depending on
+   * whether a network call succeeded is worse than one that scores
+   * conservatively. See `structureMultiplier`.
+   */
+  structureCoherence?: number;
 }
 
 /**
@@ -317,6 +335,104 @@ export function deriveAssumptions(args: {
   return out;
 }
 
+/**
+ * How much the model's read of the tree scales what the deterministic layer
+ * awarded.
+ *
+ * Banded rather than applied raw, because a continuous score from a model is not
+ * stable: the same tree comes back 61 one run and 68 the next, and a candidate
+ * who resubmits identical work to a different number rightly stops trusting the
+ * report. Three bands absorb that noise and still separate nonsense from a real
+ * decomposition.
+ *
+ * **No verdict means no multiplier**, not a penalty. This is the offline path
+ * and the failure path at once, and both have to leave the deterministic score
+ * exactly as it was.
+ */
+export function structureMultiplier(coherence: number | undefined): number {
+  if (coherence == null || !Number.isFinite(coherence)) return 1;
+  const { incoherentBelow, looseBelow, multipliers } = structureJudgement;
+  if (coherence < incoherentBelow) return multipliers.incoherent;
+  if (coherence < looseBelow) return multipliers.loose;
+  return multipliers.coherent;
+}
+
+/** What the framework actually says, as opposed to how many rows it has. */
+interface TreeReading {
+  /**
+   * Nodes that are a step rather than a label.
+   *
+   * A node counts when it carries a figure this app can parse, or when it has
+   * children. The second clause is required rather than generous: `parseNode`'s
+   * own documentation says a grouping node — "Segment by Income", which has no
+   * value of its own, only its children do — is legitimate. What does not count
+   * is the childless, figureless leaf, which is decoration, and six of which
+   * used to be worth full marks.
+   */
+  substantiveCount: number;
+  /** Is there an actual partition: a step broken into branches, or shares of one? */
+  hasPartition: boolean;
+  /** Deepest chain of nodes. A flat list of six is not a tree. */
+  depth: number;
+  /** Branch sets claiming more than 100% of their parent — double counting. */
+  overshootingParents: number;
+}
+
+/**
+ * Read the tree's structure, using the parsers the builder already validates
+ * input with (`lib/framework-value.ts`) so "a figure" means the same thing on
+ * both sides of the screen.
+ *
+ * `parentId` is genuinely populated on numeric attempts — `FrameworkNode` has
+ * the relation and `app/actions/submit.ts` passes it — despite the stale comment
+ * on `FrameworkNodeInput` calling those fields qualitative-only. Where a tree
+ * carries no ids at all (older rows, and most test fixtures), every node reads
+ * as a root, so depth is 1 and a partition has to be evidenced by shares
+ * instead. That degrades to the flat case rather than throwing.
+ */
+function readTree(framework: FrameworkNodeInput[]): TreeReading {
+  const childrenOf = new Map<string, FrameworkNodeInput[]>();
+  for (const node of framework) {
+    const parent = node.parentId;
+    if (!parent) continue;
+    const siblings = childrenOf.get(parent) ?? [];
+    siblings.push(node);
+    childrenOf.set(parent, siblings);
+  }
+
+  const hasFigure = (n: FrameworkNodeInput) =>
+    parseNode(n.value) !== null || parseNode(n.multiplier) !== null;
+
+  const substantiveCount = framework.filter(
+    (n) => hasFigure(n) || (n.id ? (childrenOf.get(n.id)?.length ?? 0) > 0 : false),
+  ).length;
+
+  // A partition is a step split into branches. Two or more siblings anywhere is
+  // one; so is a pair of bare percentage shares, which is how a flat tree
+  // expresses the same idea.
+  const splitParents = [...childrenOf.values()].filter((kids) => kids.length >= 2);
+  const shareNodes = framework.filter((n) => parseNode(n.value)?.isPercent === true);
+  const hasPartition = splitParents.length > 0 || shareNodes.length >= 2;
+
+  // Only an overshoot is an error — see `sharesOvershoot`. Falling short is a
+  // deliberate narrowing to the slices the estimate needs.
+  const overshootingParents = splitParents.filter((kids) => {
+    const total = shareTotalFor(kids);
+    return total !== null && sharesOvershoot(total);
+  }).length;
+
+  const depthOf = (node: FrameworkNodeInput, seen: Set<string>): number => {
+    if (!node.id || seen.has(node.id)) return 1;
+    seen.add(node.id);
+    const kids = childrenOf.get(node.id) ?? [];
+    return 1 + Math.max(0, ...kids.map((k) => depthOf(k, seen)));
+  };
+  const roots = framework.filter((n) => !n.parentId);
+  const depth = roots.length ? Math.max(...roots.map((r) => depthOf(r, new Set()))) : 0;
+
+  return { substantiveCount, hasPartition, depth, overshootingParents };
+}
+
 export function evaluate(input: EvaluationInput): EvaluationResult {
   const {
     framework,
@@ -327,6 +443,7 @@ export function evaluate(input: EvaluationInput): EvaluationResult {
     idealLow,
     idealHigh,
     solutionRevealed = false,
+    structureCoherence,
   } = input;
 
   const frameworkCount = framework.length;
@@ -342,8 +459,16 @@ export function evaluate(input: EvaluationInput): EvaluationResult {
   const quantifiedRatio = assumptionCount ? quantified / assumptionCount : 0;
   const justifiedRatio = assumptionCount ? justified / assumptionCount : 0;
 
+  const tree = readTree(framework);
+  /*
+   * "You have two boxes" is not "you segmented", and reading it that way is what
+   * let a tree of six empty labels score 96 on structure and 100 on
+   * segmentation. Real evidence is a partition that exists — a step actually
+   * broken into branches, or branches carrying shares of their parent — or the
+   * candidate saying so in words.
+   */
   const hasSegmentation =
-    frameworkCount >= 2 ||
+    tree.hasPartition ||
     textHas([...framework.map((f) => f.label), ...userMessageText], SEGMENT_KEYWORDS);
   const businessNuance = textHas(userMessageText, BUSINESS_KEYWORDS);
   const accuracy = computeAccuracy(finalEstimate, idealLow, idealHigh);
@@ -360,19 +485,23 @@ export function evaluate(input: EvaluationInput): EvaluationResult {
   // Every category below is bought from zero and clamped 0–100 — see `rubric`
   // for why there is no baseline and no floor.
   const structuring = earned(
-    Math.min(frameworkCount, rubric.structuring.maxNodes) * rubric.structuring.perNode,
+    Math.min(tree.substantiveCount, rubric.structuring.maxNodes) * rubric.structuring.perNode,
     hasSegmentation && rubric.structuring.segmented,
+    -tree.overshootingParents * rubric.partitionOvershootPenalty,
   );
   const segmentation = earned(
     hasSegmentation && rubric.segmentation.segmented,
-    Math.min(frameworkCount, rubric.segmentation.maxNodes) * rubric.segmentation.perNode,
+    Math.min(tree.substantiveCount, rubric.segmentation.maxNodes) * rubric.segmentation.perNode,
+    -tree.overshootingParents * rubric.partitionOvershootPenalty,
   );
   const logic = earned(
-    frameworkCount >= 2 && rubric.logic.hasTree,
+    tree.substantiveCount >= 2 && rubric.logic.hasTree,
     calculationCount > 0 && rubric.logic.showedWork,
     assumptionCount >= 2 && rubric.logic.hasAssumptions,
     landedNear && rubric.logic.landedNear,
-    frameworkCount >= 4 && rubric.logic.deepTree,
+    // Depth rather than a fourth row: a chain that goes somewhere is structure,
+    // a longer flat list is not.
+    tree.depth >= 3 && rubric.logic.deepTree,
   );
   /*
    * Derived figures are far more numerous than the handful people used to log by
@@ -442,17 +571,24 @@ export function evaluate(input: EvaluationInput): EvaluationResult {
     solutionRevealed && -SOLUTION_REVEAL_PENALTY,
   );
 
+  /*
+   * The model's read scales the four categories that are claims ABOUT THE TREE.
+   * Assumptions, calculation, communication and confidence are evidence of work
+   * — figures committed, arithmetic shown, things said — and a tree the model
+   * dislikes does not make those things not have happened.
+   */
+  const structural = structureMultiplier(structureCoherence);
   const scores: EvaluationScores = {
-    structuring,
-    logic,
-    segmentation,
+    structuring: Math.round(structuring * structural),
+    logic: Math.round(logic * structural),
+    segmentation: Math.round(segmentation * structural),
     assumptions: assumptionsScore,
     calculation,
     // A market-sizing estimate has no branch to localise, so this category never
     // applied to it.
     diagnosis: null,
     communication,
-    business,
+    business: Math.round(business * structural),
     confidence,
   };
 

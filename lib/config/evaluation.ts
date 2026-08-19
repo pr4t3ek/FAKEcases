@@ -156,6 +156,17 @@ export const rubric = {
   substantiationThreshold: 2,
 
   /**
+   * What sibling branches claiming more than the whole costs.
+   *
+   * Only an overshoot is an error — `sharesOvershoot` in lib/framework-value.ts
+   * explains why falling short is not: modelling "the 25% who smoke" and "the
+   * 40% in cities" is a deliberate narrowing, and flagging it told candidates to
+   * pad their tree with branches they had no use for. Over 100% is double
+   * counting, and the arithmetic is wrong however it is read.
+   */
+  partitionOvershootPenalty: 15,
+
+  /**
    * Accuracy, and whether the number was actually arrived at.
    *
    * `unsubstantiatedCap` is the load-bearing one. Landing in the ideal range
@@ -209,3 +220,45 @@ export const rubric = {
     discussed: 25, // >= 3 messages
   },
 } as const;
+
+/**
+ * How much the model's read of the tree moves the structural categories.
+ *
+ * Deterministic rules can tell that a tree has figures, real branches and
+ * coherent shares. They cannot tell whether "Population → Adults → Urban" is a
+ * sensible decomposition for toothpaste or three words with numbers attached —
+ * that is a judgement about meaning, and it is the one a candidate gaming the
+ * rubric relies on nobody making. So the model is asked, and its answer scales
+ * what the deterministic layer awarded.
+ *
+ * **Banded rather than applied raw, and that is the point.** A continuous score
+ * from a model is not stable: the same tree comes back 61 one run and 68 the
+ * next, and a candidate who resubmits identical work to a different number
+ * rightly stops trusting the report. Three bands absorb that noise while still
+ * separating nonsense from a real decomposition.
+ *
+ * A missing verdict is not a low one — see `structureBand` in lib/evaluation.ts.
+ * With no key, no budget, or a provider that failed, the deterministic score
+ * stands unmultiplied, because an app that scores differently depending on
+ * whether a network call succeeded is worse than one that scores conservatively.
+ */
+export const structureJudgement = {
+  /** Below this the tree does not describe the problem: nonsense, or unrelated. */
+  incoherentBelow: 30,
+  /** Below this it is recognisable but loose — right idea, wrong or vague split. */
+  looseBelow: 70,
+
+  multipliers: {
+    incoherent: 0.25,
+    loose: 0.6,
+    coherent: 1,
+  },
+} as const;
+
+/** Which categories the model's read of the tree is allowed to scale. */
+export const STRUCTURAL_CATEGORIES = [
+  "structuring",
+  "segmentation",
+  "logic",
+  "business",
+] as const;
