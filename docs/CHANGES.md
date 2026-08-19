@@ -933,3 +933,78 @@ the registry line, the seed row, the Pro pitch count in `lib/config/access.ts` (
 quotes the catalogue back at the buyer, so it moves with it), and a regenerated
 `tests/fixtures/sim-golden.json` — which reported exactly one changed slug, confirming no
 existing scenario's projection moved.
+
+### 23. The guesstimate interviewer hints; it stopped leading
+
+Reported from use: the market-sizing interviewer gives numbers away too easily and walks
+the candidate toward the answer. The numbers half is by design and stays — a guesstimate
+tests structure, not whether you remember a population, and `lib/config/reference-data.ts`
+argues that at length. The other half was real, and it was four separate leaks.
+
+**A guesstimate is graded on the decomposition, so the decomposition is the answer.** That
+is the sentence the prompt layer never said, and every leak below is a version of not
+having said it.
+
+- **Hint level 3 printed the authored answer structure verbatim.** `mockHintText` returned
+  ``Here's the structure to use: ${q.betterApproach}``. On the umbrella question that string
+  is "Segment population into adults vs children, narrow to actual umbrella owners, apply a
+  replacement frequency (~1 per 2 years), then add monsoon damage, first-time buyers and
+  institutional demand" — the whole answer, on the rung a candidate has paid three levels of
+  Confidence to reach, leaving nothing to do but arithmetic. With a real provider the same
+  instruction sat in `hintSystemPrompt` as "point clearly at the structure to use"; the model
+  has no `betterApproach` in context, so it invented an equivalent chain instead.
+- **Level 2 handed over two steps at once** — "break the population into meaningful segments,
+  then apply a usage or purchase rate to each".
+- **`BASE_INTERVIEWER_RULES` pulled against itself.** It banned "the segmentation that reaches
+  it" only as a clause of *never reveal the final answer early*, then said "Encourage
+  segmentation and top-down/bottom-up structure" five lines later. A model resolves that
+  toward helpfulness: withholding the number while laying out how to get it reads as
+  compliant.
+- **Structure rode along with a reference figure.** Nothing forbade following a population
+  with "so multiply by the urban share, then by penetration". The figure was fine; the next
+  sentence was the leak.
+
+What changed:
+
+- The no-reveal rule is now two independent obligations, and the second is stated in its own
+  words: never propose, name or list the segments, the order of the steps, or what to
+  multiply by what — *not even as a question with the answer inside it* ("have you thought
+  about splitting urban vs rural?"), which is how this leaks in practice. React to the
+  structure they build instead; naming what is wrong with their segments is fair, naming the
+  segments is not.
+- **Give the figure, then stop.** Reference figures stay freely available on request. What is
+  banned is the step that follows one.
+- **Chat stops giving untracked structural help.** Asked how to break the problem down, the
+  interviewer turns it back and points at the hint button. This is existing design intent
+  finally enforced: `lib/config/practice.ts` records that Coach mode was removed precisely
+  because it "handed out hints without touching `hintsUsed`", and chat was the same hole.
+- **The ladder escalates in concreteness, not in how much of the chain it gives away.** Level
+  1 points at what has not been considered; level 2 names the *dimension* the next split
+  should run along, not the splits; level 3 names the single next step and stops. In the mock
+  that top rung is now read off the candidate's actual state — no segmentation yet, segments
+  but no rates, both, or a finished estimate — using the same predicates `replyInterviewer`
+  already had. So it stays decisively useful when stuck, which is what a paid rung owes.
+- Three market-sizing phrase banks lost their worked examples: the stuck nudge no longer says
+  "break it into: who uses it, how many there are, and how often", the sanity check no longer
+  suggests "institutional or bulk demand", and `PROBE_FREQUENCY` — which announced that
+  frequency was the next step — is now `PROBE_NEXT_ASSUMPTION` and asks what is missing.
+
+**The case interviewer has the identical bug and is deliberately untouched.** Its own top hint
+also prints `betterApproach`. Fixing it was declined for this pass, so `tests/interviewer-
+strictness.test.ts` pins the case prompts as byte-identical — the mode prompts, all three hint
+intensities as exact literals, and the fact that its top rung still hands over the approach.
+If that is ever tightened it should be tightened on purpose, not drift.
+
+`renderDataPack` was left alone on purpose even though the ride-along ban is about data:
+it is shared with the case interviewer and the war-room debrief coach, so the ban went into
+`BASE_INTERVIEWER_RULES` where it reaches only the guesstimate path.
+
+Verified by writing the tests against `origin/main` first: 11 of 16 fail there and all 16 pass
+after. Two of them passed both ways on the first attempt, because a three-entry phrase bank
+hides a bad line two times in three when you sample one seeded reply — they now sweep the
+question title, which is what `seedFor` mixes in, and one of them additionally had to be given
+a user message, since `replyInterviewer` answers with its opening line while the turn count is
+zero and never reaches the bank being asserted on. The four prompt-sensitive suites that were
+already there — `mock-llm`, `sim-coach-prompt`, `gemini-messages`, `teacher-reference` — pass
+unchanged, and a dump of the rendered system prompts confirms no interviewer or hint prompt
+contains `betterApproach` or `sampleSolution` at any level, while Teacher mode still does.

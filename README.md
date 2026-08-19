@@ -772,7 +772,10 @@ carrying anyway.
 
 **Help is priced.** Hints cost Confidence as they escalate. Teacher mode — the one AI mode whose
 prompt actually works the problem — costs the equivalent of the whole hint ladder and is disclosed
-in the report. A **guided** tree isn't scored on structure at all, since the app built it. Each is
+in the report. The chat interviewer gives none of it away for free: asked how to break the problem
+down, it turns the question back and points at the hint button, because a guesstimate is graded on
+the decomposition and an untracked hint is the answer at no price. The ladder escalates in how
+concrete its *single* next step gets, never in how much of the chain it reveals. A **guided** tree isn't scored on structure at all, since the app built it. Each is
 derived from what was persisted rather than tracked separately, so none of it can drift out of
 sync with the transcript.
 
