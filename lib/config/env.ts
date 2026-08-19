@@ -22,6 +22,17 @@ const PROVIDERS: readonly LlmProvider[] = [
  */
 const LOCAL_PROVIDERS: readonly LlmProvider[] = ["ollama"];
 
+/**
+ * Whether calls to this provider are billed against a quota worth guarding.
+ *
+ * Per-provider rather than a single flag because a deployment can now run two
+ * engines at once — see `fallbackProvider` — and the guards care about the one
+ * actually being asked to answer, not the one named in `LLM_PROVIDER`.
+ */
+export function isMeteredProvider(provider: LlmProvider): boolean {
+  return provider !== "mock" && !(LOCAL_PROVIDERS as readonly string[]).includes(provider);
+}
+
 function isProvider(value: string | undefined): value is LlmProvider {
   return value !== undefined && (PROVIDERS as readonly string[]).includes(value);
 }
@@ -53,12 +64,46 @@ function detectProvider(): LlmProvider {
   return "mock";
 }
 
+/**
+ * A second engine to try when the configured one cannot answer a turn.
+ *
+ * The case this exists for is `LLM_PROVIDER=nvidia` with
+ * `LLM_FALLBACK_PROVIDER=ollama`: a hosted provider that is out of credit,
+ * rate limited, unreachable or returning nothing hands the turn to a local
+ * model instead of dropping the session to the offline mock.
+ *
+ * Opt-in by name, never sniffed, for the reason `detectProvider` gives about
+ * Ollama: a fallback silently routes real student turns to a different engine,
+ * so a deployment has to say out loud that the second one is there.
+ *
+ * Two settings are accepted and ignored, because both mean "no fallback" rather
+ * than something the app could honour:
+ *
+ *   - **the same provider twice** — the retry in `runTurn` already covers the
+ *     transient case, and re-running a spent quota just spends latency;
+ *   - **`mock`** — it is the floor of every chain already.
+ *
+ * A fallback behind a `mock` primary is also dropped: the mock cannot fail, so
+ * nothing behind it would ever run, and keeping it would only make
+ * `isMeteredLlm` lie about a provider that is never called.
+ */
+function detectFallbackProvider(primary: LlmProvider): LlmProvider | undefined {
+  const explicit = process.env.LLM_FALLBACK_PROVIDER?.toLowerCase();
+  if (!isProvider(explicit)) return undefined;
+  if (explicit === primary || explicit === "mock" || primary === "mock") return undefined;
+  return explicit;
+}
+
+const provider = detectProvider();
+
 export const env = {
   databaseUrl: process.env.DATABASE_URL ?? "file:./dev.db",
   authSecret: process.env.AUTH_SECRET ?? "case-closed-dev-secret-change-me",
 
   llm: {
-    provider: detectProvider(),
+    provider,
+    /** Tried when `provider` fails before it has produced any text. */
+    fallbackProvider: detectFallbackProvider(provider),
     model: process.env.LLM_MODEL,
     geminiApiKey: process.env.GEMINI_API_KEY,
     anthropicApiKey: process.env.ANTHROPIC_API_KEY,
@@ -87,6 +132,13 @@ export const env = {
 /** True when a real LLM key is configured (vs. the offline mock). */
 export const hasRealLlm = env.llm.provider !== "mock";
 
-/** True when provider calls are billed against a shared quota worth guarding. */
+/**
+ * True when provider calls are billed against a shared quota worth guarding.
+ *
+ * A metered *fallback* counts too. `LLM_PROVIDER=ollama` with a hosted provider
+ * behind it spends real money the moment the local server is down, and the
+ * guards are the only thing standing in front of that.
+ */
 export const isMeteredLlm =
-  hasRealLlm && !(LOCAL_PROVIDERS as readonly string[]).includes(env.llm.provider);
+  isMeteredProvider(env.llm.provider) ||
+  (env.llm.fallbackProvider !== undefined && isMeteredProvider(env.llm.fallbackProvider));

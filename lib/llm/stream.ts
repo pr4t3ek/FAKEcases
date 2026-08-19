@@ -12,8 +12,36 @@
 
 import type { LlmErrorCode } from "./errors";
 
-/** Why the mock answered instead of the configured provider. */
+/** Why something other than the configured provider answered. */
 export type FallbackReason = "quota" | "error" | "budget";
+
+/**
+ * How `runTurn` labels an engine that stood in for the configured provider, and
+ * how the chat components read that label back.
+ *
+ * It lives here rather than next to `runTurn` for the reason the module docstring
+ * gives: `./index` imports every adapter, Gemini's SDK included, and none of that
+ * belongs in a client bundle. The producer and its two readers still share one
+ * definition of the shape, which is the point — a turn shown as the real provider
+ * when a stand-in answered it would be a quiet lie about where the answer came from.
+ */
+const FALLBACK_SUFFIX = " (fallback)";
+
+export function fallbackLabel(name: string): string {
+  return `${name}${FALLBACK_SUFFIX}`;
+}
+
+/** Any mock-produced turn: the offline interviewer answered, not a model. */
+export function isMockProvider(provider?: string | null): boolean {
+  return Boolean(provider?.startsWith("mock"));
+}
+
+/** The real engine that stood in for the configured provider, when one did. */
+export function fallbackEngine(provider?: string | null): string | null {
+  if (!provider || isMockProvider(provider)) return null;
+  if (!provider.endsWith(FALLBACK_SUFFIX)) return null;
+  return provider.slice(0, -FALLBACK_SUFFIX.length);
+}
 
 export type StreamLine =
   /** An incremental chunk of assistant text. */

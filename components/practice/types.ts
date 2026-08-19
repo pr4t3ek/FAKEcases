@@ -12,7 +12,11 @@ export interface UiMessage {
    * is where they were said.
    */
   mode?: string | null;
-  /** Engine that produced an assistant turn. Any "mock*" value is badged in the UI. */
+  /**
+   * Engine that produced an assistant turn. Badged in the UI when it isn't the
+   * configured provider: any "mock*" value as the offline interviewer, and a
+   * "<name> (fallback)" value as the backup model that stood in for it.
+   */
   provider?: string | null;
   /** True while deltas are still arriving for this message. */
   streaming?: boolean;

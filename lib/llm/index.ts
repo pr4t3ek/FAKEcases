@@ -1,4 +1,4 @@
-import { env } from "@/lib/config";
+import { env, isMeteredProvider, type LlmProvider } from "@/lib/config";
 import { mockAdapter } from "./mock";
 import { geminiAdapter } from "./gemini";
 import { anthropicAdapter } from "./anthropic";
@@ -6,7 +6,7 @@ import { openaiAdapter } from "./openai";
 import { nvidiaAdapter } from "./nvidia";
 import { ollamaAdapter } from "./ollama";
 import { asLlmError, type LlmErrorCode } from "./errors";
-import type { FallbackReason } from "./stream";
+import { fallbackLabel, type FallbackReason } from "./stream";
 import type { InterviewerContext, LlmAdapter } from "./types";
 
 export type {
@@ -20,13 +20,13 @@ export type {
 export { mockAdapter } from "./mock";
 
 /** Provider label recorded when the mock stood in for a real provider. */
-export const MOCK_FALLBACK = "mock (fallback)";
+export const MOCK_FALLBACK = fallbackLabel("mock");
 
 /** One retry, for transient failures only, before giving up on the provider. */
 const RETRY_DELAY_MS = 1_200;
 
-export function getAdapter(): LlmAdapter {
-  switch (env.llm.provider) {
+function adapterFor(provider: LlmProvider): LlmAdapter {
+  switch (provider) {
     case "gemini":
       return geminiAdapter;
     case "anthropic":
@@ -40,6 +40,41 @@ export function getAdapter(): LlmAdapter {
     default:
       return mockAdapter;
   }
+}
+
+export function getAdapter(): LlmAdapter {
+  return adapterFor(env.llm.provider);
+}
+
+/**
+ * The second engine, when `LLM_FALLBACK_PROVIDER` names one. Undefined otherwise,
+ * which is the shipped default — the mock has always been the only stand-in.
+ */
+export function getFallbackAdapter(): LlmAdapter | undefined {
+  const provider = env.llm.fallbackProvider;
+  return provider === undefined ? undefined : adapterFor(provider);
+}
+
+/**
+ * The engines to try for one turn, in order.
+ *
+ * Always ends at the mock, and the mock is only ever last: it is offline and
+ * deterministic, so it cannot fail, which makes it a floor rather than another
+ * link. Anything placed behind it would be unreachable.
+ */
+function providerChain(options: TurnOptions): LlmAdapter[] {
+  const configured: LlmProvider[] = [env.llm.provider];
+  if (env.llm.fallbackProvider) configured.push(env.llm.fallbackProvider);
+
+  // The spend guard already said no, so a metered engine is out — but an
+  // unmetered one costs the guarded quota nothing, and a real local model is a
+  // better answer than the mock. This is why the guard is worth a chain at all
+  // and not just an early `serveMock`.
+  const usable = options.budgetBlocked
+    ? configured.filter((provider) => !isMeteredProvider(provider))
+    : configured;
+
+  return [...usable.filter((provider) => provider !== "mock").map(adapterFor), mockAdapter];
 }
 
 /** True when a turn was actually billed against the provider's quota. */
@@ -79,70 +114,88 @@ function sleep(ms: number): Promise<void> {
 type Call = (adapter: LlmAdapter) => AsyncIterable<string>;
 
 /**
- * Run one turn against the configured provider, with the mock as a safety net.
+ * Run one turn against the configured provider, with a stand-in behind it.
  *
  * Failure is handled differently either side of the first token, and the split is
  * the point of this function:
  *
- *   - **Before any text** the user has seen nothing, so falling back to the mock
- *     produces a complete, coherent answer. They get a usable reply plus an honest
- *     badge instead of an error.
+ *   - **Before any text** the user has seen nothing, so handing the turn to the
+ *     next engine in the chain produces a complete, coherent answer. They get a
+ *     usable reply plus an honest label instead of an error.
  *   - **After text has streamed** the user is already reading a real reply. Splicing
- *     mock output onto the end would produce an answer that changes voice and
- *     reasoning mid-paragraph, which is worse than an obviously truncated one — so
- *     the turn is marked `interrupted` and stops.
+ *     another engine's output onto the end would produce an answer that changes voice
+ *     and reasoning mid-paragraph, which is worse than an obviously truncated one — so
+ *     the turn is marked `interrupted` and stops. This is why the chain is walked
+ *     here and not inside the adapters: only this loop knows whether a token has
+ *     already reached the user.
+ *
+ * The chain is `LLM_PROVIDER` → `LLM_FALLBACK_PROVIDER` (when set) → the mock. Every
+ * link past the first is labelled `<name> (fallback)` on the outcome, so a turn served
+ * by the stand-in is never recorded as one the configured provider answered.
  */
 function runTurn(call: Call, options: TurnOptions = {}): Turn {
-  const adapter = getAdapter();
-  const outcome: TurnOutcome = { provider: adapter.name, model: adapter.model };
+  const configured = getAdapter();
+  const chain = providerChain(options);
+  const outcome: TurnOutcome = { provider: configured.name, model: configured.model };
 
-  function serveMock(reason: FallbackReason): AsyncIterable<string> {
-    outcome.provider = MOCK_FALLBACK;
-    outcome.model = undefined;
-    outcome.fallbackReason = reason;
-    return call(mockAdapter);
+  /**
+   * Hand the turn to a stand-in.
+   *
+   * The reason recorded is the FIRST one, not the latest: it says why the engine
+   * the operator chose dropped out, which is the fact worth surfacing. That the
+   * fallback then failed too is already visible in the provider label.
+   */
+  function noteFallback(adapter: LlmAdapter, reason: FallbackReason): void {
+    outcome.provider = fallbackLabel(adapter.name);
+    outcome.model = adapter.model;
+    outcome.fallbackReason ??= reason;
   }
 
   async function* deltas(): AsyncGenerator<string> {
-    if (adapter.name !== "mock" && options.budgetBlocked) {
-      yield* serveMock("budget");
-      return;
-    }
-
     let emitted = false;
+    // Why the configured provider isn't answering. Only `budget` is known up
+    // front; anything else is read off the failure that ends its turn.
+    let reason: FallbackReason = options.budgetBlocked ? "budget" : "error";
 
-    for (let attempt = 0; attempt <= 1; attempt++) {
-      try {
-        for await (const delta of call(adapter)) {
-          if (!delta) continue;
-          emitted = true;
-          yield delta;
+    for (let i = 0; i < chain.length; i++) {
+      const adapter = chain[i];
+      if (adapter !== configured) noteFallback(adapter, reason);
+
+      for (let attempt = 0; attempt <= 1; attempt++) {
+        try {
+          for await (const delta of call(adapter)) {
+            if (!delta) continue;
+            emitted = true;
+            yield delta;
+          }
+          if (emitted) return;
+          // A provider that streams nothing is a failure, not an empty answer.
+          if (adapter === mockAdapter) return;
+          throw asLlmError(new Error(`${adapter.name} returned empty content`));
+        } catch (err) {
+          const error = asLlmError(err);
+
+          // The mock is the last line of defence; nothing left to fall back to.
+          if (adapter === mockAdapter) throw error;
+
+          if (emitted) {
+            console.error(`[llm] ${adapter.name} failed mid-stream:`, error);
+            outcome.interrupted = error.code;
+            return;
+          }
+
+          if (attempt === 0 && error.code === "rate_limited") {
+            console.warn(`[llm] ${adapter.name} rate limited, retrying once:`, error.message);
+            await sleep(RETRY_DELAY_MS);
+            continue;
+          }
+
+          reason = error.code === "quota_exhausted" ? "quota" : "error";
+          // The mock throws above rather than reaching here, so there is always
+          // a next link to name.
+          console.error(`[llm] ${adapter.name} failed, falling back to ${chain[i + 1].name}:`, error);
+          break;
         }
-        if (emitted) return;
-        // A provider that streams nothing is a failure, not an empty answer.
-        if (adapter.name === "mock") return;
-        throw asLlmError(new Error(`${adapter.name} returned empty content`));
-      } catch (err) {
-        const error = asLlmError(err);
-
-        // The mock is the last line of defence; nothing left to fall back to.
-        if (adapter.name === "mock") throw error;
-
-        if (emitted) {
-          console.error(`[llm] ${adapter.name} failed mid-stream:`, error);
-          outcome.interrupted = error.code;
-          return;
-        }
-
-        if (attempt === 0 && error.code === "rate_limited") {
-          console.warn(`[llm] ${adapter.name} rate limited, retrying once:`, error.message);
-          await sleep(RETRY_DELAY_MS);
-          continue;
-        }
-
-        console.error(`[llm] ${adapter.name} failed, falling back to mock:`, error);
-        yield* serveMock(error.code === "quota_exhausted" ? "quota" : "error");
-        return;
       }
     }
   }

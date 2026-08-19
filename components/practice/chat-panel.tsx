@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, Lightbulb, Loader2, Pause, Play, SendHorizontal, Volume2, VolumeX, WifiOff } from "lucide-react";
+import { ArrowDown, Cpu, Lightbulb, Loader2, Pause, Play, SendHorizontal, Volume2, VolumeX, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import { aiModes, hintConfig, speechConfig, transcriptFor, type AiMode } from "@/lib/config";
-import { readNdjson } from "@/lib/llm/stream";
+import { fallbackEngine, isMockProvider, readNdjson } from "@/lib/llm/stream";
 import { setMode as persistMode } from "@/app/actions/practice";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,10 +22,12 @@ import { useSpeechOutput } from "./use-speech-output";
 import { AssistantText } from "./assistant-text";
 import type { UiMessage } from "./types";
 
-/** Any mock-produced turn is badged so a degraded answer is never mistaken for the real one. */
-function isMockProvider(provider?: string | null): boolean {
-  return Boolean(provider?.startsWith("mock"));
-}
+/*
+ * Two badges, both from `lib/llm/stream.ts`: a mock turn says the offline
+ * interviewer answered, and a fallback turn says a real model did — just not the
+ * one this deployment leads with. They are mutually exclusive by construction,
+ * so a turn is never labelled twice.
+ */
 
 export function ChatPanel({
   attemptId,
@@ -531,6 +533,15 @@ export function ChatPanel({
                 >
                   <WifiOff className="h-3 w-3" />
                   offline interviewer
+                </span>
+              )}
+              {m.role === "assistant" && !m.streaming && fallbackEngine(m.provider) && (
+                <span
+                  className="mt-1.5 flex items-center gap-1 text-[11px] text-muted-foreground"
+                  title={`Answered by ${fallbackEngine(m.provider)}, the backup model — the main provider wasn't available.`}
+                >
+                  <Cpu className="h-3 w-3" />
+                  backup model
                 </span>
               )}
               {m.interrupted && (
