@@ -111,6 +111,21 @@ const EXPECTED: Record<string, string> = {
   "Number of active credit cards in India": "CreditCard",
   "EV two-wheelers sold per year in Delhi NCR": "BatteryCharging",
   "Annual GMV of a mid-size D2C brand in India": "ShoppingBag",
+  // "airport" is the subject on both of these, and it outranks the "revenue"
+  // rule further down — which is right: the card is a place, not an accounting
+  // line. Two questions sharing an icon is fine; their titles differ.
+  "Annual duty-free alcohol sales at a Delhi airport terminal": "Plane",
+  "Yearly food and beverage revenue at a new Mumbai airport": "Plane",
+  // Reached through "grocery" in the tags — "hypermarket" is not itself a
+  // pattern, and "store" does not appear in the title.
+  "First-month sales of a new hypermarket in south Bangalore": "Store",
+  // Nothing about perfume or order quantities is a subject rule, so this takes
+  // the Retail category's icon — the fallback doing its job.
+  "Optimal order quantity for a luxury perfume outlet": "ShoppingCart",
+  "Customer-care executives needed by a food-delivery app in Delhi NCR": "Bike",
+  // "cricket" in the tags, not "tennis" in the title: tennis is not a pattern,
+  // and street cricket is where most of these balls actually go.
+  "Tennis balls sold in Bangalore per year": "Trophy",
   "Falling delivery margins at a food-delivery platform": "Bike",
   "Should a two-wheeler maker enter electric scooters?": "BatteryCharging",
   "Falling turnout at a city's free neighbourhood clinics": "Stethoscope",
