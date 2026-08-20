@@ -139,3 +139,70 @@ export function expectedOffer(
     0,
   );
 }
+
+/**
+ * Every counterparty's quote for the coming period, and their offers merged.
+ *
+ * A domain with one counterparty passes an array of one; a market with three
+ * rivals passes three. Merging is a plain spread because a config gives each
+ * agent its own offer keys — two agents writing the same key would mean one of
+ * them silently loses, which `validateAgents` refuses at authoring time rather
+ * than leaving to discover in a debrief.
+ *
+ * Each agent draws from the SAME generator, in config order. That is what keeps
+ * a match reproducible: the sequence of draws is a function of the seed and the
+ * order agents are declared in, neither of which a player can move.
+ */
+export interface AgentQuotes {
+  /** One per agent, in config order. */
+  each: AgentQuote[];
+  /** Every agent's offers, merged. */
+  offers: Record<string, number>;
+}
+
+export function quoteAll(args: {
+  agents: AgentConfig[];
+  state: Record<string, number>;
+  rng: Rng;
+}): AgentQuotes {
+  const each = args.agents.map((config) => quote({ config, state: args.state, rng: args.rng }));
+  const offers: Record<string, number> = {};
+  for (const q of each) Object.assign(offers, q.offers);
+  return { each, offers };
+}
+
+/**
+ * The expected level of one offer key across every agent that quotes it.
+ *
+ * A sum rather than a pick, because "which agent owns this key" is not
+ * something a valuation should have to know. Agents that do not offer the key
+ * contribute zero, so with the one-key-one-agent rule this is that agent's
+ * expectation and nothing else.
+ */
+export function expectedOfferAcross(
+  agents: AgentConfig[],
+  state: Record<string, number>,
+  key: string,
+): number {
+  return agents.reduce((sum, config) => sum + expectedOffer(config, state, key), 0);
+}
+
+/**
+ * Authoring guard: no two agents may write the same offer key.
+ *
+ * Returns the offending keys rather than throwing, so a config test can report
+ * all of them at once. Called by the arena's config test; cheap enough that a
+ * second config-driven domain should call it too.
+ */
+export function duplicateOfferKeys(agents: AgentConfig[]): string[] {
+  const seen = new Set<string>();
+  const clashes = new Set<string>();
+  for (const agent of agents) {
+    const keys = new Set(agent.actions.flatMap((a) => Object.keys(a.offers)));
+    for (const key of keys) {
+      if (seen.has(key)) clashes.add(key);
+      seen.add(key);
+    }
+  }
+  return [...clashes].sort();
+}

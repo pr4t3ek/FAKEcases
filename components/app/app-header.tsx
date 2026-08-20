@@ -5,6 +5,7 @@ import { initialsFor } from "@/lib/avatar";
 import { canHostRooms } from "@/lib/types";
 import { Brand } from "@/components/brand";
 import { NavLinks } from "@/components/app/nav-links";
+import { canPlayArena } from "@/lib/arena/access";
 import { AccountMenu } from "@/components/app/account-menu";
 import { JoinRoomDialog } from "@/components/rooms/join-room-dialog";
 import { RankBadge } from "@/components/rank-badge";
@@ -18,7 +19,11 @@ export function AppHeader({ user }: { user: User | null }) {
         <div className="flex items-center gap-6">
           <Brand href={isMember ? "/dashboard" : "/library"} />
           {isMember && (
-            <NavLinks isAdmin={user!.role === "admin"} canHost={canHostRooms(user!.role)} />
+            <NavLinks
+              isAdmin={user!.role === "admin"}
+              canHost={canHostRooms(user!.role)}
+              canPlayArena={canPlayArena(user!)}
+            />
           )}
         </div>
 

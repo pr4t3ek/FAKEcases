@@ -36,7 +36,7 @@ function play(args: {
 
   const ticks = args.ticks ?? config.horizon;
   for (let t = 0; t < ticks; t++) {
-    const offered = quote({ config: config.agent, state: ctx.state.current, rng: quoteRng });
+    const offered = quote({ config: config.agents[0], state: ctx.state.current, rng: quoteRng });
     quotes.push({
       buybackPrice: offered.offers.buybackPrice,
       buybackShare: offered.offers.buybackShare,
@@ -64,9 +64,9 @@ describe("repeated over-ordering worsens the supplier's terms", () => {
 
   it("AND worsens what the supplier will quote next month", () => {
     const priceAfter = (r: typeof disciplined) =>
-      expectedOffer(buybackConfig.agent, r.ctx.state.current, "buybackPrice");
+      expectedOffer(buybackConfig.agents[0], r.ctx.state.current, "buybackPrice");
     const shareAfter = (r: typeof disciplined) =>
-      expectedOffer(buybackConfig.agent, r.ctx.state.current, "buybackShare");
+      expectedOffer(buybackConfig.agents[0], r.ctx.state.current, "buybackShare");
 
     expect(priceAfter(overOrdering)).toBeLessThan(priceAfter(disciplined));
     expect(shareAfter(overOrdering)).toBeLessThan(shareAfter(disciplined));
@@ -85,9 +85,9 @@ describe("repeated over-ordering worsens the supplier's terms", () => {
   it("gets there through the belief, not through the order quantity", () => {
     // The quote is a function of state, and the ONLY state the agent reads is
     // its belief. Same belief, same expected offer, regardless of history.
-    const a = expectedOffer(buybackConfig.agent, { supplierTrust: 0.4 }, "buybackPrice");
+    const a = expectedOffer(buybackConfig.agents[0], { supplierTrust: 0.4 }, "buybackPrice");
     const b = expectedOffer(
-      buybackConfig.agent,
+      buybackConfig.agents[0],
       { supplierTrust: 0.4, orderQuantity: 99_999 },
       "buybackPrice",
     );

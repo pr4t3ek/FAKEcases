@@ -58,6 +58,20 @@ export type MechanismSpec =
       referenceLevel: number;
       /** Sign convention: positive means raising the lever lowers the output. */
       exponentSign: 1 | -1;
+      /**
+       * This lever's own elasticity, overriding the regime's.
+       *
+       * The regime's number is the right default for the lever the regime is
+       * ABOUT — demand against price — and the wrong one for every other lever
+       * in the same world. A market whose price elasticity is 2.15 does not
+       * thereby have an advertising elasticity of 2.15, and sharing the number
+       * made marketing spend a dominant strategy at exactly the moment price
+       * was tuned to have an interior optimum.
+       *
+       * Omit it and the regime decides, which is what every existing mechanism
+       * does and what keeps a regime meaningful.
+       */
+      elasticity?: number;
       /** Names the draw whose percentile the scenario library can trigger on. */
       shockName: string;
     }
@@ -335,7 +349,8 @@ export interface SimulatorConfig {
   mechanisms: MechanismSpec[];
   derivations: DerivationSpec[];
   settlement: SettlementConfig;
-  agent: AgentConfig;
+  /** Every counterparty. One for a bilateral contract, three for a market. */
+  agents: AgentConfig[];
 
   decisions: DecisionVariableConfig[];
   financials: FinancialsConfig;

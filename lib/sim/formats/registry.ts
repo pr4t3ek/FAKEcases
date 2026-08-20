@@ -11,6 +11,7 @@ import type { SimFormat } from "./types";
 import { warRoomFormat, periodicWarRoomFormat } from "./war-room";
 import { turnaroundFormat } from "./turnaround";
 import { buybackFormat } from "./buyback";
+import { arenaFormat } from "@/lib/arena/format";
 
 /**
  * The format a scenario runs on when it does not say.
@@ -22,7 +23,7 @@ import { buybackFormat } from "./buyback";
  */
 export const DEFAULT_FORMAT_SLUG = warRoomFormat.slug;
 
-const ALL: SimFormat[] = [warRoomFormat, turnaroundFormat, buybackFormat];
+const ALL: SimFormat[] = [warRoomFormat, turnaroundFormat, buybackFormat, arenaFormat];
 
 const BY_SLUG: Record<string, SimFormat> = Object.fromEntries(
   ALL.map((format) => [format.slug, format]),
