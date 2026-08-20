@@ -13,7 +13,7 @@ import { buybackFormat } from "@/lib/sim/formats/buyback";
 import { getSimulatorConfig, isSimulatorSlug } from "@/lib/sim/configs/registry";
 import type { SimulatorConfig } from "@/lib/sim/configs/types";
 import { applyBranch, openRun, runTick } from "@/lib/sim/engine/time";
-import { quote } from "@/lib/sim/engine/agent";
+import { quoteAll } from "@/lib/sim/engine/agent";
 import { createRng } from "@/lib/sim/engine/stochastic";
 import { monteCarlo, scoreRun } from "@/lib/sim/engine/scoring";
 import {
@@ -738,7 +738,7 @@ export async function beginTurnaround(runId: string): Promise<SimActionResult> {
 function rebuild(config: SimulatorConfig, seed: string, journal: RunJournal) {
   let ctx = openRun(config, seed, openJournal(seed, config.slug));
   const quoteRng = createRng(`${seed}:quote`);
-  let lastQuote = quote({ config: config.agent, state: ctx.state.current, rng: quoteRng });
+  let lastQuote = quoteAll({ agents: config.agents, state: ctx.state.current, rng: quoteRng });
 
   for (const entry of journal.entries) {
     const branch = journal.branches[entry.tick];
@@ -749,7 +749,7 @@ function rebuild(config: SimulatorConfig, seed: string, journal: RunJournal) {
       if (option) ctx = applyBranch(ctx, option.transitionMatrix);
     }
     ctx = runTick(ctx, entry.decision, lastQuote.offers).ctx;
-    lastQuote = quote({ config: config.agent, state: ctx.state.current, rng: quoteRng });
+    lastQuote = quoteAll({ agents: config.agents, state: ctx.state.current, rng: quoteRng });
   }
 
   return { ctx, quote: lastQuote, journal };

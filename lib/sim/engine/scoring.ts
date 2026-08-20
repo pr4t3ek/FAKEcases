@@ -17,7 +17,7 @@ import { weightedOverallFor, type SimFormat } from "@/lib/sim/formats/types";
 import { bandForSimScore } from "@/lib/config/simulation";
 import { cashConversionCycle, rollingNpv } from "./financials";
 import { openRun, runTick, type RunContext } from "./time";
-import { expectedOffer, quote } from "./agent";
+import { expectedOfferAcross, quoteAll } from "./agent";
 import { createRng } from "./stochastic";
 import { openJournal } from "./journal";
 import type { SimulatorConfig } from "@/lib/sim/configs/types";
@@ -113,7 +113,7 @@ export function rollingValuation(ctx: RunContext): number {
 
   const contractKey = config.settlement.contract?.priceKey;
   const expectedContractPrice = contractKey
-    ? expectedOffer(config.agent, ctx.state.current, contractKey)
+    ? expectedOfferAcross(config.agents, ctx.state.current, contractKey)
     : 0;
 
   // The forward month is the MEAN of what has been realised, not the last one.
@@ -176,7 +176,7 @@ export function monteCarlo(args: {
     const quoteRng = createRng(`${seed}:mc:${p}:quote`);
 
     for (let t = 0; t < config.horizon; t++) {
-      const offered = quote({ config: config.agent, state: ctx.state.current, rng: quoteRng });
+      const offered = quoteAll({ agents: config.agents, state: ctx.state.current, rng: quoteRng });
       const decision = policy(t, ctx.state.current);
       ctx = runTick(ctx, decision, offered.offers).ctx;
     }

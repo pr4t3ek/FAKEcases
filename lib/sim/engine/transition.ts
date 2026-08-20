@@ -128,7 +128,9 @@ export function applyMechanism(args: {
         level: state[spec.reads] ?? 0,
         referenceLevel: spec.referenceLevel,
         base: spec.base,
-        elasticity: regime.elasticity,
+        // A lever that states its own elasticity is not governed by the
+        // regime's; see the field's note in `configs/types.ts`.
+        elasticity: spec.elasticity ?? regime.elasticity,
         multiplier: regime.demandMultiplier,
         exponentSign: spec.exponentSign,
         shock: shock * regime.noiseSigma,

@@ -19,7 +19,7 @@
  */
 
 import { clamp } from "@/lib/utils";
-import { quote, type AgentQuote } from "./agent";
+import { quoteAll, type AgentQuotes } from "./agent";
 import { openLedger, postPeriod, type Ledger, type PostedPeriod } from "./financials";
 import { appendEntry, type JournalDraw, type JournalEntry, type RunJournal } from "./journal";
 import { commitTick, openState, type SimState } from "./state";
@@ -60,7 +60,8 @@ export function openRun(config: SimulatorConfig, seed: string, journal: RunJourn
 
 /** What `reveal` produces — the only thing shown before a decision. */
 export interface Reveal {
-  quote: AgentQuote;
+  /** Every counterparty's quote, and their offers merged. */
+  quotes: AgentQuotes;
   /** Public state, hidden keys stripped. */
   signals: Record<string, number>;
   branch: SimulatorConfig["branchPoints"][number] | null;
@@ -78,7 +79,7 @@ export function reveal(ctx: RunContext, quoteRng: Rng): Reveal {
   }
 
   return {
-    quote: quote({ config: ctx.config.agent, state: ctx.state.current, rng: quoteRng }),
+    quotes: quoteAll({ agents: ctx.config.agents, state: ctx.state.current, rng: quoteRng }),
     signals,
     branch: ctx.config.branchPoints.find((b) => b.atTick === ctx.state.tick) ?? null,
   };

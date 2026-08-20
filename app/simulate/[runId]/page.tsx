@@ -25,7 +25,7 @@ import { TurnaroundScreen } from "@/components/simulation/turnaround-screen";
 import { BuybackScreen } from "@/components/simulation/buyback/buyback-screen";
 import { getSimulatorConfig } from "@/lib/sim/configs/registry";
 import { openRun, reveal, runTick } from "@/lib/sim/engine/time";
-import { quote } from "@/lib/sim/engine/agent";
+import { quoteAll } from "@/lib/sim/engine/agent";
 import { createRng } from "@/lib/sim/engine/stochastic";
 import { computeKpis, rollingValuation } from "@/lib/sim/engine/scoring";
 import { openJournal, parseJournal } from "@/lib/sim/engine/journal";
@@ -85,7 +85,7 @@ export default async function SimulatePage({
 
     let ctx = openRun(simulator, seed, openJournal(seed, simulator.slug));
     const quoteRng = createRng(`${seed}:quote`);
-    let offered = quote({ config: simulator.agent, state: ctx.state.current, rng: quoteRng });
+    let offered = quoteAll({ agents: simulator.agents, state: ctx.state.current, rng: quoteRng });
     let ledger = openLedger();
     let lastPosted = null as ReturnType<typeof postPeriod>["posted"] | null;
 
@@ -94,7 +94,7 @@ export default async function SimulatePage({
       ctx = stepped.ctx;
       lastPosted = stepped.posted;
       ledger = openLedger();
-      offered = quote({ config: simulator.agent, state: ctx.state.current, rng: quoteRng });
+      offered = quoteAll({ agents: simulator.agents, state: ctx.state.current, rng: quoteRng });
     }
     void ledger;
 
@@ -144,7 +144,7 @@ export default async function SimulatePage({
           }
         : null,
       quote: {
-        stance: offered.label,
+        stance: offered.each[0]?.label ?? "",
         wholesalePrice: offered.offers.wholesalePrice ?? 0,
         buybackPrice: offered.offers.buybackPrice ?? 0,
         buybackShare: offered.offers.buybackShare ?? 0,

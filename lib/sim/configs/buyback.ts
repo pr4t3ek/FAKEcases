@@ -285,7 +285,7 @@ export const buybackConfig: SimulatorConfig = {
    * numbers are consequences of the weights below, not thresholds written
    * anywhere.
    */
-  agent: {
+  agents: [{
     id: "supplier",
     label: "Your supplier",
     actions: [
@@ -325,7 +325,7 @@ export const buybackConfig: SimulatorConfig = {
     beliefKey: "supplierTrust",
     beliefWeight: 2.0,
     exposureTerm: "exposure",
-  },
+  }],
 
   decisions: [
     {

@@ -14,23 +14,23 @@ datasource db {
 }
 
 model User {
-  id             String    @id @default(cuid())
-  email          String?   @unique
-  name           String?
-  passwordHash   String?
+  id           String  @id @default(cuid())
+  email        String? @unique
+  name         String?
+  passwordHash String?
   /// Avatar URL — never image bytes. The bytes live behind `lib/storage`, whose
   /// `put()` returns whatever URL its provider serves from: `/api/avatar/<id>`
   /// for the built-in database store, a CDN URL for an external one. Holding a
   /// URL rather than a data URI is what keeps a 30 KB avatar out of every RSC
   /// payload, since `getSessionUser()` returns this whole row on every page.
-  image          String?
+  image        String?
   /// "user" | "professor" | "admin" — see USER_ROLES in lib/types.ts.
   ///
   /// A professor may open classroom rooms and nothing else; the admin panel
   /// stays admin-only. One column rather than a second boolean, so "what is this
   /// person" has exactly one answer.
-  role           String    @default("user")
-  isGuest        Boolean   @default(false)
+  role         String  @default("user")
+  isGuest      Boolean @default(false)
 
   /// Set only on a TOMBSTONE: the anonymous row that inherits a deleted
   /// account's classroom footprint — its seats, its class runs and any rooms it
@@ -42,7 +42,7 @@ model User {
   /// minted with `isGuest: true` so the existing `isGuest: false` filters in
   /// `recomputeRank` and `rankableUser` keep it out of the rank population and
   /// every public board with no new filter to add anywhere.
-  deletedAt      DateTime?
+  deletedAt DateTime?
 
   /// Pro access runs until this instant, or null for a free account.
   ///
@@ -50,7 +50,7 @@ model User {
   /// column is gone rather than kept alongside it. `tierFor()` compares this
   /// against now, so a lapsed pass downgrades itself: there is no cron, no
   /// renewal job, and nothing that can fall out of sync with a stored label.
-  proUntil       DateTime?
+  proUntil DateTime?
 
   // gamification
   xp             Int       @default(0)
@@ -61,13 +61,13 @@ model User {
   lastActiveDate DateTime?
 
   // percentile rank (cached; recomputed on a schedule)
-  rank           String?   // "Silver" | "Gold" | "Platinum" | "Diamond" | null
-  percentile     Float?
-  skillRating    Float?
+  rank        String? // "Silver" | "Gold" | "Platinum" | "Diamond" | null
+  percentile  Float?
+  skillRating Float?
 
   /// Has seen the first-run tutorial on the PRACTICE screen. Not a signup
   /// marker — see `profileCompletedAt`, which is the one that is.
-  onboardedAt    DateTime?
+  onboardedAt        DateTime?
   /// Has been through the post-signup questions (or skipped them deliberately).
   /// Named apart from `onboardedAt` because the two are genuinely different
   /// events and sharing one column would silently suppress the practice
@@ -87,7 +87,7 @@ model User {
   /// the migration the thing that decides who is locked out. `requireBatch` in
   /// lib/batch-gate.ts is what makes it mandatory, and it can say what it wants
   /// rather than failing an insert.
-  batch          String?
+  batch String?
 
   /// When this account asked to be made a professor, or null.
   ///
@@ -99,28 +99,45 @@ model User {
   /// declines, and when the person switches back to Student.
   professorRequestedAt DateTime?
 
+  /// When an admin opened the Arena for this account, or null for no access.
+  ///
+  /// A timestamp rather than a boolean, matching `proUntil`'s posture: the grant
+  /// carries when it happened, so an admin reading the user table can see who
+  /// was let in and when without a second audit column. Unlike `proUntil` it is
+  /// not a deadline — the Arena does not lapse — so `canPlayArena` tests only
+  /// for presence. Making it a date anyway costs nothing and leaves the door
+  /// open to a timed cohort later without a migration.
+  ///
+  /// Deliberately NOT part of any tier. `tierFor()` answers "what does this
+  /// person's plan reach", and the Arena is not on any plan — it is opened one
+  /// account at a time. Folding it into the tier table would mean every Pro
+  /// pass silently granted it.
+  arenaGrantedAt DateTime?
+
   /// Set by an admin password reset; cleared when the person chooses a new one.
   ///
   /// A reset makes the password the account's own email address, which is a
   /// value anyone holding a class roster can guess. This flag is what closes
   /// that window: `requirePasswordChange` (lib/password-gate.ts) sends the
   /// account to `/set-password` and nothing else opens until it is cleared.
-  mustChangePassword Boolean  @default(false)
+  mustChangePassword Boolean @default(false)
 
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  attempts       Attempt[]
-  bookmarks      Bookmark[]
-  achievements   UserAchievement[]
-  feedback       QuestionFeedback[]
-  progress       Progress?
-  profile        Profile?
-  simRuns        SimRun[]
-  simOverrides   SimScenarioOverride[]
-  ranked         LeaderboardEntry[]
-  hostedRooms    SimRoom[]             @relation("HostedRooms")
-  roomSeats      SimRoomMember[]
+  attempts      Attempt[]
+  bookmarks     Bookmark[]
+  achievements  UserAchievement[]
+  feedback      QuestionFeedback[]
+  progress      Progress?
+  profile       Profile?
+  simRuns       SimRun[]
+  simOverrides  SimScenarioOverride[]
+  ranked        LeaderboardEntry[]
+  hostedRooms   SimRoom[]             @relation("HostedRooms")
+  roomSeats     SimRoomMember[]
+  hostedMatches ArenaMatch[]          @relation("HostedMatches")
+  arenaSeats    ArenaSeat[]
 
   @@index([batch])
 }
@@ -138,13 +155,13 @@ model User {
 /// `skillRating`), and anything read only when someone opens their own profile
 /// lives here. `Progress` is the same shape for the same kind of reason.
 model Profile {
-  id        String   @id @default(cuid())
-  userId    String   @unique
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  phone     String?
-  city      String?
-  bio       String?
+  phone String?
+  city  String?
+  bio   String?
 
   /// One of PROFESSIONS in lib/config/profile.ts — "student" or "professor".
   ///
@@ -158,18 +175,18 @@ model Profile {
   /// JSON string[] of INTERVIEW_LEVELS. Read by `recommendQuestions` and used
   /// as the library's default filter, so answering it changes what the app
   /// shows rather than only what the profile page prints.
-  targetLevels String @default("[]")
+  targetLevels    String  @default("[]")
   /// Free text — "McKinsey, Flipkart". Never parsed, only displayed.
   targetCompanies String?
 
   /// Base64 image bytes, written only by the `db` avatar store. Absent when an
   /// external store is configured, since the bytes then live there and
   /// `User.image` points at it instead.
-  avatarData String?
-  avatarMime String?
+  avatarData    String?
+  avatarMime    String?
   /// Bumped on every upload and put in the served URL's query string, so an
   /// immutable cache header is safe.
-  avatarVersion Int @default(0)
+  avatarVersion Int     @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -191,8 +208,8 @@ model Question {
   prompt         String
   categoryId     String
   category       Category @relation(fields: [categoryId], references: [id])
-  difficulty     String   // "Easy" | "Medium" | "Hard"
-  interviewLevel String   // "BCG" | "McKinsey" | "Bain" | "Big4" | "PM" | "Product" | "GeneralMBA"
+  difficulty     String // "Easy" | "Medium" | "Hard"
+  interviewLevel String // "BCG" | "McKinsey" | "Bain" | "Big4" | "PM" | "Product" | "GeneralMBA"
   type           String   @default("guesstimate") // "guesstimate" | "qualitative" | "case"
 
   /// The industry the question is set in — a `SECTORS` value from lib/types.ts.
@@ -204,30 +221,30 @@ model Question {
   ///
   /// Nullable so a CSV import that omits it is a question without a sector
   /// rather than a failed row; the seed fills every one.
-  sector         String?
+  sector String?
 
-  idealLow       Float?
-  idealHigh      Float?
-  unit           String?
+  idealLow  Float?
+  idealHigh Float?
+  unit      String?
 
   /// Slug of the framework this case is written against ("profitability",
   /// "market-entry", …). The strongest signal for deciding which framework a
   /// candidate is building, and authored rather than inferred.
-  framework      String?
+  framework       String?
   /// JSON array of buckets a good answer covers, used by MECE coverage scoring.
   expectedBuckets String?
   /// JSON array of facts the interviewer releases only when asked about that
   /// branch: [{ "topic": ["cost","delivery"], "fact": "…" }]. Injecting these
   /// stops the model inventing figures that contradict the sample solution.
-  dataPack       String?
+  dataPack        String?
   /// JSON { "path": ["Cost","Delivery cost"], "note": "…" } — the branch that
   /// actually holds the problem. Its presence is what makes a question
   /// diagnostic; without it there is no diagnosis score.
-  rootCause      String?
+  rootCause       String?
 
-  betterApproach String   @default("")
-  sampleSolution String   @default("")
-  tags           String?  // comma-separated
+  betterApproach String  @default("")
+  sampleSolution String  @default("")
+  tags           String? // comma-separated
 
   /// Reachable without an account. The library's shop window: a guest gets the
   /// questions flagged here and nothing else (see lib/entitlements.ts).
@@ -237,27 +254,27 @@ model Question {
   /// decisions, and folding the flag into `toQuestionColumns` would mean every
   /// admin edit and every CSV re-import silently reset the free tier to false.
   /// It is written only by `setQuestionFreeTier` and the seed.
-  freeTier       Boolean  @default(false)
+  freeTier Boolean @default(false)
 
-  source         String   @default("seed") // "seed" | "admin" | "import" | "llm"
-  sourceUrl      String?
-  externalId     String?  @unique
+  source     String  @default("seed") // "seed" | "admin" | "import" | "llm"
+  sourceUrl  String?
+  externalId String? @unique
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  attempts       Attempt[]
-  bookmarks      Bookmark[]
-  feedback       QuestionFeedback[]
-  simRuns        SimRun[]
-  ranked         LeaderboardEntry[]
-  rooms          SimRoom[]
+  attempts     Attempt[]
+  bookmarks    Bookmark[]
+  feedback     QuestionFeedback[]
+  simRuns      SimRun[]
+  ranked       LeaderboardEntry[]
+  rooms        SimRoom[]
+  dailyUnlocks DailyUnlock[]
 
   @@index([categoryId])
   @@index([difficulty])
   @@index([interviewLevel])
   @@index([sector])
-  dailyUnlocks    DailyUnlock[]
 }
 
 /// A user's FIRST result on a question — the only row a leaderboard ranks.
@@ -288,16 +305,16 @@ model LeaderboardEntry {
 
   /// "attempt" | "simulation" — which exercise produced the score, so a row can
   /// be badged and its effort unit formatted without a join.
-  kind       String
+  kind String
 
   /// 0–100. `Evaluation.overall` or `SimResult.overall`.
-  score      Int
+  score Int
 
   /// The tiebreak, and **lower is always better**: seconds taken on an attempt,
   /// analyst-days spent on a simulation. One column rather than one per kind,
   /// because the two are never compared against each other — a per-question
   /// board holds a single kind by construction.
-  effort     Int      @default(0)
+  effort Int @default(0)
 
   /// The `Attempt.id` or `SimRun.id` this score came from.
   ///
@@ -305,7 +322,7 @@ model LeaderboardEntry {
   /// joining. It exists so a report screen can answer "is the run I am looking
   /// at the ranked one?" by comparing ids, instead of re-deriving which attempt
   /// was earliest and risking a different answer than the write path gave.
-  sourceId   String?
+  sourceId String?
 
   /// When the ranked result was achieved. Drives the weekly board's window, and
   /// is the final tiebreak so an earlier identical result ranks ahead.
@@ -318,16 +335,16 @@ model LeaderboardEntry {
 }
 
 model Attempt {
-  id            String    @id @default(cuid())
-  userId        String
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  questionId    String
-  question      Question  @relation(fields: [questionId], references: [id])
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id])
 
-  mode          String    @default("interviewer")
-  status        String    @default("in_progress") // "in_progress" | "submitted" | "abandoned"
-  timeSpentSec  Int       @default(0)
-  hintsUsed     Int       @default(0)
+  mode          String  @default("interviewer")
+  status        String  @default("in_progress") // "in_progress" | "submitted" | "abandoned"
+  timeSpentSec  Int     @default(0)
+  hintsUsed     Int     @default(0)
   finalEstimate Float?
   /// The recommendation in words, for questions that don't end in a number.
   finalAnswer   String?
@@ -335,15 +352,15 @@ model Attempt {
   /// a mid-attempt switch would make "solo" meaningless. Null on numeric attempts.
   treeMode      String?
 
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  submittedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  submittedAt DateTime?
 
-  messages      Message[]
-  assumptions   Assumption[]
-  calculations  Calculation[]
-  framework     FrameworkNode[]
-  evaluation    Evaluation?
+  messages     Message[]
+  assumptions  Assumption[]
+  calculations Calculation[]
+  framework    FrameworkNode[]
+  evaluation   Evaluation?
 
   @@index([userId])
   @@index([questionId])
@@ -354,7 +371,7 @@ model Message {
   id        String   @id @default(cuid())
   attemptId String
   attempt   Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
-  role      String   // "user" | "assistant" | "system"
+  role      String // "user" | "assistant" | "system"
   mode      String?
   content   String
   hintLevel Int?
@@ -386,7 +403,7 @@ model Assumption {
   attempt   Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
   key       String
   value     String
-  rating    String?  // "Reasonable" | "NeedsJustification" | "Weak" | "Excellent"
+  rating    String? // "Reasonable" | "NeedsJustification" | "Weak" | "Excellent"
   aiNote    String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -407,43 +424,43 @@ model Calculation {
 }
 
 model FrameworkNode {
-  id        String          @id @default(cuid())
-  attemptId String
-  attempt   Attempt         @relation(fields: [attemptId], references: [id], onDelete: Cascade)
-  label     String
-  value     String?
+  id              String          @id @default(cuid())
+  attemptId       String
+  attempt         Attempt         @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  label           String
+  value           String?
   /// Optional second factor, kept apart from `value` so a segment can carry a
   /// share of its parent AND its own rate ("50%" × "3 cups/day"). Blank = 1.
-  multiplier String?
+  multiplier      String?
   /// Free-text rationale. Present in the schema from the start but only written
   /// to by qualitative attempts, where it is the optional typed alternative to a
   /// rationale inherited from chat (see `sourceMessageId`).
-  note      String?
-  order     Int             @default(0)
-  combine   String          @default("sum") // "sum" | "multiply" — how this node's children combine (meaningful only with 2+ children)
+  note            String?
+  order           Int             @default(0)
+  combine         String          @default("sum") // "sum" | "multiply" — how this node's children combine (meaningful only with 2+ children)
   /// "unknown" | "healthy" | "problem" — the candidate's own judgement about this
   /// branch. Never derived from children: a red child does not redden its parent.
-  status    String?
+  status          String?
   /// The chat turn this bucket was promoted from, or the turn that revealed the
   /// fact backing it. The node's rationale is that message, so a candidate who
   /// thinks aloud never types a justification twice.
   sourceMessageId String?
   /// "manual" | "chat" | "scaffold" | "suggested" — lets scoring tell a tree the
   /// candidate built from one they accepted wholesale.
-  origin    String?
-  parentId  String?
-  parent    FrameworkNode?  @relation("NodeChildren", fields: [parentId], references: [id])
-  children  FrameworkNode[] @relation("NodeChildren")
-  createdAt DateTime        @default(now())
+  origin          String?
+  parentId        String?
+  parent          FrameworkNode?  @relation("NodeChildren", fields: [parentId], references: [id])
+  children        FrameworkNode[] @relation("NodeChildren")
+  createdAt       DateTime        @default(now())
 
   @@index([attemptId])
   @@index([parentId])
 }
 
 model Evaluation {
-  id            String   @id @default(cuid())
-  attemptId     String   @unique
-  attempt       Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  id        String  @id @default(cuid())
+  attemptId String  @unique
+  attempt   Attempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
 
   /// Null means the attempt was not scored at all, which is a different claim
   /// from a low score. Teacher mode states the answer, so an attempt that used
@@ -452,8 +469,8 @@ model Evaluation {
   /// though it had been earned. Every aggregate filters on `overall != null`;
   /// the per-category scores below are still written, because they are feedback
   /// the report shows rather than a measurement anything sums.
-  overall       Int?
-  readiness     String?
+  overall   Int?
+  readiness String?
 
   /// Nullable categories are "not applicable to this attempt", not "scored zero".
   /// A null is skipped by the weighted mean, which renormalises over what remains,
@@ -472,27 +489,27 @@ model Evaluation {
   business      Int
   confidence    Int
 
-  accuracyHit   Boolean  @default(false)
-  feedback      String   @default("[]") // JSON array of feedback items
+  accuracyHit    Boolean @default(false)
+  feedback       String  @default("[]") // JSON array of feedback items
   betterApproach String  @default("")
   sampleSolution String  @default("")
 
-  createdAt     DateTime @default(now())
+  createdAt DateTime @default(now())
 }
 
 model Progress {
-  id          String   @id @default(cuid())
-  userId      String   @unique
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  totalSolved Int      @default(0)
-  avgScore    Float    @default(0)
-  accuracy    Float    @default(0)
-  consistency Float    @default(0)
-  byCategory  String   @default("{}") // JSON: { [categoryId]: { avg, count } }
-  bySkill     String   @default("{}") // JSON: { [skillKey]: { avg, count } }
+  totalSolved Int    @default(0)
+  avgScore    Float  @default(0)
+  accuracy    Float  @default(0)
+  consistency Float  @default(0)
+  byCategory  String @default("{}") // JSON: { [categoryId]: { avg, count } }
+  bySkill     String @default("{}") // JSON: { [skillKey]: { avg, count } }
 
-  updatedAt   DateTime @updatedAt
+  updatedAt DateTime @updatedAt
 }
 
 model Achievement {
@@ -538,21 +555,21 @@ model Bookmark {
 ///
 /// The scenario CONTENT lives in lib/sim/scenarios, keyed by `scenarioSlug`.
 model SimRun {
-  id             String    @id @default(cuid())
-  userId         String
-  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// The catalogue row, so a simulation is findable, filterable and bookmarkable
   /// alongside every other question.
-  questionId     String
-  question       Question  @relation(fields: [questionId], references: [id])
+  questionId   String
+  question     Question @relation(fields: [questionId], references: [id])
   /// Denormalised from Question.externalId so a run stays readable if the
   /// catalogue row is ever re-pointed at a different scenario.
-  scenarioSlug   String
+  scenarioSlug String
 
-  phase          String    @default("observe") // "observe" | "investigate" | "commit" | "debrief"
+  phase     String @default("observe") // "observe" | "investigate" | "commit" | "debrief"
   /// Analyst-days spent. Derived from purchases; cached so the budget meter is
   /// a single read rather than a join on every render.
-  daysSpent      Int       @default(0)
+  daysSpent Int    @default(0)
 
   /// Wall-clock seconds spent in this war room, persisted every 15s.
   ///
@@ -561,7 +578,7 @@ model SimRun {
   /// it spent, not the minutes somebody sat there — so this exists to answer
   /// "how long have I been in here", and adding it to the ranking would be
   /// scoring the same run twice on two different rulers.
-  timeSpentSec   Int       @default(0)
+  timeSpentSec Int @default(0)
 
   /// JSON string[] — the cause ids currently named as suspects.
   ///
@@ -588,8 +605,8 @@ model SimRun {
   /// `roomId: null`. A class run and a solo run of the same scenario are two
   /// different sittings, and collapsing them would let the catalogue re-open a
   /// run the student started in a lecture.
-  roomId         String?
-  room           SimRoom?  @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  roomId String?
+  room   SimRoom? @relation(fields: [roomId], references: [id], onDelete: SetNull)
 
   /// The RNG seed for a stochastic simulator, assigned once when the run opens.
   ///
@@ -599,7 +616,7 @@ model SimRun {
   /// Without this column the debrief's replay and its counterfactuals would be
   /// a plausible story rather than the run the student actually played.
   /// Null on the authored formats, which draw nothing.
-  seed           String?
+  seed String?
 
   /// Format-specific run state, as JSON.
   ///
@@ -613,15 +630,15 @@ model SimRun {
   /// cover both would give every war-room row three nullable fields it never
   /// uses and no type safety in either direction, so the format that needs a
   /// different shape carries its own and the original columns stay honest.
-  stateJson      String?
+  stateJson String?
 
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  committedAt    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  committedAt DateTime?
 
-  purchases      SimPurchase[]
-  messages       SimMessage[]
-  result         SimResult?
+  purchases SimPurchase[]
+  messages  SimMessage[]
+  result    SimResult?
 
   @@index([userId])
   @@index([questionId])
@@ -642,35 +659,35 @@ model SimRun {
 /// to the same catalogue row is what keeps a class run indistinguishable from
 /// any other run everywhere downstream.
 model SimRoom {
-  id           String    @id @default(cuid())
+  id String @id @default(cuid())
 
   /// The code read out in class, uppercase. Its alphabet excludes O/0/I/1 (see
   /// lib/rooms/code.ts): it is transcribed off a projector by sixty people at
   /// once, and a code that needs a spelling correction has failed.
-  code         String    @unique
+  code         String @unique
   /// scrypt via lib/password.ts. A room password is a password, and storing it
   /// in the clear so the console could redisplay it is not a trade worth making
   /// — the host re-sets it instead.
   passwordHash String
   name         String
 
-  hostId       String
-  host         User      @relation("HostedRooms", fields: [hostId], references: [id], onDelete: Cascade)
+  hostId String
+  host   User   @relation("HostedRooms", fields: [hostId], references: [id], onDelete: Cascade)
 
   /// The war room the host picked from the catalogue.
-  questionId   String
-  question     Question  @relation(fields: [questionId], references: [id])
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id])
 
   /// "open" | "closed" — see ROOM_STATUSES in lib/types.ts. Closing stops new
   /// joins and new runs and deliberately leaves runs already under way alone.
-  status       String    @default("open")
-  closedAt     DateTime?
+  status   String    @default("open")
+  closedAt DateTime?
 
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  members      SimRoomMember[]
-  runs         SimRun[]
+  members SimRoomMember[]
+  runs    SimRun[]
 
   @@index([hostId])
 }
@@ -682,11 +699,11 @@ model SimRoom {
 /// than something derived from having a run — the grant has to exist BEFORE the
 /// run does, or the first click would be refused.
 model SimRoomMember {
-  id          String   @id @default(cuid())
-  roomId      String
-  room        SimRoom  @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String  @id @default(cuid())
+  roomId String
+  room   SimRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  userId String
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   /// Typed at the door. Kept apart from `User.name` so a signed-in student can
   /// appear as "Roll 42" on one professor's roster without renaming their
@@ -694,7 +711,7 @@ model SimRoomMember {
   /// roster full of "Guest" is not a roster.
   displayName String
 
-  joinedAt    DateTime @default(now())
+  joinedAt DateTime @default(now())
 
   /// One seat per person per room. This constraint is what makes re-joining
   /// idempotent — an upsert against it turns a refreshed join form into a no-op
@@ -722,17 +739,17 @@ model SimPurchase {
 }
 
 model SimResult {
-  id            String   @id @default(cuid())
-  runId         String   @unique
-  run           SimRun   @relation(fields: [runId], references: [id], onDelete: Cascade)
+  id    String @id @default(cuid())
+  runId String @unique
+  run   SimRun @relation(fields: [runId], references: [id], onDelete: Cascade)
 
-  overall       Int
-  band          String   // see simBands in lib/config/simulation.ts
+  overall Int
+  band    String // see simBands in lib/config/simulation.ts
 
   /// Which format produced this result, so the report knows how to read the
   /// scores below. Defaults to the only format that existed when the column was
   /// added, which is exactly what every historical row was.
-  formatSlug    String   @default("war-room")
+  formatSlug String @default("war-room")
 
   /// JSON Record<string, number> — the format's rubric dimensions, keyed by its
   /// own rubric keys.
@@ -743,7 +760,7 @@ model SimResult {
   /// index by key, a format with different dimensions writes here and leaves them
   /// alone. `overall` stays format-agnostic and is what the leaderboard and the
   /// percentile rank read, so nothing downstream needs to know which format ran.
-  scoresJson    String   @default("{}")
+  scoresJson String @default("{}")
 
   /// Column names mirror the simRubric keys exactly, so the report can iterate
   /// the rubric and index by key. Unlike Evaluation these are non-null: every
@@ -757,19 +774,19 @@ model SimResult {
   decision      Int
   outcome       Int
 
-  causeFound    Boolean  @default(false)
-  daysSpent     Int
-  daysPar       Int
+  causeFound Boolean @default(false)
+  daysSpent  Int
+  daysPar    Int
 
   /// JSON SimOutcomeResult — this run's quarterly paths, the do-nothing
   /// counterfactual and the authored best. PINNED rather than recomputed on
   /// read: the causal model is code, so re-deriving would let a later content
   /// edit silently rewrite a student's history.
-  outcomeJson   String   @default("{}")
+  outcomeJson String @default("{}")
   /// JSON FeedbackItem[] — the same shape as Evaluation.feedback.
-  feedback      String   @default("[]")
+  feedback    String @default("[]")
 
-  createdAt     DateTime @default(now())
+  createdAt DateTime @default(now())
 }
 
 /// Debrief chat. Kept apart from Message so the interview transcript queries —
@@ -779,7 +796,7 @@ model SimMessage {
   id        String   @id @default(cuid())
   runId     String
   run       SimRun   @relation(fields: [runId], references: [id], onDelete: Cascade)
-  role      String   // "user" | "assistant"
+  role      String // "user" | "assistant"
   content   String
   /// Which engine produced an assistant turn, so the degraded-answer badge
   /// survives a reload. Same contract as Message.provider.
@@ -797,7 +814,7 @@ model QuestionFeedback {
   userId     String?
   user       User?    @relation(fields: [userId], references: [id])
   attemptId  String?
-  type       String   // "WrongAnswer" | "Typo" | "Unclear" | "FactualError" | "Inappropriate" | "Other"
+  type       String // "WrongAnswer" | "Typo" | "Unclear" | "FactualError" | "Inappropriate" | "Other"
   message    String?
   status     String   @default("Open") // "Open" | "Reviewing" | "Resolved" | "Dismissed"
   createdAt  DateTime @default(now())
@@ -858,7 +875,7 @@ model DailyUnlock {
   questionId String
   question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
-  createdAt  DateTime @default(now())
+  createdAt DateTime @default(now())
 
   /// One pin per slot per day. An upsert against this is what makes re-pinning
   /// a day a correction rather than a second, competing answer.
@@ -882,4 +899,141 @@ model AppSetting {
   /// does not need a migration.
   value     String
   updatedAt DateTime @updatedAt
+}
+
+// ─── Arena ──────────────────────────────────────────────────────────────────
+//
+// A repeated-move market game, played solo against three AI firms or by up to
+// four people in one match. It lives in its own tables for the same reason
+// `SimRun` does not write an `Attempt`: an arena result is scored on a different
+// rubric and must not reach `updateProgress` or `recomputeRank`, and the way to
+// guarantee that is for the rows those functions read to structurally not exist
+// here rather than for four queries to remember an exclusion filter.
+
+/// One match: one market, one seed, up to four seats.
+///
+/// State is NOT stored. `journalJson` holds the decisions and the draws, and the
+/// engine replays the whole match from `seed` plus that journal on every read —
+/// the rule `app/actions/simulations.ts` already follows for config-driven runs,
+/// and the reason a resumed match is provably the match that was left.
+model ArenaMatch {
+  id         String @id @default(cuid())
+  /// `SimulatorConfig.slug` — which game this is. "mandi" today.
+  configSlug String
+
+  /// "solo" | "multi" — see ARENA_MODES in lib/arena/types.ts.
+  ///
+  /// Only what the match was OPENED as. It does not say how many humans are
+  /// actually sitting: a multi match whose lobby nobody joined runs with three
+  /// AI seats and is indistinguishable to the engine from a solo one, which is
+  /// the property that lets a match start without waiting for anybody.
+  mode String @default("solo")
+
+  /// "lobby" | "running" | "finished" | "abandoned".
+  status String @default("lobby")
+
+  /// Join code, uppercase, multi matches only. Minted by `lib/rooms/code.ts`,
+  /// whose alphabet already excludes the characters people misread aloud.
+  code String? @unique
+
+  hostId String
+  host   User   @relation("HostedMatches", fields: [hostId], references: [id], onDelete: Cascade)
+
+  /// The RNG seed, assigned once when the match opens. Every draw in the match
+  /// is a function of this and the call order, so the same match replays
+  /// identically forever.
+  seed String
+
+  /// Rounds committed so far. Derived from the journal on read; stored so the
+  /// lobby list can show progress without replaying every match.
+  round Int @default(0)
+
+  /// When the current round stops waiting for humans. Null in a solo match,
+  /// which has nobody to wait for.
+  ///
+  /// This is what stops one idle player stalling three others: past this
+  /// instant `resolveRound` commits every uncommitted seat on its previous
+  /// decision and the market moves on.
+  roundEndsAt DateTime?
+
+  journalJson String @default("")
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  finishedAt DateTime?
+
+  seats     ArenaSeat[]
+  decisions ArenaDecision[]
+
+  @@index([status, createdAt])
+  @@index([hostId])
+}
+
+/// One firm in one match — a person, or the AI that stands in for one.
+///
+/// `userId` null IS the AI seat. There is no `isAi` boolean beside it, because
+/// two columns answering "who plays this seat" is exactly how they come to
+/// disagree: a seat whose player dropped is handed to the AI by nulling this
+/// one field, and every reader that already asks "is there a person here"
+/// gets the right answer with nothing new to check.
+model ArenaSeat {
+  id      String     @id @default(cuid())
+  matchId String
+  match   ArenaMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  /// 0–3. Also the firm's index in the engine's state keys (`p0Price`, …).
+  seatIndex Int
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  /// Which rival personality holds this seat, from `lib/arena/personas.ts`.
+  ///
+  /// Drawn from the seed at match open and stored so a debrief can name it.
+  /// Carried by human seats too: if the person drops, the AI that takes over
+  /// plays the personality that was always sitting there, rather than the match
+  /// changing character mid-run.
+  personaId String
+
+  /// Shown on the board. A person's first name, or the firm's name for an AI.
+  displayName String
+
+  /// Final score, written once at the end. Null while the match is live.
+  overall    Int?
+  scoresJson String?
+  /// 1–4. Where this seat finished.
+  placing    Int?
+
+  joinedAt DateTime @default(now())
+
+  @@unique([matchId, seatIndex])
+  @@unique([matchId, userId])
+  @@index([userId])
+}
+
+/// One seat's decision for one round, staged until the round resolves.
+///
+/// A staging table rather than a field on the seat, because a round is only
+/// legal to resolve once, and the unique constraint below is what makes that
+/// true under a double-submitted form or two tabs — the same posture
+/// `LeaderboardEntry` takes, where the constraint is the rule and the code
+/// around it is the courtesy.
+model ArenaDecision {
+  id      String     @id @default(cuid())
+  matchId String
+  match   ArenaMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  round     Int
+  seatIndex Int
+  /// JSON `Record<string, number>` over the config's decision keys.
+  payload   String
+
+  /// True when the round timer committed this rather than the player.
+  /// Surfaced on the board so an auto-commit is never mistaken for a choice.
+  auto Boolean @default(false)
+
+  committedAt DateTime @default(now())
+
+  @@unique([matchId, round, seatIndex])
+  @@index([matchId, round])
 }
