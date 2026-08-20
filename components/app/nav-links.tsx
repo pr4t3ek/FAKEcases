@@ -19,13 +19,26 @@ import { JoinRoomDialog } from "@/components/rooms/join-room-dialog";
  * Two links sharing a pathname meant it had to read the `type` param too, or
  * both would light up at once.
  */
-export function NavLinks({ isAdmin, canHost }: { isAdmin: boolean; canHost: boolean }) {
+export function NavLinks({
+  isAdmin,
+  canHost,
+  canPlayArena,
+}: {
+  isAdmin: boolean;
+  canHost: boolean;
+  canPlayArena: boolean;
+}) {
   const pathname = usePathname();
 
   const links = [
     { href: "/dashboard", label: "Dashboard" },
     { href: "/library", label: "Library" },
     { href: "/simulations", label: "War rooms" },
+    // Admin-granted, one account at a time, so most people never see it. Its
+    // own link rather than a tab under War rooms: a match is played against
+    // other firms over eight quarters and scored on a different rubric, and a
+    // catalogue that offered both would say they are interchangeable.
+    ...(canPlayArena ? [{ href: "/arena", label: "Arena" }] : []),
     // Professors and admins only. Its own link rather than a tab inside War
     // rooms: hosting a class is a different job from playing one, and burying
     // it under the catalogue would make the catalogue's primary action

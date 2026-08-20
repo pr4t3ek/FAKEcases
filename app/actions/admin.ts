@@ -147,6 +147,45 @@ export async function grantPro(userId: string, days: number): Promise<SaveResult
   return { ok: true };
 }
 
+/**
+ * Open the Arena on one account.
+ *
+ * Deliberately not a tier and deliberately not a pass. `grantPro` extends a
+ * deadline because a pass is a period somebody bought; the Arena is a door an
+ * admin opens for a particular person, so the column records WHEN rather than
+ * UNTIL and `canPlayArena` tests only for presence.
+ *
+ * Idempotent on purpose: granting twice must not silently re-date an existing
+ * grant, because that timestamp is the only record of when the door was opened.
+ */
+export async function grantArena(userId: string): Promise<SaveResult> {
+  await assertAdmin();
+
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: { arenaGrantedAt: true },
+  });
+  if (!user) return { ok: false, error: "No such user." };
+  if (user.arenaGrantedAt) return { ok: true };
+
+  await db.user.update({ where: { id: userId }, data: { arenaGrantedAt: new Date() } });
+  revalidatePath("/admin");
+  // The nav renders the link off this, so every surface carrying the header has
+  // to re-render for the person whose access just changed.
+  revalidatePath("/dashboard");
+  revalidatePath("/arena");
+  return { ok: true };
+}
+
+export async function revokeArena(userId: string): Promise<SaveResult> {
+  await assertAdmin();
+  await db.user.update({ where: { id: userId }, data: { arenaGrantedAt: null } });
+  revalidatePath("/admin");
+  revalidatePath("/dashboard");
+  revalidatePath("/arena");
+  return { ok: true };
+}
+
 export async function revokePro(userId: string): Promise<SaveResult> {
   await assertAdmin();
   await db.user.update({ where: { id: userId }, data: { proUntil: null } });

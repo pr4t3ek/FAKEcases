@@ -106,7 +106,14 @@ async function main() {
     // and streak someone built up demoing. The pass is the exception: it is
     // seeded state rather than earned state, and it expires, so a re-seed has
     // to put it back or the demo account silently stops being Pro.
-    update: { proUntil: new Date(Date.now() + 30 * DAY_MS) },
+    // Re-asserted for the same reason the pass is: it is seeded state rather
+    // than something this account earned, and a fresh clone needs one login
+    // that can open the Arena and one (admin, below) that cannot, so both sides
+    // of the gate are reachable without granting anything by hand first.
+    update: {
+      proUntil: new Date(Date.now() + 30 * DAY_MS),
+      arenaGrantedAt: new Date(),
+    },
     create: {
       email: "demo@caseclosed.app",
       name: "Demo User",
@@ -122,6 +129,7 @@ async function main() {
       // library and one (admin, below) that hits the paywall — both states
       // reachable without granting anything first.
       proUntil: new Date(Date.now() + 30 * DAY_MS),
+      arenaGrantedAt: new Date(),
       xp: 340,
       level: 3,
       coins: 120,
@@ -152,7 +160,10 @@ async function main() {
     // Cleared on every re-seed, the mirror of demo's pass being re-asserted.
     // The two accounts exist to show both sides of the paywall, and a pass
     // granted while testing would otherwise leave no account that can see it.
-    update: { role: "admin", proUntil: null },
+    // No `arenaGrantedAt` here on purpose — admin is the account that shows
+    // what a person without the grant sees, exactly as it is left on the free
+    // tier so the paywall is reachable.
+    update: { role: "admin", proUntil: null, arenaGrantedAt: null },
     create: {
       email: "admin@caseclosed.app",
       name: "Admin",

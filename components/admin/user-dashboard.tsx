@@ -17,8 +17,10 @@ import { toast } from "sonner";
 import {
   declineProfessorRequest,
   deleteUser,
+  grantArena,
   grantPro,
   resetUserPassword,
+  revokeArena,
   revokePro,
   setUserRole,
 } from "@/app/actions/admin";
@@ -49,6 +51,7 @@ const segmentVariant: Record<UserSegment, "default" | "secondary" | "muted"> = {
 type SortKey =
   | "name"
   | "pro"
+  | "arena"
   | "role"
   | "level"
   | "xp"
@@ -125,6 +128,67 @@ function ProCell({ user }: { user: AdminUserRow }) {
           Revoke
         </Button>
       )}
+    </div>
+  );
+}
+
+/**
+ * Opening the Arena on one account, or closing it.
+ *
+ * A single toggle rather than the Pro cell's ladder of day buttons, because the
+ * grant is not a period: `arenaGrantedAt` records when the door was opened and
+ * `canPlayArena` only asks whether it is open. There is nothing to extend.
+ */
+function ArenaCell({ user }: { user: AdminUserRow }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const granted = user.arenaGrantedAt !== null;
+
+  function run(action: () => Promise<{ ok: boolean; error?: string }>, done: string) {
+    startTransition(async () => {
+      const result = await action();
+      if (!result.ok) {
+        toast.error(result.error ?? "That didn't work.");
+        return;
+      }
+      toast.success(done);
+      router.refresh();
+    });
+  }
+
+  // `canPlayArena` refuses a guest outright, so the button would open a door
+  // that stays shut. Same reasoning as the Pro cell above.
+  if (user.segment !== "registered") {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+
+  return (
+    <div className="flex items-center justify-end gap-1.5">
+      {granted ? (
+        <Badge variant="secondary" className="whitespace-nowrap">
+          Open
+        </Badge>
+      ) : (
+        <span className="text-xs text-muted-foreground">—</span>
+      )}
+      <Button
+        size="sm"
+        variant="ghost"
+        disabled={pending}
+        className={cn("h-7 px-2 text-xs", granted && "text-destructive")}
+        title={
+          granted
+            ? `Opened ${formatDate(user.arenaGrantedAt)}. Closing it hides the link and refuses every action.`
+            : "Let this account play Arena matches."
+        }
+        onClick={() =>
+          granted
+            ? run(() => revokeArena(user.id), "Arena closed")
+            : run(() => grantArena(user.id), "Arena opened")
+        }
+      >
+        {granted ? "Close" : "Open"}
+      </Button>
     </div>
   );
 }
@@ -417,6 +481,12 @@ const COLUMNS: { key: SortKey; label: string; numeric?: boolean; title?: string 
     title: "Days left on a Pro pass. Granting again extends it rather than resetting it.",
   },
   {
+    key: "arena",
+    label: "Arena",
+    numeric: true,
+    title: "Whether this account can play Arena matches. Granted one account at a time; it is not part of any tier.",
+  },
+  {
     key: "role",
     label: "Role",
     numeric: true,
@@ -443,6 +513,8 @@ function sortValue(row: AdminUserRow, key: SortKey): string | number {
       return row.proUntil ? Date.parse(row.proUntil) : 0;
     // Sorted by authority rather than alphabetically, so "show me the staff"
     // is one click on a descending sort.
+    case "arena":
+      return row.arenaGrantedAt ? Date.parse(row.arenaGrantedAt) : 0;
     case "role":
       return USER_ROLES.indexOf(row.role as UserRole);
     case "level":
@@ -635,6 +707,9 @@ export function UserDashboard({ stats }: { stats: AdminUserStats }) {
                     </td>
                     <td className="p-3">
                       <ProCell user={u} />
+                    </td>
+                    <td className="p-3">
+                      <ArenaCell user={u} />
                     </td>
                     <td className="p-3">
                       <RoleCell user={u} />

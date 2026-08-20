@@ -559,6 +559,10 @@ score Diagnosis.
 
 A **simulation** is not answered at all — it is played. See below.
 
+A fourth thing exists and is deliberately not on this list: an **Arena** match is not an exercise,
+it is a game against three rivals that answer back, it is scored on its own rubric, and it is
+granted per account rather than reached by a tier. See [The Arena](#the-arena).
+
 ---
 
 ## Tiers: what each one reaches
@@ -823,6 +827,114 @@ sync with the transcript.
 
 ---
 
+## The Arena
+
+A **game**, not an exercise, and the distinction is the point. Every other format in this app asks
+you to produce an answer, alone, against a model that has already decided what it thinks. The
+Arena puts four quick-commerce firms in one city for eight quarters and lets three of them answer
+back.
+
+It lives at **`/arena`**, behind its own nav link, and it is the only surface in the app that is
+granted **one account at a time** — see below.
+
+### What a quarter is
+
+Four numbers: **price** per order, **marketing** spend, **dark stores** to open, and the
+**delivery promise** you put on the app. Then the market resolves and you find out what it did.
+
+Demand is a **fixed pie split by relative attractiveness**, which is what makes it a market rather
+than four solitaires: every order you win is one somebody else lost. The pie itself moves with a
+**hidden regime** — festive, steady or a squeeze — that is never shown and that changes where the
+right price is by about ₹25. Reading which one you are in is the whole exercise, and it is
+genuinely hard, because "demand is soft" and "I am losing share" look identical from inside.
+
+Capacity is a bet placed a quarter early. The queue is convex past about 85% utilisation, so the
+promise you can keep at two-thirds full is the promise that destroys your reputation at 95% — and
+a stockout is paid for in the quarter after it, not the one it happened in.
+
+### The rivals decide, they do not obey
+
+Each of the three is an `AgentConfig` on the engine in `lib/sim/engine/agent.ts`: a softmax over a
+weighted utility with a belief term, and **no branch on any state variable anywhere**. A price war
+is not scripted. Somebody cuts, the cut moves every rival's `peace` posterior, a lower posterior
+prices *starting a fight* out of their utility, and the board drifts back up. The war has an end
+as well as a beginning and both fall out of one number.
+
+Which three personalities you get is **drawn from the match seed** out of a pool of six, so
+"seat 2 always discounts" is not something to learn. What each was actually playing for is
+withheld all match and released in the debrief.
+
+**The whole thing costs nothing to run.** No LLM call is made at any point — the outcomes are
+deterministic arithmetic over seeded draws, and every line a rival says is authored per action.
+
+### Two modes, and a match that always starts
+
+Solo is you plus three house firms and it begins immediately. Multiplayer mints a join code, and
+three rules make it safe to open one at three in the afternoon:
+
+- **Every empty seat is played by the house**, so a match with one human is a valid match.
+- **A round timer.** The quarter resolves when every person has committed *or* when the clock runs
+  out; anyone who has not chosen plays what they played last quarter, flagged as an auto-commit so
+  the board never passes it off as a decision. One idle tab cannot stall three other people.
+- **Leaving hands your seat back to the house** and the match carries on.
+
+The engine cannot tell the two modes apart. A human's four numbers arrive in `decision` and a
+rival's arrive in `quoteOffers`, `runTick` merges both, and a seat is only ever *who fills which
+keys of the decision vector* — the rule [`SCRUM_SIMULATOR.md`](docs/SCRUM_SIMULATOR.md) §8 sets out.
+
+**There is no cron.** The round deadline is evaluated when somebody asks — loading the board or
+committing a quarter is what moves the world on — which is `lib/daily-unlock.ts`'s posture applied
+to a clock instead of a calendar. Nothing to fail at midnight, nothing to backfill.
+
+### Access is granted, not bought
+
+`User.arenaGrantedAt` is a timestamp; non-null means the door is open. It is deliberately **not a
+tier**: `tierFor()` answers "what does this person's plan reach", and folding the Arena in would
+mean every Pro pass silently granted it. Admin → Users has the toggle, next to the Pro buttons.
+
+One predicate — `canPlayArena` — is called by the nav that renders the link and by every server
+action that honours it, which is the invariant `lib/entitlements.ts` exists to protect. The link is
+a courtesy; the action is the control. Guests are refused outright. On a fresh clone `demo` has the
+grant and `admin` does not, so both sides are reachable without granting anything by hand.
+
+### Balance is measured, not asserted
+
+`scripts/arena-sweep.ts` is the Arena's `checkBalance`. It plays a library of strategies across
+hundreds of matches and reports how often each wins, and the bar has **two halves**:
+
+- no **fixed** line — one that ignores every signal in the game — may win more than half its
+  matches;
+- the best **responsive** line must beat the best fixed one.
+
+Only the first would pass happily on a game where nothing a player does matters. As tuned, the best
+fixed line wins about 36% against chance's 25%, undercutting and over-building win essentially
+never, and reading the board is worth about four points of win rate.
+
+It earned its place. It found, in order: demand that ignored rivals entirely; an exposure term that
+made price wars one-way, so all three rivals converged on one price by the second quarter and
+stayed; capacity so tight that every firm was capacity-bound at every price, which made raising
+price free revenue; a scale-economies feedback loop strong enough that the balance stopped
+responding monotonically to its own parameters; a cobweb oscillation that had rivals swinging
+between ₹68 and ₹113 in consecutive quarters; and two derived keys opening at zero, which quietly
+put a ₹12 best-response price in front of anyone who read them. None of those announced itself, and
+every one produced a plausible-looking game that was wrong.
+
+```bash
+npx tsx scripts/arena-sweep.ts 250   # the authoring loop
+pnpm test tests/arena-sweep.test.ts  # the gate, seed-pinned
+```
+
+### Adding a second game
+
+The Arena has its own registry (`lib/arena/registry.ts`), separate from
+`lib/sim/configs/registry.ts`, because everything in that one is expected to have a catalogue
+`Question` row and be startable from the war-room surface — and an arena game is none of those
+things. A second game is a `SimulatorConfig` in `lib/sim/configs/` and one line in the arena
+registry. Mandi is also the second config-driven domain the architecture always claimed to support
+and had never had.
+
+---
+
 ## Leaderboards
 
 The dashboard opens on **today's questions and then the practice leaderboard** — the two things a
@@ -1049,6 +1161,13 @@ simulation is an Easy one.
 
 Vitest runs in a `node` environment with no jsdom, so React components and hooks aren't covered.
 The logic worth testing in `lib/speech` is kept pure and exported for exactly that reason.
+
+The Arena adds six: the access gate (one predicate, both callers), the round rule (a quarter runs
+when everyone is in **or** the clock is out, and a solo match waits for nobody), determinism (a
+match resumed from its journal lands exactly where an uninterrupted one did, on the regime its seed
+drew), the config's own invariants (one shock per mechanism, a factorisable covariance matrix, and
+every derived key given an opening value — the bug that valued eight quarters of trading at nil),
+redaction asserted against the serialised payload, and the balance gate above.
 
 The simulation engine adds its own suites: the driver DAG, the outcome model (including that an
 allocation's *order* cannot change the result), drilldown pricing and locking, each scoring

@@ -55,6 +55,14 @@ export interface AdminUserRow {
    */
   proUntil: string | null;
   /**
+   * When an admin opened the Arena on this account, or null.
+   *
+   * An ISO string rather than a boolean, so the table can say *when* — the
+   * column is the only record of that, since the grant does not expire and
+   * nothing else stamps it.
+   */
+  arenaGrantedAt: string | null;
+  /**
    * They asked to be made a professor and nobody has decided yet.
    *
    * A boolean rather than the timestamp: the table shows a badge, and the column
@@ -155,6 +163,7 @@ export async function loadUserAdminStats(now: Date = new Date()): Promise<AdminU
     streak: u.streak,
     rank: u.rank,
     proUntil: u.proUntil ? u.proUntil.toISOString() : null,
+    arenaGrantedAt: u.arenaGrantedAt ? u.arenaGrantedAt.toISOString() : null,
     professorRequested: u.professorRequestedAt !== null,
     attempts: u._count.attempts,
     // Progress only exists once something has been submitted, and an avgScore
