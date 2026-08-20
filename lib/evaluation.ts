@@ -403,14 +403,43 @@ function readTree(framework: FrameworkNodeInput[]): TreeReading {
   const hasFigure = (n: FrameworkNodeInput) =>
     parseNode(n.value) !== null || parseNode(n.multiplier) !== null;
 
+  /*
+   * Does a figure exist at or below this node?
+   *
+   * The grouping-node carve-out is what made nesting worth points: "counts if it
+   * has children" let a tree of empty labels score simply by being indented,
+   * because each parent qualified on the existence of its children rather than
+   * on anything either of them said. Three parents with two blank children each
+   * reached 57 on structure and 78 on segmentation with not one number in the
+   * whole tree.
+   *
+   * A grouping node is legitimate — `parseNode` documents the case, "Segment by
+   * Income" holds no value of its own — but only because its children carry the
+   * figures. So the carve-out now asks for that instead of assuming it, and an
+   * outline with no arithmetic under it is an outline, not an estimate.
+   */
+  const subtreeHasFigure = (n: FrameworkNodeInput, seen: Set<string>): boolean => {
+    if (hasFigure(n)) return true;
+    if (!n.id || seen.has(n.id)) return false;
+    seen.add(n.id);
+    return (childrenOf.get(n.id) ?? []).some((kid) => subtreeHasFigure(kid, seen));
+  };
+  const groupsOverFigures = (n: FrameworkNodeInput): boolean => {
+    const kids = n.id ? (childrenOf.get(n.id) ?? []) : [];
+    return kids.length > 0 && kids.some((kid) => subtreeHasFigure(kid, new Set()));
+  };
+
   const substantiveCount = framework.filter(
-    (n) => hasFigure(n) || (n.id ? (childrenOf.get(n.id)?.length ?? 0) > 0 : false),
+    (n) => hasFigure(n) || groupsOverFigures(n),
   ).length;
 
   // A partition is a step split into branches. Two or more siblings anywhere is
   // one; so is a pair of bare percentage shares, which is how a flat tree
-  // expresses the same idea.
-  const splitParents = [...childrenOf.values()].filter((kids) => kids.length >= 2);
+  // expresses the same idea. Either way the branches have to carry figures —
+  // splitting nothing into two nothings is not a segmentation of anything.
+  const splitParents = [...childrenOf.values()].filter(
+    (kids) => kids.length >= 2 && kids.some((kid) => subtreeHasFigure(kid, new Set())),
+  );
   const shareNodes = framework.filter((n) => parseNode(n.value)?.isPercent === true);
   const hasPartition = splitParents.length > 0 || shareNodes.length >= 2;
 

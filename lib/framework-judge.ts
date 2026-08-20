@@ -3,13 +3,16 @@ import type { FrameworkJudgeContext, InterviewerContext } from "@/lib/llm";
 import { toReadableText } from "@/lib/llm/plain-text";
 
 /**
- * Ask the model whether a framework decomposes the question.
+ * Ask the model whether a framework decomposes the question AND whether its
+ * numbers hold up.
  *
  * The deterministic rubric can tell that a tree has figures, real branches and
- * shares that do not exceed their parent. It cannot tell whether the labels
- * describe *this* problem, and that is precisely the gap a candidate gaming the
- * rubric works in: six plausible words with numbers attached read, to arithmetic
- * alone, exactly like a real decomposition.
+ * shares that do not exceed their parent. Two things stay out of its reach: it
+ * cannot tell whether the labels describe *this* problem — six plausible words
+ * with numbers attached read, to arithmetic alone, exactly like a real
+ * decomposition — and it cannot tell whether the figures are sane, because
+ * `parseNode` knows 50 is a number and not that it is a ridiculous population.
+ * Both are read here.
  *
  * ## Everything here fails soft
  *

@@ -306,11 +306,23 @@ export function hintSystemPrompt(
  * The structure judge.
  *
  * Asked at submit time, and it is the only prompt here that grades rather than
- * teaches. The deterministic rubric can already tell that a tree has figures,
- * real branches and shares that do not exceed their parent; what it cannot tell
- * is whether the labels decompose *this* question or are six plausible words
- * with numbers attached. That gap is what a candidate gaming the rubric relies
- * on, so it is the only thing this prompt is asked about.
+ * teaches. It covers the two things arithmetic cannot check for itself.
+ *
+ * **The labels.** The deterministic rubric can tell that a tree has figures,
+ * real branches and shares that do not exceed their parent. It cannot tell
+ * whether those labels decompose *this* question or are six plausible words with
+ * numbers attached.
+ *
+ * **The figures themselves.** `parseNode` can say a value is a number; it has no
+ * idea whether 50 is a sensible population or ₹2 a sensible price for a car, and
+ * it cannot multiply the chain through to see whether the tree reaches the
+ * answer the candidate wrote down. So the model is given every step's value and
+ * rate and asked to read them — magnitudes, a child's share against its parent,
+ * and whether the arithmetic lands anywhere near the stated result.
+ *
+ * The hard rule in the prompt — no numbers means no score above the incoherent
+ * band — is the one that matters most. A tidy tree of empty labels is an
+ * outline, and an outline has not estimated anything.
  *
  * **One line out, deliberately.** The number is the whole product — it scales
  * four categories and nothing else reads the prose — so a long reply would be
@@ -318,22 +330,30 @@ export function hintSystemPrompt(
  * has to name the flaw picks its number more carefully, and because the
  * candidate sees that sentence on the report.
  */
-export const FRAMEWORK_JUDGE_RULES = `You are grading ONE thing about a market-sizing answer: whether the candidate's framework tree is a sensible decomposition of the question asked.
+export const FRAMEWORK_JUDGE_RULES = `You are grading a market-sizing answer's framework tree: whether it decomposes the question, AND whether the numbers in it hold up.
 
-You are NOT grading arithmetic, accuracy, or whether the final number is right — other checks do that. Ignore all of it.
+Judge these two things together:
 
-Judge only this: do the tree's labels break the question into parts that a consultant would actually use to size it, and does each step follow from the one above it?
+1. THE DECOMPOSITION. Do the labels break the question into parts a consultant would use to size it, and is each step a real slice of the one above it?
 
-Score COHERENCE 0-100:
-- 0-29: the labels do not describe this problem. Placeholder or nonsense text ("asd", "test", "node 1"), words unrelated to the question, or steps in no meaningful order.
-- 30-69: recognisable but loose. The right general idea with a vague, overlapping or incomplete split, or a step that does not follow from its parent.
-- 70-100: a decomposition a consultant would recognise — each step is a real slice of the one above it, and together they reach the quantity asked for.
+2. THE NUMBERS. Every step's figure is shown after "=" and its rate after "×". Read them:
+   - Is there a figure at all? A tree of labels with no numbers has not estimated anything, however tidy its shape.
+   - Is each magnitude plausible for India? A population of 50, a 3000% share, ₹2 for a car, 400 hours in a day — these are wrong on their face.
+   - Does a step's figure make sense UNDER ITS PARENT? A child is a slice of its parent, so its share cannot exceed 100%, and sibling shares cannot add to much more than the whole.
+   - Multiply the chain through. Does it land anywhere near the candidate's final answer, and is that answer the right order of magnitude for the question? Being out by 10x is a real error; being out by 10000x means the tree and the answer are unrelated.
+
+Score COHERENCE 0-100 on both together:
+- 0-29: not an estimate. Placeholder or nonsense labels ("asd", "test", "node 1"); OR no figures anywhere; OR numbers so wrong the tree cannot produce the quantity asked for.
+- 30-69: recognisable but flawed. The right general idea with a vague or overlapping split, a missing step, implausible magnitudes, or arithmetic that does not reach the stated answer.
+- 70-100: a decomposition a consultant would recognise, with figures that are plausible, consistent with their parents, and that multiply out to roughly the answer given.
+
+HARD RULE: a tree with no numbers in it cannot score above 29, whatever the labels say. Structure without arithmetic is an outline, not an estimate.
 
 A short tree that is correct scores high. Length is not the measure.
 
 Reply with EXACTLY two lines and nothing else:
 COHERENCE: <integer 0-100>
-REASON: <one sentence, addressed to the candidate, naming what the tree does or fails to do>`;
+REASON: <one sentence, addressed to the candidate, naming the weakest thing about the tree or its numbers>`;
 
 /** The tree and the question, as the judge sees them. */
 export function renderJudgeBlock(judge: NonNullable<InterviewerContext["judge"]>): string {

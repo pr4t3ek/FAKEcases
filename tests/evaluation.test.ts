@@ -486,3 +486,85 @@ describe("the structure verdict", () => {
     }
   });
 });
+
+/**
+ * Nesting is not arithmetic.
+ *
+ * The grouping-node carve-out — "counts if it has children" — let a tree of
+ * empty labels score simply by being indented: three parents with two blank
+ * children each reached 57 on Structuring and 78 on Segmentation without a
+ * single number anywhere. A grouping node is legitimate only because its
+ * children carry the figures, so it now has to actually have some below it.
+ */
+describe("a tree with no figures in it", () => {
+  const bare = {
+    ...base,
+    framework: [],
+    calculationCount: 0,
+    userMessageText: [],
+    finalEstimate: null,
+  };
+  const structural = (r: ReturnType<typeof evaluate>) => [
+    r.scores.structuring,
+    r.scores.segmentation,
+    r.scores.logic,
+    r.scores.business,
+  ];
+
+  it("scores zero however deeply it is nested", () => {
+    const nested = evaluate({
+      ...bare,
+      framework: [
+        { id: "p1", parentId: null, label: "aa" },
+        { id: "a1", parentId: "p1", label: "a1" },
+        { id: "a2", parentId: "p1", label: "a2" },
+        { id: "p2", parentId: null, label: "bb" },
+        { id: "b1", parentId: "p2", label: "b1" },
+        { id: "b2", parentId: "p2", label: "b2" },
+      ],
+    });
+    expect(structural(nested)).toEqual([0, 0, 0, 0]);
+  });
+
+  it("is not segmented just because a parent has two empty branches", () => {
+    const split = evaluate({
+      ...bare,
+      framework: [
+        { id: "r", parentId: null, label: "aaa" },
+        { id: "x", parentId: "r", label: "bbb" },
+        { id: "y", parentId: "r", label: "ccc" },
+      ],
+    });
+    expect(split.scores.segmentation).toBe(0);
+  });
+
+  /*
+   * The carve-out still has to work for the case it exists for: `parseNode`
+   * documents that "Segment by Income" holds no value of its own, only its
+   * children do. One figure below it is the whole difference.
+   */
+  it("counts a grouping node the moment a figure appears beneath it", () => {
+    const withFigure = evaluate({
+      ...bare,
+      framework: [
+        { id: "r", parentId: null, label: "Segment by income" },
+        { id: "a", parentId: "r", label: "Low income", value: "60%" },
+        { id: "b", parentId: "r", label: "High income", value: "40%" },
+      ],
+    });
+    expect(withFigure.scores.structuring!).toBeGreaterThan(0);
+    expect(withFigure.scores.segmentation!).toBeGreaterThan(0);
+  });
+
+  it("finds a figure however far down the branch it sits", () => {
+    const deep = evaluate({
+      ...bare,
+      framework: [
+        { id: "r", parentId: null, label: "Population" },
+        { id: "a", parentId: "r", label: "Urban" },
+        { id: "b", parentId: "a", label: "Adults", value: "65%" },
+      ],
+    });
+    expect(deep.scores.structuring!).toBeGreaterThan(0);
+  });
+});
