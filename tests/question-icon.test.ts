@@ -111,8 +111,40 @@ const EXPECTED: Record<string, string> = {
   "Number of active credit cards in India": "CreditCard",
   "EV two-wheelers sold per year in Delhi NCR": "BatteryCharging",
   "Annual GMV of a mid-size D2C brand in India": "ShoppingBag",
+  // "airport" is the subject on both of these, and it outranks the "revenue"
+  // rule further down — which is right: the card is a place, not an accounting
+  // line. Two questions sharing an icon is fine; their titles differ.
+  "Annual duty-free alcohol sales at a Delhi airport terminal": "Plane",
+  "Yearly food and beverage revenue at a new Mumbai airport": "Plane",
+  // Reached through "grocery" in the tags — "hypermarket" is not itself a
+  // pattern, and "store" does not appear in the title.
+  "First-month sales of a new hypermarket in south Bangalore": "Store",
+  // Nothing about perfume or order quantities is a subject rule, so this takes
+  // the Retail category's icon — the fallback doing its job.
+  "Optimal order quantity for a luxury perfume outlet": "ShoppingCart",
+  "Customer-care executives needed by a food-delivery app in Delhi NCR": "Bike",
+  // "cricket" in the tags, not "tennis" in the title: tennis is not a pattern,
+  // and street cricket is where most of these balls actually go.
+  "Tennis balls sold in Bangalore per year": "Trophy",
   "Falling delivery margins at a food-delivery platform": "Bike",
   "Should a two-wheeler maker enter electric scooters?": "BatteryCharging",
+  "Falling turnout at a city's free neighbourhood clinics": "Stethoscope",
+  // "restaurant" in the tags, not "food delivery" — the subject is the kitchen,
+  // and the delivery channel is where the problem happens to surface.
+  "Satisfaction slipping at a wood-fired pizza kitchen": "Utensils",
+  "A small finance bank steps up to a universal licence": "Landmark",
+  // No subject rule matches the title, so this reaches GraduationCap through
+  // "education" in the tags — "university" is not itself a pattern.
+  "Bringing foreign university campuses to an Indian state": "GraduationCap",
+  // "stadium" in the tags beats "revenue" in the title, and that is the right
+  // call: the card is about a football club, not about revenue in the abstract.
+  "Mapping the revenue streams of a football club": "Trophy",
+  "On-time performance at a newly privatised airline": "Plane",
+  // Two more Category.icon fallbacks. Nothing in a title about a late partner
+  // or a carbon footprint is a subject the rules have a card for, so they take
+  // Transportation's and Consumer Goods' — which is what the column is for.
+  "The partner who was late": "Bus",
+  "Sustainability strategy for an FMCG major": "Package",
   "NukkadEats: orders are down 9% and nobody knows why": "Bike",
   "Kadak Coffee: the ads are working and the money is going": "Coffee",
   "Padhai Plus: 18,000 new subscribers a month, and a bigger hole": "GraduationCap",

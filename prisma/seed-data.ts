@@ -483,12 +483,141 @@ export const questions: SeedQuestion[] = [
     tags: "ecommerce,orders,aov",
   },
 
+  // ── Guesstimates adapted from a campus consulting casebook ─────────────
+  // Same terms as the cases further down: the estimation path is the useful
+  // part and is nobody's property, the wording and the named places are
+  // rewritten, and the arithmetic is re-derived rather than copied.
+  //
+  // These six deliberately break the mould the other 24 share. Those are all
+  // national market sizes; four of these ask for the revenue of ONE named site,
+  // which is the shape a candidate actually meets across a table and the shape
+  // the catalogue had none of. The last two are not estimates from nothing at
+  // all: the headcount one converts a volume into people through a service-time
+  // calculation, and the perfume one is a constrained optimisation whose data
+  // is given in the prompt and has a determinate answer.
+  //
+  // No data packs, following the 24 above. A guesstimate is worked from the
+  // candidate's own assumptions, and an interviewer releasing anchor figures on
+  // request would be answering the question for them.
+  {
+    externalId: "duty-free-alcohol-delhi",
+    title: "Annual duty-free alcohol sales at a Delhi airport terminal",
+    prompt:
+      "Estimate the annual revenue from alcohol at the duty-free shop in Delhi airport's international terminal. Assume there is one shop and that only departing international passengers can use it.",
+    category: "revenue-estimation",
+    sector: "retail",
+    difficulty: "Medium",
+    interviewLevel: "BCG",
+    idealLow: 5_000_000_000,
+    idealHigh: 15_000_000_000,
+    unit: "₹/year",
+    betterApproach:
+      "Reach international passengers from the supply side — runways × departures an hour × hours × days × seats × occupancy — rather than asserting a footfall, because every term there is checkable and a footfall guess is not. Then narrow twice: what share buy duty-free alcohol at all, and what share buy it here rather than at the destination shop on the way back. Finish on basket size, where the customs allowance caps bottles per head and the price reflects people trading up to make the tax saving worth having.",
+    sampleSolution:
+      "~2 international runways at a departure every 5 minutes ≈ 600 departures/day → ~2.1 lakh flights/year × ~250 seats × ~70% occupancy ≈ 3.7 cr passengers. Tourists buy far more than business travellers, so ~20% are in the market, and roughly half of those buy outbound rather than at the destination → ~37 lakh buyers. At ~1.5 bottles each and ~₹1,500 a bottle ≈ ₹800–900 cr a year. Illustrative, not exact.",
+    tags: "duty free,airport,alcohol,revenue",
+  },
+  {
+    externalId: "airport-fnb-revenue",
+    title: "Yearly food and beverage revenue at a new Mumbai airport",
+    prompt:
+      "A second airport is opening near Mumbai and will take a share of the existing airport's traffic. Estimate its annual food and beverage revenue from passengers. Ignore anything earned from tickets.",
+    category: "revenue-estimation",
+    sector: "transportation",
+    difficulty: "Medium",
+    interviewLevel: "GeneralMBA",
+    idealLow: 2_000_000_000,
+    idealHigh: 6_000_000_000,
+    unit: "₹/year",
+    betterApproach:
+      "List the passenger-side revenue lines before sizing any of them — food and beverage, retail rent, parking, lounges, advertising — so the interviewer can pick one and you are not caught having sized the wrong thing. For F&B, anchor on the incumbent airport's footfall and the share that diverts, narrow to passengers who actually buy, then split the basket by price point rather than averaging it: a sandwich and a sit-down meal are different decisions.",
+    sampleSolution:
+      "The incumbent handles ~5 cr passengers a year and ~40% divert → ~2 cr. Airport food is dear enough that only the hungry and the well-off buy, so ~20% → ~40 lakh buyers. Split ~60% snacks at ~₹150 and ~40% meals at ~₹500 ≈ ₹116 cr of food. Drinks are the trap: they typically run to about 60% of an airport F&B bill, so grossing up lands near ₹300–350 cr a year. Sizing food and stopping is how candidates come in a third light.",
+    tags: "airport,food,concessions,revenue",
+  },
+  {
+    externalId: "hypermarket-first-month",
+    title: "First-month sales of a new hypermarket in south Bangalore",
+    prompt:
+      "A hypermarket chain is opening a store in a fast-growing south Bangalore suburb. Estimate its sales in the first month. One comparable hypermarket already trades in the same catchment.",
+    category: "retail",
+    sector: "retail",
+    difficulty: "Medium",
+    interviewLevel: "GeneralMBA",
+    idealLow: 15_000_000,
+    idealHigh: 50_000_000,
+    unit: "₹/month",
+    betterApproach:
+      "Work down from the city to the catchment rather than up from the country, and filter in the order that actually removes people: area, then age, then income, saying why each cut is the right one. Convert to households before spending anything — a hypermarket trolley is filled per household, not per person, and forgetting the division inflates the answer four-fold. Then split the catchment with the incumbent, and treat month one as inflated: opening promotions and people coming once to look are real sales that do not repeat.",
+    sampleSolution:
+      "Bangalore ~1.3 cr across ~30 major localities → ~4 lakh in the catchment. ~50% are 18–60 (younger have no income, older shop closer to home), and ~40% of those are middle-to-high income → ~84,000 people → ~21,000 households at ~4 each. Opening offers take ~60% of them from the incumbent → ~12,600 households spending ~₹2,000–3,000 on the storable half of a grocery basket ≈ ₹2.5–4 cr in month one. Illustrative, not exact.",
+    tags: "grocery,retail,households,footfall",
+  },
+  {
+    externalId: "perfume-order-quantity",
+    title: "Optimal order quantity for a luxury perfume outlet",
+    prompt:
+      "You run an outlet reselling luxury perfumes. You order once, at the start of the year, and the range is out of fashion by the next one — unsold bottles go back to the manufacturer at an agreed price. A bottle costs you ₹80, sells at ₹150, and is returned at ₹50. Demand is lumpy: a 20% chance of 1,000 bottles, a 50% chance of 1,500, and a 30% chance of 2,000. How many do you order?",
+    category: "retail",
+    sector: "retail",
+    difficulty: "Hard",
+    interviewLevel: "GeneralMBA",
+    idealLow: 1_500,
+    idealHigh: 2_000,
+    unit: "bottles",
+    betterApproach:
+      "Name the two ways to be wrong before computing anything: order short and forgo ₹70 of margin a bottle, order long and eat ₹30 on every one returned. Because demand is discrete rather than smooth, the optimum has to sit on one of the three demand levels, so no formula is needed — work out expected profit at 1,000, 1,500 and 2,000 and compare. Resist clearing surplus stock with a sale: not discounting is precisely what a luxury brand is paying its stockists for, which is why the return-to-manufacturer clause exists.",
+    sampleSolution:
+      "Order 1,000 → ₹70,000 whatever demand does, since you sell out every time. Order 1,500 → ₹55,000 if demand is 1,000 (500 returned at −₹30) and ₹105,000 otherwise; expected ₹95,000. Order 2,000 → ₹40,000, ₹90,000 and ₹140,000 across the three levels; expected ₹95,000 again. The two tie on expected profit, so break the tie on something the arithmetic does not price: 2,000 never stocks out, and a luxury customer turned away is the expensive kind.",
+    tags: "retail,inventory,expected value,optimisation",
+  },
+  {
+    externalId: "delivery-support-headcount",
+    title: "Customer-care executives needed by a food-delivery app in Delhi NCR",
+    prompt:
+      "A food-delivery app operating in Delhi NCR wants to know how many customer-care executives it needs to cover its queues around the clock, before any of the routine queries are automated away. Estimate the headcount.",
+    category: "demand-estimation",
+    sector: "food-beverage",
+    difficulty: "Medium",
+    interviewLevel: "Big4",
+    idealLow: 10,
+    idealHigh: 30,
+    unit: "executives",
+    betterApproach:
+      "Two steps that are tempting to run together and shouldn't be: size the daily query volume, then convert volume into people. Volume is orders a day times the share that raise a query. People come from service time — queries in a shift × handling time ÷ the minutes one person actually has — which is why the orders have to be spread across the day first. Staffing is set by the peak, not the average, and a day averaged flat understaffs both dinner rushes.",
+    sampleSolution:
+      "Delhi NCR ~1.2 cr people, ~80% online, ~1% on this app ≈ 1 lakh registered, ~10% ordering on a given day ≈ 10,000 orders. Traffic follows meals, not the clock: roughly 35% / 20% / 40% / 5% across the four six-hour blocks. About 20% of orders raise a query → ~2,000 a day, ~1,100 falling in an 8am–8pm shift and ~900 overnight. At ~5 minutes a query, the day shift needs 1,100 × 5 ÷ 720 ≈ 8 on the floor and the night shift ≈ 7 — about 15 seats, before rostering cover for breaks, leave and attrition.",
+    tags: "food delivery,support,staffing,capacity",
+  },
+  {
+    externalId: "tennis-balls-bangalore",
+    title: "Tennis balls sold in Bangalore per year",
+    prompt:
+      "Estimate how many tennis balls are sold in Bangalore in a year. Count every use they are put to, not only tennis.",
+    category: "demand-estimation",
+    sector: "consumer-goods",
+    difficulty: "Medium",
+    interviewLevel: "GeneralMBA",
+    idealLow: 500_000,
+    idealHigh: 4_000_000,
+    unit: "tennis balls/year",
+    betterApproach:
+      "Go demand-side. The supply side means guessing at brands, price points and plants, and compounding the error at every step. The count is matches played divided by how many matches a ball survives, summed across uses — and in India the largest use is not tennis but street cricket, where a ball is as often lost as worn out, so its life is shorter. Split players by how often they play rather than by professional and amateur: frequency is what consumes balls, and a label does not.",
+    sampleSolution:
+      "Tennis: ~1.3 cr people and perhaps 0.3% playing → ~40,000 players; regulars three times a week and the rest weekly → ~64,000 sessions → ~16,000 matches a week at four a side; ~3 balls a match and ~5 matches to a ball ≈ 5 lakh a year. Street cricket: ~15 lakh males aged 8–25, ~20% playing weekly in sides of ten → ~15,000 matches a week, a ball lost or dead in ~3 → ~2.5 lakh a year. Add pets and casual play and it lands near 8–12 lakh. The total swings several times over on the play-frequency assumption, which is why the split is what gets marked, not the number.",
+    tags: "cricket,sport,demand,consumption",
+  },
+
   // ── Qualitative ────────────────────────────────────────────────────────
   // Answered with an issue tree and a recommendation rather than a number, so
-  // no ideal range and no unit. These two carry no data pack or root cause yet,
-  // which makes them brainstorm-style: structure and reasoning are scored, and
-  // there is no diagnosis to grade. Diagnostic cases (facts released on request,
-  // a declared root cause) are authored from the casebook separately.
+  // no ideal range and no unit.
+  //
+  // Two shapes live here. A brainstorm case declares neither a data pack nor a
+  // root cause: structure and reasoning are scored and there is no diagnosis to
+  // grade, which is the EV entry case below and nothing else now. A diagnostic
+  // case releases facts only when the branch is asked about and declares the
+  // branch that holds the problem, so it scores Diagnosis as well — that is the
+  // rest of them.
   {
     externalId: "qual-food-delivery-margin",
     title: "Falling delivery margins at a food-delivery platform",
@@ -565,6 +694,633 @@ export const questions: SeedQuestion[] = [
     sampleSolution:
       "The decision usually turns on whether existing assets transfer. Dealer network, brand trust and service reach carry over; battery chemistry, power electronics and charging partnerships do not. A 'no' is defensible if the capability gap needs a partner the client can't get on good terms, or if the segment's margins stay negative until volumes the client can't reach.",
     tags: "market entry,ev,strategy",
+  },
+  /**
+   * Eight qualitative cases adapted from a campus consulting casebook.
+   *
+   * Adapted, not reproduced: the analytical shape of an interview case is the
+   * useful part and is nobody's property, but the wording and the named
+   * companies are. Every prompt, better approach and sample solution here is
+   * written fresh, every real organisation is replaced by an invented one, and
+   * the surface figures are shifted. Nothing is quoted.
+   *
+   * Five carry no `framework`. The five in `lib/config/frameworks.ts` mirror the
+   * casebook's own section structure, and a customer-journey, process or
+   * stakeholder case is not one of them — so rather than mislabel them,
+   * `detectFramework` is left to infer from what the candidate actually builds.
+   * Guided mode simply has no tree to offer on those, which it handles.
+   */
+  {
+    externalId: "qual-clinic-turnout",
+    title: "Falling turnout at a city's free neighbourhood clinics",
+    prompt:
+      "A state health department runs 240 free Nagar Clinics across Pune, offering consultations, basic lab tests and free medicines. Eight years in, patient turnout is far below what was planned — and it is low at every clinic, not at a handful. Work out why, and say what you would do about it.",
+    category: "healthcare",
+    sector: "healthcare",
+    difficulty: "Medium",
+    interviewLevel: "Big4",
+    type: "qualitative",
+    expectedBuckets: [
+      "Pre-visit",
+      "Awareness",
+      "Accessibility",
+      "During the visit",
+      "Doctor availability",
+      "Waiting time",
+      "Post-visit",
+      "Reports",
+      "Medicines",
+      "Follow-up",
+    ],
+    dataPack: [
+      {
+        // Stems, not inflections: topics are matched as substrings of what the
+        // candidate typed, so "aware" catches "are patients aware?" while
+        // "awareness" would not.
+        topic: ["aware", "know", "publicity", "marketing", "information"],
+        fact: "Awareness is above 90% in the target population — people know the clinics exist and what they offer.",
+      },
+      {
+        topic: ["access", "accessibility", "distance", "location", "reach", "travel"],
+        fact: "The 240 clinics are spread evenly across the city; almost everyone in the target group is within a 15-minute walk of one.",
+      },
+      {
+        topic: ["doctor", "staff", "available", "consultation", "appointment"],
+        fact: "Doctors are present for the full advertised hours at nearly every clinic.",
+      },
+      {
+        topic: ["wait", "queue", "crowd", "waiting time"],
+        fact: "Median wait for a consultation is about 12 minutes, which patients rate as acceptable.",
+      },
+      {
+        topic: ["infrastructure", "equipment", "lab", "diagnostics", "facility"],
+        fact: "Lab equipment is installed and working, and samples are collected on site.",
+      },
+      {
+        topic: ["report", "reports", "test report", "result", "turnaround"],
+        fact: "Blood and imaging reports are compiled by hand and take 6 to 9 days, and the patient has to come back in person to collect them.",
+      },
+      {
+        topic: ["medicine", "medicines", "pharmacy", "stock", "prescription"],
+        fact: "Prescribed medicines are in stock and dispensed free during the same visit.",
+      },
+      {
+        topic: ["follow up", "follow-up", "return", "retention", "repeat", "reminder"],
+        fact: "There is no reminder system of any kind, so a patient who does not come back is never contacted.",
+      },
+      {
+        topic: ["cost", "fee", "charge", "price", "pay"],
+        fact: "Every service is free at the point of use — there is no fee at any stage.",
+      },
+      {
+        topic: ["quality", "satisfaction", "trust", "perception"],
+        fact: "Patients who complete a course of treatment rate the clinics highly; the problem is how few complete one.",
+      },
+    ],
+    rootCause: {
+      path: ["Post-visit", "Reports"],
+      note: "Everything up to and including the consultation works. Lab reports take 6–9 days and must be collected in person, so treatment stalls after the first visit and patients do not return — the loss is entirely post-visit.",
+    },
+    betterApproach:
+      "Walk the patient journey in order — before the visit, during it, after it — and clear each stage against evidence before moving on. A failure that is uniform across 240 clinics is systemic, which rules out explanations that would vary by location, so awareness and accessibility are worth testing early and dropping quickly. Turnout is a repeat-visit metric, so the stage most likely to be responsible is the one that decides whether anyone comes back.",
+    sampleSolution:
+      "Awareness, access, doctor availability, waiting time and medicine supply all check out. The break is after the visit: hand-compiled lab reports take 6–9 days and have to be collected in person, so a course of treatment stalls before it finishes and there is no reminder to pull the patient back. Digitising results so they reach patients by SMS, and adding a simple recall system that also tells them when reports are ready, addresses the stage that is actually losing them.",
+    tags: "clinic,patient journey,public health,customer journey",
+  },
+  {
+    externalId: "qual-pizza-satisfaction",
+    title: "Satisfaction slipping at a wood-fired pizza kitchen",
+    prompt:
+      "Forno Rustica is a single wood-fired pizza kitchen in Pune doing dine-in, takeaway and delivery. Its customer satisfaction score, collected on a 1–5 scale, has fallen over the past month — but only on delivery orders. Nothing about how the score is measured has changed. Find the cause and recommend a fix.",
+    category: "retail",
+    sector: "food-beverage",
+    difficulty: "Medium",
+    interviewLevel: "Bain",
+    type: "qualitative",
+    expectedBuckets: [
+      "Pre-ordering",
+      "App and website",
+      "Ordering",
+      "Payment",
+      "Delivery",
+      "Delivery time",
+      "Distance",
+      "Food on arrival",
+      "Rider conduct",
+      "Post-delivery",
+    ],
+    dataPack: [
+      {
+        topic: ["app", "website", "ordering", "ui", "ux", "menu", "browse"],
+        fact: "The app and website are unchanged this quarter, and drop-off and error rates through the ordering flow are flat.",
+      },
+      {
+        topic: ["payment", "checkout", "upi", "card"],
+        fact: "Payment failures are steady at well under 1% of orders.",
+      },
+      {
+        topic: ["packaging", "temperature", "quality", "taste", "food", "condition"],
+        fact: "Recipe and packaging are unchanged, but complaints do mention pizzas arriving lukewarm.",
+      },
+      {
+        topic: ["rider", "delivery partner", "conduct", "behaviour", "staff"],
+        fact: "Complaints about rider conduct are rare and have not increased.",
+      },
+      {
+        topic: ["delivery time", "time", "late", "eta", "speed", "delay"],
+        fact: "Average delivery time has gone from about 28 minutes to about 44 minutes over the last month.",
+      },
+      {
+        topic: ["distance", "radius", "area", "geography", "location", "where"],
+        fact: "Average delivery distance is up sharply — orders now come in from roughly twice the earlier radius.",
+      },
+      {
+        topic: ["kitchen", "prep", "capacity", "oven", "dispatch", "cooking"],
+        fact: "Prep time per pizza is unchanged and the oven is not a bottleneck.",
+      },
+      {
+        topic: ["demand", "orders", "volume", "popularity", "marketing", "promotion"],
+        fact: "Order volume is up about 35% this month. Several local food influencers posted about the place.",
+      },
+      {
+        topic: ["competition", "competitor", "rival", "new entrant"],
+        fact: "No competitor has opened or closed nearby during the period.",
+      },
+      {
+        topic: ["dine-in", "dine in", "takeaway", "segment", "channel"],
+        fact: "Dine-in and takeaway satisfaction scores are unchanged.",
+      },
+      {
+        topic: ["promise", "expectation", "advertised", "eta shown"],
+        fact: "The delivery time promised at checkout has not been updated since the kitchen opened.",
+      },
+    ],
+    rootCause: {
+      path: ["Delivery", "Distance"],
+      note: "Ordering, payment, rider conduct and the food itself are unchanged. Influencer posts widened the catchment, so the average delivery distance roughly doubled; delivery time rose from 28 to 44 minutes against an unchanged promise, and the pizza arrives lukewarm. Popularity, not a service failure, is what broke the score.",
+    },
+    betterApproach:
+      "Split the order into pre-ordering, ordering, delivery and post-delivery, and use the fact that only delivery scores moved to discard three of them quickly. Inside delivery, ask how, when, where and by whom before guessing. When time turns out to be the problem, remember it is distance over speed against a promised figure — so check whether the promise moved, whether speed fell, or whether the distance grew, rather than assuming the operation got worse.",
+    sampleSolution:
+      "Nothing in the kitchen or the app changed. Influencer coverage widened the catchment, so orders started arriving from about twice the radius; distance drove delivery time from 28 to 44 minutes against a promise nobody updated, and a wood-fired pizza travelling that far arrives lukewarm. This is a success failure, and the fixes follow from that: cap the delivery radius or reprice distant orders, reset the quoted time so expectations match reality, and compensate the customers already affected. Over a longer horizon the real answer is capacity closer to the new demand — a second outlet or a cloud kitchen in the high-demand pockets.",
+    tags: "customer journey,restaurant,delivery,satisfaction",
+  },
+  {
+    externalId: "qual-sfb-universal-licence",
+    title: "A small finance bank steps up to a universal licence",
+    prompt:
+      "Uttara Small Finance Bank has met every RBI condition to convert into a universal bank. The board wants an asset-liability strategy for the transition: what it should lend, how it should fund itself, and what it should stay away from.",
+    category: "finance",
+    sector: "financial-services",
+    difficulty: "Medium",
+    interviewLevel: "BCG",
+    type: "qualitative",
+    framework: "growth",
+    expectedBuckets: [
+      "Assets",
+      "Loans",
+      "Investments",
+      "Liabilities",
+      "Deposits",
+      "Borrowings",
+      "Existing customers",
+      "New customers",
+      "Due diligence",
+      "Risk",
+    ],
+    dataPack: [
+      {
+        topic: ["portfolio", "book", "existing", "mix", "current lending"],
+        fact: "The book is roughly 45% MSME, a large microfinance portfolio lent to self-help groups in unbanked rural districts, and a small home-loan book.",
+      },
+      {
+        topic: ["rationale", "objective", "why", "reason", "priority sector"],
+        fact: "The board's stated reasons are to escape the priority-sector lending floor that binds small finance banks, and to widen the footprint beyond its home states.",
+      },
+      {
+        topic: ["deposit", "casa", "savings", "current account", "fixed deposit", "funding"],
+        fact: "Deposits are overwhelmingly term deposits priced above what the large banks pay; the CASA share is thin.",
+      },
+      {
+        topic: ["borrowing", "refinance", "wholesale", "market borrowing"],
+        fact: "Refinance lines from development institutions fund about a fifth of the book and cost more than retail deposits.",
+      },
+      {
+        topic: ["npa", "default", "asset quality", "provision", "delinquency"],
+        fact: "Gross NPAs are near 2.4%, concentrated in the unsecured microfinance book.",
+      },
+      {
+        topic: ["vehicle", "auto loan", "education loan", "personal loan", "new product"],
+        fact: "The bank has never underwritten vehicle, education or personal loans and has no scorecard for any of them.",
+      },
+      {
+        topic: ["agent", "branch", "distribution", "network", "reach", "channel"],
+        fact: "It has a dense field-agent network across rural districts and very few urban branches.",
+      },
+      {
+        topic: ["agriculture", "farm", "agri", "rural credit"],
+        fact: "Agricultural credit in its districts is still largely informal — moneylenders rather than banks.",
+      },
+      {
+        topic: ["capital", "adequacy", "profit", "solvency"],
+        fact: "Capital adequacy is comfortably above the regulatory floor and the bank has been profitable for five consecutive years.",
+      },
+      {
+        topic: ["home loan", "mortgage", "housing"],
+        fact: "The home-loan book is small but its losses have been negligible, and demand in its districts is unmet.",
+      },
+    ],
+    betterApproach:
+      "Take the balance sheet as the structure — assets on one side, liabilities on the other — and treat the licence as a change in what is allowed on each, not as a growth wish list. On assets, separate what can be sold to existing customers from what needs a new customer entirely, because the first rides on distribution the bank already has and the second does not. On liabilities, remember that a universal licence is mostly a funding opportunity. Then test each candidate product against the capability it actually requires.",
+    sampleSolution:
+      "The transferable asset is distribution: a dense rural agent network, MSME underwriting experience and a self-help-group relationship base. Agricultural credit and larger MSME lending extend that directly, and the small home-loan book is the natural third leg given its loss record. Vehicle, education and personal loans are the ones to refuse for now — they need scorecards and collection machinery the bank has never built, they do not bundle with anything it already sells, and its NPAs are already concentrated in unsecured lending. The bigger prize is on the liability side: a universal licence opens current accounts and cheaper deposits, and replacing costly refinance with CASA does more for the margin than any new loan product would.",
+    tags: "banking,asset liability,lending,growth",
+  },
+  {
+    externalId: "qual-foreign-campus-policy",
+    title: "Bringing foreign university campuses to an Indian state",
+    prompt:
+      "A western Indian state wants international universities to open campuses within its borders over the next six to seven years, and is offering subsidised land, capital support and an operating subsidy for the early years. Advise the government on how to go about it — and on what a university would need to see before it says yes.",
+    category: "education",
+    sector: "education",
+    difficulty: "Medium",
+    interviewLevel: "GeneralMBA",
+    type: "qualitative",
+    framework: "market-entry",
+    expectedBuckets: [
+      "Need-delivery gap",
+      "Higher education",
+      "Skill education",
+      "Financial feasibility",
+      "Revenue",
+      "Cost",
+      "Operational feasibility",
+      "Fit of the provider",
+      "Risks",
+      "Benchmarking",
+    ],
+    dataPack: [
+      {
+        // "quality" belongs to the metrics entry below, not here: on a tie in
+        // topic length `factFor` keeps the first match, so listing it twice
+        // answered "how do you measure quality?" with the project's rationale.
+        topic: ["objective", "rationale", "why", "goal", "capacity"],
+        fact: "The state's aim is quality rather than capacity — it believes international providers raise the standard of what is taught.",
+      },
+      {
+        topic: ["timeline", "when", "horizon", "deadline"],
+        fact: "The government wants the first campuses operating within six to seven years.",
+      },
+      {
+        topic: ["incentive", "subsidy", "support", "land", "grant"],
+        fact: "On offer: subsidised land, capital support for construction, and an operating subsidy for the first few years.",
+      },
+      {
+        topic: ["gap", "need", "shortage", "supply", "demand", "benchmark"],
+        fact: "Benchmarked against comparable states, the shortfall is concentrated in higher education and skill-based training rather than in schools.",
+      },
+      {
+        topic: ["quality", "metric", "outcome", "enrolment", "pass rate", "ratio", "curriculum"],
+        fact: "The metrics the state tracks are enrolment rates, student-teacher ratio, pass rates, employability in international job markets, and curriculum standard.",
+      },
+      {
+        topic: ["revenue", "fee", "tuition", "students", "willingness", "afford"],
+        fact: "Roughly one student in twelve in the state can afford international-tier fees, and that share is growing.",
+      },
+      {
+        topic: ["cost", "fixed cost", "setup", "infrastructure", "salary", "licence", "faculty"],
+        fact: "Setup costs are dominated by land, buildings and faculty salaries; recurring costs are course material, amenities and licensing.",
+      },
+      {
+        topic: ["margin", "payback", "roi", "return", "profitability"],
+        fact: "Providers modelling the opportunity expect about a 20% margin and an eleven-year payback.",
+      },
+      {
+        topic: ["compet", "other states", "alternative", "rival", "hub"],
+        fact: "Two neighbouring states and several offshore education hubs are courting the same universities with comparable packages.",
+      },
+      {
+        topic: ["risk", "regulation", "legal", "political", "social", "visa"],
+        fact: "Faculty visas, degree-recognition rules and repatriation of surplus are the three issues providers raise most often.",
+      },
+      {
+        topic: ["product mix", "segment", "level", "school", "college"],
+        fact: "The state is open to any level, but school-stage provision is already adequate on its own benchmarks.",
+      },
+    ],
+    betterApproach:
+      "This is a market entry seen from the wrong side of the table: the state is not entering anything, so structure it as the entry decision the university will make and ask what the state can change about it. Establish the gap first, because a subsidy aimed at a segment that is already served buys nothing. Then take financial and operational feasibility from the provider's point of view, and finish on the risks — a payback that long is decided by political and legal stability as much as by the numbers.",
+    sampleSolution:
+      "Start by locating the gap: schools are adequately served on the state's own benchmarks, so the target is higher education and skill-based training, and the incentives should be conditioned on those rather than offered flat. From the provider's side an eleven-year payback at a 20% margin is not obviously good or bad — it is only meaningful against what the neighbouring states and offshore hubs offer, so benchmarking is the analysis that decides the answer. Because the payback runs beyond a decade, the differentiator is rarely the money: it is degree recognition, faculty visas and the right to repatriate surplus. Fixing those is cheaper than outbidding a neighbour and is the part a government is uniquely able to offer.",
+    tags: "education,students,market entry,policy",
+  },
+  {
+    externalId: "qual-football-club-revenue",
+    title: "Mapping the revenue streams of a football club",
+    prompt:
+      "Konkan City FC plays in India's top domestic football league. Its owners want a complete map of where the club's money comes from, and an honest read on where there is room to grow it. Assume a normal season with no disruption to attendance.",
+    category: "revenue-estimation",
+    sector: "media-entertainment",
+    difficulty: "Easy",
+    interviewLevel: "Bain",
+    type: "qualitative",
+    framework: "growth",
+    expectedBuckets: [
+      "Matchday",
+      "Ticket sales",
+      "Stadium capacity",
+      "Occupancy",
+      "Broadcasting",
+      "Viewership",
+      "Commercial",
+      "Sponsorship",
+      "Merchandising",
+      "Transfers",
+      "Prize money",
+    ],
+    dataPack: [
+      {
+        topic: ["ticket", "matchday", "gate", "attendance", "occupancy"],
+        fact: "Home matches run at 96–99% occupancy, so there is almost no headroom left in the current stadium.",
+      },
+      {
+        topic: ["price", "ticket price", "pricing"],
+        fact: "Ticket prices are already the highest in the league, and the team finished mid-table last season.",
+      },
+      {
+        topic: ["matches", "fixtures", "games", "season", "number of matches"],
+        fact: "The league guarantees 11 home fixtures. Anything beyond that has to be earned by progressing in cup competitions.",
+      },
+      {
+        topic: ["capacity", "stadium", "expansion", "seats"],
+        fact: "The stadium seats about 22,000. Expanding it is possible but needs a large capital outlay and municipal clearance.",
+      },
+      {
+        topic: ["broadcast", "tv", "rights", "media", "streaming"],
+        fact: "Broadcast money is negotiated centrally by the league and split by a fixed formula — the club cannot sell its own rights.",
+      },
+      {
+        topic: ["viewership", "audience", "slot", "timing", "schedule"],
+        fact: "Viewership turns on the opponent and the kick-off slot, both of which the league's scheduler controls.",
+      },
+      {
+        topic: ["sponsor", "sponsorship", "partnership", "brand", "commercial", "shirt"],
+        fact: "Shirt and stadium sponsorship are locked in for two more seasons. Pre-season tours and brand shoots are not.",
+      },
+      {
+        topic: ["merchandise", "merchandising", "kit", "jersey", "retail"],
+        fact: "Merchandising is licensed to a third party for a flat fee rather than a revenue share.",
+      },
+      {
+        topic: ["transfer", "transfers", "player", "scouting", "academy", "loan"],
+        fact: "Net transfer spend has been negative for three seasons — the club buys more than it sells — and the academy has produced one first-team player in five years.",
+      },
+      {
+        topic: ["prize", "prize money", "trophy", "league position", "performance"],
+        fact: "Prize money scales steeply with final league position and cup progress.",
+      },
+    ],
+    betterApproach:
+      "List every stream before decomposing any of them, and check the list is complete before going deep — matchday, broadcasting, commercial, transfers and prize money is the usual spine. Then decompose one at a time into things that can actually be moved: tickets are capacity times occupancy times price times number of matches, and it is worth asking which of those four the club controls at all. A stream the league negotiates centrally is context, not a lever.",
+    sampleSolution:
+      "Matchday is close to maxed out: occupancy is at 96–99%, prices already lead the league, and the fixture count is fixed, so the only real lever is capacity — which means capital and clearances. Broadcasting is set centrally and effectively out of the club's hands. That pushes the answer toward the streams the club still controls: renegotiating merchandising off a flat licence fee onto a revenue share, monetising pre-season and brand work while the shirt deal is locked, and treating recruitment as a revenue line rather than a cost — better scouting and a functioning academy turn three seasons of negative net transfer spend around. Prize money ties all of it back to performance on the pitch.",
+    tags: "revenue streams,stadium,sponsorship,broadcasting",
+  },
+  {
+    externalId: "qual-airline-otp",
+    title: "On-time performance at a newly privatised airline",
+    prompt:
+      "Bharat Air was privatised last year. It runs on-time performance of about 62% while its private competitors sit near 91%, and the gap shows up on domestic and international routes alike. Find where the time is going, and recommend fixes for this quarter and for the next three years.",
+    category: "transportation",
+    sector: "transportation",
+    difficulty: "Medium",
+    interviewLevel: "GeneralMBA",
+    type: "qualitative",
+    expectedBuckets: [
+      "Before landing",
+      "During landing",
+      "Turnaround",
+      "Deplaning",
+      "Cleaning and maintenance",
+      "Refuelling",
+      "Boarding",
+      "Take-off",
+      "Crew",
+    ],
+    dataPack: [
+      {
+        topic: ["definition", "otp", "measure", "metric", "on-time"],
+        fact: "On-time performance counts flights arriving and departing within 15 minutes of schedule.",
+      },
+      {
+        topic: ["route", "region", "domestic", "international", "network", "segment"],
+        fact: "The shortfall is uniform — no region, route type or time of day stands out.",
+      },
+      {
+        topic: ["air traffic", "congestion", "atc", "slot", "runway", "landing strip"],
+        fact: "Slot and runway allocation is set by the airports, and competitors flying the same slots manage 91%.",
+      },
+      {
+        topic: ["taxi", "gate", "aerobridge", "bus", "stand"],
+        fact: "Only about a third of arrivals get an aerobridge; the rest use buses, which adds 6 to 8 minutes at each end.",
+      },
+      {
+        topic: ["deplaning", "disembark", "passenger", "luggage", "cabin bag"],
+        fact: "Cabin-baggage limits are not enforced at the gate, and deplaning runs slow because of the volume of bags in the cabin.",
+      },
+      {
+        topic: ["boarding", "zone", "sequence", "gate process"],
+        fact: "Boarding is unzoned and takes about 9 minutes longer than the competitor benchmark.",
+      },
+      {
+        topic: ["cleaning", "maintenance", "servicing", "turnaround", "outsourced", "contract"],
+        fact: "Cleaning and light maintenance are outsourced on a contract with no turnaround-time penalty, and the median clean overruns its slot by 11 minutes.",
+      },
+      {
+        topic: ["refuel", "refuelling", "fuel"],
+        fact: "Refuelling is on the critical path only for quick turnarounds and is broadly on benchmark.",
+      },
+      {
+        topic: ["crew", "pilot", "staff", "roster", "reporting"],
+        fact: "Crew reporting is the single largest cause of first-departure delay in the morning bank, and the roster carries no buffer.",
+      },
+      {
+        topic: ["fleet", "aircraft", "age", "technical", "cancellation"],
+        fact: "Fleet age and technical cancellations are in line with competitors.",
+      },
+    ],
+    rootCause: {
+      path: ["Turnaround", "Boarding"],
+      note: "Nothing off the aircraft explains it: competitors fly the same slots and hold 91%, and the fleet is comparable. The time is lost on the ground — unzoned boarding running 9 minutes long, unenforced cabin baggage slowing deplaning, and an outsourced clean with no time penalty overrunning by 11. A delay that is uniform across the network is a process failure, not a route problem.",
+    },
+    betterApproach:
+      "Treat one aircraft as a loop rather than a flight — approach, landing, taxi, deplaning, servicing, boarding, take-off — and walk it in order, because a delay anywhere in the loop propagates through the day. Test the external explanations first and be willing to discard them: if competitors fly the same slots and airports, congestion cannot account for a 29-point gap. That leaves the ground, where the airline controls its own process, and the question becomes which stage is off benchmark and by how much.",
+    sampleSolution:
+      "Slots, airports and fleet are shared with competitors who manage 91%, so the loss is on the ground. Three stages are off benchmark: boarding runs about 9 minutes long because it is unzoned, deplaning drags because cabin-baggage limits are not enforced, and the outsourced clean overruns by 11 minutes under a contract with no time penalty. Crew reporting compounds it by starting the morning bank late with no roster buffer. The near-term fixes are cheap and process-level — zoned boarding, gate enforcement of cabin bags, a turnaround-time penalty written into the ground-handling contract, and buffer in the crew roster. The longer-term ones cost money: more aerobridge access and enough crew depth that a single absence does not delay a departure.",
+    tags: "airline,operations,turnaround,process",
+  },
+  {
+    externalId: "qual-partner-running-late",
+    title: "The partner who was late",
+    prompt:
+      "A senior partner at your firm — someone who is never late — walked into a client meeting well behind schedule this morning. A colleague wants to work out what happened, without asking the partner directly and without embarrassing anybody. How would you narrow it down?",
+    category: "transportation",
+    sector: "transportation",
+    difficulty: "Hard",
+    interviewLevel: "BCG",
+    type: "qualitative",
+    expectedBuckets: [
+      "Before the commute",
+      // "During the commute", not "Commute" — and the root-cause path below uses
+      // the same wording for the same reason. `labelMatches` matches runs of
+      // whole words in either direction, so a bare "Commute" is also contained
+      // in "Before the commute", and a candidate who correctly eliminated that
+      // sibling was recorded as having cleared the branch holding the answer.
+      "During the commute",
+      "After arriving",
+      "Internal causes",
+      "External causes",
+      "Vehicle",
+      "Driver",
+      "Route",
+      "Stoppages",
+    ],
+    dataPack: [
+      {
+        topic: ["home", "weekend", "morning", "before", "personal", "family"],
+        fact: "He left home at the usual time this morning, and nothing unusual happened over the weekend.",
+      },
+      {
+        topic: ["office", "building", "lift", "floor", "compound", "arrival"],
+        fact: "He was seen entering the building only a few minutes before he walked into the room, so whatever happened, happened before he arrived.",
+      },
+      {
+        topic: ["traffic", "accident", "external", "news", "road", "weather", "congestion"],
+        fact: "No accident, closure or unusual congestion was reported on any route into the district this morning.",
+      },
+      {
+        topic: ["car", "vehicle", "breakdown", "internal"],
+        fact: "The car is new, bought a few months ago after his promotion, and gave no trouble.",
+      },
+      {
+        topic: ["driver", "chauffeur"],
+        fact: "The same driver has worked for him for the last seven years and reported for duty on time.",
+      },
+      {
+        topic: ["route", "detour", "path", "way"],
+        fact: "The route was the usual one: home, then a coffee-chain outlet, then his daughter's school, then the office.",
+      },
+      {
+        topic: ["stoppage", "stoppages", "stop", "halt", "waiting"],
+        fact: "The stop at the coffee outlet normally takes about 10 minutes. Today it took 35. Every other stop took its usual time.",
+      },
+      {
+        topic: ["queue", "order", "service", "staff", "payment", "counter"],
+        fact: "The queue was normal, service was not slow, and the order was placed and collected without any trouble.",
+      },
+      {
+        topic: ["incident", "argument", "dispute", "acquaintance", "after ordering", "customer"],
+        fact: "His daughter went inside with him today, which she does not usually do, and there was an incident with another customer that took a while to settle.",
+      },
+      {
+        topic: ["school", "daughter", "drop"],
+        fact: "The school drop took its usual few minutes.",
+      },
+      {
+        topic: ["ask", "enquire", "who", "source", "information"],
+        fact: "The driver is approachable and talks freely. Asking the partner's own team would get back to him within the hour.",
+      },
+    ],
+    rootCause: {
+      path: ["During the commute", "Stoppages"],
+      note: "Not before the commute and not after arriving: he left on time and reached the building minutes before the meeting. Nothing external was reported, and the car and driver are both ruled out. The whole delay sits in one stoppage — the coffee stop ran 35 minutes instead of 10, because his daughter was with him and an incident with another customer had to be settled.",
+    },
+    betterApproach:
+      "Bracket the time first — before the commute, during it, after arriving — because that costs one question and eliminates two thirds of the space. Then split causes into external and internal, since external ones can be checked without talking to anybody. What makes this case unusual is that the information has a source and the source has feelings: work out who can be asked, in what order, and how, before deciding what to ask. Keep the tone conversational; the interviewer is playing a colleague, not setting an exam.",
+    sampleSolution:
+      "He left home on time and reached the building minutes before the meeting, so the delay is inside the commute. Nothing external was reported, and the car is new and the driver long-serving, which clears the internal mechanical branch and leaves route and stoppages. The route was unchanged, and one stoppage explains the whole gap: the coffee stop ran 35 minutes against a usual 10, because his daughter came inside with him and an incident with another customer had to be settled. The transferable lesson is about sourcing, not structure — the driver could be asked without the question ever reaching the partner, and the team could not.",
+    tags: "structured problem solving,commute,hypothesis,elimination",
+  },
+  {
+    externalId: "qual-fmcg-sustainability",
+    title: "Sustainability strategy for an FMCG major",
+    prompt:
+      "You are the chief sustainability officer at Sundara Foods, an Indian food-processing FMCG company. The board wants a plan to cut the carbon footprint of the business — quick wins this financial year, and a serious programme over five years. Sundara owns only the manufacturing step; farmers, aggregators, distributors and retailers are all separate parties.",
+    category: "consumer-goods",
+    sector: "consumer-goods",
+    difficulty: "Hard",
+    interviewLevel: "GeneralMBA",
+    type: "qualitative",
+    expectedBuckets: [
+      "Value chain",
+      "Farming and raw material",
+      "Manufacturing",
+      "Transport and storage",
+      "Retail",
+      "Stakeholders",
+      "Customers",
+      "Investors",
+      "Government",
+      "Value chain partners",
+    ],
+    dataPack: [
+      {
+        // Deliberately NOT "carbon" or "emissions". `factFor` returns the
+        // LONGEST matched topic, so a generic word that appears in half the
+        // questions about this case would answer "where do the emissions come
+        // from?" with the definition of the exercise.
+        topic: ["scope", "definition", "sustainability", "objective", "mean by"],
+        fact: "For this exercise sustainability means carbon — the board is asking about CO2-equivalent emissions, not water or packaging waste.",
+      },
+      {
+        topic: ["timeframe", "short term", "long term", "horizon", "when"],
+        fact: "Short term means the current financial year. Long term means a five-year horizon.",
+      },
+      {
+        topic: ["total", "footprint", "baseline", "how much", "quantum"],
+        fact: "Sundara's footprint is about 1.7 million tonnes of CO2 equivalent a year across the chain it sells through.",
+      },
+      {
+        topic: ["split", "breakdown", "stage", "contribution", "where", "biggest"],
+        fact: "Roughly 32% comes from farming and raw-material aggregation, 12% from manufacturing, 16% from transport, 18% from retail, and the rest from storage.",
+      },
+      {
+        topic: ["control", "ownership", "own", "operate", "boundary"],
+        fact: "Sundara owns the manufacturing step only. Every other stage is contracted to a separate party.",
+      },
+      {
+        topic: ["customer", "consumer", "demand", "green", "provenance", "premium"],
+        fact: "A growing segment of buyers asks about provenance and per-product footprint, and a small price premium is achievable where it can be proven.",
+      },
+      {
+        topic: ["investor", "shareholder", "lender", "esg", "capital", "impact"],
+        fact: "Two of Sundara's largest lenders now price debt against ESG disclosure, and impact funds screen on it before investing.",
+      },
+      {
+        topic: ["government", "regulation", "policy", "cap and trade", "credit", "tax"],
+        fact: "Several states are moving to cap-and-trade schemes, under which a company that stays below its cap can sell the balance.",
+      },
+      {
+        // "measure" rather than "measurement": topics are matched as substrings
+        // of what the candidate typed, so the shorter stem catches "measured",
+        // "measuring" and "measurement" alike.
+        topic: ["measure", "track", "data", "monitoring", "report", "audit"],
+        fact: "Nothing today logs emissions as goods move between the parties — each partner reports its own number, in its own format, once a year.",
+      },
+      {
+        topic: ["supplier", "farmer", "partner", "incentive", "procurement", "contract"],
+        fact: "Supplier contracts are annual and price-only; nothing in them references emissions.",
+      },
+      {
+        topic: ["employee", "staff", "workforce", "culture"],
+        fact: "There is no internal sustainability team beyond the CSO; the role was created this year.",
+      },
+    ],
+    betterApproach:
+      "Pin down what is being asked before structuring anything: sustainability means several different things, and short and long term mean nothing until someone gives you dates. Then run two passes rather than one. The value chain tells you where the emissions physically are; the stakeholder view tells you which of those you can actually move, and what each party would want in return. The gap between the two is the strategy — and note early that owning 12% of the footprint means almost every lever runs through somebody else's contract.",
+    sampleSolution:
+      "Manufacturing is only 12% of the footprint, so a plan confined to Sundara's own operations cannot succeed — roughly nine tenths of the problem sits with farmers, hauliers, warehouses and retailers, and the only instrument reaching them is the contract. The quick win is therefore measurement, not abatement: nothing currently logs emissions as goods change hands, and a central per-product ledger is achievable this financial year and unlocks everything else. It also pays for itself three ways, which is what makes it fundable — customers pay a small premium for provenance they can verify, two large lenders already price debt against ESG disclosure, and verified numbers are the precondition for selling surplus allowances under the state cap-and-trade schemes now arriving. The five-year programme then follows: emissions clauses and incentives written into supplier contracts at renewal, starting with farming and aggregation where a third of the footprint sits.",
+    tags: "sustainability,carbon,value chain,stakeholders",
   },
   /**
    * The catalogue row for a decision simulation.
