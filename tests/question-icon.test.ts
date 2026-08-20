@@ -113,6 +113,23 @@ const EXPECTED: Record<string, string> = {
   "Annual GMV of a mid-size D2C brand in India": "ShoppingBag",
   "Falling delivery margins at a food-delivery platform": "Bike",
   "Should a two-wheeler maker enter electric scooters?": "BatteryCharging",
+  "Falling turnout at a city's free neighbourhood clinics": "Stethoscope",
+  // "restaurant" in the tags, not "food delivery" — the subject is the kitchen,
+  // and the delivery channel is where the problem happens to surface.
+  "Satisfaction slipping at a wood-fired pizza kitchen": "Utensils",
+  "A small finance bank steps up to a universal licence": "Landmark",
+  // No subject rule matches the title, so this reaches GraduationCap through
+  // "education" in the tags — "university" is not itself a pattern.
+  "Bringing foreign university campuses to an Indian state": "GraduationCap",
+  // "stadium" in the tags beats "revenue" in the title, and that is the right
+  // call: the card is about a football club, not about revenue in the abstract.
+  "Mapping the revenue streams of a football club": "Trophy",
+  "On-time performance at a newly privatised airline": "Plane",
+  // Two more Category.icon fallbacks. Nothing in a title about a late partner
+  // or a carbon footprint is a subject the rules have a card for, so they take
+  // Transportation's and Consumer Goods' — which is what the column is for.
+  "The partner who was late": "Bus",
+  "Sustainability strategy for an FMCG major": "Package",
   "NukkadEats: orders are down 9% and nobody knows why": "Bike",
   "Kadak Coffee: the ads are working and the money is going": "Coffee",
   "Padhai Plus: 18,000 new subscribers a month, and a bigger hole": "GraduationCap",

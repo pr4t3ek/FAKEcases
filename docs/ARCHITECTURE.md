@@ -895,8 +895,8 @@ lib/
 
 prisma/
 ├── schema.prisma       Data model (see ERD above)
-└── seed-data.ts / seed.ts   16 categories, 46 India-only questions (24 guesstimates
-                             + 2 cases + 20 simulation catalogue rows), 12 achievements,
+└── seed-data.ts / seed.ts   16 categories, 55 India-only questions (24 guesstimates
+                             + 10 cases + 21 simulation catalogue rows), 12 achievements,
                              demo users, benchmark cohort
 ```
 

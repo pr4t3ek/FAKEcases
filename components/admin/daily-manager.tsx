@@ -81,7 +81,7 @@ export function DailyManager({
 
   return (
     <div className="space-y-4">
-      {/* The launch configuration, as one control. Locking 46 questions by hand
+      {/* The launch configuration, as one control. Locking 55 questions by hand
           is not a decision, it is an afternoon with a mistake in it. */}
       <Card className="space-y-3 p-5">
         <div>
