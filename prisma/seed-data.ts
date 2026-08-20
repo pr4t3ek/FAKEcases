@@ -483,12 +483,141 @@ export const questions: SeedQuestion[] = [
     tags: "ecommerce,orders,aov",
   },
 
+  // ── Guesstimates adapted from a campus consulting casebook ─────────────
+  // Same terms as the cases further down: the estimation path is the useful
+  // part and is nobody's property, the wording and the named places are
+  // rewritten, and the arithmetic is re-derived rather than copied.
+  //
+  // These six deliberately break the mould the other 24 share. Those are all
+  // national market sizes; four of these ask for the revenue of ONE named site,
+  // which is the shape a candidate actually meets across a table and the shape
+  // the catalogue had none of. The last two are not estimates from nothing at
+  // all: the headcount one converts a volume into people through a service-time
+  // calculation, and the perfume one is a constrained optimisation whose data
+  // is given in the prompt and has a determinate answer.
+  //
+  // No data packs, following the 24 above. A guesstimate is worked from the
+  // candidate's own assumptions, and an interviewer releasing anchor figures on
+  // request would be answering the question for them.
+  {
+    externalId: "duty-free-alcohol-delhi",
+    title: "Annual duty-free alcohol sales at a Delhi airport terminal",
+    prompt:
+      "Estimate the annual revenue from alcohol at the duty-free shop in Delhi airport's international terminal. Assume there is one shop and that only departing international passengers can use it.",
+    category: "revenue-estimation",
+    sector: "retail",
+    difficulty: "Medium",
+    interviewLevel: "BCG",
+    idealLow: 5_000_000_000,
+    idealHigh: 15_000_000_000,
+    unit: "₹/year",
+    betterApproach:
+      "Reach international passengers from the supply side — runways × departures an hour × hours × days × seats × occupancy — rather than asserting a footfall, because every term there is checkable and a footfall guess is not. Then narrow twice: what share buy duty-free alcohol at all, and what share buy it here rather than at the destination shop on the way back. Finish on basket size, where the customs allowance caps bottles per head and the price reflects people trading up to make the tax saving worth having.",
+    sampleSolution:
+      "~2 international runways at a departure every 5 minutes ≈ 600 departures/day → ~2.1 lakh flights/year × ~250 seats × ~70% occupancy ≈ 3.7 cr passengers. Tourists buy far more than business travellers, so ~20% are in the market, and roughly half of those buy outbound rather than at the destination → ~37 lakh buyers. At ~1.5 bottles each and ~₹1,500 a bottle ≈ ₹800–900 cr a year. Illustrative, not exact.",
+    tags: "duty free,airport,alcohol,revenue",
+  },
+  {
+    externalId: "airport-fnb-revenue",
+    title: "Yearly food and beverage revenue at a new Mumbai airport",
+    prompt:
+      "A second airport is opening near Mumbai and will take a share of the existing airport's traffic. Estimate its annual food and beverage revenue from passengers. Ignore anything earned from tickets.",
+    category: "revenue-estimation",
+    sector: "transportation",
+    difficulty: "Medium",
+    interviewLevel: "GeneralMBA",
+    idealLow: 2_000_000_000,
+    idealHigh: 6_000_000_000,
+    unit: "₹/year",
+    betterApproach:
+      "List the passenger-side revenue lines before sizing any of them — food and beverage, retail rent, parking, lounges, advertising — so the interviewer can pick one and you are not caught having sized the wrong thing. For F&B, anchor on the incumbent airport's footfall and the share that diverts, narrow to passengers who actually buy, then split the basket by price point rather than averaging it: a sandwich and a sit-down meal are different decisions.",
+    sampleSolution:
+      "The incumbent handles ~5 cr passengers a year and ~40% divert → ~2 cr. Airport food is dear enough that only the hungry and the well-off buy, so ~20% → ~40 lakh buyers. Split ~60% snacks at ~₹150 and ~40% meals at ~₹500 ≈ ₹116 cr of food. Drinks are the trap: they typically run to about 60% of an airport F&B bill, so grossing up lands near ₹300–350 cr a year. Sizing food and stopping is how candidates come in a third light.",
+    tags: "airport,food,concessions,revenue",
+  },
+  {
+    externalId: "hypermarket-first-month",
+    title: "First-month sales of a new hypermarket in south Bangalore",
+    prompt:
+      "A hypermarket chain is opening a store in a fast-growing south Bangalore suburb. Estimate its sales in the first month. One comparable hypermarket already trades in the same catchment.",
+    category: "retail",
+    sector: "retail",
+    difficulty: "Medium",
+    interviewLevel: "GeneralMBA",
+    idealLow: 15_000_000,
+    idealHigh: 50_000_000,
+    unit: "₹/month",
+    betterApproach:
+      "Work down from the city to the catchment rather than up from the country, and filter in the order that actually removes people: area, then age, then income, saying why each cut is the right one. Convert to households before spending anything — a hypermarket trolley is filled per household, not per person, and forgetting the division inflates the answer four-fold. Then split the catchment with the incumbent, and treat month one as inflated: opening promotions and people coming once to look are real sales that do not repeat.",
+    sampleSolution:
+      "Bangalore ~1.3 cr across ~30 major localities → ~4 lakh in the catchment. ~50% are 18–60 (younger have no income, older shop closer to home), and ~40% of those are middle-to-high income → ~84,000 people → ~21,000 households at ~4 each. Opening offers take ~60% of them from the incumbent → ~12,600 households spending ~₹2,000–3,000 on the storable half of a grocery basket ≈ ₹2.5–4 cr in month one. Illustrative, not exact.",
+    tags: "grocery,retail,households,footfall",
+  },
+  {
+    externalId: "perfume-order-quantity",
+    title: "Optimal order quantity for a luxury perfume outlet",
+    prompt:
+      "You run an outlet reselling luxury perfumes. You order once, at the start of the year, and the range is out of fashion by the next one — unsold bottles go back to the manufacturer at an agreed price. A bottle costs you ₹80, sells at ₹150, and is returned at ₹50. Demand is lumpy: a 20% chance of 1,000 bottles, a 50% chance of 1,500, and a 30% chance of 2,000. How many do you order?",
+    category: "retail",
+    sector: "retail",
+    difficulty: "Hard",
+    interviewLevel: "GeneralMBA",
+    idealLow: 1_500,
+    idealHigh: 2_000,
+    unit: "bottles",
+    betterApproach:
+      "Name the two ways to be wrong before computing anything: order short and forgo ₹70 of margin a bottle, order long and eat ₹30 on every one returned. Because demand is discrete rather than smooth, the optimum has to sit on one of the three demand levels, so no formula is needed — work out expected profit at 1,000, 1,500 and 2,000 and compare. Resist clearing surplus stock with a sale: not discounting is precisely what a luxury brand is paying its stockists for, which is why the return-to-manufacturer clause exists.",
+    sampleSolution:
+      "Order 1,000 → ₹70,000 whatever demand does, since you sell out every time. Order 1,500 → ₹55,000 if demand is 1,000 (500 returned at −₹30) and ₹105,000 otherwise; expected ₹95,000. Order 2,000 → ₹40,000, ₹90,000 and ₹140,000 across the three levels; expected ₹95,000 again. The two tie on expected profit, so break the tie on something the arithmetic does not price: 2,000 never stocks out, and a luxury customer turned away is the expensive kind.",
+    tags: "retail,inventory,expected value,optimisation",
+  },
+  {
+    externalId: "delivery-support-headcount",
+    title: "Customer-care executives needed by a food-delivery app in Delhi NCR",
+    prompt:
+      "A food-delivery app operating in Delhi NCR wants to know how many customer-care executives it needs to cover its queues around the clock, before any of the routine queries are automated away. Estimate the headcount.",
+    category: "demand-estimation",
+    sector: "food-beverage",
+    difficulty: "Medium",
+    interviewLevel: "Big4",
+    idealLow: 10,
+    idealHigh: 30,
+    unit: "executives",
+    betterApproach:
+      "Two steps that are tempting to run together and shouldn't be: size the daily query volume, then convert volume into people. Volume is orders a day times the share that raise a query. People come from service time — queries in a shift × handling time ÷ the minutes one person actually has — which is why the orders have to be spread across the day first. Staffing is set by the peak, not the average, and a day averaged flat understaffs both dinner rushes.",
+    sampleSolution:
+      "Delhi NCR ~1.2 cr people, ~80% online, ~1% on this app ≈ 1 lakh registered, ~10% ordering on a given day ≈ 10,000 orders. Traffic follows meals, not the clock: roughly 35% / 20% / 40% / 5% across the four six-hour blocks. About 20% of orders raise a query → ~2,000 a day, ~1,100 falling in an 8am–8pm shift and ~900 overnight. At ~5 minutes a query, the day shift needs 1,100 × 5 ÷ 720 ≈ 8 on the floor and the night shift ≈ 7 — about 15 seats, before rostering cover for breaks, leave and attrition.",
+    tags: "food delivery,support,staffing,capacity",
+  },
+  {
+    externalId: "tennis-balls-bangalore",
+    title: "Tennis balls sold in Bangalore per year",
+    prompt:
+      "Estimate how many tennis balls are sold in Bangalore in a year. Count every use they are put to, not only tennis.",
+    category: "demand-estimation",
+    sector: "consumer-goods",
+    difficulty: "Medium",
+    interviewLevel: "GeneralMBA",
+    idealLow: 500_000,
+    idealHigh: 4_000_000,
+    unit: "tennis balls/year",
+    betterApproach:
+      "Go demand-side. The supply side means guessing at brands, price points and plants, and compounding the error at every step. The count is matches played divided by how many matches a ball survives, summed across uses — and in India the largest use is not tennis but street cricket, where a ball is as often lost as worn out, so its life is shorter. Split players by how often they play rather than by professional and amateur: frequency is what consumes balls, and a label does not.",
+    sampleSolution:
+      "Tennis: ~1.3 cr people and perhaps 0.3% playing → ~40,000 players; regulars three times a week and the rest weekly → ~64,000 sessions → ~16,000 matches a week at four a side; ~3 balls a match and ~5 matches to a ball ≈ 5 lakh a year. Street cricket: ~15 lakh males aged 8–25, ~20% playing weekly in sides of ten → ~15,000 matches a week, a ball lost or dead in ~3 → ~2.5 lakh a year. Add pets and casual play and it lands near 8–12 lakh. The total swings several times over on the play-frequency assumption, which is why the split is what gets marked, not the number.",
+    tags: "cricket,sport,demand,consumption",
+  },
+
   // ── Qualitative ────────────────────────────────────────────────────────
   // Answered with an issue tree and a recommendation rather than a number, so
-  // no ideal range and no unit. These two carry no data pack or root cause yet,
-  // which makes them brainstorm-style: structure and reasoning are scored, and
-  // there is no diagnosis to grade. Diagnostic cases (facts released on request,
-  // a declared root cause) are authored from the casebook separately.
+  // no ideal range and no unit.
+  //
+  // Two shapes live here. A brainstorm case declares neither a data pack nor a
+  // root cause: structure and reasoning are scored and there is no diagnosis to
+  // grade, which is the EV entry case below and nothing else now. A diagnostic
+  // case releases facts only when the branch is asked about and declares the
+  // branch that holds the problem, so it scores Diagnosis as well — that is the
+  // rest of them.
   {
     externalId: "qual-food-delivery-margin",
     title: "Falling delivery margins at a food-delivery platform",
