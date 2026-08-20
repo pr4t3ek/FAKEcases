@@ -8,9 +8,9 @@ This is a strategy document, not a changelog. Nothing in it is built yet.
 
 ---
 
-## 1. The problem is not that there are 46 questions
+## 1. The problem is not that there are 55 questions
 
-The library holds 24 guesstimates, 2 cases and 20 simulations. A candidate practising through
+The library holds 24 guesstimates, 10 cases and 21 simulations. A candidate practising through
 placement season exhausts that in under a fortnight, and the instinct is to author more. More
 content is worth having, but it cannot be the answer, because the rate a motivated user
 consumes content will always beat the rate one person authors it.
