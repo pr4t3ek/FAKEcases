@@ -189,7 +189,7 @@ const CONSTANTS = {
    * fixed-cost-heavy rewards whoever serves the fewest orders at the highest
    * price. Volume has to be worth having, or there is no market to compete in.
    */
-  storeOpexPerUnit: 3.5,
+  storeOpexPerUnit: 4.5,
   /**
    * How much of a quarter's unmet demand becomes lasting reputation damage.
    *
@@ -239,6 +239,23 @@ const OPENING = {
   utilisation: 0.75,
   served: 140,
   actualMins: 14,
+  /**
+   * Opening demand and opening cost per order.
+   *
+   * Both are DERIVED keys, so `producedKeys()` would default them to zero — and
+   * a zero here is not a harmless placeholder, it is a wrong first quarter for
+   * everybody. `operatingStores` reads `rawDemand` to size capacity and sees an
+   * empty firm, so no AI seat builds in quarter one; `operatingPrice` reads it
+   * for the demand nudge and applies its full downward clamp, so all three
+   * rivals open a systematic tenth below their own best response. And
+   * `unitCost` at zero puts a best-response price of ₹12 in front of anyone who
+   * reads it with `??` rather than `||`.
+   *
+   * A firm was trading before quarter one — `served`, `utilisation` and
+   * `actualMins` above already say so — and these two finish the sentence.
+   */
+  rawDemand: 140,
+  unitCost: 37,
   price: 70,
   marketing: 1_200,
   stores: 0,
@@ -277,6 +294,8 @@ function initialState(): Record<string, number> {
     // Opening volume, so quarter one is not priced as if the firm were new.
     state[firmKey(seat, "served")] = OPENING.served;
     state[firmKey(seat, "actualMins")] = OPENING.actualMins;
+    state[firmKey(seat, "rawDemand")] = OPENING.rawDemand;
+    state[firmKey(seat, "unitCost")] = OPENING.unitCost;
     state[`peace${seat}`] = OPENING.peace;
   }
 
@@ -799,7 +818,21 @@ export const mandiRubric: readonly SimFormatRubricDim[] = [
  * win 95% of matches by declining to participate. A mechanism that can only
  * escalate is not a mechanism, it is a countdown.
  *
- * `promise` barely moves across the ladder, and that is not an oversight. A
+ * `promise` does not move across the ladder at all, and `marketing` barely
+ * does. Both are pure share levers, and share is zero-sum: when three firms all
+ * promise fifteen minutes or all spend a third more, they cancel out completely
+ * and are left holding nothing but the cost. A player who simply declines to
+ * join that bidding war free-rides on it, and the sweep measured exactly that —
+ * a fixed line beating all three rivals most of the time while making no
+ * decision at all.
+ *
+ * The trap stays in the MODEL, because falling into it is a real lesson and the
+ * player can still do it. The rivals are simply not required to fall into it
+ * every match. What is left on the ladder is price and capacity, which are the
+ * two levers that are not zero-sum, and the personas differ there and in what
+ * they say.
+ *
+ * The original note, kept because the reasoning still holds: A
  * fast promise buys share, and share is zero-sum: when three firms all promise
  * fifteen minutes they cancel each other out completely and are left holding
  * nothing but the higher cost per order it takes to keep it. A breakdown of a
@@ -835,9 +868,9 @@ export const RIVAL_ACTIONS: readonly {
     id: "premium",
     label: "hold the premium",
     priceMultiple: 1.25,
-    marketingMultiple: 0.9,
+    marketingMultiple: 0.95,
     stores: 0,
-    promise: 22,
+    promise: 20,
     terms: { margin: 1.5, share: 0.35, exposure: 0.15 },
   },
   {
@@ -846,14 +879,14 @@ export const RIVAL_ACTIONS: readonly {
     priceMultiple: 1.12,
     marketingMultiple: 1.0,
     stores: 0,
-    promise: 21,
+    promise: 20,
     terms: { margin: 1.15, share: 0.65, exposure: 0.35 },
   },
   {
     id: "match",
     label: "match the board",
     priceMultiple: 1.02,
-    marketingMultiple: 1.15,
+    marketingMultiple: 1.05,
     stores: 1,
     promise: 20,
     terms: { margin: 0.9, share: 1.0, exposure: 0.9 },
@@ -862,7 +895,7 @@ export const RIVAL_ACTIONS: readonly {
     id: "undercut",
     label: "go under everyone",
     priceMultiple: 0.92,
-    marketingMultiple: 1.3,
+    marketingMultiple: 1.1,
     stores: 1,
     promise: 19,
     terms: { margin: 0.45, share: 1.35, exposure: 1.5 },

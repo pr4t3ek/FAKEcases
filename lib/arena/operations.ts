@@ -46,14 +46,19 @@ const PRICE_BAND = 0.1;
 /**
  * The elasticity a rival ASSUMES, having no way to see the regime.
  *
- * The steady regime's value. A rival that used the live one would be reading
- * the market perfectly every quarter, which is the single thing the player is
- * being asked to do — the game would have no skill left in it. A rival that
- * assumes steady conditions is competent and specifically beatable: it
- * underprices a festive quarter and overprices a squeeze, and a player who
+ * The STEADY regime's value, exactly. A rival that read the live one would be
+ * diagnosing the market perfectly every quarter, which is the single thing the
+ * player is being asked to do — the game would have no skill left in it. A
+ * rival that assumes normal conditions is competent and specifically beatable:
+ * it underprices a festive quarter and overprices a squeeze, and a player who
  * spots which one they are in takes the difference.
+ *
+ * It has to be the steady value and not a round number near it. At 3.0 the
+ * rivals' best response came out at ₹86 against a measured optimum of ₹80–84,
+ * so all three overpriced by a few rupees in every quarter of every match — and
+ * a fixed ₹76 beat them about 54% of the time for no better reason than that.
  */
-const ASSUMED_ELASTICITY = 3.0;
+const ASSUMED_ELASTICITY = 3.4;
 /** How much of a posture's ladder position survives into the target price. */
 const POSTURE_TILT = 0.35;
 /** The share a rival assumes it holds when pricing. One firm of four. */

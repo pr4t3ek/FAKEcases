@@ -23,7 +23,7 @@
  * fails the build if any strategy clears the ceiling.
  */
 
-import { runSweep, STRATEGIES, WIN_RATE_CEILING } from "@/lib/arena/sweep";
+import { fixedRows, responsiveRows, runSweep, STRATEGIES, WIN_RATE_CEILING } from "@/lib/arena/sweep";
 
 const matches = Number(process.argv[2] ?? 200);
 const rows = runSweep({ matches });
@@ -35,6 +35,7 @@ const padStart = (s: string, n: number) => s.padStart(n);
 console.log(`\nMandi — ${matches} matches per strategy, seat 0 against three drawn rivals\n`);
 console.log(
   pad("strategy", 16) +
+    pad("kind", 12) +
     padStart("wins", 8) +
     padStart("2nd", 8) +
     padStart("mean NPV", 12) +
@@ -45,6 +46,7 @@ console.log("─".repeat(55));
 for (const row of rows) {
   console.log(
     pad(row.id, 16) +
+      pad(row.kind, 12) +
       padStart(pct(row.winRate), 8) +
       padStart(pct(row.secondRate), 8) +
       padStart(row.meanNpv.toFixed(0), 12) +
@@ -52,19 +54,42 @@ for (const row of rows) {
   );
 }
 
-const worst = rows[0];
+const bestFixed = fixedRows(rows)[0];
+const bestResponsive = responsiveRows(rows)[0];
 const floor = 1 / 4;
-console.log("─".repeat(55));
+
+console.log("─".repeat(67));
 console.log(
-  `\nChance alone would win ${pct(floor)}. Ceiling for a fixed strategy is ${pct(WIN_RATE_CEILING)}.`,
+  `\nChance alone would win ${pct(floor)}. Ceiling for a FIXED strategy is ${pct(WIN_RATE_CEILING)}.`,
 );
 
-if (worst.winRate > WIN_RATE_CEILING) {
+let failed = false;
+
+if (bestFixed.winRate > WIN_RATE_CEILING) {
   console.log(
-    `\n✗ "${worst.id}" wins ${pct(worst.winRate)} of matches — that is a line a player can learn.\n`,
+    `\n✗ "${bestFixed.id}" ignores every signal in the game and still wins ${pct(bestFixed.winRate)} of matches.`,
   );
-  process.exit(1);
+  failed = true;
+} else {
+  console.log(`\n✓ Best fixed line is "${bestFixed.id}" at ${pct(bestFixed.winRate)}.`);
 }
 
-console.log(`\n✓ Best fixed strategy is "${worst.id}" at ${pct(worst.winRate)}.\n`);
+// The other half of the bar. A game where reading the board does not pay is
+// balanced the way a coin is.
+if (bestResponsive.winRate <= bestFixed.winRate) {
+  console.log(
+    `\n✗ Reading the board pays nothing: "${bestResponsive.id}" (${pct(bestResponsive.winRate)}) does not beat "${bestFixed.id}" (${pct(bestFixed.winRate)}).`,
+  );
+  failed = true;
+} else {
+  console.log(
+    `✓ Reading the board pays: "${bestResponsive.id}" at ${pct(bestResponsive.winRate)}.`,
+  );
+}
+
+if (failed) {
+  console.log("");
+  process.exit(1);
+}
+console.log("");
 console.log(`Strategies swept: ${STRATEGIES.map((s) => s.id).join(", ")}\n`);
