@@ -68,6 +68,20 @@ export const metadata: Metadata = {
     "Practice India-focused guesstimates, business cases and product decision simulations with an AI interviewer that questions you like a McKinsey/BCG/Bain panel — Socratic hints, structured frameworks and a detailed evaluation. Because “It Depends” isn't an answer.",
 };
 
+/**
+ * Applied before first paint, which is the whole point of it being inline.
+ *
+ * A `useEffect` would run after the browser had already painted the
+ * server-rendered dark, so a light-mode reader would see a near-black flash on
+ * every navigation. This is the standard pre-paint theme script, minus the
+ * library: it reads one key and removes one class.
+ *
+ * Wrapped in try/catch because `localStorage` throws rather than returning null
+ * in a private window or with site data blocked, and an exception here would run
+ * before anything else on the page.
+ */
+const THEME_SCRIPT = `try{if(localStorage.getItem('cc-theme')==='light')document.documentElement.classList.remove('dark')}catch(e){}`;
+
 export default function RootLayout({
   children,
 }: {
@@ -75,20 +89,27 @@ export default function RootLayout({
 }) {
   return (
     /**
-     * `dark` is a constant, not a preference. There is one palette (see
-     * globals.css), and the class is still here rather than dropped because a
-     * handful of components carry `dark:` variants for their amber and emerald
-     * notes; without it those would resolve to their light values on a
-     * near-black card.
+     * `dark` is the default, not a constant.
      *
-     * No `suppressHydrationWarning` any more: it existed for the theme script
-     * that used to rewrite this element before React hydrated, and nothing
-     * mutates it now.
+     * Server-rendering the class is what makes dark the product's look without
+     * asking JavaScript for permission: a visitor who has never chosen, and a
+     * visitor whose JS never runs, both get it with no flash. `THEME_SCRIPT`
+     * below removes the class before first paint for someone who has chosen
+     * light, which is the only case that could flash.
+     *
+     * `suppressHydrationWarning` is back, and for exactly the reason it existed
+     * before the theme was removed: that script rewrites this element between
+     * the server's HTML and hydration, so React would otherwise report the
+     * mismatch it was told to make.
      */
     <html
       lang="en"
+      suppressHydrationWarning
       className={`dark ${interSans.variable} ${interSansExt.variable} ${interTight.variable} ${interTightExt.variable}`}
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body className="min-h-screen antialiased">
         <Providers>{children}</Providers>
       </body>
