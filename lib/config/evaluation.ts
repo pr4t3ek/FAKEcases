@@ -38,7 +38,12 @@ export const evaluationCategories = [
   },
   { key: "calculation", label: "Calculation Accuracy", weight: 1.2, weightQualitative: 0 },
   { key: "diagnosis", label: "Diagnosis", weight: 0, weightQualitative: 1.6 },
-  { key: "communication", label: "Communication", weight: 0.9, weightQualitative: 1.0 },
+  // Shown as "Interaction": what it measures is how much you engage the
+  // interviewer — messages sent, reasoning said out loud, figures justified —
+  // not polish of speech, which is what "Communication" was read as. The KEY
+  // stays `communication` because it is a column on Evaluation and a field on
+  // every stored score; only the label a reader sees has changed.
+  { key: "communication", label: "Interaction", weight: 0.9, weightQualitative: 1.0 },
   { key: "business", label: "Business Sense", weight: 1.0, weightQualitative: 1.2 },
   { key: "confidence", label: "Confidence", weight: 0.8, weightQualitative: 0.8 },
 ] as const;

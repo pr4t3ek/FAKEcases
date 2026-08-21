@@ -661,6 +661,14 @@ tutorial"* and nothing else. The profile step is `profileCompletedAt`, deliberat
 from it, because one column for both would silently suppress the tutorial for anyone who filled
 in their profile first.
 
+**The first run is a sequence, not three things racing.** On a guesstimate a first-timer gets
+the welcome card, then the worked example if they ask for it, then the tutorial tour — the
+card reports back through `onFinished` and `PracticeScreen` releases the queued tour, so the
+tour never lands on top of a modal. On a case the tour opens straight away and the welcome
+card is suppressed, because there the tour *is* the introduction. Two flags remember it:
+`onboardedAt` (the card, per account) and `localStorage` (`eq-tour-off` for "don't show again",
+`eq-tour-seen-<attemptId>` so a refresh mid-attempt doesn't replay it).
+
 ---
 
 ## 4. LLM interviewer: streaming adapter with safe fallback
@@ -764,7 +772,7 @@ flowchart TD
 | Assumption / Rationale Quality | ×1.2 | ×1.2 | — |
 | Calculation Accuracy | ×1.2 | — | case (no arithmetic) |
 | Diagnosis | — | ×1.6 | no declared root cause |
-| Communication | ×0.9 | ×1.0 | — |
+| Interaction (`communication`) | ×0.9 | ×1.0 | — |
 | Business Sense | ×1.0 | ×1.2 | — |
 | Confidence | ×0.8 | ×0.8 | — |
 
