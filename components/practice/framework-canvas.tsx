@@ -659,7 +659,7 @@ export function FrameworkCanvas(props: FrameworkCanvasProps) {
         card&apos;s <Plus className="inline h-3 w-3 align-text-bottom" />{" "}
         {isNumeric ? "splits it into segments" : "adds a branch under it"};{" "}
         <span className="font-mono">Enter</span> adds a sibling and{" "}
-        <span className="font-mono">Tab</span> nests it.{" "}
+        <span className="font-mono">Alt</span>+<span className="font-mono">→</span> nests it.{" "}
         {isNumeric
           ? "A starting step takes an absolute figure; a segment under it takes a share."
           : "Mark each branch as you rule it out or drill into it."}
