@@ -20,6 +20,7 @@ import { ChatPanel } from "./chat-panel";
 import { ProgressPanel } from "./progress-panel";
 import { OnboardingOverlay } from "./onboarding-overlay";
 import { TutorialTour } from "./tutorial-tour";
+import { WalkthroughButton } from "./walkthrough-button";
 import type {
   PracticeData,
   UiCalculation,
@@ -310,6 +311,9 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
             onDemo={setDemoNodes}
             onSuppressChange={(off) => off && localStorage.setItem("eq-tour-off", "1")}
           />
+          {/* Beside the tour, and always there. A stuck beginner reaches for
+              this on their third empty tree, not in their first thirty seconds. */}
+          <WalkthroughButton demo={data.demoWalkthrough} />
           {data.isGuest && (
             <Link href="/signup" className="text-xs font-medium text-primary hover:underline">
               Sign up to save progress

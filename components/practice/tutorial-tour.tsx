@@ -12,6 +12,7 @@ import {
 } from "@/lib/config";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { placeCard } from "@/lib/tour-placement";
 import type { AnswerMode, NodeStatus } from "@/lib/types";
 import type { UiFrameworkNode } from "./types";
 
@@ -529,25 +530,24 @@ export function TutorialTour({
     setOpen(true);
   }
 
-  // Card sits below the highlight when it fits, otherwise above, and is clamped
-  // into the viewport as a last resort. Its height is MEASURED rather than
-  // assumed — a step with longer copy is tall enough to push its own buttons
-  // off a phone screen.
+  // Below, above, beside, then clamped — the maths is in `lib/tour-placement.ts`
+  // so the property that matters can be tested. It could not be before, and the
+  // consequence was that the six steps which draw a demo tree all pointed at an
+  // element too tall to sit above or below, so the card was pinned to the
+  // bottom of the viewport and landed across the tree it was explaining.
+  //
+  // Height is MEASURED rather than assumed — a step with longer copy is tall
+  // enough to push its own buttons off a phone screen.
   const CARD_W = 360;
-  const GAP = 12;
   const cardStyle: React.CSSProperties = (() => {
     if (!rect) {
       return { left: "50%", top: "50%", transform: "translate(-50%, -50%)", width: CARD_W };
     }
-    const vh = window.innerHeight;
-    const h = cardH || 280;
-    let top = rect.bottom + GAP;
-    if (top + h > vh - GAP) top = rect.top - h - GAP; // flip above
-    if (top < GAP) top = Math.max(GAP, vh - h - GAP); // clamp into view
-    const left = Math.min(
-      Math.max(GAP, rect.left + rect.width / 2 - CARD_W / 2),
-      Math.max(GAP, window.innerWidth - CARD_W - GAP),
-    );
+    const { left, top } = placeCard({
+      target: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+      card: { width: CARD_W, height: cardH || 280 },
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+    });
     return { left, top, width: CARD_W };
   })();
 
