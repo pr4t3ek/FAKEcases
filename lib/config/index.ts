@@ -7,3 +7,4 @@ export * from "./reference-data";
 export * from "./profile";
 export * from "./simulation";
 export * from "./storage";
+export * from "./worked-example";

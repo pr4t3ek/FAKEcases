@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { LogOut, Shield, UserRound } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { logoutAction } from "@/app/actions/auth";
 import { Avatar } from "@/components/ui/avatar";
 import {
@@ -68,6 +69,14 @@ export function AccountMenu({
             </Link>
           </DropdownMenuItem>
         )}
+
+        <DropdownMenuSeparator />
+        {/* Closing the menu on click would be wrong here: the point of the row
+            is to SEE the theme change, and it re-labels itself to the next
+            direction. */}
+        <DropdownMenuItem asChild onSelect={(e) => e.preventDefault()}>
+          <ThemeToggle />
+        </DropdownMenuItem>
 
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>

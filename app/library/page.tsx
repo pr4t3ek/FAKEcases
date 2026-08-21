@@ -10,6 +10,7 @@ import { attemptStateByQuestion, listCategories, listQuestions, listSectors } fr
 import { answerModeFor, type InterviewLevel } from "@/lib/types";
 import { AppHeader } from "@/components/app/app-header";
 import { FilterBar } from "@/components/library/filter-bar";
+import { WorkedExampleButton } from "@/components/library/worked-example";
 import { TargetLevelsHint } from "@/components/library/target-levels-hint";
 import { QuestionCard } from "@/components/library/question-card";
 
@@ -89,7 +90,11 @@ export default async function LibraryPage({
       <AppHeader user={user} />
       <main className="container py-8">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold tracking-tight">Question Library</h1>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h1 className="text-2xl font-bold tracking-tight">Question Library</h1>
+            {/* Before the attempt, because the practice clock cannot pause. */}
+            <WorkedExampleButton />
+          </div>
           <p className="mt-1 text-muted-foreground">
             {/* War rooms are not mentioned here at all. They are a nav item, and
                 a second pointer on the page that does not hold them invited a

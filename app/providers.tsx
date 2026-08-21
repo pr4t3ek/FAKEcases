@@ -1,9 +1,12 @@
 "use client";
 
 import { Toaster } from "sonner";
+import { useTheme } from "@/components/theme-toggle";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 export function Providers({ children }: { children: React.ReactNode }) {
+  const { theme } = useTheme();
+
   return (
     <>
       {/* One provider for the app rather than one per tooltip, so `skipDelay`
@@ -12,12 +15,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <TooltipProvider delayDuration={250} skipDelayDuration={400}>
         {children}
       </TooltipProvider>
-      {/* `theme` has to be said out loud: sonner defaults to `light` and does
-          not read the document, so toasts were rendering as light cards on a
-          dark app long before the theme became the only one. There is no
-          `ThemeProvider` above this any more — the palette is a constant, set on
-          <html> in layout.tsx. */}
-      <Toaster richColors position="top-center" theme="dark" />
+      {/* `theme` has to be said out loud, and now it has to FOLLOW: sonner
+          defaults to `light` and does not read the document, which is how
+          toasts rendered as light cards on a dark app for as long as dark mode
+          existed. Hardcoding "dark" fixed that in one direction and would break
+          it in the other the moment a reader chose light, so it tracks the
+          class on <html> instead — see `useTheme`. */}
+      <Toaster richColors position="top-center" theme={theme} />
     </>
   );
 }

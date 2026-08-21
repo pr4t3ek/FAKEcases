@@ -3,21 +3,81 @@
 @tailwind utilities;
 
 /**
- * One palette, and it is dark.
+ * Two palettes, and dark is the one the product is.
  *
- * There is no light theme and no toggle: this deployment is a single dark
- * product, so a second palette would be a second thing to keep looking right for
- * nobody. `<html class="dark">` is still set in app/layout.tsx — a few
- * components carry `dark:` variants — but nothing reads a `.dark` block here,
- * because `:root` already *is* the dark one.
+ * Ordered the Tailwind way — `:root` is light, `.dark` overrides it — because
+ * that is the only arrangement in which a `dark:` variant means what it says.
+ * The four in this codebase (amber and emerald notes in the buyback and
+ * turnaround screens and the progress panel) each already carry a light base
+ * class that dark was permanently overriding; this is what finally makes both
+ * halves of them reachable.
  *
- * Neutral near-black rather than the navy it used to be (`222 47% 7%`). A hue in
- * the background is what made the old dark mode read as "the blue app at night";
- * taking it out is most of what makes this read as a dark product instead.
+ * **Dark is still the default, and not by asking JavaScript.** `<html
+ * class="dark">` is server-rendered in app/layout.tsx, so a visitor who never
+ * chooses — and a visitor whose JS never runs — sees the intended product with
+ * no flash. Choosing light removes the class.
+ *
+ * The dark values below are unchanged. Neutral near-black rather than the navy
+ * it used to be (`222 47% 7%`): a hue in the background is what made the old
+ * dark mode read as "the blue app at night", and taking it out is most of what
+ * makes this read as a dark product instead.
+ *
+ * The light values are not new either — they are the palette the print block
+ * below has always carried, which was designed to keep an evaluation report
+ * legible on white and is the same job a light theme has.
  */
 
 @layer base {
+  /*
+   * Light. Every token the dark block defines, or a `hsl(var(--x))` Tailwind
+   * maps resolves to nothing and renders transparent — see tests/theme.test.ts.
+   */
   :root {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    /*
+     * The accent inverts its contrast rule with the ground it sits on. On
+     * near-black the cyan is bright and its foreground must be near-black; on
+     * white the same cyan is unreadable, so it darkens and takes white text.
+     * Both directions are pinned by a test, because every filled button in the
+     * app is `bg-primary text-primary-foreground`.
+     */
+    --primary: 196 100% 33%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 20% 96%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 210 20% 96%;
+    --muted-foreground: 215 16% 40%;
+
+    --accent: 210 20% 96%;
+    --accent-foreground: 222 47% 11%;
+
+    --destructive: 0 72% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 152 65% 32%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 40%;
+    --warning-foreground: 0 0% 100%;
+
+    --border: 214 25% 85%;
+    --input: 214 25% 85%;
+    --ring: 196 100% 33%;
+
+    --radius: 0.25rem;
+  }
+
+  .dark {
     --background: 0 0% 4%;
     --foreground: 0 0% 98%;
 
