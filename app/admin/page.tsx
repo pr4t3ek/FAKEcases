@@ -9,6 +9,13 @@ import { MODE_PROMPTS } from "@/lib/llm/prompts";
 import { aiModes } from "@/lib/config";
 import { AppHeader } from "@/components/app/app-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  WalkthroughManager,
+  type WalkthroughRow,
+} from "@/components/admin/walkthrough-manager";
+import { listWalkthroughs } from "@/lib/walkthrough";
+import { parseWalkthrough } from "@/lib/walkthrough/types";
+import { validateWalkthrough } from "@/lib/walkthrough/validate";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { QuestionManager } from "@/components/admin/question-manager";
@@ -83,6 +90,34 @@ export default async function AdminPage() {
 
   const lockedCount = questions.filter((q) => !q.freeTier).length;
 
+  // Worked examples, each re-checked as it is listed. The validator runs here
+  // rather than at write time because a question's ideal range can be edited
+  // after a walkthrough was approved against it — so "does this still hold?" is
+  // a question with a fresh answer on every visit.
+  const walkthroughs = await listWalkthroughs();
+  const demoExternalId = text.walkthroughDemoQuestion;
+  const walkthroughRows: WalkthroughRow[] = walkthroughs.map((w) => {
+    const content = parseWalkthrough(w.stepsJson);
+    const check = validateWalkthrough(content, {
+      idealLow: w.question.idealLow,
+      idealHigh: w.question.idealHigh,
+    });
+    return {
+      questionId: w.questionId,
+      externalId: w.question.externalId,
+      title: w.question.title,
+      status: w.status,
+      source: w.source,
+      total: check.total,
+      idealLow: w.question.idealLow,
+      idealHigh: w.question.idealHigh,
+      unit: w.question.unit,
+      problem: check.ok ? null : (check.issues[0]?.message ?? "This does not check out."),
+      stepCount: content?.steps.length ?? 0,
+      stepsJson: w.stepsJson,
+    };
+  });
+
   return (
     <div className="min-h-screen">
       <AppHeader user={user} />
@@ -118,8 +153,18 @@ export default async function AdminPage() {
               Feedback
               {openCount > 0 && <Badge variant="warning" className="ml-1">{openCount}</Badge>}
             </TabsTrigger>
+            <TabsTrigger value="walkthroughs">
+              Examples
+              {walkthroughRows.some((r) => r.problem !== null) && (
+                <Badge variant="destructive" className="ml-1">!</Badge>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="prompts">Prompts</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="walkthroughs" className="mt-4">
+            <WalkthroughManager rows={walkthroughRows} demoExternalId={demoExternalId} />
+          </TabsContent>
 
           <TabsContent value="users" className="mt-4">
             <UserDashboard stats={userStats} />

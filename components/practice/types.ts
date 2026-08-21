@@ -1,5 +1,6 @@
 import type { AiMode } from "@/lib/config";
 import type { AnswerMode, NodeOrigin, NodeStatus, TreeMode } from "@/lib/types";
+import type { WalkthroughContent } from "@/lib/walkthrough/types";
 
 export interface UiMessage {
   id: string;
@@ -48,6 +49,14 @@ export interface UiFrameworkNode {
   origin?: NodeOrigin | null;
 }
 
+/** A published worked example, as the client receives it. */
+export interface DemoWalkthroughView {
+  title: string;
+  prompt: string;
+  unit: string | null;
+  content: WalkthroughContent;
+}
+
 export interface PracticeQuestion {
   id: string;
   title: string;
@@ -72,6 +81,13 @@ export interface PracticeData {
   attemptId: string;
   isGuest: boolean;
   showOnboarding: boolean;
+  /**
+   * The worked example offered on a first run, or null when none is published.
+   *
+   * Sent only when `showOnboarding` is true, so the payload does not carry a
+   * walkthrough to the thousands of page loads that will never open one.
+   */
+  demoWalkthrough: DemoWalkthroughView | null;
   status: string;
   question: PracticeQuestion;
   messages: UiMessage[];

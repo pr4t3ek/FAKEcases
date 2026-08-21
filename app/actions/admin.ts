@@ -2,6 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { deleteWalkthrough, loadWalkthroughFor, saveDraft, setStatus } from "@/lib/walkthrough";
+import { parseWalkthrough, walkthroughSchema } from "@/lib/walkthrough/types";
+import { validateWalkthrough } from "@/lib/walkthrough/validate";
 import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { hashPassword } from "@/lib/password";
@@ -210,6 +213,98 @@ export async function revokePro(userId: string): Promise<SaveResult> {
  * commercial decision, not a side effect of a role, so the two grants stay two
  * buttons sitting next to each other.
  */
+/**
+ * Save a worked example as a DRAFT.
+ *
+ * Always a draft, even when an admin edits one that is already live. Saving
+ * must never be the action that puts content in front of a student — an edit
+ * that went straight out under the previous approval is exactly how a
+ * half-finished sentence reaches a beginner.
+ */
+export async function saveWalkthroughDraft(
+  questionId: string,
+  content: unknown,
+): Promise<SaveResult> {
+  await assertAdmin();
+
+  const parsed = walkthroughSchema.safeParse(content);
+  if (!parsed.success) return { ok: false, error: firstError(parsed.error) };
+
+  await saveDraft({ questionId, content: parsed.data, source: "admin" });
+  revalidatePath("/admin");
+  return { ok: true };
+}
+
+/**
+ * Publish, if the arithmetic holds.
+ *
+ * The validator is the gate and this is the only door through it. A walkthrough
+ * whose chain misses its own question's authored range would teach a wrong
+ * method to the one audience least able to notice — so the refusal is here,
+ * where somebody is looking, rather than as a warning nobody has to read.
+ */
+export async function publishWalkthrough(questionId: string): Promise<SaveResult> {
+  await assertAdmin();
+
+  const row = await loadWalkthroughFor(questionId);
+  if (!row) return { ok: false, error: "No walkthrough to publish." };
+
+  const content = parseWalkthrough(row.stepsJson);
+  const check = validateWalkthrough(content, {
+    idealLow: row.question.idealLow,
+    idealHigh: row.question.idealHigh,
+  });
+  if (!check.ok) {
+    return { ok: false, error: check.issues[0]?.message ?? "This walkthrough does not check out." };
+  }
+
+  await setStatus(questionId, "published");
+  revalidatePath("/admin");
+  revalidatePath("/practice", "layout");
+  return { ok: true };
+}
+
+/** Pull a published walkthrough back. Students stop seeing it immediately. */
+export async function unpublishWalkthrough(questionId: string): Promise<SaveResult> {
+  await assertAdmin();
+  await setStatus(questionId, "draft");
+  revalidatePath("/admin");
+  revalidatePath("/practice", "layout");
+  return { ok: true };
+}
+
+export async function removeWalkthrough(questionId: string): Promise<SaveResult> {
+  await assertAdmin();
+  await deleteWalkthrough(questionId);
+  revalidatePath("/admin");
+  return { ok: true };
+}
+
+/**
+ * Which question a first-timer is walked through.
+ *
+ * Accepts an `externalId` and checks it resolves, because a typo here does not
+ * fail loudly — it silently turns the feature off for every new student, and
+ * nobody would notice for weeks.
+ */
+export async function setWalkthroughDemo(externalId: string): Promise<SaveResult> {
+  await assertAdmin();
+
+  const trimmed = externalId.trim();
+  if (trimmed) {
+    const question = await db.question.findUnique({
+      where: { externalId: trimmed },
+      select: { id: true },
+    });
+    if (!question) return { ok: false, error: `No question with the id "${trimmed}".` };
+  }
+
+  await saveTextSetting("walkthroughDemoQuestion", trimmed);
+  revalidatePath("/admin");
+  revalidatePath("/practice", "layout");
+  return { ok: true };
+}
+
 export async function setUserRole(userId: string, role: string): Promise<SaveResult> {
   await assertAdmin();
 

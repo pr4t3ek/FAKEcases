@@ -217,7 +217,7 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
    * the welcome card back up every time.
    */
   const welcome = data.showOnboarding && !autoTour && (
-    <OnboardingOverlay answerMode={data.question.answerMode} />
+    <OnboardingOverlay answerMode={data.question.answerMode} demo={data.demoWalkthrough} />
   );
 
   if (fullscreen) {

@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../lib/password";
 import { BENCHMARK_EMAIL_DOMAIN } from "../lib/user-segment";
 import { categories, questions, achievements } from "./seed-data";
+import { chaiWalkthrough, DEMO_QUESTION_EXTERNAL_ID } from "../lib/walkthrough/content";
 
 const db = new PrismaClient();
 
@@ -96,6 +97,29 @@ async function main() {
     });
   }
   console.log(`  ✓ ${achievements.length} achievements`);
+
+  // The worked example a first-timer is shown. Published outright rather than
+  // left as a draft, because a fresh clone with the feature switched off would
+  // look broken rather than unconfigured — and this one is authored by hand and
+  // re-checked against its question's ideal range by `tests/walkthrough-math`
+  // on every run, which is the bar a drafted one has to clear before an admin
+  // may publish it.
+  const demoQuestion = await db.question.findUnique({
+    where: { externalId: DEMO_QUESTION_EXTERNAL_ID },
+    select: { id: true },
+  });
+  if (demoQuestion) {
+    const stepsJson = JSON.stringify(chaiWalkthrough);
+    await db.walkthrough.upsert({
+      where: { questionId: demoQuestion.id },
+      create: { questionId: demoQuestion.id, stepsJson, status: "published", source: "admin" },
+      // Re-asserted on every seed for the same reason the demo account's Pro
+      // pass is: it is seeded state rather than something anybody edited, and a
+      // clone that had drifted would silently lose its only worked example.
+      update: { stepsJson, status: "published", source: "admin" },
+    });
+    console.log("  ✓ worked example for the first-run walkthrough");
+  }
 
   // Demo user — the only seeded account with a filled-in profile, so a fresh
   // install can see a populated one and the target-level personalisation
