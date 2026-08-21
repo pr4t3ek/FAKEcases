@@ -115,13 +115,16 @@ export default async function PracticePage({
     );
   }
 
-  // Only on a first run, and only for a guesstimate — a worked chain of numbers
-  // teaches nothing about an issue tree scored on judgement. Null whenever
-  // nothing is published, which the overlay handles as its ordinary state.
+  // Every guesstimate, not just a first run: the walkthrough now has a permanent
+  // button in the header, and a student who dismissed it once has to be able to
+  // get it back. Still numeric-only — a worked chain of numbers teaches nothing
+  // about an issue tree scored on judgement.
+  //
+  // Costs about 3KB on a ~32KB payload. Paid outright rather than adding a route
+  // handler and a spinner for 1.7KB of JSON; if that ever stops being a good
+  // trade, fetch-on-click is the alternative.
   const demo =
-    !user.onboardedAt && answerModeFor(attempt.question.type) === "numeric"
-      ? await loadDemoWalkthrough()
-      : null;
+    answerModeFor(attempt.question.type) === "numeric" ? await loadDemoWalkthrough() : null;
 
   const data: PracticeData = {
     attemptId: attempt.id,

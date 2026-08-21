@@ -79,6 +79,9 @@ export function OnboardingOverlay({
     markSeen();
   }
 
+  // The player is rendered here rather than through `WalkthroughButton` because
+  // this path opens it WITHOUT a button being clicked. The button owns the same
+  // player for every other entry point; this is the one that arrives on its own.
   if (playing && demo) {
     return (
       <WalkthroughPlayer

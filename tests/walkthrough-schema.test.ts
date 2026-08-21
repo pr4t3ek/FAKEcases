@@ -116,4 +116,14 @@ describe("the player cannot persist anything", () => {
   it("issues no requests of its own", () => {
     expect(source).not.toMatch(/\bfetch\(/);
   });
+
+  it("holds for the button that opens it too", () => {
+    // The button is the other way in, so the same prohibition has to cover it —
+    // otherwise the isolation is only true of the half nobody would break.
+    const button = readFileSync("components/practice/walkthrough-button.tsx", "utf8");
+    expect(button).not.toMatch(/from "@\/app\/actions/);
+    expect(button).not.toMatch(/from "@\/lib\/db"/);
+    expect(button).not.toMatch(/framework-builder|framework-canvas/);
+    expect(button).not.toMatch(/\bfetch\(/);
+  });
 });
