@@ -168,3 +168,51 @@ describe("judgeFramework, when the provider is not there", () => {
     expect(v?.reason).toMatch(/placeholders/);
   });
 });
+
+/**
+ * The judge reads the figures, not just the labels.
+ *
+ * It used to be told the opposite in as many words — "You are NOT grading
+ * arithmetic, accuracy, or whether the final number is right. Ignore all of it."
+ * That left nobody checking whether a step's number was plausible, whether a
+ * child's share fitted inside its parent, or whether the chain multiplied out to
+ * the answer the candidate wrote down.
+ */
+describe("what the judge is given and asked", () => {
+  it("puts every step's value and rate in front of the model", async () => {
+    const { renderJudgeBlock } = await import("@/lib/llm/prompts");
+    const block = renderJudgeBlock({
+      questionTitle: "Toothpaste",
+      questionPrompt: "Annual toothpaste demand in India.",
+      nodes: [
+        { depth: 0, label: "Population", value: "140cr" },
+        { depth: 1, label: "Adults", value: "65%" },
+        { depth: 2, label: "Tubes per year", rate: "4" },
+      ],
+      finalEstimate: 364_000_000,
+      unit: "tubes/year",
+    });
+    expect(block).toContain("140cr");
+    expect(block).toContain("65%");
+    expect(block).toContain("4");
+    // The chain has to be checkable against something.
+    expect(block).toMatch(/36,40,00,000|364,000,000/);
+    expect(block).toContain("tubes/year");
+  });
+
+  it("asks the model to judge the numbers, not only the decomposition", async () => {
+    const { FRAMEWORK_JUDGE_RULES } = await import("@/lib/llm/prompts");
+    expect(FRAMEWORK_JUDGE_RULES).toMatch(/THE NUMBERS/);
+    expect(FRAMEWORK_JUDGE_RULES).toMatch(/plausible/i);
+    expect(FRAMEWORK_JUDGE_RULES).toMatch(/Multiply the chain through/i);
+    // The instruction that was there before, and was the whole problem.
+    expect(FRAMEWORK_JUDGE_RULES).not.toMatch(/NOT grading arithmetic/i);
+  });
+
+  // The deterministic layer already zeroes a figureless tree; this stops the
+  // model handing the multiplier back on the strength of tidy labels.
+  it("forbids a tree with no numbers from scoring above the bottom band", async () => {
+    const { FRAMEWORK_JUDGE_RULES } = await import("@/lib/llm/prompts");
+    expect(FRAMEWORK_JUDGE_RULES).toMatch(/no numbers in it cannot score above 29/i);
+  });
+});

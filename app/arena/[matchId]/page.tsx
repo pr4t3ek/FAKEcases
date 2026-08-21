@@ -11,6 +11,7 @@ import { toSeatViews } from "@/lib/arena/setup";
 import { getPersona } from "@/lib/arena/personas";
 import { ArenaBoard } from "@/components/arena/arena-board";
 import { ArenaDebrief } from "@/components/arena/arena-debrief";
+import { AppHeader } from "@/components/app/app-header";
 
 export const dynamic = "force-dynamic";
 
@@ -73,35 +74,43 @@ export default async function ArenaMatchPage({
     });
 
     return (
-      <ArenaDebrief
-        data={buildDebrief({
-          matchId,
-          config,
-          state,
-          seats,
-          yourSeat: mySeat,
-          scores: scores.map((s) => ({
-            seatIndex: s.seatIndex,
-            overall: s.overall,
-            band: s.band,
-            npv: s.npv,
-            scores: s.scores,
-            kpis: s.kpis.map((k) => ({
-              key: k.key,
-              label: k.label,
-              unit: k.unit,
-              value: k.value,
-              goodDirection: k.goodDirection,
+      /*
+       * The debrief was the worst of the three for this: a finished match ends
+       * the poll, so there is no "leave" control either, and the screen had no
+       * way out of it at all.
+       */
+      <div className="min-h-screen">
+        <AppHeader user={user} />
+        <ArenaDebrief
+          data={buildDebrief({
+            matchId,
+            config,
+            state,
+            seats,
+            yourSeat: mySeat,
+            scores: scores.map((s) => ({
+              seatIndex: s.seatIndex,
+              overall: s.overall,
+              band: s.band,
+              npv: s.npv,
+              scores: s.scores,
+              kpis: s.kpis.map((k) => ({
+                key: k.key,
+                label: k.label,
+                unit: k.unit,
+                value: k.value,
+                goodDirection: k.goodDirection,
+              })),
             })),
-          })),
-          placings,
-          reference: {
-            p10: distribution.p10,
-            median: distribution.median,
-            p90: distribution.p90,
-          },
-        })}
-      />
+            placings,
+            reference: {
+              p10: distribution.p10,
+              median: distribution.median,
+              p90: distribution.p90,
+            },
+          })}
+        />
+      </div>
     );
   }
 
@@ -111,21 +120,29 @@ export default async function ArenaMatchPage({
     .map((s) => names[s.seatIndex]);
 
   return (
-    <ArenaBoard
-      data={buildBoard({
-        matchId,
-        config,
-        state,
-        seats,
-        yourSeat: mySeat,
-        mode: match.mode,
-        status: match.status,
-        code: match.code,
-        isHost: match.hostId === user!.id,
-        committed: mySeat !== null && staged[mySeat] !== undefined,
-        waitingOn,
-        roundEndsAt: match.roundEndsAt,
-      })}
-    />
+    /*
+     * The board's own "leave match" button only exists once you are seated and
+     * the match is running, and it lands on /arena — which until now was itself
+     * a dead end. The header is what makes every arena screen exitable.
+     */
+    <div className="min-h-screen">
+      <AppHeader user={user} />
+      <ArenaBoard
+        data={buildBoard({
+          matchId,
+          config,
+          state,
+          seats,
+          yourSeat: mySeat,
+          mode: match.mode,
+          status: match.status,
+          code: match.code,
+          isHost: match.hostId === user!.id,
+          committed: mySeat !== null && staged[mySeat] !== undefined,
+          waitingOn,
+          roundEndsAt: match.roundEndsAt,
+        })}
+      />
+    </div>
   );
 }

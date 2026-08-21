@@ -8,6 +8,7 @@ import { matchesFor } from "@/lib/arena";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { ArenaLobby } from "@/components/arena/arena-lobby";
+import { AppHeader } from "@/components/app/app-header";
 
 export const dynamic = "force-dynamic";
 
@@ -28,50 +29,60 @@ export default async function ArenaPage() {
   const matches = await matchesFor(user!.id, 8);
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-8 p-4 sm:p-6">
-      <header className="space-y-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">{game.label}</h1>
-          <Badge variant="secondary">Arena</Badge>
-        </div>
-        <p className="max-w-3xl text-muted-foreground">{game.premise}</p>
-        <p className="max-w-3xl text-sm text-muted-foreground">{game.situation}</p>
-      </header>
-
-      <ArenaLobby />
-
-      {matches.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-sm font-medium text-muted-foreground">Your matches</h2>
-          <div className="grid gap-2">
-            {matches.map((m) => {
-              const seat = m.seats.find((s) => s.userId === user!.id);
-              return (
-                <Card key={m.id} className="flex flex-wrap items-center gap-3 p-3">
-                  <Link href={`/arena/${m.id}`} className="font-medium hover:underline">
-                    {m.mode === "solo" ? "Solo match" : `Match ${m.code ?? ""}`}
-                  </Link>
-                  <Badge variant={m.status === "finished" ? "secondary" : "success"}>
-                    {m.status === "finished"
-                      ? "Finished"
-                      : m.status === "lobby"
-                        ? "Lobby"
-                        : `Quarter ${Math.min(m.round + 1, 8)}`}
-                  </Badge>
-                  {seat?.placing ? (
-                    <span className="text-sm text-muted-foreground">
-                      Finished {ordinal(seat.placing)} · {seat.overall}
-                    </span>
-                  ) : null}
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    {new Date(m.createdAt).toLocaleDateString()}
-                  </span>
-                </Card>
-              );
-            })}
+    /*
+     * `AppHeader` wraps this the way it wraps `/library` and `/simulations`,
+     * rather than the Arena carrying a back link of its own. It was the one
+     * surface in the app with no chrome at all, so there was no way out of it
+     * except the browser's back button — and from a finished match, not even
+     * that led anywhere useful.
+     */
+    <div className="min-h-screen">
+      <AppHeader user={user} />
+      <div className="mx-auto w-full max-w-5xl space-y-8 p-4 sm:p-6">
+        <header className="space-y-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-semibold tracking-tight">{game.label}</h1>
+            <Badge variant="secondary">Arena</Badge>
           </div>
-        </section>
-      )}
+          <p className="max-w-3xl text-muted-foreground">{game.premise}</p>
+          <p className="max-w-3xl text-sm text-muted-foreground">{game.situation}</p>
+        </header>
+
+        <ArenaLobby />
+
+        {matches.length > 0 && (
+          <section className="space-y-3">
+            <h2 className="text-sm font-medium text-muted-foreground">Your matches</h2>
+            <div className="grid gap-2">
+              {matches.map((m) => {
+                const seat = m.seats.find((s) => s.userId === user!.id);
+                return (
+                  <Card key={m.id} className="flex flex-wrap items-center gap-3 p-3">
+                    <Link href={`/arena/${m.id}`} className="font-medium hover:underline">
+                      {m.mode === "solo" ? "Solo match" : `Match ${m.code ?? ""}`}
+                    </Link>
+                    <Badge variant={m.status === "finished" ? "secondary" : "success"}>
+                      {m.status === "finished"
+                        ? "Finished"
+                        : m.status === "lobby"
+                          ? "Lobby"
+                          : `Quarter ${Math.min(m.round + 1, 8)}`}
+                    </Badge>
+                    {seat?.placing ? (
+                      <span className="text-sm text-muted-foreground">
+                        Finished {ordinal(seat.placing)} · {seat.overall}
+                      </span>
+                    ) : null}
+                    <span className="ml-auto text-xs text-muted-foreground">
+                      {new Date(m.createdAt).toLocaleDateString()}
+                    </span>
+                  </Card>
+                );
+              })}
+            </div>
+          </section>
+        )}
+      </div>
     </div>
   );
 }
