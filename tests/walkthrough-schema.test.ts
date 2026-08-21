@@ -1,0 +1,119 @@
+import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+
+import { chaiWalkthrough } from "@/lib/walkthrough/content";
+import { parseWalkthrough, walkthroughSchema } from "@/lib/walkthrough/types";
+import { validateWalkthrough } from "@/lib/walkthrough/validate";
+
+const RANGE = { idealLow: 8_000_000, idealHigh: 22_000_000 };
+
+/** A valid walkthrough with one thing changed. */
+function mutate(change: (w: typeof chaiWalkthrough) => void) {
+  const copy = JSON.parse(JSON.stringify(chaiWalkthrough)) as typeof chaiWalkthrough;
+  change(copy);
+  return copy;
+}
+
+describe("walkthrough validation", () => {
+  it("accepts the authored example", () => {
+    expect(validateWalkthrough(chaiWalkthrough, RANGE).ok).toBe(true);
+  });
+
+  it("refuses a chain that misses the question's range", () => {
+    const wrong = mutate((w) => {
+      w.steps[1].node.value = "5%";
+    });
+    const result = validateWalkthrough(wrong, RANGE);
+    expect(result.ok).toBe(false);
+    expect(result.issues[0]?.message).toMatch(/outside this question/i);
+  });
+
+  it("refuses a question with no range at all", () => {
+    // A case, not a guesstimate. There is nothing to check the arithmetic
+    // against, so an unverifiable example must not slip through the one gate
+    // that exists to stop them.
+    const result = validateWalkthrough(chaiWalkthrough, { idealLow: null, idealHigh: null });
+    expect(result.ok).toBe(false);
+    expect(result.issues[0]?.message).toMatch(/no ideal range/i);
+  });
+
+  it("refuses a child whose parent appears later", () => {
+    const forward = mutate((w) => {
+      w.steps[0].node.parentKey = "floating";
+    });
+    expect(validateWalkthrough(forward, RANGE).issues[0]?.message).toMatch(/no earlier step/i);
+  });
+
+  it("refuses duplicate keys", () => {
+    const dup = mutate((w) => {
+      w.steps[2].node.key = w.steps[1].node.key;
+    });
+    expect(validateWalkthrough(dup, RANGE).issues.some((i) => /share the key/i.test(i.message))).toBe(
+      true,
+    );
+  });
+
+  it("refuses a walkthrough with no root", () => {
+    const rootless = mutate((w) => {
+      w.steps[0].node.parentKey = "pop";
+    });
+    expect(validateWalkthrough(rootless, RANGE).ok).toBe(false);
+  });
+
+  it("refuses a node that parents itself", () => {
+    const self = mutate((w) => {
+      w.steps[1].node.parentKey = w.steps[1].node.key;
+    });
+    expect(validateWalkthrough(self, RANGE).issues.some((i) => /its own parent/i.test(i.message))).toBe(
+      true,
+    );
+  });
+
+  it("refuses malformed input outright", () => {
+    expect(validateWalkthrough({ steps: "not an array" }, RANGE).ok).toBe(false);
+    expect(validateWalkthrough(null, RANGE).ok).toBe(false);
+  });
+
+  it("round-trips through storage", () => {
+    const stored = JSON.stringify(chaiWalkthrough);
+    expect(parseWalkthrough(stored)).toEqual(walkthroughSchema.parse(chaiWalkthrough));
+  });
+
+  it("returns null for unparseable storage rather than throwing", () => {
+    expect(parseWalkthrough("{ not json")).toBeNull();
+    expect(parseWalkthrough("")).toBeNull();
+    expect(parseWalkthrough(null)).toBeNull();
+  });
+});
+
+/**
+ * The player must have no way to write anything.
+ *
+ * A prohibition test rather than a behavioural one, in the same spirit as the
+ * buyback suite grepping engine code for domain vocabulary. The real risk is
+ * not that today's player persists a demo node — it plainly does not — it is
+ * that somebody later reaches for the builder's canvas "just to reuse the
+ * card", and the builder debounce-saves its whole node array. A demo branch
+ * that reached it would be written to the database and then scored.
+ */
+describe("the player cannot persist anything", () => {
+  const source = readFileSync("components/practice/walkthrough-player.tsx", "utf8");
+
+  it("imports no server action", () => {
+    expect(source).not.toMatch(/from "@\/app\/actions/);
+  });
+
+  it("imports no database access", () => {
+    expect(source).not.toMatch(/from "@\/lib\/db"/);
+    expect(source).not.toMatch(/from "@\/lib\/walkthrough"/);
+  });
+
+  it("does not reach for the live builder or its canvas", () => {
+    expect(source).not.toMatch(/framework-builder/);
+    expect(source).not.toMatch(/framework-canvas/);
+  });
+
+  it("issues no requests of its own", () => {
+    expect(source).not.toMatch(/\bfetch\(/);
+  });
+});

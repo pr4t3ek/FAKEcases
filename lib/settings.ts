@@ -87,6 +87,20 @@ export async function saveSetting(key: SettingKey, value: number): Promise<void>
  */
 export const TEXT_SETTING_DEFAULTS = {
   adminContactEmail: "anhxyamraj@gmail.com",
+  /**
+   * `Question.externalId` of the guesstimate a first-timer is walked through.
+   *
+   * A setting rather than a constant because which example teaches best is a
+   * judgement that will change — and because it must be possible to point it at
+   * a different question, or at one with no published walkthrough (which simply
+   * turns the feature off), without a deploy.
+   *
+   * Deliberately NOT the question the student opened: walking them through
+   * their own would hand them its answer, and the repo's rule for that is that
+   * the attempt then scores null. A separate demo keeps their real attempt
+   * fully scored.
+   */
+  walkthroughDemoQuestion: "chai-bangalore-daily",
 } as const;
 
 export type TextSettingKey = keyof typeof TEXT_SETTING_DEFAULTS;

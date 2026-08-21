@@ -12,6 +12,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { WalkthroughPlayer } from "./walkthrough-player";
+import type { DemoWalkthroughView } from "./types";
 import type { AnswerMode } from "@/lib/types";
 
 const NUMERIC_POINTS = [
@@ -34,14 +36,59 @@ const QUALITATIVE_POINTS = [
   { icon: ClipboardCheck, title: "Land on a recommendation", body: "Write your answer under the tree and submit. You're scored on how you structured and narrowed the problem — not on arithmetic." },
 ];
 
-export function OnboardingOverlay({ answerMode = "numeric" }: { answerMode?: AnswerMode }) {
+/**
+ * The first-run welcome, and the door to the worked example.
+ *
+ * The walkthrough hangs off this modal rather than firing on its own, because
+ * two things opening unprompted on a student's first screen is one too many —
+ * they would dismiss whichever arrived second without reading it. One flow,
+ * with the example as the primary action.
+ *
+ * `demo` is null whenever there is nothing published to show: no walkthrough
+ * for the designated question, or the setting points at a question that no
+ * longer exists. The modal then behaves exactly as it did before this feature.
+ */
+export function OnboardingOverlay({
+  answerMode = "numeric",
+  demo = null,
+}: {
+  answerMode?: AnswerMode;
+  demo?: DemoWalkthroughView | null;
+}) {
   const [open, setOpen] = useState(true);
+  const [playing, setPlaying] = useState(false);
   const qualitative = answerMode === "qualitative";
   const points = qualitative ? QUALITATIVE_POINTS : NUMERIC_POINTS;
 
+  // The example is a guesstimate worked in numbers, so it teaches nothing about
+  // an issue tree that is scored on judgement rather than arithmetic.
+  const offerDemo = !!demo && !qualitative;
+
+  function markSeen() {
+    markOnboarded().catch(() => {});
+  }
+
   function close() {
     setOpen(false);
-    markOnboarded().catch(() => {});
+    markSeen();
+  }
+
+  function watch() {
+    setOpen(false);
+    setPlaying(true);
+    markSeen();
+  }
+
+  if (playing && demo) {
+    return (
+      <WalkthroughPlayer
+        title={demo.title}
+        prompt={demo.prompt}
+        unit={demo.unit}
+        content={demo.content}
+        onClose={() => setPlaying(false)}
+      />
+    );
   }
 
   return (
@@ -68,8 +115,19 @@ export function OnboardingOverlay({ answerMode = "numeric" }: { answerMode?: Ans
             </div>
           ))}
         </div>
-        <DialogFooter>
-          <Button onClick={close} className="w-full sm:w-auto">Start practising</Button>
+        <DialogFooter className="gap-2 sm:gap-2">
+          <Button
+            variant={offerDemo ? "outline" : "default"}
+            onClick={close}
+            className="w-full sm:w-auto"
+          >
+            {offerDemo ? "I'll dive in" : "Start practising"}
+          </Button>
+          {offerDemo ? (
+            <Button onClick={watch} className="w-full sm:w-auto">
+              Show me one worked out
+            </Button>
+          ) : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>

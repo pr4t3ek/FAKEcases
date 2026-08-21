@@ -33,6 +33,7 @@ import {
   rootIndexOf,
 } from "@/lib/framework-tree";
 import { NODE_STATUS_META, type AnswerMode, type NodeStatus, type TreeMode } from "@/lib/types";
+import { rollup } from "@/lib/framework-rollup";
 import {
   isLegacyChildRate,
   isLegacyChildValue,
@@ -555,34 +556,17 @@ export function FrameworkBuilder({
     arr.push(n);
     byParent.set(n.parentId, arr);
   }
-  const resolvedMap = new Map<string, number>();
-  const rollupMap = new Map<string, number>();
-  // A step's value is only meaningful once something real feeds into it — its
-  // own entry or an ancestor's. Without this, a node's neutral ×1 pass-through
-  // (see parseNodeValue) would render as a literal "1".
-  const liveMap = new Map<string, boolean>();
-  function visit(node: UiFrameworkNode, inherited: number, inheritedLive: boolean): number {
-    const own = parseNodeValue(node.value) ?? 1;
-    const rate = parseNodeValue(node.multiplier) ?? 1;
-    const resolved = inherited * own * rate;
-    const live = inheritedLive || !!node.value?.trim() || !!node.multiplier?.trim();
-    resolvedMap.set(node.id, resolved);
-    liveMap.set(node.id, live);
-    const children = byParent.get(node.id) ?? [];
-    if (children.length === 0) {
-      rollupMap.set(node.id, resolved);
-      return resolved;
-    }
-    const childRollups = children.map((c) => visit(c, resolved, live));
-    const total =
-      node.combine === "multiply"
-        ? childRollups.reduce((a, b) => a * b, 1)
-        : childRollups.reduce((a, b) => a + b, 0);
-    rollupMap.set(node.id, total);
-    return total;
-  }
+  // The arithmetic itself lives in `lib/framework-rollup.ts` rather than here.
+  // `lib/walkthrough/validate.ts` has to compute the same numbers to prove a
+  // worked example reaches its question's authored answer before any student
+  // sees it, and a second copy of these rules is the one divergence that would
+  // make the walkthrough teach something the builder then contradicts.
+  const {
+    resolved: resolvedMap,
+    total: rollupMap,
+    live: liveMap,
+  } = rollup(renderNodes);
   const roots = byParent.get(null) ?? [];
-  for (const r of roots) visit(r, 1, false);
   /** Where the palette and the custom-step box will drop their next step. */
   const attachTarget = resolveAttachTarget(nodes);
   /** A step the user hasn't named yet still has to be referrable to. */

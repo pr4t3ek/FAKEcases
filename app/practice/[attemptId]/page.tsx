@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { turnsRemaining } from "@/lib/llm/budget";
 import { getSessionUser } from "@/lib/auth";
+import { loadDemoWalkthrough } from "@/lib/walkthrough";
 import { db } from "@/lib/db";
 import { PracticeScreen } from "@/components/practice/practice-screen";
 import { EvaluationReport } from "@/components/practice/evaluation-report";
@@ -114,10 +115,21 @@ export default async function PracticePage({
     );
   }
 
+  // Only on a first run, and only for a guesstimate — a worked chain of numbers
+  // teaches nothing about an issue tree scored on judgement. Null whenever
+  // nothing is published, which the overlay handles as its ordinary state.
+  const demo =
+    !user.onboardedAt && answerModeFor(attempt.question.type) === "numeric"
+      ? await loadDemoWalkthrough()
+      : null;
+
   const data: PracticeData = {
     attemptId: attempt.id,
     isGuest: user.isGuest,
     showOnboarding: !user.onboardedAt,
+    // Loaded only for a first run. Every other page load skips the query
+    // entirely rather than fetching a walkthrough nobody will open.
+    demoWalkthrough: demo,
     status: attempt.status,
     question: {
       id: attempt.question.id,
