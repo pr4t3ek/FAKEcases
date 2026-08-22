@@ -197,7 +197,7 @@ export function FrameworkBuilder({
     descendants: number;
   } | null>(null);
 
-  // A keyboard edit that restructures the tree (Enter, Tab) has to put the caret
+  // A keyboard edit that restructures the tree (Enter, Alt+←/→) has to put the caret
   // where the user expects it once React has re-rendered the rows.
   const labelRefs = useRef<Map<string, HTMLInputElement>>(new Map());
   useEffect(() => {
@@ -415,20 +415,35 @@ export function FrameworkBuilder({
   }
 
   /**
-   * Outline keys on the label input only. Every other field keeps native
-   * tabbing, and `Alt+←/→` mirrors indent/outdent for anyone who needs Tab to
-   * keep moving focus. Each of these has a mouse equivalent too — the row's "+",
-   * the bin, the drag handle — so nothing here is the only way to do anything.
+   * Outline keys on the label input only, and **Tab is not one of them**.
+   *
+   * It used to indent, which is what an outliner does and what this tree is not.
+   * In an outliner a child is a sub-point; here a child is a SHARE OF ITS
+   * PARENT, so nesting a step under its sibling does not just move a card — it
+   * re-reads the figure as a slice of the wrong thing, and the arithmetic
+   * changes underneath the candidate. Doing that on the one key every form on
+   * the web uses to reach the next field meant it happened to people who were
+   * only trying to get from the label to the value box.
+   *
+   * `Alt+←/→` carries indent and outdent instead. It already existed here as
+   * the mirror "for anyone who needs Tab to keep moving focus" — now it is the
+   * only binding, and Tab keeps moving focus for everyone. Each of these has a
+   * mouse equivalent too — the row's "+", the bin, the drag handle — so nothing
+   * here is the only way to do anything.
+   *
+   * Tab still accepts a pending completion, which is what Tab means in every
+   * autocomplete and does not restructure anything.
    */
   function handleLabelKeyDown(
     e: ReactKeyboardEvent<HTMLInputElement>,
     node: UiFrameworkNode,
     ghost?: string | null,
   ) {
-    // Tab accepts a pending completion before it means "indent" — the caret is
-    // mid-word, so indenting is not what the candidate is asking for. Accepting
-    // a framework's NAME brings its top level with it, which is the two-keystroke
-    // path from "profit…" to a whole structure.
+    // Tab accepts a pending completion, which is the one structural-ish thing it
+    // still does and the thing Tab means in every autocomplete. Accepting a
+    // framework's NAME brings its top level with it, which is the two-keystroke
+    // path from "profit…" to a whole structure. With no ghost pending, Tab falls
+    // through to the browser and moves to the next field.
     if (ghost && e.key === "Tab" && !e.shiftKey) {
       e.preventDefault();
       const named = frameworkNamed(ghost);
@@ -447,9 +462,8 @@ export function FrameworkBuilder({
       return;
     }
 
-    const isIndent = e.key === "Tab" && !e.shiftKey;
-    const isOutdent = (e.key === "Tab" && e.shiftKey) || (e.altKey && e.key === "ArrowLeft");
-    const isAltIndent = e.altKey && e.key === "ArrowRight";
+    const isIndent = e.altKey && e.key === "ArrowRight";
+    const isOutdent = e.altKey && e.key === "ArrowLeft";
 
     if (e.key === "Enter") {
       e.preventDefault();
@@ -458,16 +472,20 @@ export function FrameworkBuilder({
       onChange(insertSiblingAfter(nodes, node.id, fresh));
       return;
     }
-    if (isIndent || isAltIndent) {
+    /*
+     * A refused move is not a move. `indentNode` returns the array it was given
+     * when there is no previous sibling to adopt the node, and calling
+     * `onChange` with it would arm `focusNext` for a re-render that never comes
+     * — leaving the caret to jump back here on whatever changed the tree next.
+     */
+    if (isIndent || isOutdent) {
       e.preventDefault();
+      const moved = isIndent
+        ? indentNode(nodes, node.id)
+        : outdentNode(nodes, node.id);
+      if (moved === nodes) return;
       focusNext.current = node.id;
-      onChange(indentNode(nodes, node.id));
-      return;
-    }
-    if (isOutdent) {
-      e.preventDefault();
-      focusNext.current = node.id;
-      onChange(outdentNode(nodes, node.id));
+      onChange(moved);
       return;
     }
     // Backspace deliberately does nothing structural. It used to remove an
@@ -1194,7 +1212,8 @@ export function FrameworkBuilder({
             New branches sit <span className="font-medium text-foreground">side by side</span>. To
             break one down, use its <Plus className="inline h-3 w-3 align-text-bottom" /> — or
             press <span className="font-mono">Enter</span> for the next branch and{" "}
-            <span className="font-mono">Tab</span> to nest it under the one above.
+            <span className="font-mono">Alt</span>+<span className="font-mono">→</span> to nest it
+            under the one above.
           </p>
         )
       ) : (

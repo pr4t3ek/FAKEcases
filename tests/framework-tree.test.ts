@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   descendantIds,
   indentNode,
@@ -173,5 +175,65 @@ describe("descendantIds", () => {
 
   it("is empty for a leaf", () => {
     expect(descendantIds([n("leaf", null)], "leaf")).toEqual([]);
+  });
+});
+
+/**
+ * Tab is the next-field key, not an outline key.
+ *
+ * It used to indent, which is what an outliner does and what this tree is not:
+ * a child here is a SHARE OF ITS PARENT, so nesting a step under its sibling
+ * re-reads its figure as a slice of the wrong thing and moves the arithmetic.
+ * Putting that on the one key every form uses to reach the next field meant it
+ * happened to people trying to get from the label box to the value box.
+ *
+ * The binding lives in `handleLabelKeyDown` (components/practice/
+ * framework-builder.tsx), which a unit test cannot press keys against — so what
+ * is pinned here is the source, plus the tree behaviour the binding relies on.
+ */
+describe("the indent binding", () => {
+  const builder = readFileSync(
+    resolve(__dirname, "../components/practice/framework-builder.tsx"),
+    "utf8",
+  );
+
+  it("does not restructure the tree on Tab", () => {
+    // The only Tab branch left may be the completion accept, which sets a label
+    // and never moves a node.
+    expect(builder).not.toMatch(/isIndent\s*=\s*e\.key === "Tab"/);
+    expect(builder).not.toMatch(/isOutdent\s*=.*e\.key === "Tab"/);
+  });
+
+  it("carries indent and outdent on Alt+arrow instead", () => {
+    expect(builder).toMatch(/isIndent\s*=\s*e\.altKey && e\.key === "ArrowRight"/);
+    expect(builder).toMatch(/isOutdent\s*=\s*e\.altKey && e\.key === "ArrowLeft"/);
+  });
+
+  /*
+   * `indentNode` returns the array it was given when the move is refused, and
+   * the handler leans on that to skip `onChange` — otherwise it arms the focus
+   * ref for a re-render that never comes, and the caret jumps back on whatever
+   * changes the tree next.
+   */
+  it("returns the same array when there is no previous sibling to adopt the node", () => {
+    const nodes = [
+      { id: "pop", parentId: null },
+      { id: "only", parentId: "pop" },
+    ];
+    expect(indentNode(nodes, "only")).toBe(nodes);
+    expect(indentNode(nodes, "pop")).toBe(nodes);
+  });
+
+  it("still nests under the previous sibling when asked, and only one level", () => {
+    const nodes = [
+      { id: "pop", parentId: null },
+      { id: "rich", parentId: "pop" },
+      { id: "poor", parentId: "pop" },
+      { id: "new", parentId: "pop" },
+    ];
+    const once = indentNode(nodes, "new");
+    expect(once.find((n) => n.id === "new")!.parentId).toBe("poor");
+    // Repeating it is a no-op: an only child has nobody to its left.
+    expect(indentNode(once, "new")).toBe(once);
   });
 });
