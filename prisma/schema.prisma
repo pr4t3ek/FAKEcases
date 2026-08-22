@@ -353,6 +353,20 @@ model Attempt {
   /// a mid-attempt switch would make "solo" meaningless. Null on numeric attempts.
   treeMode      String?
 
+  /// The classroom room this attempt was practised for, or null for solo work.
+  ///
+  /// Nullable and `SetNull` rather than `Cascade`, and the whole comment on
+  /// `SimRun.roomId` applies here unchanged: a professor tidying up after term
+  /// must not delete the work sixty students did, and the attempt outlives the
+  /// room exactly as it outlives the room's `open` status.
+  ///
+  /// Also the reason `startAttempt` and `attemptStateByQuestion` filter on
+  /// `roomId: null`. A class sitting and a solo sitting of the same guesstimate
+  /// are two different attempts, and collapsing them would let the library
+  /// re-open — and offer a Resume button for — work started in a lecture.
+  roomId        String?
+  room          SimRoom? @relation(fields: [roomId], references: [id], onDelete: SetNull)
+
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   submittedAt DateTime?
@@ -366,6 +380,7 @@ model Attempt {
   @@index([userId])
   @@index([questionId])
   @@index([status])
+  @@index([roomId])
 }
 
 model Message {
@@ -689,6 +704,10 @@ model SimRoom {
 
   members SimRoomMember[]
   runs    SimRun[]
+  /// A practice room's students work `Attempt`s instead of `SimRun`s. Both
+  /// relations hang off the room for the same reason: the room coordinates, and
+  /// what it coordinates is decided by `question.type`.
+  attempts Attempt[]
 
   @@index([hostId])
 }

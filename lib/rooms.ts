@@ -15,7 +15,9 @@ import { hashPassword, verifyPassword } from "@/lib/password";
 import { generateRoomCode, normaliseRoomCode } from "@/lib/rooms/code";
 import { grantFromRooms } from "@/lib/rooms/access";
 import { buildRoster, type Roster } from "@/lib/rooms/roster";
+import { buildPracticeRoster, type PracticeRoster } from "@/lib/rooms/practice-roster";
 import { hostSummary, type HostSummary } from "@/lib/rooms/teaching";
+import { SIMULATION_TYPE } from "@/lib/types";
 import { warRoomFormat } from "@/lib/sim/formats/war-room";
 import type { AccessGrant } from "@/lib/entitlements";
 import { NO_GRANT } from "@/lib/entitlements";
@@ -163,8 +165,11 @@ export async function listRoomsForHost(hostId: string) {
     where: { hostId },
     orderBy: { createdAt: "desc" },
     include: {
-      question: { select: { title: true, difficulty: true } },
-      _count: { select: { members: true, runs: true } },
+      question: { select: { title: true, difficulty: true, type: true } },
+      // Both, because which one is the room's work depends on its question — a
+      // practice room's students never write a `SimRun`, and a card that counted
+      // only those would tell a professor nobody had started.
+      _count: { select: { members: true, runs: true, attempts: true } },
     },
   });
 }
@@ -179,11 +184,21 @@ export async function listRoomsForHost(hostId: string) {
  * The shaping is `hostSummary`, which is pure and counts a student the way the
  * console does: a seat, not a run. Two screens that disagree about how many
  * people were in the room are worse than one screen.
+ *
+ * **War-room rooms only.** Every figure this summary reports — whether the true
+ * cause was found, how the spend came in against the scenario's authored par —
+ * is a war room's, and a guesstimate room has no answer to either. Counted in,
+ * a term of practice rooms would drag "found the cause" toward zero and read as
+ * a class that never diagnosed anything. The filter is on the reads rather than
+ * on the fold, so `hostSummary` stays a fold and there is no exclusion for a
+ * future caller to forget.
  */
 export async function loadHostAnalytics(hostId: string): Promise<HostSummary> {
+  const taught = { hostId, question: { type: SIMULATION_TYPE } };
+
   const [rooms, seats, runs] = await Promise.all([
     db.simRoom.findMany({
-      where: { hostId },
+      where: taught,
       select: {
         id: true,
         questionId: true,
@@ -193,11 +208,11 @@ export async function loadHostAnalytics(hostId: string): Promise<HostSummary> {
       },
     }),
     db.simRoomMember.findMany({
-      where: { room: { hostId } },
+      where: { room: taught },
       select: { roomId: true, userId: true },
     }),
     db.simRun.findMany({
-      where: { room: { hostId } },
+      where: { room: taught },
       select: {
         roomId: true,
         userId: true,
@@ -310,6 +325,57 @@ export async function loadRoster(roomId: string): Promise<Roster> {
           }
         : null,
     })),
+  );
+}
+
+/**
+ * The console's table for a room running a guesstimate.
+ *
+ * The same two-query, seat-driven shape as `loadRoster` and for the same reason:
+ * a student who joined and has not started must still get a row, and a join
+ * would drop them. The shaping is `buildPracticeRoster`, which is pure.
+ *
+ * Which of the two a caller wants is decided by `roomKindFor(question.type)` —
+ * never by trying one and falling back to the other, which would quietly show a
+ * professor an empty table for a room whose students are all working.
+ */
+export async function loadPracticeRoster(roomId: string): Promise<PracticeRoster> {
+  const [seats, attempts] = await Promise.all([
+    db.simRoomMember.findMany({
+      where: { roomId },
+      select: {
+        userId: true,
+        displayName: true,
+        joinedAt: true,
+        user: { select: { email: true } },
+      },
+    }),
+    db.attempt.findMany({
+      where: { roomId },
+      select: {
+        id: true,
+        userId: true,
+        status: true,
+        createdAt: true,
+        finalEstimate: true,
+        timeSpentSec: true,
+        // `overall` is nullable and a null is not a zero — see the note on
+        // `Evaluation.overall`. `accuracyHit` is the estimate against the
+        // question's authored band, which is the one number a professor reads
+        // out loud before the scores.
+        evaluation: { select: { overall: true, accuracyHit: true } },
+      },
+    }),
+  ]);
+
+  return buildPracticeRoster(
+    seats.map((s) => ({
+      userId: s.userId,
+      displayName: s.displayName,
+      joinedAt: s.joinedAt,
+      email: s.user.email,
+    })),
+    attempts,
   );
 }
 

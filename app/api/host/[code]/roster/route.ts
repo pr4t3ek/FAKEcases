@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
-import { canHostRooms } from "@/lib/types";
-import { loadRoom, loadRoster } from "@/lib/rooms";
+import { canHostRooms, roomKindFor } from "@/lib/types";
+import { loadPracticeRoster, loadRoom, loadRoster } from "@/lib/rooms";
 
 export const dynamic = "force-dynamic";
 
@@ -38,10 +38,18 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  // Which roster, decided by the room's question exactly as the console decides
+  // which board to render. The two cannot disagree, because both ask
+  // `roomKindFor` rather than each keeping its own idea of what the room is.
+  const roster =
+    roomKindFor(room.question.type) === "simulation"
+      ? await loadRoster(room.id)
+      : await loadPracticeRoster(room.id);
+
   return NextResponse.json({
     // Sent alongside the roster so the console can notice a room closed from
     // another tab without a second request.
     status: room.status,
-    roster: await loadRoster(room.id),
+    roster,
   });
 }

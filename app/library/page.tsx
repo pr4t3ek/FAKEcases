@@ -7,7 +7,7 @@ import { isLocked, tierFor, upgradeFor, WALL_LOCKED, WALL_PARAM } from "@/lib/en
 import { dailyGrantFor } from "@/lib/daily-unlock";
 import { prefillLevel, targetLevelsFor } from "@/lib/profile";
 import { attemptStateByQuestion, listCategories, listQuestions, listSectors } from "@/lib/questions";
-import { answerModeFor, type InterviewLevel } from "@/lib/types";
+import { answerModeFor, canHostRooms, type InterviewLevel } from "@/lib/types";
 import { AppHeader } from "@/components/app/app-header";
 import { FilterBar } from "@/components/library/filter-bar";
 import { WorkedExampleButton } from "@/components/library/worked-example";
@@ -85,6 +85,12 @@ export default async function LibraryPage({
   // nothing to have attempted before a user row exists.
   const attemptState = user ? await attemptStateByQuestion(user.id) : {};
 
+  // A professor picks the guesstimate they will run in class from this grid,
+  // exactly as they pick a war room from `/simulations` — the catalogue is where
+  // the decision is actually made. The card decides which questions can carry
+  // the control; this only says who may see it.
+  const canHost = !!user && canHostRooms(user.role);
+
   return (
     <div className="min-h-screen">
       <AppHeader user={user} />
@@ -153,6 +159,7 @@ export default async function LibraryPage({
                 locked={isLocked(tier, q, grant)}
                 upgrade={upgrade}
                 attemptState={attemptState[q.id] ?? null}
+                canHost={canHost}
               />
             ))}
           </div>

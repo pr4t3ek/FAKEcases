@@ -390,7 +390,16 @@ export async function attemptStateByQuestion(
   userId: string,
 ): Promise<Record<string, AttemptQuestionState>> {
   const rows = await db.attempt.findMany({
-    where: { userId },
+    // Solo attempts only, mirroring `simStateByQuestion` and for the same
+    // reason. A classroom attempt is reached through its room, and `startAttempt`
+    // will not resume one — so counting it here would put a "Resume" button on a
+    // card whose action mints a fresh attempt instead, which is precisely the
+    // card-versus-action drift `lib/attempt-state.ts` was written to end.
+    //
+    // Deliberately NOT applied to the dashboard's history or to `Progress`: a
+    // class attempt is real work and belongs there. The entitlement surface is
+    // the catalogue grid, and it is the only one that needs this.
+    where: { userId, roomId: null },
     select: {
       id: true,
       questionId: true,

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Presentation } from "lucide-react";
 import { createRoom } from "@/app/actions/rooms";
+import type { RoomKind } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,26 +17,31 @@ import {
 } from "@/components/ui/dialog";
 
 /**
- * "Host this in class", on the war-room card itself.
+ * "Host this in class", on the question card itself.
  *
  * This is the professor's actual entry point, and it is on the catalogue rather
  * than behind a separate picker because that is where the decision is made: a
- * professor browsing scenarios for next week's session is already looking at the
- * thing they want to host. A second grid under `/host/new` would have been the
- * same list, filtered the same way, reached one click later.
+ * professor browsing next week's session is already looking at the thing they
+ * want to host. A second grid under `/host/new` would have been the same list,
+ * filtered the same way, reached one click later.
  *
  * Rendered only on cards the host can actually open — the UI half of the tier
  * gate `createRoom` enforces. A "Host this" button on a locked card would be an
  * offer the action then refuses, which is the exact failure
  * `lib/entitlements.ts` is written to prevent.
+ *
+ * `kind` changes the sentence and nothing else. The form is the same because the
+ * room is the same row: a name, a password, and a code to read out.
  */
 export function HostRoomDialog({
   questionId,
   questionTitle,
+  kind = "simulation",
   className,
 }: {
   questionId: string;
   questionTitle: string;
+  kind?: RoomKind;
   className?: string;
 }) {
   const router = useRouter();
@@ -80,8 +86,10 @@ export function HostRoomDialog({
           </DialogTitle>
           <DialogDescription>
             Students join <strong>{questionTitle}</strong> with a code and this password — no
-            account needed. Everyone plays their own run at their own pace, and you watch the
-            roster fill in.
+            account needed.{" "}
+            {kind === "simulation"
+              ? "Everyone plays their own run at their own pace, and you watch the roster fill in."
+              : "Everyone works it themselves at their own pace, and you watch the estimates and scores land."}
           </DialogDescription>
 
           <form action={submit} className="space-y-4">

@@ -1,19 +1,38 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, Siren } from "lucide-react";
+import { ArrowRight, Calculator, Siren } from "lucide-react";
+import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { canOpen, tierFor } from "@/lib/entitlements";
 import { normaliseRoomCode } from "@/lib/rooms/code";
 import { roomIsOpen } from "@/lib/rooms/access";
 import { roomGrantFor, seatFor } from "@/lib/rooms";
 import { findResumableRun } from "@/lib/simulations";
+import { roomKindFor } from "@/lib/types";
 import { AppHeader } from "@/components/app/app-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EnterRoomButton } from "@/components/rooms/enter-room-button";
+import { StartPracticeButton } from "@/components/rooms/start-practice-button";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * The newest unfinished attempt this student has in this room, or null.
+ *
+ * The read half of `findResumableAttempt` in `app/actions/attempts.ts`, scoped
+ * the same way — `roomId: room.id`, never unscoped — so the link this page
+ * renders and the attempt that action resumes are the same row.
+ */
+async function resumableAttempt(userId: string, roomId: string): Promise<string | null> {
+  const existing = await db.attempt.findFirst({
+    where: { userId, roomId, status: "in_progress" },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  });
+  return existing?.id ?? null;
+}
 
 /**
  * The student's room: a brief, and one way in.
@@ -39,12 +58,19 @@ export default async function RoomPage({
 
   const open = roomIsOpen(room);
 
-  // The same two reads `startRoomRun` makes, in the same order and with the same
-  // derivation — which is the whole reason `roomGrantFor` is one exported
+  // What the class is here to do. Derived from the question rather than stored
+  // on the room — see `roomKindFor` — so there is no second column to disagree
+  // with the first.
+  const kind = roomKindFor(room.question.type);
+
+  // The same two reads the matching action makes, in the same order and with the
+  // same derivation — which is the whole reason `roomGrantFor` is one exported
   // function. A button rendered from a grant the action re-derives differently
   // is precisely the drift `lib/entitlements.ts` exists to prevent.
   const [resumable, grant] = await Promise.all([
-    findResumableRun(user.id, room.questionId, room.id),
+    kind === "simulation"
+      ? findResumableRun(user.id, room.questionId, room.id)
+      : resumableAttempt(user.id, room.id),
     roomGrantFor(user.id),
   ]);
   const allowed = canOpen(tierFor(user), room.question, grant);
@@ -58,7 +84,12 @@ export default async function RoomPage({
             {room.name} · <span className="font-mono">{room.code}</span>
           </p>
           <h1 className="mt-1 flex flex-wrap items-center gap-2 text-2xl font-bold tracking-tight">
-            <Siren className="h-6 w-6 text-primary" /> {room.question.title}
+            {kind === "simulation" ? (
+              <Siren className="h-6 w-6 text-primary" />
+            ) : (
+              <Calculator className="h-6 w-6 text-primary" />
+            )}{" "}
+            {room.question.title}
             {!open && <Badge variant="muted">Room closed</Badge>}
           </h1>
         </div>
@@ -71,14 +102,21 @@ export default async function RoomPage({
               // A link, not the action — one fewer round-trip, and the same
               // reasoning `QuestionCard` gives for its resume branch. It works
               // whether or not the room is still open, which is the point:
-              // closing a room never strands analyst-days already spent.
+              // closing a room never strands work already done.
               <Button asChild className="w-full">
-                <Link href={`/simulate/${resumable}`}>
-                  Resume your war room <ArrowRight />
+                <Link
+                  href={kind === "simulation" ? `/simulate/${resumable}` : `/practice/${resumable}`}
+                >
+                  {kind === "simulation" ? "Resume your war room" : "Resume your answer"}{" "}
+                  <ArrowRight />
                 </Link>
               </Button>
             ) : allowed ? (
-              <EnterRoomButton code={room.code} />
+              kind === "simulation" ? (
+                <EnterRoomButton code={room.code} />
+              ) : (
+                <StartPracticeButton code={room.code} />
+              )
             ) : (
               <p className="rounded-lg border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
                 This room has closed, so there&apos;s nothing new to start here. If you played it
@@ -87,12 +125,22 @@ export default async function RoomPage({
             )}
           </div>
 
-          {/* Said before the run starts rather than after, in the spirit of
+          {/* Said before the work starts rather than after, in the spirit of
               telling someone what a thing costs before they spend it. */}
           <p className="mt-4 text-xs text-muted-foreground">
-            You&apos;ll play your own run at your own pace — your professor sees your progress
-            and your final score, not your screen. Your first finished run of a scenario is the
-            one that counts on the leaderboard.
+            {kind === "simulation" ? (
+              <>
+                You&apos;ll play your own run at your own pace — your professor sees your
+                progress and your final score, not your screen. Your first finished run of a
+                scenario is the one that counts on the leaderboard.
+              </>
+            ) : (
+              <>
+                You&apos;ll work it yourself, at your own pace, with the interviewer — your
+                professor sees your progress and your final score, not your screen. Your first
+                submitted answer to a question is the one that counts on the leaderboard.
+              </>
+            )}
           </p>
 
           {user.isGuest && (
@@ -104,7 +152,7 @@ export default async function RoomPage({
               >
                 Create a free account
               </Link>{" "}
-              to keep this run, your score and your streak — it takes a moment and you won&apos;t
+              to keep this work, your score and your streak — it takes a moment and you won&apos;t
               lose your place. Switching to another device means joining again.
             </div>
           )}
