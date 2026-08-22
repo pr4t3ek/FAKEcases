@@ -75,13 +75,41 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
    * reading it during render would hydrate wrong.
    */
   const [autoTour, setAutoTour] = useState(false);
+  /**
+   * The guesstimate first-run tour, waiting for the welcome card to get out of
+   * the way.
+   *
+   * A first-timer needs both things — the worked example shows how a
+   * guesstimate is *solved*, the tour shows where everything is and how it is
+   * *marked* — but not at the same time. So the tour is queued here and opened
+   * by `startQueuedTour` once the welcome flow, including the walkthrough if
+   * they watched it, has finished.
+   */
+  const [tourQueued, setTourQueued] = useState(false);
   useEffect(() => {
-    if (!qualitative || disabled) return;
+    if (disabled) return;
+    // A returning candidate on a guesstimate keeps today's behaviour: the tour
+    // is on the button, not in their face. On a case it still opens every
+    // attempt, because the case tour replaces the welcome card entirely.
+    if (!qualitative && !data.showOnboarding) return;
     const seen = `eq-tour-seen-${data.attemptId}`;
-    if (localStorage.getItem("eq-tour-off") || localStorage.getItem(seen)) return;
-    localStorage.setItem(seen, "1");
+    try {
+      if (localStorage.getItem("eq-tour-off") || localStorage.getItem(seen)) return;
+      localStorage.setItem(seen, "1");
+    } catch {
+      // A private window throws on access rather than returning null. Show the
+      // tour and lose the memory of it, rather than taking the screen down.
+    }
+    if (qualitative) setAutoTour(true);
+    else setTourQueued(true);
+  }, [qualitative, disabled, data.attemptId, data.showOnboarding]);
+
+  /** Called when the welcome card — and any worked example it opened — closes. */
+  const startQueuedTour = useCallback(() => {
+    if (!tourQueued) return;
+    setTourQueued(false);
     setAutoTour(true);
-  }, [qualitative, disabled, data.attemptId]);
+  }, [tourQueued]);
 
   const elapsed = useElapsedTimer({
     initial: data.timeSpentSec,
@@ -218,7 +246,12 @@ export function PracticeScreen({ data }: { data: PracticeData }) {
    * the welcome card back up every time.
    */
   const welcome = data.showOnboarding && !autoTour && (
-    <OnboardingOverlay answerMode={data.question.answerMode} demo={data.demoWalkthrough} />
+    <OnboardingOverlay
+      answerMode={data.question.answerMode}
+      demo={data.demoWalkthrough}
+      tourNext={tourQueued}
+      onFinished={startQueuedTour}
+    />
   );
 
   if (fullscreen) {

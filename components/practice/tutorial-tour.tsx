@@ -354,7 +354,7 @@ const STEPS: Step[] = [
       "Say your reasoning out loud as you would in a real interview. The interviewer responds to " +
       "what you write, and silence tells it nothing.",
     scoring:
-      "Communication is scored from how much you actually articulate — each of your first six " +
+      "Interaction is scored from how much you actually articulate — each of your first six " +
       "messages adds to it. Assumption Quality is won here too: a figure you explain (“40% " +
       "urban, from the census”) outscores the same figure sitting unexplained in your tree.",
   },

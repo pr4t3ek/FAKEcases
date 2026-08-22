@@ -1008,3 +1008,41 @@ zero and never reaches the bank being asserted on. The four prompt-sensitive sui
 already there — `mock-llm`, `sim-coach-prompt`, `gemini-messages`, `teacher-reference` — pass
 unchanged, and a dump of the rendered system prompts confirms no interviewer or hint prompt
 contains `betterApproach` or `sampleSolution` at any level, while Teacher mode still does.
+
+### 24. A first-timer gets the tour as well as the worked example, and "Communication" is now "Interaction"
+
+Two small things, both on what a new candidate sees.
+
+**The tour was reaching the wrong half of the audience.** It auto-opened only on a *case*
+(`answerMode === "qualitative"`), where it stands in for the welcome card. On a guesstimate a
+first-timer got the welcome card and the offer of a worked example — how a guesstimate is
+*solved* — and nothing that said where the panels are or how the eight categories are marked.
+The tour existed for exactly that person and only ever opened if they found the button.
+
+It now runs for them too, *after* the welcome flow rather than on top of it — two modals
+arriving together is how one of them gets dismissed unread. `OnboardingOverlay` takes an
+`onFinished` callback and fires it on both ways out: the card dismissed, or the walkthrough
+player closed if they watched it (never at `watch()` — the walkthrough is the rest of the
+flow). `PracticeScreen` queues the tour in `tourQueued` instead of opening it, and
+`startQueuedTour` releases it. The dismiss button says `"Show me around"` when a tour is
+queued, because `"I'll dive in"` followed by a tour has mis-sold the button.
+
+The guards are unchanged and still apply: `eq-tour-off` ("don't show this again") and the
+per-attempt `eq-tour-seen-<id>` key, so a mid-attempt refresh doesn't replay it. Both reads
+are now wrapped — a private window throws on `localStorage` access rather than returning null,
+which would have taken the screen down. A *returning* candidate's guesstimate is deliberately
+left alone (`if (!qualitative && !data.showOnboarding) return;`): the tour stays on the header
+button for them.
+
+**"Communication" is now labelled "Interaction".** The category never scored polish of
+speech — `lib/evaluation.ts` counts messages sent, reasoned clauses, and the share of figures
+that were justified — so the old label described a skill the scorer doesn't measure and set an
+expectation the report couldn't meet. The `key` stays `communication`: it is a column on
+`Evaluation` and a field on every stored score, and renaming it would be a migration for a
+word. Only the labels moved — `lib/config/evaluation.ts`, the dashboard's short form (`Comm.`
+→ `Interact.`), the tour's scoring line, the landing page and this doc set.
+
+`tests/first-run-tutorial.test.ts` covers the wiring as text, in the manner of
+`tests/theme.test.ts` — the suite runs in node with no DOM, and this is a chain that breaks
+silently: drop the callback and nothing fails, the tour just never opens for the one person it
+was written for.

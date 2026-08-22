@@ -47,13 +47,22 @@ const QUALITATIVE_POINTS = [
  * `demo` is null whenever there is nothing published to show: no walkthrough
  * for the designated question, or the setting points at a question that no
  * longer exists. The modal then behaves exactly as it did before this feature.
+ *
+ * `onFinished` fires once this whole flow is over — the card dismissed, or the
+ * walkthrough closed if they watched it. It is what lets the practice screen
+ * run the tutorial tour AFTER the example instead of on top of it.
  */
 export function OnboardingOverlay({
   answerMode = "numeric",
   demo = null,
+  tourNext = false,
+  onFinished,
 }: {
   answerMode?: AnswerMode;
   demo?: DemoWalkthroughView | null;
+  /** A tour follows this card, so the dismiss button says so instead of lying. */
+  tourNext?: boolean;
+  onFinished?: () => void;
 }) {
   const [open, setOpen] = useState(true);
   const [playing, setPlaying] = useState(false);
@@ -71,12 +80,15 @@ export function OnboardingOverlay({
   function close() {
     setOpen(false);
     markSeen();
+    onFinished?.();
   }
 
   function watch() {
     setOpen(false);
     setPlaying(true);
     markSeen();
+    // Not finished yet — the walkthrough is the rest of this flow, and its
+    // close is what reports back.
   }
 
   // The player is rendered here rather than through `WalkthroughButton` because
@@ -89,7 +101,10 @@ export function OnboardingOverlay({
         prompt={demo.prompt}
         unit={demo.unit}
         content={demo.content}
-        onClose={() => setPlaying(false)}
+        onClose={() => {
+          setPlaying(false);
+          onFinished?.();
+        }}
       />
     );
   }
@@ -124,7 +139,9 @@ export function OnboardingOverlay({
             onClick={close}
             className="w-full sm:w-auto"
           >
-            {offerDemo ? "I'll dive in" : "Start practising"}
+            {/* A button that promises the screen and then opens a tour has
+                mis-sold it, so the label follows what actually happens next. */}
+            {tourNext ? "Show me around" : offerDemo ? "I'll dive in" : "Start practising"}
           </Button>
           {offerDemo ? (
             <Button onClick={watch} className="w-full sm:w-auto">

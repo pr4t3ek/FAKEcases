@@ -295,7 +295,7 @@ Inter typography, generous cell padding, flat and editorial, 16:9.
 - The output of a case is a *defensible* number or a *defensible* recommendation — the
   defence is the product.
 - So grade the **path**, not the destination: structure, segmentation, assumptions,
-  arithmetic, diagnosis, communication, business sense, confidence.
+  arithmetic, diagnosis, interaction, business sense, confidence.
 - And withhold the answer. A hint ladder that escalates, priced in Confidence, and disclosed
   in the report — because help that isn't recorded corrupts the score.
 - One consequence worth stating: a candidate can end up **near the right number with a wrong

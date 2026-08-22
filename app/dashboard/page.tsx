@@ -34,7 +34,7 @@ const SKILL_SHORT: Record<string, string> = {
   assumptions: "Assumpt.",
   calculation: "Calc",
   diagnosis: "Diagnosis",
-  communication: "Comm.",
+  communication: "Interact.",
   business: "Business",
   confidence: "Confidence",
 };
