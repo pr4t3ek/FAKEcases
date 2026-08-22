@@ -336,6 +336,7 @@ failed download, not for a missing glyph.
 | Change rank percentile bands (Silver→Diamond) | `lib/config/gamification.ts` (`rankBands`) |
 | Adjust evaluation rubric weights / readiness bands | `lib/config/evaluation.ts` |
 | Change hint count / panel defaults | `lib/config/practice.ts` |
+| Change what a tutorial teaches | `components/practice/tutorial-tour.tsx` (practice), `components/simulation/war-room-tour.tsx` (war room) — both are step lists over one shell, `components/tour/guided-tour.tsx` |
 | Change what each tier reaches | `lib/config/access.ts` (`tierAccess`) |
 | Give a specific question away on the free tier | Admin panel → **Questions** → the lock button |
 | Grant or revoke a Pro pass | Admin panel → **Users** → +30 / +90 / Revoke |
@@ -559,6 +560,18 @@ score Diagnosis.
 
 A **simulation** is not answered at all — it is played. See below.
 
+**A guesstimate's report names what it is talking about.** The band a strong answer lands in is
+shown next to the number the candidate committed to, and every observation quotes their own work:
+which step's branches added to more than the whole, which box holds something that isn't a figure,
+how far out the answer landed and in which direction. A miss that lands within a quarter of a
+round power of ten — 10×, 100×, 1000× — is called what it almost always is, a unit slip rather
+than a judgement error, because re-doing the reasoning reproduces it exactly. Every deduction is
+priced in the sentence that names it (`buildFeedback` in `lib/evaluation.ts`), which the war room's
+debrief already did and the practice report did not: sibling shares over 100% and a tree the
+judge could not read both moved the score silently. The list is ordered by impact and capped, so
+what a weak attempt reads first is what cost it most, and the authored "consultant's angle" always
+closes it.
+
 A fourth thing exists and is deliberately not on this list: an **Arena** match is not an exercise,
 it is a game against three rivals that answer back, it is scored on its own rubric, and it is
 granted per account rather than reached by a tier. See [The Arena](#the-arena).
@@ -645,6 +658,16 @@ wrong branch and then funding the right fix anyway used to score full marks on d
 outcome, which is not how the decision works anywhere else. Where a cause is one nothing can fix —
 a monsoon, a competitor's launch — holding the capacity is the answer, and the quarter plays out
 as if nobody acted, because on that reading nobody usefully could.
+
+**Two things teach the screen, and they are different things.** The concept primer opens on
+arrival with the scenario's vocabulary — ROAS, contribution margin, plain English before the
+formula — and is reopenable from the header all run. The **tutorial** beside it walks the run
+itself: the four phases and that they only move forward, the analyst-day budget and what going
+past par costs, what the free board already answers, and the five dimensions the run is graded on,
+read off the format so the card cannot drift from the scorer. It opens once per run and waits for
+the primer to close rather than stacking on top of it, and "don't show this again" is remembered
+for good. Steps for a phase the run has not reached keep their words and lose their pointer, so a
+candidate at Observe still learns what Decide will ask of them.
 
 A finished run can be **played again** from the debrief or its card, and an unfinished one resumes
 from where it stopped. Only a first result is ever ranked, and the replay says so before it starts

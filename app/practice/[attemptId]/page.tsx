@@ -96,6 +96,9 @@ export default async function PracticePage({
         finalEstimate={attempt.finalEstimate}
         finalAnswer={attempt.finalAnswer}
         answerMode={answerMode}
+        // Authored on the question and withheld until submit, like the sample
+        // solution beside it.
+        ideal={{ low: attempt.question.idealLow, high: attempt.question.idealHigh }}
         trail={trail}
         // Re-derived from the transcript rather than stored on the report, so it
         // always agrees with what the scorer charged for.

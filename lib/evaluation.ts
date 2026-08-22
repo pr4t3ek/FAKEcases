@@ -8,7 +8,7 @@ import {
   type ReadinessBand,
 } from "@/lib/config";
 import { branchDiscussed, diagnosisTrail, type DiagnosisNode } from "@/lib/diagnosis";
-import { clamp } from "@/lib/utils";
+import { clamp, formatIndianNumber } from "@/lib/utils";
 import { parseNode, shareTotalFor, sharesOvershoot } from "@/lib/framework-value";
 import type { AnswerMode, AssumptionRating, FeedbackItem, TreeMode } from "@/lib/types";
 
@@ -191,6 +191,84 @@ function computeAccuracy(final: number | null, low: number | null, high: number 
   return "far";
 }
 
+/**
+ * How far outside the ideal band the answer fell, and which way.
+ *
+ * A multiple of the bound that was missed, not of the midpoint: a candidate who
+ * lands at four times the top of the range was four times too generous
+ * somewhere, and that is the sentence they can act on. `computeAccuracy` says
+ * *whether* it missed and is what the score reads; this says *by how much* and
+ * is what the report reads.
+ *
+ * Null inside the range, and null for a non-positive estimate — zero has no
+ * ratio to anything, and a negative one is not a market size.
+ */
+export function missFactor(
+  final: number | null,
+  low: number | null,
+  high: number | null,
+): { factor: number; direction: "over" | "under" } | null {
+  if (final == null || low == null || high == null) return null;
+  if (final <= 0 || low <= 0 || high <= 0) return null;
+  if (final >= low && final <= high) return null;
+  return final > high
+    ? { factor: final / high, direction: "over" }
+    : { factor: low / final, direction: "under" };
+}
+
+/**
+ * Is this miss close enough to a round power of ten to be worth calling one?
+ *
+ * The most useful thing you can tell a market-sizing candidate who came out
+ * 100× high is that they almost certainly did the reasoning correctly and then
+ * dropped two zeroes — a lakh read as a crore, a daily figure left annual. A
+ * judgement error lands on 3.7× or 6×; a unit slip lands on 10, 100, 1000.
+ *
+ * The window is multiplicative (±25%) rather than additive, because "close to
+ * 10" and "close to 1000" cannot mean the same distance. 12× reads as ten,
+ * 45× does not read as a hundred.
+ */
+function roundOrderOfMagnitude(factor: number): number | null {
+  if (!Number.isFinite(factor) || factor < 9) return null;
+  const exponent = Math.round(Math.log10(factor));
+  if (exponent < 1) return null;
+  const target = 10 ** exponent;
+  return Math.abs(Math.log10(factor / target)) <= Math.log10(1.25) ? target : null;
+}
+
+/**
+ * A figure as a candidate would say it out loud — "80 lakh", "1.2 cr".
+ *
+ * `toIndianWords` (lib/utils.ts) is the display version and always prints two
+ * decimals, which reads as machinery mid-sentence: "your 80.00 L". Precision
+ * falls away as the number grows because the report is quoting an estimate back,
+ * not reconciling it.
+ */
+function figure(n: number): string {
+  const abs = Math.abs(n);
+  const [divisor, unit] =
+    abs >= 1e7 ? [1e7, " cr"] : abs >= 1e5 ? [1e5, " lakh"] : abs >= 1e3 ? [1e3, "K"] : [1, ""];
+  const scaled = n / divisor;
+  const decimals = Math.abs(scaled) >= 100 ? 0 : Math.abs(scaled) >= 10 ? 1 : 2;
+  // Grouped, because the tail of a slipped estimate is where this lands:
+  // "10000 cr" is a figure a reader has to count digits on, "10,000 cr" isn't.
+  return `${formatIndianNumber(scaled, decimals)}${unit}`;
+}
+
+/**
+ * A miss as a multiple: "1.4×", "5.2×", "137×", "1,50,000×".
+ *
+ * Two significant figures once it runs past a thousand. Nobody needs the exact
+ * ratio at that point — "1,50,000×" and "1,53,846×" say the identical thing,
+ * and only one of them reads as a sentence.
+ */
+function times(factor: number): string {
+  if (factor < 10) return `${Number(factor.toFixed(1))}×`;
+  if (factor < 1000) return `${Math.round(factor)}×`;
+  const magnitude = 10 ** (Math.floor(Math.log10(factor)) - 1);
+  return `${formatIndianNumber(Math.round(factor / magnitude) * magnitude)}×`;
+}
+
 const SEGMENT_KEYWORDS = ["segment", "split", "adult", "child", "urban", "rural", "age", "%", "percent", "tier", "income"];
 const BUSINESS_KEYWORDS = ["institutional", "seasonal", "monsoon", "b2b", "bulk", "competition", "corporate", "wholesale", "replacement", "festival", "tourist"];
 
@@ -350,11 +428,30 @@ export function deriveAssumptions(args: {
  * exactly as it was.
  */
 export function structureMultiplier(coherence: number | undefined): number {
-  if (coherence == null || !Number.isFinite(coherence)) return 1;
-  const { incoherentBelow, looseBelow, multipliers } = structureJudgement;
-  if (coherence < incoherentBelow) return multipliers.incoherent;
-  if (coherence < looseBelow) return multipliers.loose;
-  return multipliers.coherent;
+  const band = structureBand(coherence);
+  return band === null ? 1 : structureJudgement.multipliers[band];
+}
+
+/**
+ * The band itself, for the report.
+ *
+ * Split out from the multiplier because the two readers want different things
+ * from the same verdict: the scorer wants a number to multiply by, and the
+ * feedback wants to say which of the three judgements was made. Deriving both
+ * from one function is what stops the report describing a band the score was
+ * never scaled by.
+ *
+ * Null means no verdict was taken at all — no key, no budget, a provider that
+ * failed. Not a low band, and nothing to tell the candidate about.
+ */
+export function structureBand(
+  coherence: number | undefined,
+): "incoherent" | "loose" | "coherent" | null {
+  if (coherence == null || !Number.isFinite(coherence)) return null;
+  const { incoherentBelow, looseBelow } = structureJudgement;
+  if (coherence < incoherentBelow) return "incoherent";
+  if (coherence < looseBelow) return "loose";
+  return "coherent";
 }
 
 /** What the framework actually says, as opposed to how many rows it has. */
@@ -376,6 +473,25 @@ interface TreeReading {
   depth: number;
   /** Branch sets claiming more than 100% of their parent — double counting. */
   overshootingParents: number;
+  /**
+   * Which step overshot, and by how much.
+   *
+   * The same finding as `overshootingParents`, carrying the identity the count
+   * throws away. It costs `partitionOvershootPenalty` in two categories, and a
+   * deduction the report cannot name is a deduction nobody can act on — so the
+   * feedback quotes the step and its total rather than saying "some branches".
+   */
+  overshoots: { label: string; total: number }[];
+  /**
+   * Steps holding something in a figure box that no parser can read.
+   *
+   * Read off `parseNode` rather than off the `Weak` assumption rating, which
+   * cannot fire on a numeric attempt: `rateAssumption` returns Weak only for an
+   * empty value, and `deriveAssumptions` skips empty values before it is
+   * called. So "12 lakh" and "lots" were reported identically, and a box that
+   * buys nothing on the scorecard was never flagged as one.
+   */
+  unreadable: string[];
 }
 
 /**
@@ -437,18 +553,37 @@ function readTree(framework: FrameworkNodeInput[]): TreeReading {
   // one; so is a pair of bare percentage shares, which is how a flat tree
   // expresses the same idea. Either way the branches have to carry figures —
   // splitting nothing into two nothings is not a segmentation of anything.
-  const splitParents = [...childrenOf.values()].filter(
-    (kids) => kids.length >= 2 && kids.some((kid) => subtreeHasFigure(kid, new Set())),
+  // Kept as entries rather than values so the parent that overshot can be
+  // NAMED. The count alone was all the scorer needed; the report needs to say
+  // which step it is talking about.
+  const splitEntries = [...childrenOf.entries()].filter(
+    ([, kids]) => kids.length >= 2 && kids.some((kid) => subtreeHasFigure(kid, new Set())),
   );
+  const splitParents = splitEntries.map(([, kids]) => kids);
   const shareNodes = framework.filter((n) => parseNode(n.value)?.isPercent === true);
   const hasPartition = splitParents.length > 0 || shareNodes.length >= 2;
 
   // Only an overshoot is an error — see `sharesOvershoot`. Falling short is a
   // deliberate narrowing to the slices the estimate needs.
-  const overshootingParents = splitParents.filter((kids) => {
+  const labelOf = (id: string) =>
+    framework.find((n) => n.id === id)?.label.trim() || "that step";
+  const overshoots = splitEntries.flatMap(([parentId, kids]) => {
     const total = shareTotalFor(kids);
-    return total !== null && sharesOvershoot(total);
-  }).length;
+    return total !== null && sharesOvershoot(total)
+      ? [{ label: labelOf(parentId), total: Math.round(total) }]
+      : [];
+  });
+  const overshootingParents = overshoots.length;
+
+  // Anything typed into a value or × box that the chain can't read. A blank box
+  // is not one of these — an unfilled step is incomplete, not wrong.
+  const unreadable = framework
+    .filter((n) =>
+      [n.value, n.multiplier]
+        .filter((box) => !!box?.trim())
+        .some((box) => parseNode(box) === null),
+    )
+    .map((n) => n.label.trim() || "an unnamed step");
 
   const depthOf = (node: FrameworkNodeInput, seen: Set<string>): number => {
     if (!node.id || seen.has(node.id)) return 1;
@@ -459,7 +594,14 @@ function readTree(framework: FrameworkNodeInput[]): TreeReading {
   const roots = framework.filter((n) => !n.parentId);
   const depth = roots.length ? Math.max(...roots.map((r) => depthOf(r, new Set()))) : 0;
 
-  return { substantiveCount, hasPartition, depth, overshootingParents };
+  return {
+    substantiveCount,
+    hasPartition,
+    depth,
+    overshootingParents,
+    overshoots,
+    unreadable,
+  };
 }
 
 export function evaluate(input: EvaluationInput): EvaluationResult {
@@ -625,12 +767,18 @@ export function evaluate(input: EvaluationInput): EvaluationResult {
   const overall = solutionRevealed ? null : weightedOverall(scores, "numeric");
 
   const feedback = buildFeedback({
+    tree,
+    // The same verdict the four structural categories were scaled by, so the
+    // report can only ever describe the band the score actually used.
+    structure: structureBand(structureCoherence),
     hasSegmentation,
-    weakAssumptions,
     assumptionCount,
     quantifiedRatio,
     justifiedRatio,
     accuracy,
+    finalEstimate,
+    idealLow,
+    idealHigh,
     hintsUsed,
     solutionRevealed,
     calculationCount,
@@ -1052,72 +1200,266 @@ function buildQualitativeFeedback(args: {
   return items;
 }
 
+/**
+ * How many derived observations a report may carry.
+ *
+ * A weak attempt can legitimately trigger a dozen of these, and a dozen bullets
+ * is a wall rather than a report — the fifth one is where a reader stops. The
+ * cap only ever drops the lowest-ranked items, and never the authored
+ * `betterApproach`, which is appended after it.
+ */
+const FEEDBACK_LIMIT = 8;
+
+/**
+ * What the candidate is told, in the order it is worth reading.
+ *
+ * Two rules distinguish this from the list it replaces, and both come from what
+ * the war room's own builder (`lib/sim/score.ts`) already does well:
+ *
+ *  1. **Name the number.** "Your final estimate was well off" is the same
+ *     sentence at 1.4× and at 400×, and only one of those is a reasoning
+ *     problem. Every item that can quote a figure, a step or a total does.
+ *  2. **Price the penalty.** A deduction the report does not mention teaches
+ *     nothing. Sibling shares over 100% and a structure the judge could not
+ *     read both move the score, and until now neither said so.
+ *
+ * `rank` is the order the report shows them in — impact, not authoring order —
+ * and the reason the list is a sort rather than a sequence of pushes. It is
+ * also what makes the cap safe: the items that fall off the end are the ones
+ * that mattered least.
+ */
 function buildFeedback(args: {
+  tree: TreeReading;
+  structure: ReturnType<typeof structureBand>;
   hasSegmentation: boolean;
-  weakAssumptions: number;
   assumptionCount: number;
   quantifiedRatio: number;
   justifiedRatio: number;
   accuracy: Accuracy;
+  finalEstimate: number | null;
+  idealLow: number | null;
+  idealHigh: number | null;
   hintsUsed: number;
   solutionRevealed: boolean;
   calculationCount: number;
   businessNuance: boolean;
   betterApproach: string;
 }): FeedbackItem[] {
-  const items: FeedbackItem[] = [];
+  const items: (FeedbackItem & { rank: number })[] = [];
+  const say = (rank: number, tone: FeedbackItem["tone"], text: string) =>
+    items.push({ rank, tone, text });
 
-  items.push(
-    args.hasSegmentation
-      ? { tone: "positive", text: "Strong segmentation — you broke the problem into meaningful pieces before estimating." }
-      : { tone: "warning", text: "You jumped toward a number without segmenting. Break the population into groups that behave differently." },
-  );
+  const { tree } = args;
+  const range =
+    args.idealLow != null && args.idealHigh != null
+      ? `${figure(args.idealLow)}–${figure(args.idealHigh)}`
+      : null;
+  const miss = missFactor(args.finalEstimate, args.idealLow, args.idealHigh);
 
-  // The three states worth distinguishing: no numbers at all, numbers with no
-  // stated basis, and numbers you actually defended.
-  if (args.assumptionCount === 0) {
-    items.push({ tone: "warning", text: "You never committed to a number. Put figures on your steps and say what each one is based on." });
-  } else if (args.justifiedRatio >= 0.3) {
-    items.push({ tone: "positive", text: "You said where your numbers came from, not just what they were — that's what makes an estimate defensible." });
-  } else if (args.quantifiedRatio >= 0.6) {
-    items.push({ tone: "tip", text: "Your figures are all there, but you rarely said where they came from. Talk through the basis for your biggest drivers." });
+  // ── 0. Whether this was an attempt at all ────────────────────────────────
+  if (args.solutionRevealed) {
+    say(
+      0,
+      "warning",
+      "You had Teacher mode work the problem through, so this attempt isn't scored at all — it counts towards nothing. Retry it cold — reading a solution and producing one are different skills, and only the second one gets tested in the room.",
+    );
   }
-  if (args.weakAssumptions > 0) {
-    items.push({ tone: "warning", text: "Some steps held something that isn't a usable figure — every box should carry a number you can defend." });
-  }
 
+  // ── 1. The number, which is what everyone reads first ────────────────────
   switch (args.accuracy) {
     case "hit":
-      items.push({ tone: "positive", text: "Your final estimate landed within a sensible range. Good calibration." });
+      say(
+        1,
+        "positive",
+        range
+          ? `Your ${figure(args.finalEstimate!)} sits inside the ${range} band a strong answer lands in. Good calibration.`
+          : "Your final estimate landed within a sensible range. Good calibration.",
+      );
       break;
     case "near":
-      items.push({ tone: "tip", text: "You were close but outside the ideal range — recheck one or two driver assumptions." });
+    case "far": {
+      const far = args.accuracy === "far";
+      if (!miss) {
+        say(
+          1,
+          far ? "warning" : "tip",
+          "Your final estimate landed outside the sensible range. Sanity-check your biggest driver and your rounding.",
+        );
+        break;
+      }
+      const way = miss.direction === "over" ? "above the top of" : "below the bottom of";
+      const order = roundOrderOfMagnitude(miss.factor);
+      const opening = `Your ${figure(args.finalEstimate!)} is about ${times(miss.factor)} ${way} the ${range ?? "sensible"} range.`;
+      if (order) {
+        // The single most useful sentence in a market-sizing report: a miss
+        // that lands on a round order of magnitude is a units problem, and
+        // re-doing the reasoning will reproduce it exactly.
+        say(
+          1,
+          "warning",
+          `${opening} A miss that lands this close to ${times(order)} is almost always a unit slip rather than a judgement error — a lakh read as a crore, or a per-day figure left as per-year. Check the units on your biggest step before you re-work anything.`,
+        );
+      } else if (far) {
+        say(
+          1,
+          "warning",
+          `${opening} That gap is bigger than any one assumption should be able to open — find the driver carrying it, and sanity-check its size against something you know.`,
+        );
+      } else {
+        say(
+          1,
+          "tip",
+          `${opening} Close. One or two driver assumptions are a little ${miss.direction === "over" ? "generous" : "mean"} — recheck the biggest of them.`,
+        );
+      }
       break;
-    case "far":
-      items.push({ tone: "warning", text: "Your final estimate was well off. Sanity-check your biggest driver and your rounding." });
-      break;
+    }
     case "none":
-      items.push({ tone: "tip", text: "You didn't lock a final estimate. Always land on a number and state it as a range." });
+      say(
+        1,
+        "warning",
+        `You didn't lock a final estimate, so there was nothing to mark for accuracy${range ? ` against the ${range} a strong answer lands in` : ""}. Always land on a number and state it as a range.`,
+      );
       break;
   }
 
-  if (args.calculationCount === 0) {
-    items.push({ tone: "tip", text: "Show explicit calculations — use the calculator so your arithmetic is visible and checkable." });
+  // ── 2. What the model made of the tree ───────────────────────────────────
+  //
+  // The judge's own sentence is prepended separately (`app/actions/submit.ts`)
+  // and says WHY. This says what it cost, which is the part a candidate can
+  // otherwise only infer from a score that moved for no visible reason.
+  if (args.structure === "incoherent") {
+    say(
+      2,
+      "warning",
+      `The steps don't read as a decomposition of this particular question, so Problem Structuring, Segmentation, Logical Thinking and Business Sense were scaled to ${Math.round(structureJudgement.multipliers.incoherent * 100)}% of what they earned. Label each step with what it actually measures, and check the chain multiplies out to the thing being asked for.`,
+    );
+  } else if (args.structure === "loose") {
+    say(
+      2,
+      "tip",
+      `Your structure is recognisable but loose for this question, which scaled the four structural categories to ${Math.round(structureJudgement.multipliers.loose * 100)}%. The usual fix is one step doing two jobs — split it, or say what it means.`,
+    );
   }
-  // "Without help" has to mean without any of it, or the praise is hollow.
-  if (args.solutionRevealed) {
-    items.push({ tone: "warning", text: "You had Teacher mode work the problem through, so this attempt isn't scored at all — it counts towards nothing. Retry it cold — reading a solution and producing one are different skills, and only the second one gets tested in the room." });
-  } else if (args.hintsUsed === 0) {
-    items.push({ tone: "positive", text: "You worked through it without hints — great independence." });
-  }
-  items.push(
-    args.businessNuance
-      ? { tone: "positive", text: "Nice business instinct — you considered demand nuances beyond the base case." }
-      : { tone: "tip", text: "Add business judgement: think about institutional, seasonal or bulk demand you might be missing." },
-  );
 
-  if (args.betterApproach) {
-    items.push({ tone: "tip", text: `A consultant's angle: ${args.betterApproach}` });
+  // ── 3. Whether there is a chain at all ───────────────────────────────────
+  if (tree.substantiveCount === 0) {
+    say(
+      3,
+      "warning",
+      "There's no estimation chain on the board — every figure in an estimate has to come from somewhere, and the tree is where you show it. Start with a population or a base you're confident in, then narrow.",
+    );
+  } else if (tree.substantiveCount === 1) {
+    say(
+      3,
+      "warning",
+      "One step isn't an estimate, it's an assertion. Break the number you're after into the two or three quantities it's made of, and put a figure on each.",
+    );
+  } else if (tree.depth <= 1 && tree.substantiveCount >= 3) {
+    say(
+      9,
+      "tip",
+      "Your steps sit side by side rather than following from one another. A guesstimate is a chain — each step should narrow the one above it, which is also what makes the arithmetic checkable.",
+    );
   }
-  return items;
+
+  // ── 4. Arithmetic that cannot be right whichever way it is read ──────────
+  for (const over of tree.overshoots) {
+    say(
+      4,
+      "warning",
+      `The branches under “${over.label}” add up to ${over.total}% of it, which is double counting — the same people are being sized twice. It costs ${rubric.partitionOvershootPenalty} points off both Problem Structuring and Segmentation. Shares of a step can come to less than the whole, never more.`,
+    );
+  }
+
+  // ── 5. Segmentation ──────────────────────────────────────────────────────
+  if (!args.hasSegmentation && tree.substantiveCount > 0) {
+    say(
+      5,
+      "warning",
+      "You jumped toward a number without segmenting. Break the population into groups that behave differently — urban and rural, adults and children — because one average across all of them hides the estimate.",
+    );
+  } else if (args.hasSegmentation && tree.overshoots.length === 0) {
+    // Withheld while a partition overshoots: "strong segmentation" directly
+    // under "these branches double count" is the report contradicting itself,
+    // and the overshoot item already says what the split got wrong.
+    say(
+      5,
+      "positive",
+      "Strong segmentation — you broke the problem into meaningful pieces before estimating.",
+    );
+  }
+
+  // ── 6/7. The figures, and whether they were defended ─────────────────────
+  //
+  // Three states worth distinguishing: no numbers at all, numbers with no
+  // stated basis, and numbers you actually defended.
+  if (args.assumptionCount === 0) {
+    say(
+      6,
+      "warning",
+      "You never committed to a number. Put figures on your steps and say what each one is based on.",
+    );
+  } else if (args.justifiedRatio >= 0.3) {
+    say(
+      7,
+      "positive",
+      "You said where your numbers came from, not just what they were — that's what makes an estimate defensible.",
+    );
+  } else if (args.quantifiedRatio >= 0.6) {
+    say(
+      7,
+      "tip",
+      "Your figures are all there, but you rarely said where they came from. Talk through the basis for your biggest drivers — an interviewer is listening for the basis, not the digit.",
+    );
+  }
+
+  if (tree.unreadable.length > 0) {
+    const named = tree.unreadable.slice(0, 3).map((label) => `“${label}”`).join(", ");
+    say(
+      6,
+      "warning",
+      `${named} ${tree.unreadable.length === 1 ? "holds" : "hold"} something in a figure box that isn't a figure, so ${tree.unreadable.length === 1 ? "it drops" : "they drop"} out of the chain entirely. Every box should carry a number, a percentage or a rate you can defend.`,
+    );
+  }
+
+  // ── 8. Showing the work ──────────────────────────────────────────────────
+  if (args.calculationCount === 0) {
+    say(
+      8,
+      "tip",
+      "Show explicit calculations — use the calculator so your arithmetic is visible and checkable. Saving even one is worth points, and it is how an interviewer follows you.",
+    );
+  }
+
+  // ── 10. Judgement, and what the attempt cost ─────────────────────────────
+  say(
+    10,
+    args.businessNuance ? "positive" : "tip",
+    args.businessNuance
+      ? "Nice business instinct — you considered demand nuances beyond the base case."
+      : "Add business judgement: think about institutional, seasonal or bulk demand you might be missing.",
+  );
+  // "Without help" has to mean without any of it, or the praise is hollow.
+  if (!args.solutionRevealed && args.hintsUsed === 0) {
+    say(10, "positive", "You worked through it without hints — great independence.");
+  }
+
+  // ── The cap, and the one item it may never drop ──────────────────────────
+  //
+  // Sorted before slicing, so what falls off the end is what mattered least.
+  // `sort` is stable in every runtime this ships on, which is what keeps two
+  // overshooting steps in the order the tree lists them.
+  const ranked = items
+    .sort((a, b) => a.rank - b.rank)
+    .slice(0, FEEDBACK_LIMIT)
+    .map(({ tone, text }) => ({ tone, text }));
+
+  // Authored content rather than a derived observation, and the only line
+  // written by a human who knows the question — so it survives the cap and
+  // always closes the report.
+  if (args.betterApproach) {
+    ranked.push({ tone: "tip", text: `A consultant's angle: ${args.betterApproach}` });
+  }
+  return ranked;
 }

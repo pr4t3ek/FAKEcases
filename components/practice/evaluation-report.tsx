@@ -77,6 +77,7 @@ export function EvaluationReport({
   finalEstimate,
   finalAnswer,
   answerMode = "numeric",
+  ideal,
   trail,
   solutionRevealed = false,
   evaluation,
@@ -90,6 +91,15 @@ export function EvaluationReport({
   finalEstimate: number | null;
   finalAnswer?: string | null;
   answerMode?: AnswerMode;
+  /**
+   * The band a strong answer lands in, on a guesstimate.
+   *
+   * Withheld during the attempt and shown here, alongside the sample solution
+   * that already states the answer — so it gives nothing away that the report
+   * doesn't. Until now the report said "outside ideal range" without ever
+   * saying what the range was, which is a verdict with the useful half removed.
+   */
+  ideal?: { low: number | null; high: number | null } | null;
   /** Teacher mode worked the problem through, which Confidence was charged for. */
   solutionRevealed?: boolean;
   /** The marked trail against the declared root cause, for a diagnostic case. */
@@ -212,6 +222,18 @@ export function EvaluationReport({
                       ))}
                   </div>
                 )}
+            {/* What "ideal range" actually means, in the same words the
+                feedback below uses. Shown even when no estimate was committed —
+                that is the reader who most needs to see where the answer sat. */}
+            {answerMode === "numeric" && ideal?.low != null && ideal?.high != null && (
+              <div className="text-sm text-muted-foreground">
+                A strong answer lands between{" "}
+                <span className="font-medium text-foreground">
+                  {toIndianWords(ideal.low)} and {toIndianWords(ideal.high)}
+                </span>{" "}
+                {question.unit ?? ""}
+              </div>
+            )}
           </Card>
         </motion.div>
 

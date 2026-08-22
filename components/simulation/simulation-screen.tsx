@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Lightbulb, Lock, Pencil } from "lucide-react";
 import { toast } from "sonner";
@@ -27,7 +27,11 @@ import { MetricMap } from "./metric-map";
 import { SelectionRow } from "./selection-row";
 import { SimDashboard } from "./sim-dashboard";
 import { SimHeader } from "./sim-header";
+import { WarRoomTour } from "./war-room-tour";
 import type { SimulationData } from "./types";
+
+/** Set once, and the tutorial never opens by itself again on any run. */
+const TOUR_OFF = "sim-tour-off";
 
 /**
  * The live run: the board on the left, the phase's work on the right.
@@ -51,7 +55,46 @@ export function SimulationScreen({ data }: { data: SimulationData }) {
   // Opens on arrival at Observe, when nothing has been committed yet. Later
   // phases mean the student has already seen it, so it stays out of the way
   // behind the header button.
-  const [primerOpen, setPrimerOpen] = useState(!!teaching && data.phase === "observe");
+  const primerOnArrival = !!teaching && data.phase === "observe";
+  const [primerOpen, setPrimerOpen] = useState(primerOnArrival);
+
+  /**
+   * The tutorial, once per RUN rather than once per page load — a mid-run
+   * refresh replaying it would be a nuisance, and a student who has seen enough
+   * can switch it off for good.
+   *
+   * It waits behind the concept primer rather than opening on top of it. The
+   * two teach different things — the primer is the scenario's vocabulary, the
+   * tour is the screen and the rubric — and a student needs both, just not at
+   * once. Same queue the practice screen runs behind its worked example.
+   */
+  const [tourQueued, setTourQueued] = useState(false);
+  const [autoTour, setAutoTour] = useState(false);
+  useEffect(() => {
+    const seen = `sim-tour-seen-${data.runId}`;
+    try {
+      if (localStorage.getItem(TOUR_OFF) || localStorage.getItem(seen)) return;
+      localStorage.setItem(seen, "1");
+    } catch {
+      // A private window throws on access rather than returning null. Show the
+      // tour and lose the memory of it, rather than taking the run down.
+    }
+    if (primerOnArrival) setTourQueued(true);
+    else setAutoTour(true);
+  }, [data.runId, primerOnArrival]);
+
+  const startQueuedTour = useCallback(() => {
+    if (!tourQueued) return;
+    setTourQueued(false);
+    setAutoTour(true);
+  }, [tourQueued]);
+
+  // Every route out of the primer, including the ✕ and Esc, which is why this
+  // is one function rather than a line on each of the dialog's callbacks.
+  const closePrimer = useCallback(() => {
+    setPrimerOpen(false);
+    startQueuedTour();
+  }, [startQueuedTour]);
 
   // Revisable for as long as the investigation is open — see
   // `hypothesisEditFor`. Buying the pull that contradicts your opening call is
@@ -133,14 +176,32 @@ export function SimulationScreen({ data }: { data: SimulationData }) {
         daysSpent={daysSpent}
         daysTotal={data.scenario.budget.analystDays}
         onOpenConcepts={teaching ? () => setPrimerOpen(true) : undefined}
+        tutorial={
+          <WarRoomTour
+            phase={data.phase}
+            hasConcepts={!!teaching}
+            hasMetricMap={!!data.scenario.metricMap}
+            periodic={!!data.periods}
+            autoStart={autoTour}
+            onSuppressChange={(off) => {
+              if (!off) return;
+              try {
+                localStorage.setItem(TOUR_OFF, "1");
+              } catch {
+                // Same private-window case as above: forgetting the preference
+                // is survivable, throwing out of a click handler is not.
+              }
+            }}
+          />
+        }
       />
 
       {teaching && (
         <ConceptPrimer
           teaching={teaching}
           open={primerOpen}
-          onOpenChange={setPrimerOpen}
-          onStart={data.phase === "observe" ? () => setPrimerOpen(false) : undefined}
+          onOpenChange={(open) => (open ? setPrimerOpen(true) : closePrimer())}
+          onStart={data.phase === "observe" ? closePrimer : undefined}
         />
       )}
 
@@ -159,9 +220,14 @@ export function SimulationScreen({ data }: { data: SimulationData }) {
             {/* Above the dashboard, not beside it: the point is to be read
                 before the metrics, not discovered after them. */}
             {data.scenario.metricMap && (
-              <MetricMap nodes={data.scenario.metricMap} highlight={data.scenario.metricMap.at(-1)?.id} />
+              <div data-tour="sim-metric-map">
+                <MetricMap
+                  nodes={data.scenario.metricMap}
+                  highlight={data.scenario.metricMap.at(-1)?.id}
+                />
+              </div>
             )}
-            <div>
+            <div data-tour="sim-dashboard">
               <h2 className="mb-3 text-sm font-semibold">Analytics</h2>
               <SimDashboard panels={panels} />
             </div>
@@ -169,7 +235,7 @@ export function SimulationScreen({ data }: { data: SimulationData }) {
 
           <aside className="min-w-0 space-y-4">
             {picking && (
-              <Card className="p-5">
+              <Card data-tour="sim-hypothesis" className="p-5">
                 <h2 className="flex items-center gap-2 text-sm font-semibold">
                   <Lightbulb className="h-4 w-4 text-primary" />{" "}
                   {editing ? "Change your hypothesis" : "Where do you think it is?"}
@@ -315,14 +381,17 @@ export function SimulationScreen({ data }: { data: SimulationData }) {
                   </p>
                 </Card>
 
-                <DrilldownMarket
-                  runId={data.runId}
-                  drilldowns={drilldowns}
-                  remaining={remaining}
-                  onRevealed={onRevealed}
-                />
+                <div data-tour="sim-pulls">
+                  <DrilldownMarket
+                    runId={data.runId}
+                    drilldowns={drilldowns}
+                    remaining={remaining}
+                    onRevealed={onRevealed}
+                  />
+                </div>
 
                 <Button
+                  data-tour="sim-decide"
                   variant="outline"
                   className="w-full"
                   disabled={pending}
@@ -336,12 +405,14 @@ export function SimulationScreen({ data }: { data: SimulationData }) {
             )}
 
             {data.phase === "commit" && (
-              <CommitPanel
-                runId={data.runId}
-                scenario={data.scenario}
-                diagnosis={data.diagnosis}
-                periods={data.periods}
-              />
+              <div data-tour="sim-commit">
+                <CommitPanel
+                  runId={data.runId}
+                  scenario={data.scenario}
+                  diagnosis={data.diagnosis}
+                  periods={data.periods}
+                />
+              </div>
             )}
           </aside>
         </div>

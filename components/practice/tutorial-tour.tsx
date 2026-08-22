@@ -1,8 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { ArrowLeft, ArrowRight, GraduationCap, X } from "lucide-react";
+import { useCallback } from "react";
 import {
   categoryLabel,
   categoryWeight,
@@ -10,9 +8,7 @@ import {
   hintConfig,
   readinessBands,
 } from "@/lib/config";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { placeCard } from "@/lib/tour-placement";
+import { GuidedTour, type TourStep } from "@/components/tour/guided-tour";
 import type { AnswerMode, NodeStatus } from "@/lib/types";
 import type { UiFrameworkNode } from "./types";
 
@@ -21,15 +17,12 @@ import type { UiFrameworkNode } from "./types";
  * `data-tour` attributes. Each step says what the thing is AND how it moves the
  * score, so the rubric stops being a black box. The closing step renders the
  * weights straight from lib/config so it can never drift from the scorer.
+ *
+ * Only the words live here. The spotlight, the placement and the remembering are
+ * `components/tour/guided-tour.tsx`, shared with the war room's tour.
  */
 
-type Step = {
-  /** `data-tour` value of the element to spotlight. Omitted = centred card. */
-  target?: string;
-  title: string;
-  body: string;
-  /** How this step affects the scorecard, if it does. */
-  scoring?: string;
+type Step = TourStep & {
   /** Panel this step lives in — revealed first on the mobile tab layout. */
   panel?: "tools" | "chat" | "progress";
   /** Tools-panel tab this step lives in, revealed first. */
@@ -396,6 +389,51 @@ const STEPS: Step[] = [
   },
 ];
 
+/**
+ * The weights, read off the config the scorer reads.
+ *
+ * Zero-weight rows are dropped rather than shown as 0.0: on a case Calculation
+ * genuinely doesn't apply, and listing it would imply marks left on the table.
+ */
+function RubricTable({ answerMode }: { answerMode: AnswerMode }) {
+  return (
+    <div className="mt-3 space-y-3">
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-left text-muted-foreground">
+              <th className="pb-1 font-medium">Category</th>
+              <th className="pb-1 text-right font-medium">Weight</th>
+            </tr>
+          </thead>
+          <tbody className="tabular-nums">
+            {evaluationCategories
+              .filter((c) => categoryWeight(c, answerMode) > 0)
+              .map((c) => (
+                <tr key={c.key} className="border-t">
+                  <td className="py-1 pr-2">{categoryLabel(c, answerMode)}</td>
+                  <td className="py-1 text-right font-mono">
+                    {categoryWeight(c, answerMode).toFixed(1)}
+                  </td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {[...readinessBands].reverse().map((b) => (
+          <span
+            key={b.band}
+            className="rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground"
+          >
+            {b.band} {b.min > 0 ? `${b.min}+` : "<50"}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function TutorialTour({
   onReveal,
   answerMode = "numeric",
@@ -417,298 +455,29 @@ export function TutorialTour({
   const qualitative = answerMode === "qualitative";
   const steps = qualitative ? CASE_STEPS : STEPS;
 
-  const [open, setOpen] = useState(false);
-  const [i, setI] = useState(0);
-  const [rect, setRect] = useState<DOMRect | null>(null);
-  const [cardH, setCardH] = useState(0);
-  const [suppress, setSuppress] = useState(false);
-  const cardRef = useRef<HTMLDivElement>(null);
-  const started = useRef(false);
+  // Both jobs have to happen before the step is measured: an unrevealed panel
+  // isn't in the DOM to point at, and an empty canvas falls back to its
+  // empty-state text, so the demo tree has to be drawn before we look for it.
+  const onEnterStep = useCallback(
+    (step: Step) => {
+      if (step.panel || step.tool) onReveal(step.panel, step.tool);
+      onDemo?.(step.demo ?? []);
+    },
+    [onReveal, onDemo],
+  );
 
-  const step = steps[i];
-  const isLast = i === steps.length - 1;
-
-  // Once per mount. The practice screen has already decided this attempt has
-  // never been toured, so re-opening on a re-render would be a nuisance.
-  useEffect(() => {
-    if (!autoStart || started.current) return;
-    started.current = true;
-    setI(0);
-    setOpen(true);
-  }, [autoStart]);
-
-  // The illustration follows the step, and is cleared whenever the tour closes —
-  // including on Esc, the ✕ and the click-off layer, which is why this lives in
-  // an effect rather than being wired to each of them.
-  useEffect(() => {
-    if (!onDemo) return;
-    onDemo(open ? (step?.demo ?? []) : []);
-  }, [open, step, onDemo]);
-
-  // Memoised so the Esc listener below can depend on it honestly instead of
-  // re-binding on every render.
-  const close = useCallback(() => {
-    setOpen(false);
-    onSuppressChange?.(suppress);
-  }, [onSuppressChange, suppress]);
-
-  // Read-only: never scrolls. Scrolling here would fire the scroll listener
-  // below, which would measure again and scroll again — the highlight and card
-  // would oscillate and never settle. Bailing out when the rect is unchanged
-  // keeps the same loop from forming through re-renders.
-  const measure = useCallback(() => {
-    const el = step?.target
-      ? document.querySelector<HTMLElement>(`[data-tour="${step.target}"]`)
-      : null;
-    const next = el?.getBoundingClientRect() ?? null;
-    setRect((prev) => {
-      if (!next) return null;
-      if (
-        prev &&
-        Math.abs(prev.top - next.top) < 1 &&
-        Math.abs(prev.left - next.left) < 1 &&
-        Math.abs(prev.width - next.width) < 1 &&
-        Math.abs(prev.height - next.height) < 1
-      ) {
-        return prev;
-      }
-      return next;
-    });
-  }, [step]);
-
-  // Reveal the panel this step lives in (mobile puts them behind tabs), bring
-  // the target into view once, then measure after it has mounted and settled.
-  useLayoutEffect(() => {
-    if (!open || !step) return;
-    if (step.panel || step.tool) onReveal(step.panel, step.tool);
-    let raf2 = 0;
-    const raf1 = requestAnimationFrame(() => {
-      if (step.target) {
-        document
-          .querySelector<HTMLElement>(`[data-tour="${step.target}"]`)
-          ?.scrollIntoView({ block: "nearest", inline: "nearest" });
-      }
-      raf2 = requestAnimationFrame(measure);
-    });
-    return () => {
-      cancelAnimationFrame(raf1);
-      cancelAnimationFrame(raf2);
-    };
-  }, [open, step, measure, onReveal]);
-
-  // Height depends only on the step's copy (width is fixed), so this settles in
-  // one pass and can't oscillate with the position it feeds.
-  useLayoutEffect(() => {
-    if (!open) return;
-    const h = cardRef.current?.offsetHeight ?? 0;
-    if (h && Math.abs(h - cardH) > 1) setCardH(h);
-  }, [open, i, rect, cardH]);
-
-  useEffect(() => {
-    if (!open) return;
-    window.addEventListener("resize", measure);
-    window.addEventListener("scroll", measure, true);
-    return () => {
-      window.removeEventListener("resize", measure);
-      window.removeEventListener("scroll", measure, true);
-    };
-  }, [open, measure]);
-
-  useEffect(() => {
-    if (!open) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") close();
-      if (e.key === "ArrowRight") setI((n) => Math.min(n + 1, steps.length - 1));
-      if (e.key === "ArrowLeft") setI((n) => Math.max(n - 1, 0));
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, close, steps.length]);
-
-  function start() {
-    setI(0);
-    setOpen(true);
-  }
-
-  // Below, above, beside, then clamped — the maths is in `lib/tour-placement.ts`
-  // so the property that matters can be tested. It could not be before, and the
-  // consequence was that the six steps which draw a demo tree all pointed at an
-  // element too tall to sit above or below, so the card was pinned to the
-  // bottom of the viewport and landed across the tree it was explaining.
-  //
-  // Height is MEASURED rather than assumed — a step with longer copy is tall
-  // enough to push its own buttons off a phone screen.
-  const CARD_W = 360;
-  const cardStyle: React.CSSProperties = (() => {
-    if (!rect) {
-      return { left: "50%", top: "50%", transform: "translate(-50%, -50%)", width: CARD_W };
-    }
-    const { left, top } = placeCard({
-      target: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
-      card: { width: CARD_W, height: cardH || 280 },
-      viewport: { width: window.innerWidth, height: window.innerHeight },
-    });
-    return { left, top, width: CARD_W };
-  })();
+  // Cleared however the tour closes — Esc, the ✕, Skip, the click-off layer.
+  const onExit = useCallback(() => onDemo?.([]), [onDemo]);
 
   return (
-    <>
-      <button
-        onClick={start}
-        data-tour="tutorial-btn"
-        className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
-      >
-        <GraduationCap className="h-3.5 w-3.5" /> Tutorial
-      </button>
-
-      {open &&
-        typeof document !== "undefined" &&
-        createPortal(
-          <div className="fixed inset-0 z-[60]" role="dialog" aria-modal="true" aria-label="Practice screen tutorial">
-            {/* Dim everything, with a hole punched over the highlighted element. */}
-            {rect ? (
-              <div
-                className="pointer-events-none absolute rounded-lg ring-2 ring-primary transition-all duration-200"
-                style={{
-                  left: rect.left - 4,
-                  top: rect.top - 4,
-                  width: rect.width + 8,
-                  height: rect.height + 8,
-                  boxShadow: "0 0 0 9999px rgba(0,0,0,0.8)",
-                }}
-              />
-            ) : (
-              <div className="absolute inset-0 bg-black/80" />
-            )}
-
-            {/* Click-off layer, behind the card. */}
-            <button
-              aria-label="Close tutorial"
-              tabIndex={-1}
-              onClick={close}
-              className="absolute inset-0 h-full w-full cursor-default"
-            />
-
-            <div
-              ref={cardRef}
-              style={cardStyle}
-              className="absolute max-h-[calc(100vh-1.5rem)] max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-xl border bg-card p-4 shadow-2xl"
-            >
-              <div className="mb-2 flex items-start justify-between gap-2">
-                <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-wide text-primary">
-                    Step {i + 1} of {steps.length}
-                  </div>
-                  <h2 className="text-base font-semibold leading-snug">{step.title}</h2>
-                </div>
-                <button
-                  onClick={close}
-                  aria-label="Close tutorial"
-                  className="shrink-0 text-muted-foreground hover:text-foreground"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              <p className="text-sm text-muted-foreground">{step.body}</p>
-
-              {step.scoring && (
-                <p className="mt-2 rounded-md border-l-2 border-primary bg-primary/5 px-2.5 py-2 text-xs text-foreground">
-                  {step.scoring}
-                </p>
-              )}
-
-              {step.rubric && (
-                <div className="mt-3 space-y-3">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="text-left text-muted-foreground">
-                          <th className="pb-1 font-medium">Category</th>
-                          <th className="pb-1 text-right font-medium">Weight</th>
-                        </tr>
-                      </thead>
-                      <tbody className="tabular-nums">
-                        {/* Zero-weight rows are dropped rather than shown as
-                            0.0: on a case Calculation genuinely doesn't apply,
-                            and listing it would imply marks left on the table. */}
-                        {evaluationCategories
-                          .filter((c) => categoryWeight(c, answerMode) > 0)
-                          .map((c) => (
-                            <tr key={c.key} className="border-t">
-                              <td className="py-1 pr-2">{categoryLabel(c, answerMode)}</td>
-                              <td className="py-1 text-right font-mono">
-                                {categoryWeight(c, answerMode).toFixed(1)}
-                              </td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {[...readinessBands].reverse().map((b) => (
-                      <span
-                        key={b.band}
-                        className="rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground"
-                      >
-                        {b.band} {b.min > 0 ? `${b.min}+` : "<50"}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Offered on every step, not just the last: someone who already
-                  knows the screen should be able to turn this off at the point
-                  they realise they don't need it. */}
-              {onSuppressChange && (
-                <label className="mt-3 flex cursor-pointer items-center gap-2 text-[11px] text-muted-foreground">
-                  <input
-                    type="checkbox"
-                    checked={suppress}
-                    onChange={(e) => setSuppress(e.target.checked)}
-                    className="h-3 w-3 accent-current"
-                  />
-                  Don&apos;t show this automatically again
-                </label>
-              )}
-
-              <div className="mt-4 flex items-center justify-between gap-2">
-                <div className="flex gap-1" aria-hidden>
-                  {steps.map((_, n) => (
-                    <span
-                      key={n}
-                      className={cn(
-                        "h-1.5 w-1.5 rounded-full",
-                        n === i ? "bg-primary" : "bg-muted-foreground/30",
-                      )}
-                    />
-                  ))}
-                </div>
-                <div className="flex gap-2">
-                  {!isLast && (
-                    <Button variant="ghost" onClick={close} className="h-7 px-2 text-xs">
-                      Skip
-                    </Button>
-                  )}
-                  {i > 0 && (
-                    <Button variant="secondary" onClick={() => setI(i - 1)} className="h-7 px-2 text-xs">
-                      <ArrowLeft className="mr-1 h-3 w-3" /> Back
-                    </Button>
-                  )}
-                  <Button
-                    onClick={() => (isLast ? close() : setI(i + 1))}
-                    className="h-7 px-2.5 text-xs"
-                  >
-                    {isLast ? "Got it" : "Next"}
-                    {!isLast && <ArrowRight className="ml-1 h-3 w-3" />}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
-    </>
+    <GuidedTour
+      steps={steps}
+      ariaLabel="Practice screen tutorial"
+      autoStart={autoStart}
+      onEnterStep={onEnterStep}
+      onExit={onExit}
+      onSuppressChange={onSuppressChange}
+      renderExtra={(step) => (step.rubric ? <RubricTable answerMode={answerMode} /> : null)}
+    />
   );
 }
