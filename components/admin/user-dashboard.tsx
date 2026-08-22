@@ -40,7 +40,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { RankDistributionChart, SignupsChart } from "./user-charts";
 
 const segmentVariant: Record<UserSegment, "default" | "secondary" | "muted"> = {
   registered: "default",
@@ -603,17 +602,6 @@ export function UserDashboard({ stats }: { stats: AdminUserStats }) {
         {stats.benchmark === 1 ? " is" : "s are"} excluded — they exist to give the percentile
         rank a starting population, and are visible under the Benchmark filter below.
       </p>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="p-5">
-          <h2 className="mb-3 font-semibold">Signups (last 30 days)</h2>
-          <SignupsChart data={stats.signups} />
-        </Card>
-        <Card className="p-5">
-          <h2 className="mb-3 font-semibold">Rank distribution</h2>
-          <RankDistributionChart data={stats.ranks} />
-        </Card>
-      </div>
 
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">

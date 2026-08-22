@@ -331,6 +331,7 @@ failed download, not for a missing glyph.
 | Add / edit a decision simulation | `lib/sim/scenarios/` + a row in `lib/sim/registry.ts` and `prisma/seed-data.ts` |
 | Retune a simulation's numbers without a deploy | Admin panel → **Simulations** (see below) |
 | Tune simulation scoring / bands | `lib/config/simulation.ts` |
+| Retune the analytics windows and thresholds | `lib/admin-analytics.ts` (`QUIET_AFTER_DAYS`, `RETURN_WINDOWS`, `ACTIVITY_WINDOW_DAYS`, `EXHAUSTION_THRESHOLD`) |
 | Change the interviewer's behaviour / wording | `lib/llm/prompts.ts` |
 | Tune XP, levels, streak rules | `lib/config/gamification.ts` |
 | Change rank percentile bands (Silver→Diamond) | `lib/config/gamification.ts` (`rankBands`) |
@@ -955,6 +956,47 @@ The Arena has its own registry (`lib/arena/registry.ts`), separate from
 things. A second game is a `SimulatorConfig` in `lib/sim/configs/` and one line in the arena
 registry. Mandi is also the second config-driven domain the architecture always claimed to support
 and had never had.
+
+---
+
+## Admin analytics
+
+`/admin` opens on **Analytics**, which answers how the cohort is doing; the Users tab beside it
+answers who a particular person is. The split is deliberate — one is a chart, the other is a
+roster with buttons that change somebody's account.
+
+The four metrics on it are not ours. [`RETENTION.md`](docs/RETENTION.md) §2 commits to them
+before any of its levers, and this is them: **D1 / D7 / D30 return rate**, **how often people
+come back in a week they are active**, **where they stop**, and **how much of the library they
+have seen**. Around them sit the counts the panel is opened for — registered, guests, active,
+never started, Pro, professors, Arena — and the mix of what is actually being practised, opened
+against finished, per format.
+
+**Computed from the database, not from an analytics provider.** That memo assumes a PostHog
+adapter is needed first. It is not: `Attempt`, `SimRun` and `ArenaMatch` all stamp `createdAt`,
+so all four fall out of tables that already exist — no schema change, no key, no external service,
+and the zero-key promise intact. An adapter is still the right answer for event-level questions
+this panel cannot reach (which button, which step, which drop-off inside an attempt), and nothing
+here forecloses it.
+
+Four things it is careful about, because each one is a way a dashboard lies:
+
+- **Denominators are shown.** A D7 of "60%" off five accounts is not a rate, so every return
+  figure carries the `returned of eligible` beneath it, and an account too new for a window to
+  have closed is not counted as having failed to return.
+- **Counts are queries.** The Users tab derives its headline numbers from a list capped at 500
+  rows; these come from `count`/`groupBy`, so they stay true when the roster stops fitting.
+- **Activity means opened, not finished.** Read from the tables' own timestamps rather than
+  `User.lastActiveDate`, which is written only when something is *completed* — somebody who came
+  back and opened a war room is invisible to that column, and they are exactly who a return rate
+  is about.
+- **It says what it cannot say.** There is no session table, so the weekly panel counts distinct
+  active days and calls them that. Only Pro reaches the whole library, so coverage shows Pro
+  apart from free rather than averaging two different denominators.
+
+`lib/admin-analytics.ts` holds the shaping as pure functions with the loader beside them, the way
+`lib/admin-stats.ts` does — the arithmetic is unit-tested in `tests/admin-analytics.test.ts`
+without a database.
 
 ---
 
