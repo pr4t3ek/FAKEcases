@@ -15,8 +15,13 @@ import { hashPassword, verifyPassword } from "@/lib/password";
 import { generateRoomCode, normaliseRoomCode } from "@/lib/rooms/code";
 import { grantFromRooms } from "@/lib/rooms/access";
 import { buildRoster, type Roster } from "@/lib/rooms/roster";
+import { hostSummary, type HostSummary } from "@/lib/rooms/teaching";
+import { warRoomFormat } from "@/lib/sim/formats/war-room";
 import type { AccessGrant } from "@/lib/entitlements";
 import { NO_GRANT } from "@/lib/entitlements";
+
+/** The format whose five typed columns on `SimResult` mean what they say. */
+const WAR_ROOM_FORMAT = warRoomFormat.slug;
 
 /** A room with the bits every caller needs: the question, and how many joined. */
 export type LoadedRoom = NonNullable<Awaited<ReturnType<typeof loadRoom>>>;
@@ -165,6 +170,61 @@ export async function listRoomsForHost(hostId: string) {
 }
 
 /**
+ * Everything one professor has taught, in three reads.
+ *
+ * Scoped to their own rooms by the relation filter rather than by fetching and
+ * filtering — a second professor's class is not this professor's business, and
+ * a where-clause is the only place that rule cannot be forgotten.
+ *
+ * The shaping is `hostSummary`, which is pure and counts a student the way the
+ * console does: a seat, not a run. Two screens that disagree about how many
+ * people were in the room are worse than one screen.
+ */
+export async function loadHostAnalytics(hostId: string): Promise<HostSummary> {
+  const [rooms, seats, runs] = await Promise.all([
+    db.simRoom.findMany({
+      where: { hostId },
+      select: {
+        id: true,
+        questionId: true,
+        status: true,
+        createdAt: true,
+        question: { select: { title: true } },
+      },
+    }),
+    db.simRoomMember.findMany({
+      where: { room: { hostId } },
+      select: { roomId: true, userId: true },
+    }),
+    db.simRun.findMany({
+      where: { room: { hostId } },
+      select: {
+        roomId: true,
+        userId: true,
+        result: {
+          select: { overall: true, causeFound: true, daysSpent: true, daysPar: true },
+        },
+      },
+    }),
+  ]);
+
+  return hostSummary(
+    rooms.map((r) => ({
+      id: r.id,
+      questionId: r.questionId,
+      questionTitle: r.question.title,
+      status: r.status,
+      createdAt: r.createdAt,
+    })),
+    seats,
+    // `roomId` is nullable on a run — a solo run has none — but the filter above
+    // only returns runs that belong to one of this host's rooms, so the cast is
+    // narrowing what the query already guaranteed rather than assuming it.
+    runs.flatMap((run) => (run.roomId ? [{ ...run, roomId: run.roomId }] : [])),
+  );
+}
+
+/**
  * The console's table.
  *
  * Two queries rather than one join, because the roster is seat-driven: a student
@@ -191,11 +251,30 @@ export async function loadRoster(roomId: string): Promise<Roster> {
         phase: true,
         daysSpent: true,
         createdAt: true,
+        // The causes named at Decide, for the class's diagnosis mix, and the
+        // clock, for how long the exercise actually takes a room.
+        diagnosis: true,
+        timeSpentSec: true,
         // `daysPar` is the authored budget for the scenario. Carried so the
         // console can draw the line between "came in under budget" and "over"
         // rather than showing a cloud of unanchored dots.
+        //
+        // The five dimensions ride along for the class averages: an overall of
+        // 74 is not something a professor can teach from, and "they diagnosed
+        // it and then funded the wrong thing" is.
         result: {
-          select: { overall: true, band: true, causeFound: true, daysPar: true },
+          select: {
+            overall: true,
+            band: true,
+            causeFound: true,
+            daysPar: true,
+            formatSlug: true,
+            hypothesis: true,
+            investigation: true,
+            diagnosis: true,
+            decision: true,
+            outcome: true,
+          },
         },
       },
     }),
@@ -208,7 +287,29 @@ export async function loadRoster(roomId: string): Promise<Roster> {
       joinedAt: s.joinedAt,
       email: s.user.email,
     })),
-    runs,
+    // The typed dimension columns are the WAR ROOM's, and only a war-room result
+    // writes them — a turnaround stores zeros there and its real scores in
+    // `scoresJson`. Handing those zeros to the class averages would report a
+    // room that scored nothing on every dimension, so a result from another
+    // format carries no `scores` at all and is skipped rather than averaged.
+    runs.map((run) => ({
+      ...run,
+      result: run.result
+        ? {
+            ...run.result,
+            scores:
+              run.result.formatSlug === WAR_ROOM_FORMAT
+                ? {
+                    hypothesis: run.result.hypothesis,
+                    investigation: run.result.investigation,
+                    diagnosis: run.result.diagnosis,
+                    decision: run.result.decision,
+                    outcome: run.result.outcome,
+                  }
+                : null,
+          }
+        : null,
+    })),
   );
 }
 

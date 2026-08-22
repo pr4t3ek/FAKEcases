@@ -33,13 +33,40 @@ export interface RosterRun {
   phase: string;
   daysSpent: number;
   createdAt: Date;
+  /**
+   * JSON `string[]` of the cause ids named at Decide, straight off `SimRun`.
+   *
+   * Parsed here rather than by the caller so both paths into the roster — the
+   * server render and the five-second poll — read it the same way.
+   */
+  diagnosis?: string | null;
+  /** Wall-clock seconds in the room. Display only, like everywhere else. */
+  timeSpentSec?: number;
   result: {
     overall: number;
     band: string;
     causeFound: boolean;
     /** The scenario's authored analyst-day budget. */
     daysPar: number;
+    /**
+     * The five rubric dimensions, when the result carries them.
+     *
+     * Optional because a turnaround result writes zeros here and its real
+     * scores in `scoresJson` — a class board that averaged those zeroes would
+     * report a room full of failures. The class view drops a run with no
+     * dimensions rather than counting it as one scoring nothing.
+     */
+    scores?: SimScores | null;
   } | null;
+}
+
+/** The five war-room dimensions, as `SimResult` stores them. */
+export interface SimScores {
+  hypothesis: number;
+  investigation: number;
+  diagnosis: number;
+  decision: number;
+  outcome: number;
 }
 
 /** Where a student has got to. */
@@ -62,6 +89,12 @@ export interface RosterRow {
   causeFound: boolean | null;
   /** The scenario's par, known only once a run has been scored against it. */
   daysPar: number | null;
+  /** Per-dimension scores, for the class averages. Null until they commit. */
+  scores: SimScores | null;
+  /** Cause ids named at Decide. Empty until they commit — never null. */
+  namedCauses: string[];
+  /** Seconds in the room, or null for a seat that never started. */
+  timeSpentSec: number | null;
 }
 
 export interface RosterSummary {
@@ -143,6 +176,9 @@ export function buildRoster(members: RosterMember[], runs: RosterRun[]): Roster 
           band: null,
           causeFound: null,
           daysPar: null,
+          scores: null,
+          namedCauses: [],
+          timeSpentSec: null,
         };
       }
 
@@ -163,10 +199,31 @@ export function buildRoster(members: RosterMember[], runs: RosterRun[]): Roster 
         band: run.result?.band ?? null,
         causeFound: run.result?.causeFound ?? null,
         daysPar: run.result?.daysPar ?? null,
+        scores: run.result?.scores ?? null,
+        namedCauses: parseCauseIds(run.diagnosis),
+        timeSpentSec: run.timeSpentSec ?? null,
       };
     });
 
   return { rows, summary: summarise(rows) };
+}
+
+/**
+ * The cause ids off a run, defensively.
+ *
+ * `SimRun.diagnosis` is a JSON column written by the app, so it should always
+ * be a `string[]` — but this module renders a live classroom screen every five
+ * seconds, and a row that cannot be parsed must cost that student their entry in
+ * one chart rather than the professor their console.
+ */
+function parseCauseIds(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : [];
+  } catch {
+    return [];
+  }
 }
 
 function summarise(rows: RosterRow[]): RosterSummary {
@@ -285,4 +342,190 @@ export function costScorePoints(rows: RosterRow[]): CostScorePoint[] {
  */
 export function classDaysPar(rows: RosterRow[]): number | null {
   return rows.find((r) => r.daysPar !== null)?.daysPar ?? null;
+}
+
+// ─── Class analytics ───────────────────────────────────────────────────────
+//
+// The same posture as the class board above: derived from rows the console is
+// already polling, so a professor gets a live read of the room at no additional
+// request. Everything here is pure, and nothing imports a scenario — the labels
+// a chart needs are passed in by the page that resolved them.
+
+/** One step of the run, and how much of the class is standing on it. */
+export interface PhaseCount {
+  /** `SimPhase`, or "joined" for a seat that never opened the run. */
+  key: string;
+  label: string;
+  count: number;
+}
+
+const PHASE_LABELS: { key: string; label: string }[] = [
+  { key: "joined", label: "Not started" },
+  { key: "observe", label: "Observe" },
+  { key: "investigate", label: "Investigate" },
+  { key: "commit", label: "Decide" },
+  { key: "debrief", label: "Debrief" },
+];
+
+/**
+ * Where the class is standing, right now.
+ *
+ * The live-teaching question, and the one thing the roster table cannot answer
+ * at a glance in a room of forty: a professor needs to know whether to keep
+ * going or to stop and explain the pull market, and counting badges down a
+ * scrolling table is not a way to find that out.
+ *
+ * Every phase is listed whether or not anybody is on it, for the same reason
+ * `rankDistribution` lists empty bands — a bar that appears and disappears makes
+ * two glances at the same screen incomparable.
+ */
+export function phaseFunnel(rows: RosterRow[]): PhaseCount[] {
+  const counts = new Map<string, number>(PHASE_LABELS.map((p) => [p.key, 0]));
+  for (const row of rows) {
+    const key = row.state === "joined" ? "joined" : (row.phase ?? "observe");
+    if (!counts.has(key)) continue; // a phase this build doesn't know about
+    counts.set(key, counts.get(key)! + 1);
+  }
+  return PHASE_LABELS.map((p) => ({ ...p, count: counts.get(p.key)! }));
+}
+
+export interface DimensionAverage {
+  key: keyof SimScores;
+  label: string;
+  average: number;
+}
+
+const DIMENSION_LABELS: { key: keyof SimScores; label: string }[] = [
+  { key: "hypothesis", label: "Hypothesis" },
+  { key: "investigation", label: "Investigation" },
+  { key: "diagnosis", label: "Diagnosis" },
+  { key: "decision", label: "Decision" },
+  { key: "outcome", label: "Outcome" },
+];
+
+/**
+ * What the class was good and bad at, dimension by dimension.
+ *
+ * The single most teachable number on this screen: an average of 74 tells a
+ * professor nothing they can act on, while "they diagnosed it and then funded
+ * the wrong thing" is a lecture. Empty until somebody commits, and runs with no
+ * per-dimension scores are skipped rather than read as zeroes — see
+ * `RosterRun.result.scores`.
+ */
+export function dimensionAverages(rows: RosterRow[]): DimensionAverage[] {
+  const scored = rows.map((r) => r.scores).filter((s): s is SimScores => !!s);
+  if (!scored.length) return [];
+  return DIMENSION_LABELS.map(({ key, label }) => ({
+    key,
+    label,
+    average: Math.round(scored.reduce((sum, s) => sum + s[key], 0) / scored.length),
+  }));
+}
+
+/** How the finished runs fell across the result bands. */
+export function bandSpread(rows: RosterRow[], bands: readonly string[]): PhaseCount[] {
+  const counts = new Map<string, number>(bands.map((b) => [b, 0]));
+  for (const row of rows) {
+    if (row.band === null || !counts.has(row.band)) continue;
+    counts.set(row.band, counts.get(row.band)! + 1);
+  }
+  return bands.map((band) => ({ key: band, label: band, count: counts.get(band)! }));
+}
+
+export interface SpendSpread {
+  under: number;
+  at: number;
+  over: number;
+  /** Mean analyst-days across finished runs, or null before any finish. */
+  averageDays: number | null;
+}
+
+/**
+ * How the class spent, against the budget the scenario authored.
+ *
+ * Three buckets rather than a histogram of every value: the lesson is whether a
+ * room bought more than it needed, and a professor reading "nine went over" acts
+ * on it. Which exact day each of them stopped at is on the scatter beside it.
+ */
+export function spendAgainstPar(rows: RosterRow[]): SpendSpread {
+  const finished = rows.filter(
+    (r) => r.state === "finished" && r.daysSpent !== null && r.daysPar !== null,
+  );
+  if (!finished.length) return { under: 0, at: 0, over: 0, averageDays: null };
+
+  let under = 0;
+  let at = 0;
+  let over = 0;
+  for (const row of finished) {
+    if (row.daysSpent! < row.daysPar!) under++;
+    else if (row.daysSpent! === row.daysPar!) at++;
+    else over++;
+  }
+  const total = finished.reduce((sum, r) => sum + r.daysSpent!, 0);
+  return { under, at, over, averageDays: Math.round((total / finished.length) * 10) / 10 };
+}
+
+export interface CauseCount {
+  id: string;
+  label: string;
+  count: number;
+  /** Whether this cause is one the scenario actually declares as true. */
+  correct: boolean;
+}
+
+/**
+ * What the class blamed, and how many of them were right.
+ *
+ * The debrief tells one student where their diagnosis went. This tells the
+ * professor where the ROOM's went — and a decoy that pulled in half the class is
+ * the thing worth ten minutes of the next lecture, not the average score.
+ *
+ * A student may name up to `simConfig.maxCausesNamed`, so the counts sum to more
+ * than the number of students, and that is the honest reading: each bar is "how
+ * many people had this on their list".
+ *
+ * Causes nobody named are dropped, unlike the fixed scales elsewhere in this
+ * file — a board of twelve causes with two of them named is a chart about ten
+ * empty bars. The true causes are kept whatever happened, because "nobody named
+ * it" is the most important bar on the chart.
+ */
+export function causeMix(
+  rows: RosterRow[],
+  causes: { id: string; label: string }[],
+  trueCauseIds: readonly string[],
+): CauseCount[] {
+  const truth = new Set(trueCauseIds);
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    for (const id of row.namedCauses) counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+
+  return causes
+    .map((cause) => ({
+      id: cause.id,
+      label: cause.label,
+      count: counts.get(cause.id) ?? 0,
+      correct: truth.has(cause.id),
+    }))
+    .filter((cause) => cause.count > 0 || cause.correct)
+    .sort((a, b) => b.count - a.count || Number(b.correct) - Number(a.correct));
+}
+
+/**
+ * The median time a finished run took, in seconds, or null before any finish.
+ *
+ * Median rather than mean: one student who left the tab open over lunch moves a
+ * mean by twenty minutes, and the number a professor wants is "how long does
+ * this take a class", which is exactly what a median answers.
+ */
+export function medianRunTime(rows: RosterRow[]): number | null {
+  const times = rows
+    .filter((r) => r.state === "finished" && r.timeSpentSec !== null)
+    .map((r) => r.timeSpentSec!)
+    .sort((a, b) => a - b);
+  if (!times.length) return null;
+  const middle = Math.floor(times.length / 2);
+  return times.length % 2 === 1
+    ? times[middle]
+    : Math.round((times[middle - 1] + times[middle]) / 2);
 }

@@ -94,6 +94,30 @@ events:
 That third metric is the one that could invalidate the rest of this plan, which is why it is
 worth having before launch rather than after.
 
+### Update: all four now ship, without the adapter
+
+They did not need one. `Attempt`, `SimRun` and `ArenaMatch` all stamp `createdAt`, so every
+metric above falls out of tables that already exist — and `lib/admin-analytics.ts` computes
+them into the **Analytics tab** of `/admin` with no key, no provider and no schema change.
+
+Two of them are named differently there, deliberately:
+
+- **"Sessions per active week" is counted as distinct active days.** Nothing in the schema
+  records a session, so one would have to be invented out of gaps between timestamps. A day
+  somebody turned up is a fact the database holds, and it answers what this bullet was really
+  asking — a daily habit against a weekend cram — without dressing an assumption up as a
+  measurement.
+- **Content exhaustion is shown as coverage, split by tier rather than averaged.** "Reachable"
+  is the right denominator and is currently only meaningful for Pro: `guestSampleSize` is zero
+  across the board, so a free account's reachable set is the rotating daily pair. Averaging a
+  denominator of 61 with a denominator of 2 would describe neither, so the panel shows the two
+  populations side by side against the whole library and says so on the card.
+
+**The adapter is still the answer for what this cannot reach**: which button, which step, where
+inside an attempt somebody stops. Those are events, not rows, and no amount of reading the
+database recovers them. Nothing above forecloses it — the four headline metrics simply did not
+have to wait for it.
+
 ---
 
 ## 3. Lever 1 — mastery instead of a checklist

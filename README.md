@@ -331,6 +331,7 @@ failed download, not for a missing glyph.
 | Add / edit a decision simulation | `lib/sim/scenarios/` + a row in `lib/sim/registry.ts` and `prisma/seed-data.ts` |
 | Retune a simulation's numbers without a deploy | Admin panel → **Simulations** (see below) |
 | Tune simulation scoring / bands | `lib/config/simulation.ts` |
+| Retune the analytics windows and thresholds | `lib/admin-analytics.ts` (`QUIET_AFTER_DAYS`, `RETURN_WINDOWS`, `ACTIVITY_WINDOW_DAYS`, `EXHAUSTION_THRESHOLD`) |
 | Change the interviewer's behaviour / wording | `lib/llm/prompts.ts` |
 | Tune XP, levels, streak rules | `lib/config/gamification.ts` |
 | Change rank percentile bands (Silver→Diamond) | `lib/config/gamification.ts` (`rankBands`) |
@@ -958,6 +959,47 @@ and had never had.
 
 ---
 
+## Admin analytics
+
+`/admin` opens on **Analytics**, which answers how the cohort is doing; the Users tab beside it
+answers who a particular person is. The split is deliberate — one is a chart, the other is a
+roster with buttons that change somebody's account.
+
+The four metrics on it are not ours. [`RETENTION.md`](docs/RETENTION.md) §2 commits to them
+before any of its levers, and this is them: **D1 / D7 / D30 return rate**, **how often people
+come back in a week they are active**, **where they stop**, and **how much of the library they
+have seen**. Around them sit the counts the panel is opened for — registered, guests, active,
+never started, Pro, professors, Arena — and the mix of what is actually being practised, opened
+against finished, per format.
+
+**Computed from the database, not from an analytics provider.** That memo assumes a PostHog
+adapter is needed first. It is not: `Attempt`, `SimRun` and `ArenaMatch` all stamp `createdAt`,
+so all four fall out of tables that already exist — no schema change, no key, no external service,
+and the zero-key promise intact. An adapter is still the right answer for event-level questions
+this panel cannot reach (which button, which step, which drop-off inside an attempt), and nothing
+here forecloses it.
+
+Four things it is careful about, because each one is a way a dashboard lies:
+
+- **Denominators are shown.** A D7 of "60%" off five accounts is not a rate, so every return
+  figure carries the `returned of eligible` beneath it, and an account too new for a window to
+  have closed is not counted as having failed to return.
+- **Counts are queries.** The Users tab derives its headline numbers from a list capped at 500
+  rows; these come from `count`/`groupBy`, so they stay true when the roster stops fitting.
+- **Activity means opened, not finished.** Read from the tables' own timestamps rather than
+  `User.lastActiveDate`, which is written only when something is *completed* — somebody who came
+  back and opened a war room is invisible to that column, and they are exactly who a return rate
+  is about.
+- **It says what it cannot say.** There is no session table, so the weekly panel counts distinct
+  active days and calls them that. Only Pro reaches the whole library, so coverage shows Pro
+  apart from free rather than averaging two different denominators.
+
+`lib/admin-analytics.ts` holds the shaping as pure functions with the loader beside them, the way
+`lib/admin-stats.ts` does — the arithmetic is unit-tested in `tests/admin-analytics.test.ts`
+without a database.
+
+---
+
 ## Leaderboards
 
 The dashboard opens on **today's questions and then the practice leaderboard** — the two things a
@@ -1058,6 +1100,41 @@ alone hides, and the thing a debrief should open on.
 Both are derived from the roster the console is **already** polling, so the tab is live with
 no extra request, no extra endpoint and no schema change. The only data addition is one column
 (`daysPar`) on a `select` that was already running.
+
+**Class analytics** is the third tab, and it answers what neither of the others can: not who is
+in the room and not who won, but **how the class as a whole is doing**.
+
+- **Where the class is standing**, phase by phase, live. The question a professor actually has
+  mid-session is whether to keep going or stop and explain the pull market, and counting badges
+  down a table of forty is not a way to find that out.
+- **What they were good at** — the five scored dimensions averaged across finished runs. An
+  average of 65 is not something to teach from; "they diagnosed it and then funded the wrong
+  thing" is a lecture.
+- **What they blamed** — the causes named at Decide, with the true one marked. A decoy that
+  pulled in half the room is worth ten minutes of the next class, and it is invisible on every
+  other screen. Students may name up to three, so the bars deliberately sum to more than the
+  class size.
+- **How the scores fell**, by band, because two clusters and a mean of 60 is a different class
+  from everyone landing on 60. And **what it cost them**, as under / at / over the scenario's
+  authored par.
+
+Same posture as the standings: derived from the roster already being polled, so the whole tab
+is live for free. It needed three more columns on a `select` that was already running, and the
+scenario's cause labels — static for the life of a room, so they are passed in from the page
+rather than re-sent every five seconds.
+
+Two things it is careful about. A **turnaround** result stores zeros in the war room's five
+typed columns and its real scores in `scoresJson`, so a result from another format carries no
+dimensions and is skipped rather than averaged as a room that scored nothing. And the true
+causes reach the console but never the student's page — this screen is behind the host check,
+and the debrief reveals them to students anyway.
+
+**`/host` sums it across rooms**: how many people a professor has taught, how many finished,
+the average, the share that found the cause and came in under par — plus a row per war room
+they have run, so two sittings of the same scenario can be compared. A student who sat in two
+rooms counts once. The shaping is `lib/rooms/teaching.ts`, pure and tested like the roster
+beside it, and it counts a student as a **seat** rather than a run — the same rule the console
+uses, so the two screens can never disagree about how many people were in the room.
 
 ---
 

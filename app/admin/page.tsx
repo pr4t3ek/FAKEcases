@@ -3,6 +3,7 @@ import { getSessionUser } from "@/lib/auth";
 import { requirePasswordChange } from "@/lib/password-gate";
 import { db } from "@/lib/db";
 import { loadUserAdminStats } from "@/lib/admin-stats";
+import { loadAdminAnalytics } from "@/lib/admin-analytics";
 import { loadAdminScenarios } from "@/lib/scenario-store";
 import { leverDriverIds } from "@/lib/sim/overlay";
 import { MODE_PROMPTS } from "@/lib/llm/prompts";
@@ -23,6 +24,7 @@ import { CategoryManager } from "@/components/admin/category-manager";
 import { ImportPanel } from "@/components/admin/import-panel";
 import { FeedbackQueue } from "@/components/admin/feedback-queue";
 import { UserDashboard } from "@/components/admin/user-dashboard";
+import { AnalyticsDashboard } from "@/components/admin/analytics-dashboard";
 import { ScenarioManager } from "@/components/admin/scenario-manager";
 import {
   ContactEmailCard,
@@ -42,21 +44,23 @@ export default async function AdminPage() {
   // way out (`/set-password`) needs no permission at all.
   requirePasswordChange(user);
 
-  const [questions, categories, feedback, openCount, userStats, simScenarios] = await Promise.all([
-    db.question.findMany({ include: { category: true }, orderBy: { createdAt: "desc" } }),
-    db.category.findMany({
-      orderBy: { order: "asc" },
-      include: { _count: { select: { questions: true } } },
-    }),
-    db.questionFeedback.findMany({
-      include: { question: { select: { title: true } } },
-      orderBy: { createdAt: "desc" },
-      take: 100,
-    }),
-    db.questionFeedback.count({ where: { status: "Open" } }),
-    loadUserAdminStats(),
-    loadAdminScenarios(),
-  ]);
+  const [questions, categories, feedback, openCount, userStats, analytics, simScenarios] =
+    await Promise.all([
+      db.question.findMany({ include: { category: true }, orderBy: { createdAt: "desc" } }),
+      db.category.findMany({
+        orderBy: { order: "asc" },
+        include: { _count: { select: { questions: true } } },
+      }),
+      db.questionFeedback.findMany({
+        include: { question: { select: { title: true } } },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      }),
+      db.questionFeedback.count({ where: { status: "Open" } }),
+      loadUserAdminStats(),
+      loadAdminAnalytics(),
+      loadAdminScenarios(),
+    ]);
 
   // Seven days from today, each resolved the way a student's gate resolves it —
   // pin if there is one, otherwise the pick derived from the date. Nothing here
@@ -127,9 +131,12 @@ export default async function AdminPage() {
           Manage questions, categories and imports; review feedback and how the app is being used.
         </p>
 
-        {/* Users leads: it's the overview, and the content tabs are a click away. */}
-        <Tabs defaultValue="users" className="mt-6">
+        {/* Analytics leads and Users follows: the first question is how the
+            cohort is doing, and the roster is one click away when the answer
+            turns out to be about somebody in particular. */}
+        <Tabs defaultValue="analytics" className="mt-6">
           <TabsList className="flex-wrap">
+            <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="users">
               Users
               {/* Badged like the feedback queue beside it, and for the same
@@ -164,6 +171,17 @@ export default async function AdminPage() {
 
           <TabsContent value="walkthroughs" className="mt-4">
             <WalkthroughManager rows={walkthroughRows} demoExternalId={demoExternalId} />
+          </TabsContent>
+
+          <TabsContent value="analytics" className="mt-4">
+            {/* The two charts moved here from Users, so cohort-level lives in
+                one place — and they are passed rather than re-queried, since
+                `loadUserAdminStats` already computed both. */}
+            <AnalyticsDashboard
+              analytics={analytics}
+              signups={userStats.signups}
+              ranks={userStats.ranks}
+            />
           </TabsContent>
 
           <TabsContent value="users" className="mt-4">
