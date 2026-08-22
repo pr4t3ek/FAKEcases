@@ -559,6 +559,18 @@ score Diagnosis.
 
 A **simulation** is not answered at all — it is played. See below.
 
+**A guesstimate's report names what it is talking about.** The band a strong answer lands in is
+shown next to the number the candidate committed to, and every observation quotes their own work:
+which step's branches added to more than the whole, which box holds something that isn't a figure,
+how far out the answer landed and in which direction. A miss that lands within a quarter of a
+round power of ten — 10×, 100×, 1000× — is called what it almost always is, a unit slip rather
+than a judgement error, because re-doing the reasoning reproduces it exactly. Every deduction is
+priced in the sentence that names it (`buildFeedback` in `lib/evaluation.ts`), which the war room's
+debrief already did and the practice report did not: sibling shares over 100% and a tree the
+judge could not read both moved the score silently. The list is ordered by impact and capped, so
+what a weak attempt reads first is what cost it most, and the authored "consultant's angle" always
+closes it.
+
 A fourth thing exists and is deliberately not on this list: an **Arena** match is not an exercise,
 it is a game against three rivals that answer back, it is scored on its own rubric, and it is
 granted per account rather than reached by a tier. See [The Arena](#the-arena).
