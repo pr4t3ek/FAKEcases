@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Beaker, Clock } from "lucide-react";
 import { Brand } from "@/components/brand";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +35,7 @@ export function SimHeader({
   daysSpent,
   daysTotal,
   onOpenConcepts,
+  tutorial,
 }: {
   title: string;
   phase: SimPhase;
@@ -43,6 +45,13 @@ export function SimHeader({
   daysTotal: number;
   /** Present only when the scenario carries a primer. */
   onOpenConcepts?: () => void;
+  /**
+   * The tutorial's trigger, rendered beside Concepts.
+   *
+   * A slot rather than a prop pair, because the tour owns its own button AND
+   * its overlay — the header's job is only to say where the button goes.
+   */
+  tutorial?: ReactNode;
 }) {
   const remaining = Math.max(0, daysTotal - daysSpent);
   const currentIndex = SIM_PHASES.indexOf(phase);
@@ -76,7 +85,11 @@ export function SimHeader({
           <span className="truncate text-sm font-medium">{title}</span>
         </div>
 
-        <nav className="ml-auto hidden items-center gap-1 lg:flex" aria-label="Simulation phase">
+        <nav
+          data-tour="sim-phases"
+          className="ml-auto hidden items-center gap-1 lg:flex"
+          aria-label="Simulation phase"
+        >
           {SIM_PHASES.map((p, i) => (
             <span
               key={p}
@@ -96,9 +109,14 @@ export function SimHeader({
         <div className="flex shrink-0 items-center gap-3">
           {/* Always reachable, not just on arrival: a definition you cannot
               find again is a definition you did not read. */}
-          {onOpenConcepts && <ConceptsButton onClick={onOpenConcepts} />}
+          {onOpenConcepts && (
+            <span data-tour="sim-concepts">
+              <ConceptsButton onClick={onOpenConcepts} />
+            </span>
+          )}
+          {tutorial}
           {phase !== "debrief" && (
-            <div className="hidden w-40 sm:block">
+            <div data-tour="sim-days" className="hidden w-40 sm:block">
               <div className="mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
                 <span className="flex items-center gap-1">
                   {/* A coined unit, and until now defined nowhere in the UI.
