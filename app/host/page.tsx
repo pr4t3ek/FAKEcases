@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { Presentation, Siren } from "lucide-react";
+import { GraduationCap, Presentation, Siren, Target, Trophy, Users } from "lucide-react";
 import { requireHost } from "@/lib/auth";
 import { requirePasswordChange } from "@/lib/password-gate";
-import { listRoomsForHost } from "@/lib/rooms";
+import { listRoomsForHost, loadHostAnalytics } from "@/lib/rooms";
 import { AppHeader } from "@/components/app/app-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,10 @@ export const dynamic = "force-dynamic";
 export default async function HostPage() {
   const host = await requireHost();
   requirePasswordChange(host);
-  const rooms = await listRoomsForHost(host.id);
+  const [rooms, taught] = await Promise.all([
+    listRoomsForHost(host.id),
+    loadHostAnalytics(host.id),
+  ]);
 
   return (
     <div className="min-h-screen">
@@ -37,6 +40,78 @@ export default async function HostPage() {
             their own pace.
           </p>
         </div>
+
+        {/* Across every room they have opened. Absent before the first one,
+            because a wall of dashes teaches nobody anything. */}
+        {taught.rooms > 0 && (
+          <div className="mb-8 space-y-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+              <Stat
+                icon={Presentation}
+                label="Rooms"
+                value={taught.rooms}
+                sub={`${taught.roomsOpen} open now`}
+              />
+              <Stat
+                icon={Users}
+                label="Students"
+                value={taught.students}
+                sub={taught.seats === taught.students ? undefined : `${taught.seats} seats taken`}
+              />
+              <Stat
+                icon={GraduationCap}
+                label="Finished"
+                value={taught.finished}
+                sub={`of ${taught.started} started`}
+              />
+              <Stat
+                icon={Trophy}
+                label="Average"
+                value={taught.averageScore ?? "—"}
+                sub="across finished runs"
+              />
+              <Stat
+                icon={Target}
+                label="Found the cause"
+                value={share(taught.causesFound, taught.finished)}
+                sub={`${share(taught.underPar, taught.finished)} came in under par`}
+              />
+            </div>
+
+            {taught.scenarios.length > 1 && (
+              <Card className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="border-b bg-muted/40 text-left text-xs uppercase text-muted-foreground">
+                    <tr>
+                      <th className="p-3">War room</th>
+                      <th className="p-3 text-right">Rooms</th>
+                      <th className="p-3 text-right">Students</th>
+                      <th className="p-3 text-right">Finished</th>
+                      <th className="p-3 text-right">Average</th>
+                      <th className="p-3 text-right">Found it</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {taught.scenarios.map((row) => (
+                      <tr key={row.questionId} className="hover:bg-accent/40">
+                        <td className="p-3 font-medium">{row.title}</td>
+                        <td className="p-3 text-right tabular-nums">{row.rooms}</td>
+                        <td className="p-3 text-right tabular-nums">{row.students}</td>
+                        <td className="p-3 text-right tabular-nums">{row.finished}</td>
+                        <td className="p-3 text-right tabular-nums">
+                          {row.averageScore ?? "—"}
+                        </td>
+                        <td className="p-3 text-right tabular-nums">
+                          {share(row.causesFound, row.finished)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </Card>
+            )}
+          </div>
+        )}
 
         {rooms.length === 0 ? (
           <Card className="p-12 text-center">
@@ -78,5 +153,33 @@ export default async function HostPage() {
         )}
       </main>
     </div>
+  );
+}
+
+/** A percentage, or an em dash when there is nothing to take a share of. */
+function share(part: number, whole: number): string {
+  return whole === 0 ? "—" : `${Math.round((part / whole) * 100)}%`;
+}
+
+function Stat({
+  icon: Icon,
+  label,
+  value,
+  sub,
+}: {
+  icon: typeof Users;
+  label: string;
+  value: string | number;
+  sub?: string;
+}) {
+  return (
+    <Card className="p-4">
+      <div className="flex items-center gap-2 text-muted-foreground">
+        <Icon className="h-4 w-4" />
+        <span className="text-xs">{label}</span>
+      </div>
+      <div className="mt-1 text-2xl font-bold tabular-nums">{value}</div>
+      {sub && <div className="mt-0.5 text-[11px] text-muted-foreground">{sub}</div>}
+    </Card>
   );
 }

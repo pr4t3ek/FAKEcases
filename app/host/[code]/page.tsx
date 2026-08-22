@@ -6,6 +6,7 @@ import { requireHost } from "@/lib/auth";
 import { requirePasswordChange } from "@/lib/password-gate";
 import { loadRoom, loadRoster } from "@/lib/rooms";
 import { roomIsOpen } from "@/lib/rooms/access";
+import { getScenario } from "@/lib/sim/registry";
 import { AppHeader } from "@/components/app/app-header";
 import { Badge } from "@/components/ui/badge";
 import { RoomCode } from "@/components/rooms/room-code";
@@ -46,6 +47,18 @@ export default async function HostConsolePage({
   const [roster, joinUrl] = await Promise.all([loadRoster(room.id), joinUrlFor(room.code)]);
   const open = roomIsOpen(room);
 
+  /*
+   * The board this room is played on, resolved once here rather than shipped in
+   * every poll: the labels are static for the life of a room, and the console
+   * asks for a roster every five seconds.
+   *
+   * `getScenario` returns undefined for a slug that has left the catalogue —
+   * see its own note — so the class view is told rather than left to render a
+   * chart of ids. The true causes are the professor's to see: this screen is
+   * behind a host check, and the debrief reveals them to the students anyway.
+   */
+  const scenario = room.question.externalId ? getScenario(room.question.externalId) : undefined;
+
   return (
     <div className="min-h-screen">
       <AppHeader user={host} />
@@ -85,7 +98,14 @@ export default async function HostConsolePage({
 
           {/* Server-rendered once and handed to the poller, so the first paint is
               correct and the console still works if the poll never succeeds. */}
-          <RosterBoard code={room.code} initial={roster} roomOpen={open} />
+          <RosterBoard
+            code={room.code}
+            initial={roster}
+            roomOpen={open}
+            causes={(scenario?.causes ?? []).map((c) => ({ id: c.id, label: c.label }))}
+            trueCauseIds={[...(scenario?.trueCauseIds ?? [])]}
+            scenarioKnown={!!scenario}
+          />
         </div>
       </main>
     </div>
