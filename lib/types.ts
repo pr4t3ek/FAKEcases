@@ -342,6 +342,37 @@ export function canHostRooms(role: string): boolean {
 }
 
 /**
+ * The types a professor can open a classroom room on.
+ *
+ * A war room, which the class plays as `SimRun`s, and a guesstimate, which they
+ * work as ordinary `Attempt`s. Both are hosted by the SAME room row — see the
+ * note on `model SimRoom` — because a room is coordination and entitlement and
+ * does not care which of the two it is holding.
+ *
+ * An allow-list rather than "anything that isn't a `case`", so a type added to
+ * `QUESTION_TYPES` later is un-hostable until somebody decides it is hostable and
+ * says where its roster comes from. `qualitative` is absent for that reason and
+ * not by oversight: nothing about the room mechanics refuses one, but the host
+ * console has no shape for it yet.
+ */
+export const HOSTABLE_TYPES = ["guesstimate", SIMULATION_TYPE] as const;
+
+export function isHostableType(type: string): boolean {
+  return (HOSTABLE_TYPES as readonly string[]).includes(type);
+}
+
+/**
+ * What the room's students produce, and therefore which roster the host console
+ * reads. Derived from the question rather than stored on the room: two columns
+ * answering "what kind of room is this" is how they come to disagree.
+ */
+export type RoomKind = "simulation" | "practice";
+
+export function roomKindFor(questionType: string): RoomKind {
+  return isSimulation(questionType) ? "simulation" : "practice";
+}
+
+/**
  * `SimRoom.status`.
  *
  * Closing stops new joins and new runs; it deliberately does NOT stop a run

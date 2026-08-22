@@ -6,7 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { getOrCreateGuest, getSessionUser } from "@/lib/auth";
 import { canOpen, tierFor } from "@/lib/entitlements";
-import { canHostRooms } from "@/lib/types";
+import { canHostRooms, isHostableType, isSimulation } from "@/lib/types";
 import { scenarioExists } from "@/lib/scenario-store";
 import { isSimulatorSlug } from "@/lib/sim/configs/registry";
 import { createLimiter } from "@/lib/rate-limit";
@@ -66,7 +66,7 @@ const createSchema = z.object({
 });
 
 /**
- * Open a room on a war room the host picked from the catalogue.
+ * Open a room on a war room or a guesstimate the host picked from the catalogue.
  *
  * **Gated on the HOST's own tier, with no grant.** A professor who cannot open a
  * scenario cannot host it either — otherwise the role is a way to hand the
@@ -74,6 +74,12 @@ const createSchema = z.object({
  * anyone with a teaching account can waive. An admin pairs "make professor" with
  * a Pro grant when a professor should reach the paid set; the two buttons sit
  * next to each other for exactly this reason.
+ *
+ * The type check below is an ALLOW-LIST, not a pair of exclusions. A room is
+ * coordination and entitlement (see `lib/rooms.ts`), so nothing here stops it
+ * pointing at a catalogue row nobody has written a way to *play* — `case` has no
+ * runtime at all, and a room opened on one would be sixty students at a door
+ * with nothing behind it.
  */
 export async function createRoom(input: unknown): Promise<RoomResult> {
   const host = await assertHost();
@@ -87,16 +93,22 @@ export async function createRoom(input: unknown): Promise<RoomResult> {
     where: { id: parsed.data.questionId },
     select: { id: true, externalId: true, type: true, freeTier: true },
   });
-  if (!question || question.type !== "simulation") {
-    return { ok: false, error: "That isn't a war room." };
+  if (!question || !isHostableType(question.type)) {
+    return { ok: false, error: "That can't be hosted in class." };
   }
 
-  // The same two-registry check `startSimulation` does, so a room can never be
-  // opened on a catalogue row with no runtime behind it — which would strand a
-  // whole class at the door rather than one person.
-  const slug = question.externalId;
-  if (!slug || !(scenarioExists(slug) || isSimulatorSlug(slug))) {
-    return { ok: false, error: "That war room has no scenario behind it yet." };
+  if (isSimulation(question.type)) {
+    // The same two-registry check `startSimulation` does, so a room can never be
+    // opened on a catalogue row with no runtime behind it — which would strand a
+    // whole class at the door rather than one person.
+    //
+    // A guesstimate has no counterpart to run: the interviewer, the tree and the
+    // rubric are the same ones every practice attempt uses, so there is no
+    // second registry that could disagree with the catalogue.
+    const slug = question.externalId;
+    if (!slug || !(scenarioExists(slug) || isSimulatorSlug(slug))) {
+      return { ok: false, error: "That war room has no scenario behind it yet." };
+    }
   }
 
   if (!canOpen(tierFor(host), question)) {

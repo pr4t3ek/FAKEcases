@@ -20,6 +20,7 @@ import {
 import {
   INTERVIEW_LEVEL_LABELS,
   answerModeFor,
+  isHostableType,
   isSimulation,
   type InterviewLevel,
   type TreeMode,
@@ -81,11 +82,14 @@ export function QuestionCard({
    */
   attemptState?: AttemptQuestionState | null;
   /**
-   * Whether to offer "host this in class". True only for a professor or admin,
-   * and only on a simulation.
+   * Whether to offer "host this in class". True only for a professor or admin.
+   *
+   * Whether the *question* can be hosted is `isHostableType`, checked below —
+   * the same allow-list `createRoom` gates on, rather than a second idea of it
+   * kept here.
    *
    * Note it is read alongside `locked` below, never instead of it: a host can
-   * only open a room on a war room their own account can play, which is what
+   * only open a room on a question their own account can open, which is what
    * `createRoom` enforces. Offering the control on a locked card would be an
    * offer the action then refuses — the exact failure `lib/entitlements.ts`
    * exists to prevent.
@@ -311,14 +315,18 @@ export function QuestionCard({
         </Button>
       )}
 
-      {/* The professor's way in, and the literal "pick the war room from the
-          library" step. It sits under whichever of the three war-room actions
-          rendered above rather than inside each, because hosting is orthogonal
-          to whether this host has played it themselves. Gated on `!locked` for
-          the reason given on the prop. */}
-      {simulation && !locked && canHost && (
+      {/* The professor's way in, and the literal "pick the exercise from the
+          catalogue" step. It sits under whichever of the actions rendered above
+          rather than inside each, because hosting is orthogonal to whether this
+          host has worked it themselves. Gated on `!locked` for the reason given
+          on the prop. */}
+      {isHostableType(question.type) && !locked && canHost && (
         <div className="mt-2 text-center">
-          <HostRoomDialog questionId={question.id} questionTitle={question.title} />
+          <HostRoomDialog
+            questionId={question.id}
+            questionTitle={question.title}
+            kind={simulation ? "simulation" : "practice"}
+          />
         </div>
       )}
 

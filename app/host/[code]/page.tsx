@@ -1,17 +1,19 @@
 import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Siren } from "lucide-react";
+import { ArrowLeft, Calculator, Siren } from "lucide-react";
 import { requireHost } from "@/lib/auth";
 import { requirePasswordChange } from "@/lib/password-gate";
-import { loadRoom, loadRoster } from "@/lib/rooms";
+import { loadPracticeRoster, loadRoom, loadRoster } from "@/lib/rooms";
 import { roomIsOpen } from "@/lib/rooms/access";
 import { getScenario } from "@/lib/sim/registry";
+import { roomKindFor } from "@/lib/types";
 import { AppHeader } from "@/components/app/app-header";
 import { Badge } from "@/components/ui/badge";
 import { RoomCode } from "@/components/rooms/room-code";
 import { RoomControls } from "@/components/rooms/room-controls";
 import { RosterBoard } from "@/components/rooms/roster-board";
+import { PracticeRosterBoard } from "@/components/rooms/practice-roster-board";
 
 export const dynamic = "force-dynamic";
 
@@ -44,8 +46,18 @@ export default async function HostConsolePage({
   // the same reason `ownedRoom` lets them: support without impersonation.
   if (!room || (room.hostId !== host.id && host.role !== "admin")) notFound();
 
-  const [roster, joinUrl] = await Promise.all([loadRoster(room.id), joinUrlFor(room.code)]);
   const open = roomIsOpen(room);
+
+  // Which roster the console reads, decided by the room's question — the same
+  // derivation `/room/[code]` and the poll route make, and never a second column
+  // that could disagree with it.
+  const kind = roomKindFor(room.question.type);
+
+  const [roster, practiceRoster, joinUrl] = await Promise.all([
+    kind === "simulation" ? loadRoster(room.id) : null,
+    kind === "practice" ? loadPracticeRoster(room.id) : null,
+    joinUrlFor(room.code),
+  ]);
 
   /*
    * The board this room is played on, resolved once here rather than shipped in
@@ -56,8 +68,14 @@ export default async function HostConsolePage({
    * see its own note — so the class view is told rather than left to render a
    * chart of ids. The true causes are the professor's to see: this screen is
    * behind a host check, and the debrief reveals them to the students anyway.
+   *
+   * Skipped entirely for a practice room, whose equivalent static fact is the
+   * question's accepted range.
    */
-  const scenario = room.question.externalId ? getScenario(room.question.externalId) : undefined;
+  const scenario =
+    kind === "simulation" && room.question.externalId
+      ? getScenario(room.question.externalId)
+      : undefined;
 
   return (
     <div className="min-h-screen">
@@ -74,7 +92,11 @@ export default async function HostConsolePage({
           <div>
             <h1 className="text-2xl font-bold tracking-tight">{room.name}</h1>
             <p className="mt-1 flex flex-wrap items-center gap-2 text-muted-foreground">
-              <Siren className="h-4 w-4 text-primary" />
+              {kind === "simulation" ? (
+                <Siren className="h-4 w-4 text-primary" />
+              ) : (
+                <Calculator className="h-4 w-4 text-primary" />
+              )}
               {room.question.title}
               <Badge variant={open ? "success" : "muted"}>{open ? "Open" : "Closed"}</Badge>
             </p>
@@ -98,14 +120,25 @@ export default async function HostConsolePage({
 
           {/* Server-rendered once and handed to the poller, so the first paint is
               correct and the console still works if the poll never succeeds. */}
-          <RosterBoard
-            code={room.code}
-            initial={roster}
-            roomOpen={open}
-            causes={(scenario?.causes ?? []).map((c) => ({ id: c.id, label: c.label }))}
-            trueCauseIds={[...(scenario?.trueCauseIds ?? [])]}
-            scenarioKnown={!!scenario}
-          />
+          {practiceRoster ? (
+            <PracticeRosterBoard
+              code={room.code}
+              initial={practiceRoster}
+              roomOpen={open}
+              unit={room.question.unit}
+              idealLow={room.question.idealLow}
+              idealHigh={room.question.idealHigh}
+            />
+          ) : (
+            <RosterBoard
+              code={room.code}
+              initial={roster!}
+              roomOpen={open}
+              causes={(scenario?.causes ?? []).map((c) => ({ id: c.id, label: c.label }))}
+              trueCauseIds={[...(scenario?.trueCauseIds ?? [])]}
+              scenarioKnown={!!scenario}
+            />
+          )}
         </div>
       </main>
     </div>

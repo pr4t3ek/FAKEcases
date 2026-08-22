@@ -589,8 +589,9 @@ Access is a property of a **tier**, not of the user row:
 | `free` | a registered account | the same questions, plus saved progress, streaks, rank and a profile |
 | `pro` | a live pass (`User.proUntil > now`) | the whole library |
 
-Plus one thing that is **not** a tier: sitting in a classroom room opens that room's single war
-room, and nothing else, for as long as the room is open. See [Classroom rooms](#classroom-rooms).
+Plus one thing that is **not** a tier: sitting in a classroom room opens that room's single
+question — a war room or a guesstimate — and nothing else, for as long as the room is open. See
+[Classroom rooms](#classroom-rooms).
 
 The free set is **one of each format** — one guesstimate, one case and one simulation. Today
 those are chai in Bangalore, the food-delivery margin case, and the Kadak Coffee war room: the
@@ -1040,11 +1041,11 @@ score and a guesstimate's come off different rubrics, so the sum of the two meas
 
 ## Classroom rooms
 
-A professor runs a war room as a class exercise. They pick one from the catalogue, choose
-**host this in class**, and get a six-character code and a password to read out. Students join
-at `/join` — **no account needed** — and each plays their own run at their own pace while the
-professor watches a live roster: who's in, what phase they're on, analyst-days burned, final
-score and band.
+A professor runs a war room **or a guesstimate** as a class exercise. They pick one from the
+catalogue, choose **host this in class**, and get a six-character code and a password to read
+out. Students join at `/join` — **no account needed** — and each works their own copy at their
+own pace while the professor watches a live roster: who's in, where they are, and what they
+finished with.
 
 Seeded to try immediately: `prof@caseclosed.app` / `prof1234`.
 
@@ -1129,9 +1130,47 @@ dimensions and is skipped rather than averaged as a room that scored nothing. An
 causes reach the console but never the student's page — this screen is behind the host check,
 and the debrief reveals them to students anyway.
 
-**`/host` sums it across rooms**: how many people a professor has taught, how many finished,
-the average, the share that found the cause and came in under par — plus a row per war room
-they have run, so two sittings of the same scenario can be compared. A student who sat in two
+### Hosting a guesstimate
+
+The room is **the same row**. `SimRoom` was always coordination and entitlement and nothing
+else — it points at a `Question`, hands out a grant for that one question, and collects a
+roster of seats — so hosting a guesstimate needed no second kind of room, no second code
+space and no second join flow. What differs is only what the students produce: an `Attempt`
+where a war room produces a `SimRun`. `roomKindFor(question.type)` decides which, and the room
+page, the console and the poll route all ask that one function rather than each keeping an idea
+of what the room is.
+
+**One column.** `Attempt` gained a nullable `roomId`, mirroring `SimRun.roomId` down to the
+`SetNull` — a professor tidying up after term must not delete the work sixty students did.
+
+**Two sittings, not one.** A class attempt and a solo attempt on the same guesstimate are
+separate, exactly as they already are for war rooms: `startAttempt` resumes only `roomId: null`
+rows and `attemptStateByQuestion` counts only those, so the library can't reopen — or offer a
+Resume button for — work started in a lecture.
+
+**The way in is the room page, and only the room page.** `startRoomAttempt` is the practice-side
+twin of `startRoomRun`: it takes the code alone and *derives* the question from the room, so
+there is no client-supplied id to cross-check and no forgery path to keep getting right. The
+library and the dashboard go on deriving their grant from the daily unlock, untouched — each
+surface's button and gate still call one function, which is the whole invariant.
+
+**What the console shows** is the seat-driven roster the war room has, in the terms a
+guesstimate has: not started / working / submitted, the estimate, minutes on the question, and
+the score — under the question's accepted range, with a count of how many landed inside it. A
+submitted attempt with no score reads *unscored* rather than zero, because a Teacher-mode
+attempt states the answer and so measures nothing. The five-second poll itself is shared with
+the war-room console (`useRosterPoll`); the tables are not, because standings on analyst-days
+and a cause-mix chart have no guesstimate counterpart.
+
+**What is deliberately not hosted.** `HOSTABLE_TYPES` is an allow-list of two. `case` has no
+runtime at all, and `qualitative` is left out for a smaller reason worth stating: nothing about
+the room refuses one, but the console has no shape for it yet, and a room a professor cannot
+watch is worse than one they cannot open. The cross-room roll-up below stays war-room-only for
+the same kind of honesty — every figure in it (found the cause, under par) is a war room's.
+
+**`/host` sums it across rooms** (war rooms — see above): how many people a professor has
+taught, how many finished, the average, the share that found the cause and came in under par —
+plus a row per war room they have run, so two sittings of the same scenario can be compared. A student who sat in two
 rooms counts once. The shaping is `lib/rooms/teaching.ts`, pure and tested like the roster
 beside it, and it counts a student as a **seat** rather than a run — the same rule the console
 uses, so the two screens can never disagree about how many people were in the room.

@@ -1,13 +1,15 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { getOrCreateGuest } from "@/lib/auth";
+import { getOrCreateGuest, getSessionUser } from "@/lib/auth";
 import { dailyGrantFor } from "@/lib/daily-unlock";
 import { canOpen, tierFor, wallRedirect } from "@/lib/entitlements";
 import { interviewerReply, isRealProvider } from "@/lib/llm";
 import { recordLlmCall } from "@/lib/llm/budget";
 import { toQuestionContext } from "@/lib/question-context";
+import { roomGrantFor, seatFor } from "@/lib/rooms";
 import { answerModeFor, isSimulation, type TreeMode } from "@/lib/types";
 
 /**
@@ -51,11 +53,9 @@ export async function startAttempt(
   // anyway.
   if (!question || isSimulation(question.type)) redirect("/library");
 
-  // Resume an existing in-progress attempt if one exists.
-  const existing = await db.attempt.findFirst({
-    where: { userId: user.id, questionId, status: "in_progress" },
-    orderBy: { createdAt: "desc" },
-  });
+  // Resume an existing in-progress attempt if one exists. Solo ones only — see
+  // `findResumableAttempt`.
+  const existing = await findResumableAttempt(user.id, questionId, null);
   if (existing) {
     // Resuming used to happen before the requested mode was even read, so
     // asking for Guided on a question already open in Solo silently handed back
@@ -101,13 +101,66 @@ export async function startAttempt(
         ? "guided"
         : "solo"
       : null;
+  const attemptId = await openAttempt({
+    userId: user.id,
+    question,
+    treeMode,
+    roomId: null,
+  });
+
+  redirect(`/practice/${attemptId}`);
+}
+
+/**
+ * The newest unfinished attempt on this question in this sitting, or null.
+ *
+ * **`roomId` is a real `IS NULL` filter when it is null**, not "any room by
+ * omission" — the symmetry `findResumableRun` spells out, for the same two
+ * failures. Unscoped, a student who worked the class guesstimate would find that
+ * attempt reopened the next time they picked the question off the library
+ * (outside the room, against a question their tier may not open), and a room
+ * would adopt a half-built tree from last week as the class exercise.
+ */
+async function findResumableAttempt(
+  userId: string,
+  questionId: string,
+  roomId: string | null,
+) {
+  return db.attempt.findFirst({
+    where: { userId, questionId, roomId, status: "in_progress" },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, treeMode: true },
+  });
+}
+
+/**
+ * Create the attempt and seed the interviewer's opening turn.
+ *
+ * Extracted so the library entry point and the classroom one cannot drift on
+ * either — the same reason, and the same shape, as `openSimulationRun` in
+ * `app/actions/simulations.ts`. An attempt that skipped the seed would open on
+ * an empty chat, which reads as a broken screen rather than as a missing
+ * courtesy.
+ *
+ * Deliberately not exported, and deliberately not a gate: both callers gate
+ * before they reach it, each with the grant its own surface derives.
+ */
+async function openAttempt(args: {
+  userId: string;
+  question: Prisma.QuestionGetPayload<{ include: { category: true } }>;
+  treeMode: TreeMode | null;
+  roomId: string | null;
+}): Promise<string> {
+  const { userId, question, treeMode, roomId } = args;
+
   const attempt = await db.attempt.create({
     data: {
-      userId: user.id,
-      questionId,
+      userId,
+      questionId: question.id,
       mode: "interviewer",
       status: "in_progress",
       treeMode,
+      roomId,
     },
   });
 
@@ -138,5 +191,61 @@ export async function startAttempt(
     // Non-fatal: the practice screen still works without a seeded opener.
   }
 
-  redirect(`/practice/${attempt.id}`);
+  return attempt.id;
+}
+
+/**
+ * Work the guesstimate a classroom is running.
+ *
+ * The practice-side twin of `startRoomRun`, and it takes only the code for the
+ * reason that one gives: the question is DERIVED from the room, so there is no
+ * client-supplied id to cross-check against it and no forgery path to keep
+ * getting right forever.
+ */
+export async function startRoomAttempt(code: string): Promise<void> {
+  // Not `getOrCreateGuest`: a seat implies a row already exists, and minting one
+  // here would silently create an account for someone who never joined.
+  const user = await getSessionUser();
+  if (!user) redirect(`/join/${code}`);
+
+  const seated = await seatFor(user.id, code);
+  if (!seated) redirect(`/join/${code}`);
+  const { room } = seated;
+
+  // A war room is played, not answered — the guard `startAttempt` states at
+  // length, here so a room opened on one can never mint a practice attempt
+  // against a rubric it was not written for.
+  if (isSimulation(room.question.type)) redirect(`/room/${code}`);
+
+  // Resume BEFORE the gate, matching `startAttempt` and `startRoomRun`. A room
+  // closed while a student was ten minutes into their tree must not strand it.
+  const resumable = await findResumableAttempt(user.id, room.questionId, room.id);
+  if (resumable) redirect(`/practice/${resumable.id}`);
+
+  // The control, and the same call the room page rendered its button from —
+  // with the same derivation, which is what keeps the button and the gate
+  // honest. A closed room fails here because `roomGrantFor` counts only open
+  // ones, so there is no separate status check for a future caller to forget.
+  const grant = await roomGrantFor(user.id);
+  if (!canOpen(tierFor(user), room.question, grant)) redirect(`/room/${code}`);
+
+  // The room's question, re-read with its category because the interviewer's
+  // opening turn needs it. `loadRoom` includes the question but not that.
+  const question = await db.question.findUnique({
+    where: { id: room.questionId },
+    include: { category: true },
+  });
+  if (!question) redirect(`/room/${code}`);
+
+  // Solo, always. Guided is a deliberate choice made on a library card, and the
+  // room page offers one button rather than two — a class working the same
+  // question needs to be working the same exercise.
+  const attemptId = await openAttempt({
+    userId: user.id,
+    question,
+    treeMode: answerModeFor(question.type) === "qualitative" ? "solo" : null,
+    roomId: room.id,
+  });
+
+  redirect(`/practice/${attemptId}`);
 }

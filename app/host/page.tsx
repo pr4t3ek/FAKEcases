@@ -3,6 +3,7 @@ import { GraduationCap, Presentation, Siren, Target, Trophy, Users } from "lucid
 import { requireHost } from "@/lib/auth";
 import { requirePasswordChange } from "@/lib/password-gate";
 import { listRoomsForHost, loadHostAnalytics } from "@/lib/rooms";
+import { isSimulation } from "@/lib/types";
 import { AppHeader } from "@/components/app/app-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,10 +14,10 @@ export const dynamic = "force-dynamic";
 /**
  * The professor's rooms.
  *
- * Deliberately has no "new room" form of its own. A room is opened from the war
- * room it will run — the catalogue is where the choice is actually made — so
- * this page's empty state points at `/simulations` rather than growing a second
- * copy of that grid behind a different heading.
+ * Deliberately has no "new room" form of its own. A room is opened from the
+ * exercise it will run — the catalogue is where the choice is actually made — so
+ * this page's empty state points at the catalogues rather than growing a second
+ * copy of those grids behind a different heading.
  */
 export default async function HostPage() {
   const host = await requireHost();
@@ -35,9 +36,9 @@ export default async function HostPage() {
             <Presentation className="h-6 w-6 text-primary" /> Classroom rooms
           </h1>
           <p className="mt-1 max-w-3xl text-muted-foreground">
-            Open a room on any war room you can play, read out the code and the password, and
-            watch the roster fill in. Students join without an account and play their own run at
-            their own pace.
+            Open a room on any war room or guesstimate you can open yourself, read out the code
+            and the password, and watch the roster fill in. Students join without an account and
+            work it at their own pace.
           </p>
         </div>
 
@@ -83,6 +84,10 @@ export default async function HostPage() {
                 <table className="w-full text-sm">
                   <thead className="border-b bg-muted/40 text-left text-xs uppercase text-muted-foreground">
                     <tr>
+                      {/* War rooms only, and labelled so — every column beside
+                          this one (found the cause, under par) is a war room's,
+                          and `loadHostAnalytics` filters to them for that
+                          reason. */}
                       <th className="p-3">War room</th>
                       <th className="p-3 text-right">Rooms</th>
                       <th className="p-3 text-right">Students</th>
@@ -118,12 +123,17 @@ export default async function HostPage() {
             <Siren className="mx-auto h-8 w-8 text-muted-foreground" />
             <p className="mt-4 font-medium">No rooms yet</p>
             <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-              Pick the war room you want to run, then choose{" "}
+              Pick the war room or the guesstimate you want to run, then choose{" "}
               <span className="font-medium">host this in class</span> on its card.
             </p>
-            <Button asChild className="mt-6">
-              <Link href="/simulations">Browse war rooms</Link>
-            </Button>
+            <div className="mt-6 flex flex-wrap justify-center gap-3">
+              <Button asChild>
+                <Link href="/simulations">Browse war rooms</Link>
+              </Button>
+              <Button asChild variant="secondary">
+                <Link href="/library">Browse guesstimates</Link>
+              </Button>
+            </div>
           </Card>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -140,9 +150,14 @@ export default async function HostPage() {
                   {room.question.title}
                 </p>
                 <p className="mt-3 font-mono text-lg tracking-[0.2em]">{room.code}</p>
+                {/* Runs for a war room, attempts for a guesstimate. Counting
+                    only runs would tell a professor nobody had started a
+                    practice room whose class is halfway through it. */}
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {room._count.members} joined · {room._count.runs} run
-                  {room._count.runs === 1 ? "" : "s"}
+                  {room._count.members} joined ·{" "}
+                  {isSimulation(room.question.type)
+                    ? `${room._count.runs} run${room._count.runs === 1 ? "" : "s"}`
+                    : `${room._count.attempts} attempt${room._count.attempts === 1 ? "" : "s"}`}
                 </p>
                 <Button asChild className="mt-4 w-full" variant="secondary">
                   <Link href={`/host/${room.code}`}>Open the console</Link>
