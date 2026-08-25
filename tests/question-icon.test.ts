@@ -158,10 +158,18 @@ const EXPECTED: Record<string, string> = {
   // A retail chain whose subject is medicine: "pharmacy" in the tags reaches
   // the healthcare rule before the Retail category fallback can be used.
   "Sehat Plus: 87% availability on 24% more stock": "Stethoscope",
+  // The other operations war room, and the Operations category icon is never
+  // reached: "manufacturing" in the tags is a subject the rules have a card
+  // for, and a factory is the right card for a gear plant.
+  "Trishul Gears: every machine is busy and one dispatch in five is late": "Factory",
   // "revenue" (in "net revenue retention") outranks "logistics" in the rule
   // order, and that is the right call here: the subject is retained ARR, not
   // freight. The software happens to be sold to hauliers.
   "Setu: three quarters of shipping the most-requested features, and NRR at 94%": "IndianRupee",
+  // "Foods" in the company name reaches the food rule before the Finance
+  // category fallback, which is right: the arithmetic is management accounting
+  // and the subject is a biscuit factory.
+  "Mithila Foods: the costing sheet says kill the biscuit that pays the rent": "Utensils",
   "Kirti Apparel: revenue is up 22% and profit is down 62%": "Shirt",
   "Nirmal Pipes: a record profit and no money for payroll": "Factory",
   // "ceramic" beats "bank" — the bank is in the sentence, not in the subject.

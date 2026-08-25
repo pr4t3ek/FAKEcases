@@ -26,7 +26,9 @@ import { marketSizingGtm } from "./scenarios/market-sizing-gtm";
 import { marketplaceLiquidity } from "./scenarios/marketplace-liquidity";
 import { b2bDealTco } from "./scenarios/b2b-deal-tco";
 import { sehatPlusServiceLevel } from "./scenarios/sehat-plus-service-level";
+import { plantConstraintThroughput } from "./scenarios/plant-constraint-throughput";
 import { setuRoadmapValue } from "./scenarios/setu-roadmap-value";
+import { productCostAbsorption } from "./scenarios/product-cost-absorption";
 import { pnlProfitSqueeze } from "./scenarios/pnl-profit-squeeze";
 import { cashConversionCycle } from "./scenarios/cash-conversion-cycle";
 import { balanceSheetLeverage } from "./scenarios/balance-sheet-leverage";
@@ -36,16 +38,18 @@ import { cashRunwayTurnaround } from "./scenarios/cash-runway-turnaround";
 // Easiest first: this is the order the library shows them in, and a beginner
 // meeting the track for the first time should not land on the hardest one.
 //
-// The four finance scenarios sit together rather than being interleaved by
-// topic, because they are a sequence: the P&L one teaches a student to read a
-// statement, the cash flow one shows them that statement cannot tell them
-// whether the company can pay anybody, and the balance sheet one adds the
-// capital neither of the first two can see. The fourth is not a fourth
-// statement — it is the decision the first three equip you to take, which is
-// whether to commit the next rupee of capital at all. Kept contiguous, and
-// still in difficulty order — Easy, Easy, Medium, Hard — with the Hard one
-// last in the block rather than last overall, because the turnaround below is
-// a different exercise rather than a harder war room.
+// The five finance scenarios sit together rather than being interleaved by
+// topic, because they are a sequence. The costing one comes first because it
+// teaches the distinction every statement above it assumes — a cost that moves
+// with volume against one that does not. Then the P&L one teaches a student to
+// read a statement, the cash flow one shows them that statement cannot tell
+// them whether the company can pay anybody, and the balance sheet one adds the
+// capital neither of those can see. The last is not a fourth statement — it is
+// the decision the others equip you to take, which is whether to commit the
+// next rupee of capital at all. Kept contiguous, and still in difficulty order
+// — Easy, Easy, Easy, Medium, Hard — with the Hard one last in the block rather
+// than last overall, because the turnaround below is a different exercise
+// rather than a harder war room.
 const ALL: SimScenario[] = [
   adFunnelRoas,
   // The analytics track, kept contiguous for the same reason the finance three
@@ -60,6 +64,7 @@ const ALL: SimScenario[] = [
   vyaparMitraActivation,
   subscriptionLtvCac,
   channelTradeSpend,
+  productCostAbsorption,
   pnlProfitSqueeze,
   cashConversionCycle,
   balanceSheetLeverage,
@@ -67,7 +72,12 @@ const ALL: SimScenario[] = [
   pricingElasticity,
   marketSizingGtm,
   marketplaceLiquidity,
+  // The two operations war rooms, kept next to each other: one is about the
+  // inventory a service promise needs, the other about the capacity a delivery
+  // promise needs, and a student who has met the first has the vocabulary for
+  // the second.
   sehatPlusServiceLevel,
+  plantConstraintThroughput,
   setuRoadmapValue,
   b2bDealTco,
   metricDropFoodDelivery,

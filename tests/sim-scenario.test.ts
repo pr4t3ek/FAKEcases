@@ -1261,6 +1261,255 @@ describe("setu-roadmap-value: the numbers the primer promises", () => {
   });
 });
 
+describe("product-cost-absorption: the numbers the primer promises", () => {
+  const scenario = getScenario("product-cost-absorption");
+  if (!scenario) throw new Error("scenario missing");
+  const v = resolveDrivers(scenario.drivers);
+  const CRORE = 10_000_000;
+
+  it("turns three products into ₹113.9 crore of revenue and ₹28.17 crore of contribution", () => {
+    expect(v.glucoseRevenue / CRORE).toBeCloseTo(58.0, 2);
+    expect(v.creamRevenue / CRORE).toBeCloseTo(33.9, 2);
+    expect(v.premiumRevenue / CRORE).toBeCloseTo(22.0, 2);
+    expect(v.revenue / CRORE).toBeCloseTo(113.9, 1);
+    expect(v.contribution / CRORE).toBeCloseTo(28.173, 2);
+    expect(v.contributionRate).toBeCloseTo(0.247, 3);
+  });
+
+  it("leaves ₹4.77 crore of EBITDA and ₹1.33 crore of net profit", () => {
+    expect(v.fixedCost / CRORE).toBeCloseTo(23.4, 2);
+    expect(v.ebitda / CRORE).toBeCloseTo(4.773, 2);
+    expect(v.netProfit / CRORE).toBeCloseTo(1.33, 2);
+  });
+
+  /**
+   * The arithmetic the whole scenario turns on. Every product contributes;
+   * only the allocation rule makes one of them look like a loss.
+   */
+  it("has every product contributing, and the biggest one contributing most", () => {
+    expect(v.glucoseContribution / CRORE).toBeCloseTo(10.44, 2);
+    expect(v.creamContribution / CRORE).toBeCloseTo(9.153, 2);
+    expect(v.premiumContribution / CRORE).toBeCloseTo(8.58, 2);
+    for (const id of ["glucoseContribution", "creamContribution", "premiumContribution"]) {
+      expect(v[id]).toBeGreaterThan(0);
+    }
+  });
+
+  it("reports the glucose line at minus ₹1.48 crore once fixed cost is charged on revenue share", () => {
+    const share = v.glucoseRevenue / v.revenue;
+    expect(share).toBeCloseTo(0.509, 3);
+    const allocated = share * v.fixedCost;
+    expect(allocated / CRORE).toBeCloseTo(11.92, 2);
+    expect((v.glucoseContribution - allocated) / CRORE).toBeCloseTo(-1.48, 2);
+  });
+
+  /**
+   * The trap, and the most expensive button on the board. Discontinuing a
+   * product that contributes ₹10.44 crore to save ₹1.90 crore of avoidable
+   * cost has to be catastrophic in the model, not merely discouraged in the
+   * debrief.
+   */
+  it("destroys the business when the loss-making product is discontinued", () => {
+    const outcome = runOutcome(scenario, [
+      { interventionId: "iv-drop-glucose", sprints: 1, rupees: 0.6 * CRORE },
+    ]);
+    expect(finalValue(outcome.paths, "revenue")).toBeLessThan(
+      finalValue(outcome.doNothing, "revenue"),
+    );
+    // Fixed cost barely moves, because almost none of what was charged to the
+    // product was ever avoidable.
+    const fixedSaved =
+      finalValue(outcome.doNothing, "fixedCost") - finalValue(outcome.paths, "fixedCost");
+    expect(fixedSaved / CRORE).toBeCloseTo(1.9, 1);
+    expect(finalValue(outcome.paths, "ebitda")).toBeLessThan(0);
+    expect(finalValue(outcome.paths, "netProfit")).toBeLessThan(
+      finalValue(outcome.doNothing, "netProfit"),
+    );
+  });
+
+  it("makes the price rise buy almost nothing", () => {
+    const outcome = runOutcome(scenario, [
+      { interventionId: "iv-price-up", sprints: 1, rupees: 0.5 * CRORE },
+    ]);
+    // Revenue falls hard and contribution barely moves: 8% on the list price
+    // against 30% of the volume.
+    expect(finalValue(outcome.paths, "revenue")).toBeLessThan(
+      finalValue(outcome.doNothing, "revenue") * 0.9,
+    );
+    const gain =
+      finalValue(outcome.paths, "contribution") / finalValue(outcome.doNothing, "contribution") - 1;
+    expect(gain).toBeGreaterThan(0);
+    expect(gain).toBeLessThan(0.02);
+  });
+
+  /** Good housekeeping, and a twentieth of what the mix was worth. */
+  it("leaves the overhead cut real and far too small", () => {
+    const cut = runOutcome(scenario, [
+      { interventionId: "iv-overhead-cut", sprints: 1, rupees: 0.9 * CRORE },
+    ]);
+    const best = runOutcome(scenario, scenario.bestAllocation);
+    expect(finalValue(cut.paths, "netProfit")).toBeGreaterThan(
+      finalValue(cut.doNothing, "netProfit"),
+    );
+    expect(finalValue(cut.paths, "netProfit")).toBeLessThan(
+      finalValue(best.paths, "netProfit") / 4,
+    );
+  });
+
+  it("defines cost behaviour before asking anyone to decide on it", () => {
+    const terms = scenario.teaching!.primer.terms.map((t) => t.term);
+    for (const expected of [
+      "Variable cost",
+      "Fixed cost",
+      "Contribution",
+      "Contribution margin",
+      "Absorption costing",
+      "Allocated overhead",
+      "Avoidable cost",
+      "Contribution per machine-hour",
+      "Breakeven",
+    ]) {
+      expect(terms).toContain(expected);
+    }
+    for (const t of scenario.teaching!.primer.terms) expect(t.matters.length).toBeGreaterThan(20);
+  });
+});
+
+describe("plant-constraint-throughput: the constraint arithmetic", () => {
+  const scenario = getScenario("plant-constraint-throughput");
+  if (!scenario) throw new Error("scenario missing");
+  const v = resolveDrivers(scenario.drivers);
+  const CRORE = 10_000_000;
+
+  it("sets the plant's output at the constraint's output", () => {
+    expect(v.furnaceRunHours).toBeCloseTo(3_916.8, 1);
+    expect(v.throughputUnits).toBeCloseTo(305_510, -1);
+    // The order book is a third larger than what the furnace can pass.
+    expect(v.demandUnits).toBe(380_000);
+    expect(v.unitsSold).toBeCloseTo(v.throughputUnits, 0);
+  });
+
+  it("leaves ₹7.38 crore of net contribution after ₹1.67 crore of late penalties", () => {
+    expect(v.grossContribution / CRORE).toBeCloseTo(19.553, 2);
+    expect(v.lateUnits).toBeCloseTo(64_157, -1);
+    expect(v.latePenalty / CRORE).toBeCloseTo(1.668, 2);
+    expect(v.netContribution / CRORE).toBeCloseTo(7.385, 2);
+  });
+
+  /**
+   * The mistake the scenario is built to punish: capacity bought at a step
+   * that was never the constraint. Dispatches must not move by a single gear.
+   */
+  it("puts not one more gear out of the door for a second machine at a non-constraint", () => {
+    const outcome = runOutcome(scenario, [
+      { interventionId: "iv-second-hobber", sprints: 2, rupees: 3.2 * CRORE },
+    ]);
+    expect(finalValue(outcome.paths, "unitsSold")).toBeCloseTo(
+      finalValue(outcome.doNothing, "unitsSold"),
+      0,
+    );
+    // What it does move: the queue, and the fixed cost.
+    expect(finalValue(outcome.paths, "wipDays")).toBeGreaterThan(
+      finalValue(outcome.doNothing, "wipDays"),
+    );
+    expect(finalValue(outcome.paths, "netContribution")).toBeLessThan(
+      finalValue(outcome.doNothing, "netContribution"),
+    );
+  });
+
+  /**
+   * The honest trap. A third shift genuinely adds constraint hours — it has to
+   * help — and it must still lose comfortably to recovering the hours the
+   * plant already owns.
+   */
+  it("lets the third shift help, and beats it with the hours already paid for", () => {
+    const shift = runOutcome(scenario, [
+      { interventionId: "iv-third-shift", sprints: 1, rupees: 1.6 * CRORE },
+    ]);
+    const changeover = runOutcome(scenario, [
+      { interventionId: "iv-furnace-changeover", sprints: 2, rupees: 1.9 * CRORE },
+    ]);
+    expect(finalValue(shift.paths, "unitsSold")).toBeGreaterThan(
+      finalValue(shift.doNothing, "unitsSold"),
+    );
+    expect(finalValue(changeover.paths, "netContribution")).toBeGreaterThan(
+      finalValue(shift.paths, "netContribution"),
+    );
+  });
+
+  /** Expediting reorders a queue. It cannot shorten one. */
+  it("lets the expediting cell move the promise and not the queue", () => {
+    const outcome = runOutcome(scenario, [
+      { interventionId: "iv-expedite-cell", sprints: 1, rupees: 0.7 * CRORE },
+    ]);
+    expect(finalValue(outcome.paths, "onTimeShare")).toBeGreaterThan(
+      finalValue(outcome.doNothing, "onTimeShare"),
+    );
+    expect(finalValue(outcome.paths, "wipDays")).toBeCloseTo(
+      finalValue(outcome.doNothing, "wipDays"),
+      0,
+    );
+    expect(finalValue(outcome.paths, "netContribution")).toBeLessThan(
+      finalValue(outcome.doNothing, "netContribution"),
+    );
+  });
+
+  it("drains the queue and keeps the promise when both levers hit the constraint", () => {
+    const outcome = runOutcome(scenario, scenario.bestAllocation);
+    expect(finalValue(outcome.paths, "wipDays")).toBeLessThan(
+      finalValue(outcome.doNothing, "wipDays") * 0.6,
+    );
+    expect(finalValue(outcome.paths, "onTimeShare")).toBeGreaterThan(0.87);
+    expect(finalValue(outcome.paths, "netContribution")).toBeGreaterThan(10 * CRORE);
+  });
+
+  /**
+   * The market is a ceiling like any other. Funding every lever on the board
+   * runs the furnace into the order book, where the next hour is worth nothing.
+   */
+  it("stops selling at the order book however much capacity is bought", () => {
+    const everything = scenario.interventions.map((iv) => ({
+      interventionId: iv.id,
+      sprints: iv.cost.sprints,
+      rupees: iv.cost.rupees,
+    }));
+    const outcome = runOutcome(scenario, everything);
+    expect(finalValue(outcome.paths, "throughputUnits")).toBeGreaterThan(380_000);
+    expect(finalValue(outcome.paths, "unitsSold")).toBeCloseTo(380_000, 0);
+  });
+
+  it("caps on-time delivery below 100%, so lateness can never pay a bonus", () => {
+    const everything = scenario.interventions.map((iv) => ({
+      interventionId: iv.id,
+      sprints: iv.cost.sprints,
+      rupees: iv.cost.rupees,
+    }));
+    const outcome = runOutcome(scenario, everything);
+    expect(finalValue(outcome.paths, "onTimeShare")).toBeLessThanOrEqual(0.98);
+    expect(finalValue(outcome.paths, "lateUnits")).toBeGreaterThanOrEqual(0);
+  });
+
+  it("defines the operations vocabulary and keeps the metric map hidden", () => {
+    const terms = scenario.teaching!.primer.terms.map((t) => t.term);
+    for (const expected of [
+      "Throughput",
+      "The constraint",
+      "Utilisation",
+      "OEE",
+      "WIP",
+      "Little's law",
+      "Changeover",
+      "OTIF",
+      "Drum-buffer-rope",
+    ]) {
+      expect(terms).toContain(expected);
+    }
+    // The shape of the model — output is the constraint's hours times its rate
+    // — is the answer, so it is withheld like everything else.
+    expect(scenario.teaching?.showMetricMap).toBe(false);
+  });
+});
+
 describe("pnl-profit-squeeze: the numbers the primer promises", () => {
   const scenario = getScenario("pnl-profit-squeeze");
   if (!scenario) throw new Error("scenario missing");
@@ -1822,6 +2071,7 @@ describe("capital-allocation-ask: the numbers the primer promises", () => {
  */
 describe("the finance track", () => {
   const slugs = [
+    "product-cost-absorption",
     "pnl-profit-squeeze",
     "cash-conversion-cycle",
     "balance-sheet-leverage",
@@ -1834,6 +2084,7 @@ describe("the finance track", () => {
     expect(at.every((i) => i >= 0)).toBe(true);
     for (let i = 1; i < at.length; i++) expect(at[i]).toBe(at[i - 1] + 1);
     expect(slugs.map((s) => getScenario(s)!.difficulty)).toEqual([
+      "Easy",
       "Easy",
       "Easy",
       "Medium",
@@ -1856,6 +2107,7 @@ describe("the finance track", () => {
         .filter((p) => p.kind === "statement")
         .map((p) => (p.kind === "statement" ? p.statement : ""));
     };
+    expect(kindsFor("product-cost-absorption")).toContain("pnl");
     expect(kindsFor("pnl-profit-squeeze")).toContain("pnl");
     expect(kindsFor("cash-conversion-cycle")).toContain("cashflow");
     expect(kindsFor("balance-sheet-leverage")).toContain("balance");

@@ -24,6 +24,12 @@ export const categories = [
   // actually holds, so this appears on /simulations and stays off /library
   // without any further wiring.
   { slug: "data-analytics", name: "Data & Analytics", icon: "Sigma", order: 16 },
+  // The operations track. Its own category for the reason Finance and Data &
+  // Analytics are: these war rooms teach one discipline — where output is
+  // actually decided, and what a service promise costs to keep — and a
+  // candidate preparing for an operations interview should be able to find them
+  // as a set rather than pick them out of a shelf of industries.
+  { slug: "operations", name: "Operations", icon: "Gauge", order: 17 },
 ];
 
 export interface SeedQuestion {
@@ -1578,6 +1584,22 @@ export const questions: SeedQuestion[] = [
     tags: "supply chain,inventory,fill rate,service level,safety stock,coefficient of variation,inventory turns,pharmacy,retail,simulation",
   },
   {
+    externalId: "plant-constraint-throughput",
+    title: "Trishul Gears: every machine is busy and one dispatch in five is late",
+    prompt:
+      "A gear plant reports 92% overall equipment effectiveness and 89% machine utilisation, and delivers 79% of its orders on time — 3.06 lakh gears made against an order book of 3.80 lakh. The works manager wants a second CNC hobber, the production head wants a third shift, sales wants an expediting cell. You have 6 analyst-days to find what is actually limiting the plant, then 4 people-weeks and ₹5 crore.",
+    category: "operations",
+    sector: "automotive",
+    difficulty: "Medium",
+    interviewLevel: "GeneralMBA",
+    type: "simulation",
+    betterApproach:
+      "Never read a plant one machine at a time. Utilisation and OEE are per-step measurements, so a plant average hides the only step that decides anything — compare each work centre's available hours against the hours this year's order book needs from it, and exactly one will be above 1.0. Then treat the two questions separately: throughput is set by the constraint's hours, while delivery is set by the length of the queue in front of it, which is Little's law rather than effort.",
+    sampleSolution:
+      "Heat treatment is the only constrained step — a load factor of 1.24 against 0.84 or less everywhere else. The furnace has 5,760 hours and treats for 3,917: 1,010 hours of changeover across 168 batches, 448 idle for want of staged material, 385 of maintenance. Because every cell is measured on its own utilisation, they keep releasing work into a queue 19.4 days deep, which fixes the lead time at 34 days and takes OTIF to 74%. Quick changeover buys back about 770 furnace hours already paid for, and releasing material at the furnace's pace collapses the queue — together worth about ₹5.2 crore of net contribution. The second hobber adds parts to the queue and ₹56 lakh of fixed cost; the third shift genuinely adds constraint hours but manning caps it at 10% for ₹1.43 crore a year, and expediting only reorders the queue: expedited lines gained 9 days last year while everything behind them lost 6.",
+    tags: "operations,manufacturing,theory of constraints,bottleneck,throughput,little's law,wip,otif,changeover,auto components,simulation",
+  },
+  {
     externalId: "b2b-deal-tco",
     title: "Lekha: our most profitable customer wants 18% off",
     prompt:
@@ -1602,6 +1624,22 @@ export const questions: SeedQuestion[] = [
    * for Finance should find these. `Big4` is the closest interview level the
    * catalogue carries to the financial-analyst role these are played in.
    */
+  {
+    externalId: "product-cost-absorption",
+    title: "Mithila Foods: the costing sheet says kill the biscuit that pays the rent",
+    prompt:
+      "A biscuit maker's costing sheet shows its biggest product — half of all sales — losing ₹1.48 crore a year, and the board wants it discontinued by September. The plant is already running flat out and the profit is ₹4.67 crore short of target. You have 6 analyst-days to work out what that sheet is measuring, then 4 people-weeks and ₹6 crore to act on it.",
+    category: "finance",
+    sector: "food-beverage",
+    difficulty: "Easy",
+    interviewLevel: "Big4",
+    type: "simulation",
+    betterApproach:
+      "Separate the two kinds of cost before deciding anything about a product. Only costs that move with volume belong to a product; fixed cost charged to it by an allocation rule belongs to the rule. So ask the question about the bank account — if this stopped tomorrow, which payments stop? — and decide on contribution. Then ask what is actually scarce: when a plant is full, the ranking that matters is contribution per hour of the constrained machine, not margin per rupee of sales.",
+    sampleSolution:
+      "Fixed cost is charged on share of revenue, so glucose — 50.9% of sales — absorbs ₹11.92 crore against ₹10.44 crore of contribution and prints a ₹1.48 crore loss. Only ₹1.90 crore of that would ever stop being paid, so discontinuing it takes EBITDA from ₹4.77 crore to minus ₹3.77 crore, and re-charges ₹10 crore of factory to the two products left until cream shows a loss too — the absorption death spiral. The real problem is that the same sheet schedules a full line: glucose earns ₹33,786 a running hour against premium's ₹60,636, while premium has run at a 71% fill rate for two years. Re-planning the schedule on contribution per hour and cutting the 826 hours of changeover is worth about ₹3.6 crore without dropping a product, against ₹0.26 crore for the overhead cut the chairman wants.",
+    tags: "finance,cost accounting,contribution,absorption costing,fixed cost,product mix,capacity,biscuits,simulation",
+  },
   {
     externalId: "pnl-profit-squeeze",
     title: "Kirti Apparel: revenue is up 22% and profit is down 62%",
