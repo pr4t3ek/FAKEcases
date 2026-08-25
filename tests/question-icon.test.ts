@@ -162,6 +162,14 @@ const EXPECTED: Record<string, string> = {
   // reached: "manufacturing" in the tags is a subject the rules have a card
   // for, and a factory is the right card for a gear plant.
   "Trishul Gears: every machine is busy and one dispatch in five is late": "Factory",
+  // A quality war room whose subject is knitwear: "garment" in the tags reaches
+  // the apparel rule long before the Operations category icon.
+  "Sunidhi Knits: the inspection team doubled and so did the rejects": "Shirt",
+  // The one question that actually falls through to the Supply Chain category
+  // icon. Nothing in the title or tags is a subject the rules carry — "juice"
+  // is not a food word they know and "beverages" is a company name — so the
+  // lorry is the category speaking, which is what the fallback is for.
+  "Zaika Beverages: shoppers bought the same juice all year and the plant did not": "Truck",
   // "revenue" (in "net revenue retention") outranks "logistics" in the rule
   // order, and that is the right call here: the subject is retained ARR, not
   // freight. The software happens to be sold to hauliers.

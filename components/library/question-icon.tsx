@@ -33,6 +33,7 @@ import {
   Store,
   TrainFront,
   TrendingUp,
+  Truck,
   Trophy,
   Umbrella,
   Users,
@@ -95,6 +96,7 @@ const ICONS: Record<string, LucideIcon> = {
   ShoppingCart,
   Sigma,
   TrendingUp,
+  Truck,
   Users,
   Zap,
 };
