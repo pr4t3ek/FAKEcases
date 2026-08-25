@@ -101,6 +101,18 @@ export const TEXT_SETTING_DEFAULTS = {
    * fully scored.
    */
   walkthroughDemoQuestion: "chai-bangalore-daily",
+  /**
+   * The same, for a case attempt.
+   *
+   * Its own setting rather than a second lookup off the first, because the two
+   * are not interchangeable: a guesstimate demo shown to somebody working a case
+   * teaches an arithmetic chain to a student who has to mark up an issue tree.
+   *
+   * Defaults to the food-delivery margin case — the guest tier's, and one of the
+   * five that declare a root cause, so the worked example can actually land on a
+   * cause rather than stopping at a structure.
+   */
+  caseWalkthroughDemoQuestion: "qual-food-delivery-margin",
 } as const;
 
 export type TextSettingKey = keyof typeof TEXT_SETTING_DEFAULTS;

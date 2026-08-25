@@ -127,3 +127,51 @@ describe("the player cannot persist anything", () => {
     expect(button).not.toMatch(/\bfetch\(/);
   });
 });
+
+/**
+ * Every walkthrough written before cases existed is stored without a `kind`.
+ *
+ * `discriminatedUnion` picks its branch on the tag, so an untagged row matches
+ * nothing unless the parser puts one back. Getting this wrong does not fail
+ * loudly — `parseWalkthrough` returns null on a parse error, so every existing
+ * worked example would simply stop appearing, with no error anywhere.
+ */
+describe("walkthroughs stored before cases existed", () => {
+  const legacy = {
+    intro: "A worked example.",
+    steps: [
+      {
+        say: "Start with the pool.",
+        node: { key: "pop", parentKey: null, label: "Population", value: "1.3cr", multiplier: "", combine: "sum" },
+        because: "A round, defensible anchor.",
+      },
+      {
+        say: "Cut it down.",
+        node: { key: "d", parentKey: "pop", label: "Drinkers", value: "65%", multiplier: "1.5", combine: "sum" },
+        because: "Roughly two in three.",
+      },
+    ],
+    outro: "That is the method.",
+  };
+
+  it("still parse, and read as numeric", () => {
+    const parsed = parseWalkthrough(JSON.stringify(legacy));
+    expect(parsed).not.toBeNull();
+    expect(parsed?.kind).toBe("numeric");
+  });
+
+  it("are still checked against the question's range", () => {
+    // 1.3cr x 65% x 1.5 is about 1.27cr, so a range around it passes and one
+    // well below it fails — the untagged row is going through the real gate.
+    const parsed = parseWalkthrough(JSON.stringify(legacy));
+    expect(validateWalkthrough(parsed, { idealLow: 1.0e7, idealHigh: 1.5e7 }).ok).toBe(true);
+    expect(validateWalkthrough(parsed, { idealLow: 1, idealHigh: 100 }).ok).toBe(false);
+  });
+
+  it("do not accidentally satisfy the case branch", () => {
+    const parsed = parseWalkthrough(JSON.stringify({ ...legacy, kind: "case" }));
+    // Tagged a case but carrying numeric nodes: no status anywhere, so the case
+    // branch rejects it rather than silently defaulting every node to unknown.
+    expect(parsed).toBeNull();
+  });
+});

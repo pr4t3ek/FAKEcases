@@ -19,9 +19,12 @@ import type { DemoWalkthroughView } from "./types";
  * So it lives in the header beside the tutorial button, and both are always
  * there.
  *
- * Renders nothing at all when `demo` is null — no walkthrough published, or a
- * case rather than a guesstimate — so callers can drop it in unconditionally
- * rather than each deciding whether today is a day it exists.
+ * Renders nothing at all when `demo` is null — nothing published for this
+ * question's kind — so callers can drop it in unconditionally rather than each
+ * deciding whether today is a day it exists.
+ *
+ * The example is picked server-side to match the attempt's own answer mode, so
+ * this only has to say which one arrived.
  */
 export function WalkthroughButton({
   demo,
@@ -34,12 +37,18 @@ export function WalkthroughButton({
   const [open, setOpen] = useState(false);
   if (!demo) return null;
 
+  const isCase = demo.content.kind === "case";
+
   return (
     <>
       <button
         onClick={() => setOpen(true)}
         data-tour="walkthrough-btn"
-        title="Watch a guesstimate worked out step by step"
+        title={
+          isCase
+            ? "Watch a case worked out step by step"
+            : "Watch a guesstimate worked out step by step"
+        }
         className={
           variant === "header"
             ? "inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"

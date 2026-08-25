@@ -6,13 +6,22 @@ import { ArrowLeft, ArrowRight, Pause, Play, X } from "lucide-react";
 import { rollup } from "@/lib/framework-rollup";
 import { layoutTree, CARD_WIDTH } from "@/lib/framework-layout";
 import { resultForms } from "@/lib/calc";
-import { toNodes } from "@/lib/walkthrough/validate";
-import type { WalkthroughContent } from "@/lib/walkthrough/types";
+import { diagnosisTrail } from "@/lib/diagnosis";
+import { NODE_STATUS_META, type NodeStatus } from "@/lib/types";
+import { toDiagnosisNodes, toNodes } from "@/lib/walkthrough/validate";
+import { isCaseWalkthrough, type WalkthroughContent } from "@/lib/walkthrough/types";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 /**
- * A worked guesstimate, played one step at a time.
+ * A worked example, played one step at a time — a guesstimate's chain or a
+ * case's marked-up issue tree.
+ *
+ * One component rather than two, because everything that makes it a PLAYER is
+ * shared: the intro screen, step paging, autoplay, the keyboard handling and the
+ * two-extra-positions arithmetic below. Exactly two things differ — what a card
+ * shows, and what the closing screen says — and both are a branch of a few lines
+ * rather than a reason to duplicate three hundred.
  *
  * ## Why this is not the real canvas
  *
@@ -35,6 +44,23 @@ import { cn } from "@/lib/utils";
 const CARD_HEIGHT = 96;
 const AUTOPLAY_MS = 4200;
 
+/**
+ * A card on the canvas, in the only terms the player needs.
+ *
+ * Declared rather than inferred because the two kinds build it from different
+ * sources, and letting TypeScript widen it to a union would hand `layoutTree` a
+ * shape it cannot read. `status` is absent on a guesstimate; `value` and
+ * `multiplier` are blank on a case.
+ */
+interface PlayerNode {
+  id: string;
+  parentId: string | null;
+  label: string;
+  value: string;
+  multiplier: string;
+  status?: NodeStatus;
+}
+
 export interface WalkthroughPlayerProps {
   title: string;
   prompt: string;
@@ -56,8 +82,35 @@ export function WalkthroughPlayer({
   const [at, setAt] = useState(-1);
   const [playing, setPlaying] = useState(false);
 
+  // Narrowed once, here, rather than at every use: `content.kind` does not
+  // survive into a `useMemo` callback, so the two shapes are pulled apart before
+  // anything needs them.
+  const caseContent = isCaseWalkthrough(content) ? content : null;
+  const numericContent = isCaseWalkthrough(content) ? null : content;
+
   const last = content.steps.length;
-  const allNodes = useMemo(() => toNodes(content.steps), [content.steps]);
+
+  /** Identity and parentage only — all the layout ever reads. Shared by both kinds. */
+  const allNodes = useMemo<PlayerNode[]>(
+    () =>
+      caseContent
+        ? caseContent.steps.map((s) => ({
+            id: s.node.key,
+            parentId: s.node.parentKey,
+            label: s.node.label,
+            value: "",
+            multiplier: "",
+            status: s.node.status,
+          }))
+        : (numericContent?.steps ?? []).map((s) => ({
+            id: s.node.key,
+            parentId: s.node.parentKey,
+            label: s.node.label,
+            value: s.node.value,
+            multiplier: s.node.multiplier,
+          })),
+    [caseContent, numericContent],
+  );
 
   /** Only what has been revealed so far. */
   const shown = useMemo(
@@ -70,11 +123,27 @@ export function WalkthroughPlayer({
     [shown],
   );
 
-  const totals = useMemo(() => rollup(allNodes), [allNodes]);
+  // Numeric only. A case has nothing to add up, and rolling up blank values
+  // would put a meaningless "= 0" under every card.
+  const totals = useMemo(
+    () => (numericContent ? rollup(toNodes(numericContent.steps)) : null),
+    [numericContent],
+  );
   const grandTotal = useMemo(
-    () => totals.roots.reduce((a, b) => a + b, 0),
+    () => (totals ? totals.roots.reduce((a, b) => a + b, 0) : 0),
     [totals],
   );
+
+  /**
+   * What this example diagnosed, read back off its own marks with the same
+   * function the debrief uses. Derived rather than passed in, so the closing
+   * screen cannot claim a cause the tree on screen does not actually reach.
+   */
+  const causePath = useMemo(() => {
+    if (!caseContent) return null;
+    const trail = diagnosisTrail(toDiagnosisNodes(caseContent.steps));
+    return trail.labelPaths[0] ?? null;
+  }, [caseContent]);
 
   const next = useCallback(() => setAt((n) => Math.min(last, n + 1)), [last]);
   const back = useCallback(() => {
@@ -112,7 +181,7 @@ export function WalkthroughPlayer({
       className="fixed inset-0 z-50 flex flex-col bg-background/98 backdrop-blur"
       role="dialog"
       aria-modal="true"
-      aria-label="Worked example"
+      aria-label={caseContent ? "Worked case" : "Worked example"}
     >
       <header className="flex items-start justify-between gap-4 border-b px-6 py-4">
         <div className="min-w-0">
@@ -159,7 +228,7 @@ export function WalkthroughPlayer({
               {shown.map((n, i) => {
                 const pos = layout.nodes.get(n.id);
                 if (!pos) return null;
-                const value = totals.resolved.get(n.id);
+                const value = totals?.resolved.get(n.id);
                 const isNewest = i === shown.length - 1 && !finished;
                 return (
                   <foreignObject
@@ -176,23 +245,43 @@ export function WalkthroughPlayer({
                       )}
                     >
                       <p className="truncate text-sm font-medium">{n.label}</p>
-                      <div className="mt-1 flex items-center gap-1.5 text-xs">
-                        {n.value ? (
-                          <span className="rounded bg-secondary px-1.5 py-0.5 font-mono">
-                            {n.value}
+                      {n.status ? (
+                        // A case card carries the verdict the student will be
+                        // clicking through on their own tree, in the builder's
+                        // own vocabulary — see `NODE_STATUS_META`.
+                        <div className="mt-1 flex items-center gap-1.5 text-xs">
+                          <span
+                            className={cn(
+                              "rounded px-1.5 py-0.5 font-medium",
+                              n.status === "problem" && "bg-destructive/15 text-destructive",
+                              n.status === "healthy" && "bg-emerald-500/15 text-emerald-600",
+                              n.status === "unknown" && "bg-secondary text-muted-foreground",
+                            )}
+                          >
+                            {NODE_STATUS_META[n.status].label}
                           </span>
-                        ) : null}
-                        {n.multiplier ? (
-                          <span className="rounded bg-secondary px-1.5 py-0.5 font-mono">
-                            × {n.multiplier}
-                          </span>
-                        ) : null}
-                      </div>
-                      {value !== undefined ? (
-                        <p className="mt-1 truncate font-mono text-[11px] text-muted-foreground">
-                          = {resultForms(value).short ?? resultForms(value).exact}
-                        </p>
-                      ) : null}
+                        </div>
+                      ) : (
+                        <>
+                          <div className="mt-1 flex items-center gap-1.5 text-xs">
+                            {n.value ? (
+                              <span className="rounded bg-secondary px-1.5 py-0.5 font-mono">
+                                {n.value}
+                              </span>
+                            ) : null}
+                            {n.multiplier ? (
+                              <span className="rounded bg-secondary px-1.5 py-0.5 font-mono">
+                                × {n.multiplier}
+                              </span>
+                            ) : null}
+                          </div>
+                          {value !== undefined ? (
+                            <p className="mt-1 truncate font-mono text-[11px] text-muted-foreground">
+                              = {resultForms(value).short ?? resultForms(value).exact}
+                            </p>
+                          ) : null}
+                        </>
+                      )}
                     </div>
                   </foreignObject>
                 );
@@ -208,15 +297,28 @@ export function WalkthroughPlayer({
               <p className="text-sm leading-relaxed">{content.intro}</p>
             ) : finished ? (
               <div className="space-y-3">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    The chain comes to
-                  </p>
-                  <p className="font-mono text-2xl font-semibold">
-                    {resultForms(grandTotal).short ?? resultForms(grandTotal).exact}
-                    {unit ? <span className="ml-1 text-sm font-normal">{unit}</span> : null}
-                  </p>
-                </div>
+                {caseContent ? (
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                      The problem is in
+                    </p>
+                    {/* The trail this example actually marked, not a claim about
+                        it — so the headline cannot drift from the tree beside it. */}
+                    <p className="text-lg font-semibold leading-snug">
+                      {causePath?.join(" → ") ?? "—"}
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                      The chain comes to
+                    </p>
+                    <p className="font-mono text-2xl font-semibold">
+                      {resultForms(grandTotal).short ?? resultForms(grandTotal).exact}
+                      {unit ? <span className="ml-1 text-sm font-normal">{unit}</span> : null}
+                    </p>
+                  </div>
+                )}
                 <p className="text-sm leading-relaxed">{content.outro}</p>
               </div>
             ) : (
@@ -224,7 +326,7 @@ export function WalkthroughPlayer({
                 <p className="text-sm leading-relaxed">{step?.say}</p>
                 <div className="rounded-md bg-muted/60 p-3">
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Why that number
+                    {caseContent ? "Why that verdict" : "Why that number"}
                   </p>
                   <p className="mt-1 text-sm leading-relaxed">{step?.because}</p>
                 </div>

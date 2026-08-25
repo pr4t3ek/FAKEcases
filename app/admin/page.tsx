@@ -17,6 +17,8 @@ import {
 import { listWalkthroughs } from "@/lib/walkthrough";
 import { parseWalkthrough } from "@/lib/walkthrough/types";
 import { validateWalkthrough } from "@/lib/walkthrough/validate";
+import { parseJson } from "@/lib/json";
+import type { RootCause } from "@/lib/evaluation";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { QuestionManager } from "@/components/admin/question-manager";
@@ -98,9 +100,10 @@ export default async function AdminPage() {
   const lockedCount = questions.filter((q) => !q.freeTier).length;
 
   // Worked examples, each re-checked as it is listed. The validator runs here
-  // rather than at write time because a question's ideal range can be edited
-  // after a walkthrough was approved against it — so "does this still hold?" is
-  // a question with a fresh answer on every visit.
+  // rather than at write time because the QUESTION can be edited after a
+  // walkthrough was approved against it — its ideal range, or the branches a
+  // case is scored on — so "does this still hold?" is a question with a fresh
+  // answer on every visit.
   const walkthroughs = await listWalkthroughs();
   const demoExternalId = text.walkthroughDemoQuestion;
   const walkthroughRows: WalkthroughRow[] = walkthroughs.map((w) => {
@@ -108,6 +111,8 @@ export default async function AdminPage() {
     const check = validateWalkthrough(content, {
       idealLow: w.question.idealLow,
       idealHigh: w.question.idealHigh,
+      expectedBuckets: parseJson<string[]>(w.question.expectedBuckets) ?? [],
+      rootCause: parseJson<RootCause>(w.question.rootCause),
     });
     return {
       questionId: w.questionId,
