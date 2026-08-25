@@ -26,12 +26,13 @@
  * legible.
  */
 
-import type { WalkthroughContent } from "./types";
+import type { CaseWalkthroughContent, NumericWalkthroughContent } from "./types";
 
 /** `Question.externalId` this example solves. */
 export const DEMO_QUESTION_EXTERNAL_ID = "chai-bangalore-daily";
 
-export const chaiWalkthrough: WalkthroughContent = {
+export const chaiWalkthrough: NumericWalkthroughContent = {
+  kind: "numeric",
   intro:
     "Here is one worked all the way through — a different question from yours, so nothing is " +
     "given away. Watch where the numbers go and, more importantly, where they come from.",
@@ -83,4 +84,135 @@ export const chaiWalkthrough: WalkthroughContent = {
     "That is the whole method: anchor, slice, apply a rate, add what the slice missed. Your " +
     "question is a different subject and the same four moves — and every number you enter is " +
     "read as an assumption you are making, so say why as you go.",
+};
+
+/**
+ * The worked CASE, and the second thing a beginner can watch.
+ *
+ * Falling delivery margins is the demo for the same reason chai is the
+ * guesstimate demo: it is the shape everybody expects — revenue against cost —
+ * so attention stays on the METHOD rather than on the industry.
+ *
+ * Three things about the marks are deliberate.
+ *
+ * **The root is left unexamined.** A candidate does not deliver a verdict on
+ * "contribution margin"; they deliver one on its branches. Marking the top would
+ * teach the gesture backwards.
+ *
+ * **Revenue is cleared before cost is opened.** Eliminating a side is what makes
+ * a trail a diagnosis rather than a lucky first guess, and `scoreDiagnosis`
+ * rewards exactly that ordering. A student who watches this learns to close a
+ * branch out loud.
+ *
+ * **Average order value is cleared even though it moved.** It slipped about 6%,
+ * which is real and is not where the margin went — and saying so is the whole
+ * judgement being taught. Marking it "problem" because a number changed is the
+ * commonest way a candidate loses a case they had almost solved, so the
+ * `because` names the 6% and then sets it against the 31%.
+ *
+ * The chain is short for the same reason the chai one is. Seven nodes is enough
+ * to show a tree split, a side eliminated and a cause narrowed to a leaf; a
+ * beginner watching a fifteen-node tree learns that cases are long rather than
+ * that they are diagnosed.
+ */
+
+/** `Question.externalId` this example works. */
+export const CASE_DEMO_QUESTION_EXTERNAL_ID = "qual-food-delivery-margin";
+
+export const foodDeliveryCaseWalkthrough: CaseWalkthroughContent = {
+  kind: "case",
+  intro:
+    "Here is a case worked all the way through — a different question from yours, so nothing is " +
+    "given away. A case is not solved by building the prettiest tree. It is solved by closing " +
+    "branches until only one is left standing. Watch what gets ruled OUT.",
+  steps: [
+    {
+      say: "Margin per order fell while volume held. So the answer is inside one order, not inside the number of them. Split it the only way it splits.",
+      node: {
+        key: "margin",
+        parentKey: null,
+        label: "Contribution margin per order",
+        status: "unknown",
+      },
+      because:
+        "The top of the tree gets no verdict, ever. It is the thing being explained, not a " +
+        "candidate explanation — you deliver judgements on its branches.",
+    },
+    {
+      say: "Take the revenue side first, and be willing to close it.",
+      node: {
+        key: "revenue",
+        parentKey: "margin",
+        label: "Revenue per order",
+        status: "healthy",
+      },
+      because:
+        "Cleared, not skipped. Saying “the money is still coming in at roughly the same rate” " +
+        "out loud is what earns the right to spend the rest of the case on cost.",
+    },
+    {
+      say: "Check what the platform charges before assuming it charges less.",
+      node: {
+        key: "take",
+        parentKey: "revenue",
+        label: "Commission / take rate",
+        status: "healthy",
+      },
+      because:
+        "18% of order value, unchanged. A falling take rate would have been the tidy answer, " +
+        "and it is worth thirty seconds to find out that it is not the answer here.",
+    },
+    {
+      say: "Then the basket the commission is charged on. This one did move — and it is still not your answer.",
+      node: {
+        key: "aov",
+        parentKey: "revenue",
+        label: "Average order value",
+        status: "healthy",
+      },
+      because:
+        "Down about 6%, mostly tier-2. Real, and an order of magnitude too small to explain the " +
+        "fall. Marking every number that moved as “the problem” is how a nearly-solved case is lost.",
+    },
+    {
+      say: "Now the other side. This is where the margin went — but “cost” is a region, not a cause.",
+      node: {
+        key: "cost",
+        parentKey: "margin",
+        label: "Cost per order",
+        status: "problem",
+      },
+      because:
+        "“The problem is in here” is a narrowing claim, not an answer. Stopping at this node is " +
+        "the single commonest way to finish a case having located nothing.",
+    },
+    {
+      say: "Discounting is the usual suspect in Indian delivery, so rule it out explicitly rather than quietly.",
+      node: {
+        key: "discounts",
+        parentKey: "cost",
+        label: "Discounts",
+        status: "healthy",
+      },
+      because:
+        "Flat per order. The obvious culprit being innocent is worth saying — an interviewer is " +
+        "listening for whether you checked or whether you guessed.",
+    },
+    {
+      say: "One branch left, and it has nothing underneath it. That is what finishing looks like.",
+      node: {
+        key: "delivery",
+        parentKey: "cost",
+        label: "Delivery cost per order",
+        status: "problem",
+      },
+      because:
+        "Rider payouts up 31% year-on-year against revenue that barely moved. Everything else was " +
+        "eliminated, so this is not a hypothesis any more — it is what is left.",
+    },
+  ],
+  outro:
+    "That is the method: split the tree, close the branches you can, and keep narrowing until the " +
+    "last one has nothing under it. The answer here was never hard to guess — it was hard to EARN, " +
+    "and the earning is the four branches you watched get closed on the way.",
 };

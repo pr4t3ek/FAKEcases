@@ -26,7 +26,7 @@
  * nothing else — the draft/review/validate path around it does not change.
  */
 
-import type { WalkthroughContent, WalkthroughStep } from "./types";
+import type { NumericWalkthroughContent, WalkthroughStep } from "./types";
 
 /** "~65%" -> "65%", "~1.3 cr" -> "1.3cr", "1.5 cups/day" -> "1.5". */
 function figureIn(fragment: string): { value: string; isShare: boolean } | null {
@@ -57,13 +57,16 @@ function labelIn(fragment: string): string {
 /**
  * A draft chain from the arrow-notation every guesstimate already carries.
  *
+ * Guesstimates only. There is no case analogue and inventing one would mean
+ * guessing which branch holds a problem, which is the whole exercise.
+ *
  * Returns null when the prose yields fewer than two usable figures — better no
  * draft than a one-node "walkthrough" a reviewer has to delete.
  */
 export function draftFromSampleSolution(args: {
   title: string;
   sampleSolution: string;
-}): WalkthroughContent | null {
+}): NumericWalkthroughContent | null {
   const fragments = args.sampleSolution
     .split(/[→;]/)
     .map((f) => f.trim())
@@ -100,6 +103,9 @@ export function draftFromSampleSolution(args: {
   if (steps.length < 2 || rootKey === null) return null;
 
   return {
+    // Numeric by construction: this parses arrow-notation arithmetic, which a
+    // case does not have. Cases are authored by hand — see `content.ts`.
+    kind: "numeric",
     intro:
       `TODO — how to introduce this example. It solves: ${args.title}`.slice(0, 400),
     steps,

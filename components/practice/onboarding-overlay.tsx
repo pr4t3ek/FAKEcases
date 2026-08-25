@@ -69,9 +69,13 @@ export function OnboardingOverlay({
   const qualitative = answerMode === "qualitative";
   const points = qualitative ? QUALITATIVE_POINTS : NUMERIC_POINTS;
 
-  // The example is a guesstimate worked in numbers, so it teaches nothing about
-  // an issue tree that is scored on judgement rather than arithmetic.
-  const offerDemo = !!demo && !qualitative;
+  // Offered on both exercises now. It used to be withheld from cases because the
+  // only example was a guesstimate worked in numbers, which teaches nothing
+  // about an issue tree scored on judgement — the page now loads the example
+  // that matches the attempt's own answer mode, so the mismatch this guarded
+  // against cannot arise. `demo` being null is still the ordinary "nothing
+  // published for this kind" answer.
+  const offerDemo = !!demo;
 
   function markSeen() {
     markOnboarded().catch(() => {});

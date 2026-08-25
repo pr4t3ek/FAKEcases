@@ -120,14 +120,18 @@ export default async function PracticePage({
 
   // Every guesstimate, not just a first run: the walkthrough now has a permanent
   // button in the header, and a student who dismissed it once has to be able to
-  // get it back. Still numeric-only — a worked chain of numbers teaches nothing
-  // about an issue tree scored on judgement.
+  // get it back.
+  //
+  // Both kinds now, and keyed on the attempt's own answer mode: a guesstimate
+  // gets the worked chain, a case gets a worked issue tree. This used to be
+  // numeric-only on the grounds that a chain of numbers teaches nothing about a
+  // tree scored on judgement — true, and an argument for a second kind of
+  // example rather than for leaving case students with none.
   //
   // Costs about 3KB on a ~32KB payload. Paid outright rather than adding a route
   // handler and a spinner for 1.7KB of JSON; if that ever stops being a good
   // trade, fetch-on-click is the alternative.
-  const demo =
-    answerModeFor(attempt.question.type) === "numeric" ? await loadDemoWalkthrough() : null;
+  const demo = await loadDemoWalkthrough(answerModeFor(attempt.question.type));
 
   const data: PracticeData = {
     attemptId: attempt.id,

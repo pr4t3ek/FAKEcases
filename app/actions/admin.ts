@@ -5,6 +5,8 @@ import { z } from "zod";
 import { deleteWalkthrough, loadWalkthroughFor, saveDraft, setStatus } from "@/lib/walkthrough";
 import { parseWalkthrough, walkthroughSchema } from "@/lib/walkthrough/types";
 import { validateWalkthrough } from "@/lib/walkthrough/validate";
+import { parseJson } from "@/lib/json";
+import type { RootCause } from "@/lib/evaluation";
 import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { hashPassword } from "@/lib/password";
@@ -242,8 +244,9 @@ export async function saveWalkthroughDraft(
  * Publish, if the arithmetic holds.
  *
  * The validator is the gate and this is the only door through it. A walkthrough
- * whose chain misses its own question's authored range would teach a wrong
- * method to the one audience least able to notice — so the refusal is here,
+ * whose chain misses its own question's authored range — or, for a case, whose
+ * tree skips a scored branch or never reaches the declared cause — would teach a
+ * wrong method to the one audience least able to notice. So the refusal is here,
  * where somebody is looking, rather than as a warning nobody has to read.
  */
 export async function publishWalkthrough(questionId: string): Promise<SaveResult> {
@@ -256,6 +259,8 @@ export async function publishWalkthrough(questionId: string): Promise<SaveResult
   const check = validateWalkthrough(content, {
     idealLow: row.question.idealLow,
     idealHigh: row.question.idealHigh,
+    expectedBuckets: parseJson<string[]>(row.question.expectedBuckets) ?? [],
+    rootCause: parseJson<RootCause>(row.question.rootCause),
   });
   if (!check.ok) {
     return { ok: false, error: check.issues[0]?.message ?? "This walkthrough does not check out." };

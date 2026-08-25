@@ -11,8 +11,11 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import { loadTextSettings } from "@/lib/settings";
+import { parseJson } from "@/lib/json";
 import { parseWalkthrough, type WalkthroughContent } from "@/lib/walkthrough/types";
 import { validateWalkthrough } from "@/lib/walkthrough/validate";
+import type { RootCause } from "@/lib/evaluation";
+import type { AnswerMode } from "@/lib/types";
 
 export interface DemoWalkthrough {
   questionId: string;
@@ -31,16 +34,27 @@ export interface DemoWalkthrough {
  * failure than a half-rendered overlay.
  *
  * Re-validated on read rather than trusted. The row was checked when it was
- * published, but the QUESTION's ideal range can be edited afterwards from the
- * admin panel — and a walkthrough that no longer reaches its own question's
- * answer is precisely the thing this feature must never show a beginner.
+ * published, but the QUESTION can be edited afterwards from the admin panel —
+ * its ideal range, or its expected branches — and a walkthrough that no longer
+ * reaches its own question's answer is precisely the thing this feature must
+ * never show a beginner.
+ *
+ * `mode` picks which demo, and it is the attempt's own answer mode: a
+ * guesstimate gets the worked chain, a case gets the worked issue tree. Showing
+ * either one to the other would teach the wrong exercise.
  */
-export async function loadDemoWalkthrough(): Promise<DemoWalkthrough | null> {
-  const { walkthroughDemoQuestion } = await loadTextSettings();
-  if (!walkthroughDemoQuestion.trim()) return null;
+export async function loadDemoWalkthrough(
+  mode: AnswerMode = "numeric",
+): Promise<DemoWalkthrough | null> {
+  const settings = await loadTextSettings();
+  const externalId =
+    mode === "qualitative"
+      ? settings.caseWalkthroughDemoQuestion
+      : settings.walkthroughDemoQuestion;
+  if (!externalId.trim()) return null;
 
   const question = await db.question.findUnique({
-    where: { externalId: walkthroughDemoQuestion.trim() },
+    where: { externalId: externalId.trim() },
     select: {
       id: true,
       title: true,
@@ -48,6 +62,8 @@ export async function loadDemoWalkthrough(): Promise<DemoWalkthrough | null> {
       unit: true,
       idealLow: true,
       idealHigh: true,
+      expectedBuckets: true,
+      rootCause: true,
       walkthrough: { select: { stepsJson: true, status: true } },
     },
   });
@@ -57,9 +73,19 @@ export async function loadDemoWalkthrough(): Promise<DemoWalkthrough | null> {
   const content = parseWalkthrough(question.walkthrough.stepsJson);
   if (!content) return null;
 
+  // A setting pointed at the wrong KIND is a real misconfiguration — somebody
+  // named a guesstimate as the case demo — and it must not reach a student.
+  const wantCase = mode === "qualitative";
+  if ((content.kind === "case") !== wantCase) return null;
+
   const check = validateWalkthrough(content, {
     idealLow: question.idealLow,
     idealHigh: question.idealHigh,
+    // Read exactly as `app/actions/submit.ts` reads them for the scorer. A
+    // second interpretation of the same column is how a gate starts approving
+    // examples the marking will then punish.
+    expectedBuckets: parseJson<string[]>(question.expectedBuckets) ?? [],
+    rootCause: parseJson<RootCause>(question.rootCause),
   });
   if (!check.ok) return null;
 
@@ -78,7 +104,18 @@ export async function listWalkthroughs() {
     orderBy: { updatedAt: "desc" },
     include: {
       question: {
-        select: { id: true, externalId: true, title: true, idealLow: true, idealHigh: true, unit: true },
+        select: {
+          id: true,
+          externalId: true,
+          title: true,
+          idealLow: true,
+          idealHigh: true,
+          unit: true,
+          // A case is checked against these instead of a range, so the admin
+          // list cannot re-validate one without them.
+          expectedBuckets: true,
+          rootCause: true,
+        },
       },
     },
   });
@@ -87,7 +124,18 @@ export async function listWalkthroughs() {
 export async function loadWalkthroughFor(questionId: string) {
   return db.walkthrough.findUnique({
     where: { questionId },
-    include: { question: { select: { idealLow: true, idealHigh: true, title: true, unit: true } } },
+    include: {
+      question: {
+        select: {
+          idealLow: true,
+          idealHigh: true,
+          title: true,
+          unit: true,
+          expectedBuckets: true,
+          rootCause: true,
+        },
+      },
+    },
   });
 }
 
