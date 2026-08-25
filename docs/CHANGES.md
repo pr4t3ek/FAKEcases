@@ -1046,3 +1046,55 @@ word. Only the labels moved — `lib/config/evaluation.ts`, the dashboard's shor
 `tests/theme.test.ts` — the suite runs in node with no DOM, and this is a chain that breaks
 silently: drop the callback and nothing fails, the tour just never opens for the one person it
 was written for.
+
+### 25. Two more war rooms: the costing sheet that says close a product, and the plant where every machine is busy
+
+The catalogue's two most obviously missing disciplines. Finance had four scenarios and all of
+them read a *statement*; nothing taught the distinction every statement above them assumes,
+which is a cost that moves with volume against one that does not. Operations had one scenario
+(Sehat Plus, on inventory) filed under Retail, and no home of its own.
+
+**`product-cost-absorption` — Mithila Foods** (`finance`, Easy). A biscuit maker's costing
+sheet charges ₹23.4 crore of fixed cost to three products on share of revenue, so the glucose
+biscuit — 50.9% of sales — absorbs ₹11.92 crore against ₹10.44 crore of contribution and prints
+a ₹1.48 crore loss. The board wants it discontinued. Only ₹1.90 crore of what is charged to it
+would ever stop being paid, so `iv-drop-glucose` takes EBITDA from ₹4.77 crore to below zero
+and re-charges ₹10 crore of factory to the two products left — the absorption death spiral,
+modelled rather than described. The real answer is one level down: the same sheet schedules a
+line with no idle time, and ranked by what an hour earns the ordering is upside down
+(₹33,786 for glucose against ₹60,636 for premium, which has run at a 71% fill rate for two
+years). Re-planning on contribution per running hour and cutting the 826 hours of changeover
+is worth about ₹3.6 crore without dropping a product; the chairman's overhead cut is worth
+₹0.26 crore, and is left deliberately positive because good housekeeping usually is.
+
+It sits **first** in the finance block, ahead of the P&L scenario, and the block is still
+contiguous and still in difficulty order — Easy, Easy, Easy, Medium, Hard.
+
+**`plant-constraint-throughput` — Trishul Gears** (`operations`, Medium). A gear plant reports
+92% OEE and 89% utilisation and delivers 79% of its orders on time. Exactly one work centre is
+short against the order book: heat treatment, at a load factor of 1.24 while nothing else
+exceeds 0.84. The furnace has 5,760 hours and treats for 3,917 — 1,010 lost to changeovers,
+448 idle for want of staged material, 385 to maintenance. Because every cell is measured on its
+own utilisation, they keep releasing work into a queue 19.4 days deep, which is where on-time
+delivery went.
+
+Three things are modelled rather than asserted. `unitsSold` is a `min` of throughput and the
+order book, so funding every lever at once runs the furnace into the 3.80 lakh book and the
+next hour earns nothing. `onTimeShare` is a `min` of an input and a 0.98 constant, so nobody
+can buy their way past 100% and start collecting a bonus for lateness. And `iv-second-hobber`
+— capacity at a step with 17% of slack — moves dispatches by not one gear while raising WIP and
+fixed cost, which is the whole lesson in one projection. `iv-third-shift` is the honest trap:
+it is the only decoy that genuinely adds constraint hours, and manning caps it at 10% for
+₹1.43 crore a year against the 770 hours the plant already owns and throws away.
+
+**Everything else this needed.** A seventeenth category, `operations` (`Gauge`, order 17),
+added for the reason `data-analytics` was: `listCategories(surface)` derives visibility from
+what a category actually holds, so it appears on `/simulations` and stays off `/library` with
+no further wiring. The two catalogue rows in `prisma/seed-data.ts` bring the seed to 17
+categories and 63 questions (30 guesstimates, 10 cases, 23 war rooms), and the Pro pitch in
+`lib/config/access.ts` — which `tests/entitlements.test.ts` pins against the registry — moved
+21 → 23. `tests/sim-scenario.test.ts` gains a pinned-numbers block for each: the absorption
+arithmetic and the drop-the-product trap, and the constraint arithmetic, the non-constraint
+machine, the demand ceiling and the on-time cap. Both scenarios pass `validateScenario` and
+`checkBalance` unchanged, and `tests/fixtures/sim-golden.json` was regenerated — the run
+reported the two new slugs and nothing else.
