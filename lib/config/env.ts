@@ -33,6 +33,75 @@ export function isMeteredProvider(provider: LlmProvider): boolean {
   return provider !== "mock" && !(LOCAL_PROVIDERS as readonly string[]).includes(provider);
 }
 
+/**
+ * Providers authenticated by an API key, and so able to hold more than one.
+ *
+ * `mock` needs no credential and `ollama` deliberately sends none (see
+ * `lib/llm/nvidia.ts` on why pointing `OLLAMA_BASE_URL` at a hosted provider
+ * 401s), which is exactly why neither can rotate: there is nothing to rotate.
+ */
+export const KEYED_PROVIDERS = ["gemini", "anthropic", "openai", "nvidia"] as const;
+
+export type KeyedProvider = (typeof KEYED_PROVIDERS)[number];
+
+export function isKeyedProvider(provider: LlmProvider): provider is KeyedProvider {
+  return (KEYED_PROVIDERS as readonly string[]).includes(provider);
+}
+
+const ENV_PREFIX: Record<KeyedProvider, string> = {
+  gemini: "GEMINI",
+  anthropic: "ANTHROPIC",
+  openai: "OPENAI",
+  nvidia: "NVIDIA",
+};
+
+/**
+ * How many numbered slots are scanned per provider. Ten is far past the point
+ * where a longer rotation is the answer to anything, and it bounds the scan so
+ * a typo'd variable name cannot make this loop forever.
+ */
+const MAX_ENV_KEYS = 10;
+
+/**
+ * The variable names a provider's rotation is read from, in order:
+ * `GEMINI_API_KEY`, `GEMINI_API_KEY_2`, `GEMINI_API_KEY_3`, …
+ *
+ * Slot one keeps the unsuffixed name every existing deployment already sets, so
+ * a single-key `.env` is simply a one-item rotation and nothing has to change.
+ */
+export function envKeyNames(provider: KeyedProvider): string[] {
+  const prefix = ENV_PREFIX[provider];
+  return Array.from({ length: MAX_ENV_KEYS }, (_, i) =>
+    i === 0 ? `${prefix}_API_KEY` : `${prefix}_API_KEY_${i + 1}`,
+  );
+}
+
+/**
+ * Every key this provider has in the environment, in rotation order.
+ *
+ * A gap is SKIPPED rather than treated as the end of the list. Stopping at the
+ * first empty slot would be tidier to describe and worse to operate: an admin
+ * who clears a spent `GEMINI_API_KEY` and leaves `_2` and `_3` in place has
+ * plainly not asked for the rotation to be switched off.
+ *
+ * Duplicates are dropped because a key repeated across two slots is not a
+ * second key — it is the same quota, tried twice, for one extra failed request.
+ */
+function readEnvKeys(provider: KeyedProvider): string[] {
+  const seen = new Set<string>();
+  for (const name of envKeyNames(provider)) {
+    const value = process.env[name]?.trim();
+    if (value) seen.add(value);
+  }
+  return [...seen];
+}
+
+function readAllEnvKeys(): Record<KeyedProvider, string[]> {
+  return Object.fromEntries(
+    KEYED_PROVIDERS.map((provider) => [provider, readEnvKeys(provider)]),
+  ) as Record<KeyedProvider, string[]>;
+}
+
 function isProvider(value: string | undefined): value is LlmProvider {
   return value !== undefined && (PROVIDERS as readonly string[]).includes(value);
 }
@@ -57,10 +126,11 @@ function detectProvider(): LlmProvider {
   const explicit = process.env.LLM_PROVIDER?.toLowerCase();
   if (isProvider(explicit)) return explicit;
 
-  if (process.env.NVIDIA_API_KEY) return "nvidia";
-  if (process.env.GEMINI_API_KEY) return "gemini";
-  if (process.env.ANTHROPIC_API_KEY) return "anthropic";
-  if (process.env.OPENAI_API_KEY) return "openai";
+  // "Has any key" rather than "has GEMINI_API_KEY", so a deployment that keeps
+  // only numbered slots filled is still detected as configured.
+  for (const provider of ["nvidia", "gemini", "anthropic", "openai"] as const) {
+    if (readEnvKeys(provider).length > 0) return provider;
+  }
   return "mock";
 }
 
@@ -105,10 +175,15 @@ export const env = {
     /** Tried when `provider` fails before it has produced any text. */
     fallbackProvider: detectFallbackProvider(provider),
     model: process.env.LLM_MODEL,
-    geminiApiKey: process.env.GEMINI_API_KEY,
-    anthropicApiKey: process.env.ANTHROPIC_API_KEY,
-    openaiApiKey: process.env.OPENAI_API_KEY,
-    nvidiaApiKey: process.env.NVIDIA_API_KEY,
+    /**
+     * Every provider's environment keys, in rotation order.
+     *
+     * The bootstrap layer only. `lib/llm/keys.ts` is what the adapters actually
+     * ask, and it prefers `LlmApiKey` rows when a deployment has them — this is
+     * what a fresh clone runs on, and what a deployment that never opens the
+     * admin panel keeps running on.
+     */
+    apiKeys: readAllEnvKeys(),
     /**
      * Separate from `model` for the reason `ollamaModel` is: `LLM_MODEL` is
      * shared by every provider, and NVIDIA ids are namespaced

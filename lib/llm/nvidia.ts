@@ -75,16 +75,17 @@ function resolveModel(): string {
 }
 
 async function* run(
+  apiKey: string | undefined,
   system: string,
   messages: ConvMessage[],
   answerTokens: number,
 ): AsyncGenerator<string> {
   const model = resolveModel();
-  const apiKey = env.llm.nvidiaApiKey;
 
   // Checked before the request rather than letting it 401: the key is the one
   // thing the operator can fix, and "NVIDIA_API_KEY not set" says so where a
-  // 401 body does not.
+  // 401 body does not. Undefined here means the rotation in `lib/llm/keys.ts`
+  // came back empty, not that a particular key was rejected.
   if (!apiKey) {
     throw new LlmError("provider_error", "NVIDIA_API_KEY not set");
   }
@@ -127,17 +128,27 @@ async function* run(
   }
 }
 
-export const nvidiaAdapter: LlmAdapter = {
-  name: "nvidia",
-  get model() {
-    return resolveModel();
-  },
-  reply(ctx: InterviewerContext) {
-    const { system, messages, maxTokens } = buildReplyMessages(ctx);
-    return run(system, messages, maxTokens);
-  },
-  hint(ctx: InterviewerContext, level: number) {
-    const { system, messages, maxTokens } = buildHintMessages(ctx, level);
-    return run(system, messages, maxTokens);
-  },
-};
+function build(apiKey: string | undefined): LlmAdapter {
+  return {
+    name: "nvidia",
+    get model() {
+      return resolveModel();
+    },
+    reply(ctx: InterviewerContext) {
+      const { system, messages, maxTokens } = buildReplyMessages(ctx);
+      return run(apiKey, system, messages, maxTokens);
+    },
+    hint(ctx: InterviewerContext, level: number) {
+      const { system, messages, maxTokens } = buildHintMessages(ctx, level);
+      return run(apiKey, system, messages, maxTokens);
+    },
+  };
+}
+
+/** One link in the rotation — see `geminiAdapterWithKey`. */
+export function nvidiaAdapterWithKey(apiKey: string): LlmAdapter {
+  return build(apiKey);
+}
+
+/** The keyless form, so an empty rotation still names the fix. */
+export const nvidiaAdapter: LlmAdapter = build(undefined);

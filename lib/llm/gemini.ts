@@ -101,11 +101,14 @@ function thinkingConfigFor(model: string): { thinkingBudget: number } | undefine
 }
 
 async function* run(
+  apiKey: string | undefined,
   system: string,
   messages: ConvMessage[],
   answerTokens: number,
 ): AsyncGenerator<string> {
-  const apiKey = env.llm.geminiApiKey;
+  // The key arrives from `lib/llm/keys.ts` rather than being read here, because
+  // a provider now has a LIST of keys and only the chain in `index.ts` knows
+  // which one this attempt is for. Undefined means the list was empty.
   if (!apiKey) {
     throw new LlmError("provider_error", "GEMINI_API_KEY not set");
   }
@@ -133,17 +136,35 @@ async function* run(
   }
 }
 
-export const geminiAdapter: LlmAdapter = {
-  name: "gemini",
-  get model() {
-    return resolveModel();
-  },
-  reply(ctx: InterviewerContext) {
-    const { system, messages, maxTokens } = buildReplyMessages(ctx);
-    return run(system, messages, maxTokens);
-  },
-  hint(ctx: InterviewerContext, level: number) {
-    const { system, messages, maxTokens } = buildHintMessages(ctx, level);
-    return run(system, messages, maxTokens);
-  },
-};
+function build(apiKey: string | undefined): LlmAdapter {
+  return {
+    name: "gemini",
+    get model() {
+      return resolveModel();
+    },
+    reply(ctx: InterviewerContext) {
+      const { system, messages, maxTokens } = buildReplyMessages(ctx);
+      return run(apiKey, system, messages, maxTokens);
+    },
+    hint(ctx: InterviewerContext, level: number) {
+      const { system, messages, maxTokens } = buildHintMessages(ctx, level);
+      return run(apiKey, system, messages, maxTokens);
+    },
+  };
+}
+
+/**
+ * One link in the rotation: this adapter bound to one key.
+ *
+ * `LlmAdapter` is unchanged by this — a key-bound instance is just an adapter,
+ * which is what lets `runTurn` walk keys and providers with the same loop.
+ */
+export function geminiAdapterWithKey(apiKey: string): LlmAdapter {
+  return build(apiKey);
+}
+
+/**
+ * The keyless form, used when the rotation is empty so the failure still names
+ * the fix (`GEMINI_API_KEY not set`) rather than 401ing on a blank token.
+ */
+export const geminiAdapter: LlmAdapter = build(undefined);
