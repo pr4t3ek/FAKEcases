@@ -1098,3 +1098,48 @@ arithmetic and the drop-the-product trap, and the constraint arithmetic, the non
 machine, the demand ceiling and the on-time cap. Both scenarios pass `validateScenario` and
 `checkBalance` unchanged, and `tests/fixtures/sim-golden.json` was regenerated — the run
 reported the two new slugs and nothing else.
+
+### 26. Two more war rooms: the inspection that found more and fixed nothing, and the demand signal the company made up
+
+Operations had one scenario after entry 25 and supply chain had none, which left the two
+disciplines a candidate is most likely to be interviewed on in an operations role covered by a
+single constraint case.
+
+**`cost-of-poor-quality` — Sunidhi Knits** (`operations`, Medium). A Tirupur knitwear exporter
+doubled its final-inspection team; rejects found rose, air freight rose 31%, claims barely
+moved. Traced to origin, 78% of the defects are made at two unwatched stations — six knitting
+machines on needle beds past 4,000 hours and sleeve attach on line 4 — so every one of them is
+found after ₹296 of value is in the piece, against about ₹7 to catch it at the machine. That
+timing is the entire cost structure: ₹4.02 crore of downgrades from ₹430 to ₹172, ₹1.22 crore of
+rework, ₹1.66 crore of air freight (rework takes eleven days against a four-day window) and
+₹3.11 crore of claims — ₹12.91 crore against ₹17.33 crore of net contribution, booked in five
+cost centres and reported in none.
+
+Both decoys are the interesting part. `iv-full-audit` genuinely cuts escapes by a third and
+still loses, because it costs more than it catches and pushes more pieces into the rework loop
+that causes the freight — appraisal versus prevention, as a lever rather than as a lecture. And
+`iv-tighten-aql` improves every quality metric on the board while giving away ₹258 a piece, which
+is the trap for a candidate measured on escape rate.
+
+**`bullwhip-demand-signal` — Zaika Beverages** (`supply-chain`, Medium). Consumer offtake moves
+±6% a month, distributor orders ±22%, the plant's schedule ±38%: 6.3× amplification across three
+steps, all of it internal. 61% of primary sales land in the last six days of the month because
+84% of the sales incentive pays at a monthly target; a quarterly loading scheme runs a week at
+3.11× and leaves the next six 42% down while offtake does not move; and the plan is fitted to
+primary sales, so the company forecasts its own scramble. The swing costs ₹7.98 crore against
+₹9.41 crore of net contribution, and buys nothing — 47 days of stock and 8.4% of demand unserved.
+
+`retailSwing` is a `constant`, so `validateScenario` refuses any intervention aimed at consumer
+variability: the one quantity in the model nobody in the room can move cannot be bought. The
+honest trap is `iv-safety-stock`, tuned to land within ₹0.5 crore of neutral — buffering an
+amplified signal roughly pays for itself and leaves the amplification in place for ever, which is
+a more useful thing for a candidate to discover than a decoy that plainly loses.
+
+**Everything else this needed.** An eighteenth category, `supply-chain` (`Truck`, order 18), split
+from Operations because what happens inside the four walls and what happens between them are
+different interviews. Two catalogue rows take the seed to 18 categories and 65 questions (30
+guesstimates, 10 cases, 25 war rooms), and the Pro pitch in `lib/config/access.ts` moved 23 → 25.
+`tests/sim-scenario.test.ts` gains a pinned-numbers block for each — the four cost-of-quality
+boxes, the audit trap and the AQL trap; the amplification arithmetic, the unbuyable constant and
+the safety-stock wash. Both pass `validateScenario` and `checkBalance` unchanged, and
+`tests/fixtures/sim-golden.json` was regenerated for the two new slugs and nothing else.

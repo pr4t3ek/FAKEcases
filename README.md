@@ -39,7 +39,7 @@ per slide) plus the prompts to generate the deck, for pitching what this is and 
 cp .env.example .env   # Prisma needs DATABASE_URL; .env is gitignored, so a clone has none
 pnpm install
 pnpm db:push           # create the SQLite database from prisma/schema.prisma
-pnpm db:seed           # 17 categories, 63 questions (30 guesstimates + 10 cases + 23 simulations), achievements, demo users
+pnpm db:seed           # 18 categories, 65 questions (30 guesstimates + 10 cases + 25 simulations), achievements, demo users
 pnpm dev               # http://localhost:3000
 ```
 

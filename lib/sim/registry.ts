@@ -27,6 +27,8 @@ import { marketplaceLiquidity } from "./scenarios/marketplace-liquidity";
 import { b2bDealTco } from "./scenarios/b2b-deal-tco";
 import { sehatPlusServiceLevel } from "./scenarios/sehat-plus-service-level";
 import { plantConstraintThroughput } from "./scenarios/plant-constraint-throughput";
+import { costOfPoorQuality } from "./scenarios/cost-of-poor-quality";
+import { bullwhipDemandSignal } from "./scenarios/bullwhip-demand-signal";
 import { setuRoadmapValue } from "./scenarios/setu-roadmap-value";
 import { productCostAbsorption } from "./scenarios/product-cost-absorption";
 import { pnlProfitSqueeze } from "./scenarios/pnl-profit-squeeze";
@@ -78,6 +80,8 @@ const ALL: SimScenario[] = [
   // the second.
   sehatPlusServiceLevel,
   plantConstraintThroughput,
+  costOfPoorQuality,
+  bullwhipDemandSignal,
   setuRoadmapValue,
   b2bDealTco,
   metricDropFoodDelivery,

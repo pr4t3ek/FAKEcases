@@ -1261,6 +1261,223 @@ describe("setu-roadmap-value: the numbers the primer promises", () => {
   });
 });
 
+describe("cost-of-poor-quality: the four boxes the primer promises", () => {
+  const scenario = getScenario("cost-of-poor-quality");
+  if (!scenario) throw new Error("scenario missing");
+  const v = resolveDrivers(scenario.drivers);
+  const CRORE = 10_000_000;
+
+  it("turns 36 lakh pieces into 4.10 lakh defects and 3.44 lakh first-quality shipments", () => {
+    expect(v.defectivePieces).toBeCloseTo(410_400, 0);
+    expect(v.reworkedPieces).toBeCloseTo(254_448, 0);
+    expect(v.secondsPieces).toBeCloseTo(155_952, 0);
+    expect(v.firstQualityPieces).toBeCloseTo(3_444_048, 0);
+  });
+
+  /**
+   * The sentence the whole scenario exists to land: the quality department is a
+   * fifth of what quality costs, and the other four fifths are booked where
+   * nobody in a quality meeting is looking.
+   */
+  it("costs ₹12.91 crore of poor quality against a ₹2.9 crore quality department", () => {
+    expect(v.downgradeLoss / CRORE).toBeCloseTo(4.02, 2);
+    expect(v.reworkCost / CRORE).toBeCloseTo(1.22, 2);
+    expect(v.airFreightCost / CRORE).toBeCloseTo(1.65, 2);
+    expect(v.claimCost / CRORE).toBeCloseTo(3.11, 2);
+    expect(v.costOfPoorQuality / CRORE).toBeCloseTo(12.91, 2);
+    expect(v.inspectionCost / v.costOfPoorQuality).toBeLessThan(0.25);
+  });
+
+  it("leaves ₹17.33 crore of net contribution", () => {
+    expect(v.netContribution / CRORE).toBeCloseTo(17.33, 2);
+  });
+
+  /** External failure is the most expensive box, which is what makes it the point. */
+  it("charges more for a defect the customer finds than for one the plant reworks", () => {
+    expect(v.claimCostPerPiece).toBeGreaterThan(v.reworkCostPerPiece);
+    expect(v.claimCost).toBeGreaterThan(v.reworkCost * 2);
+  });
+
+  /**
+   * The trap. A 100% audit genuinely cuts escapes — that is what makes it
+   * tempting — and it must still lose to prevention, because appraisal cannot
+   * change how many defects were made.
+   */
+  it("lets the full audit cut claims and still lose money", () => {
+    const audit = runOutcome(scenario, [
+      { interventionId: "iv-full-audit", sprints: 1, rupees: 1.3 * CRORE },
+    ]);
+    expect(finalValue(audit.paths, "claimCost")).toBeLessThan(
+      finalValue(audit.doNothing, "claimCost"),
+    );
+    // It changes nothing about how many defects exist.
+    expect(finalValue(audit.paths, "defectRate")).toBeCloseTo(
+      finalValue(audit.doNothing, "defectRate"),
+      6,
+    );
+    expect(finalValue(audit.paths, "netContribution")).toBeLessThan(
+      finalValue(audit.doNothing, "netContribution"),
+    );
+  });
+
+  /**
+   * The subtler decoy: it improves the escape rate — the metric a quality head
+   * is judged on — by selling ₹430 pieces for ₹172.
+   */
+  it("lets a tighter standard improve the quality metric and destroy value", () => {
+    const aql = runOutcome(scenario, [
+      { interventionId: "iv-tighten-aql", sprints: 1, rupees: 0.4 * CRORE },
+    ]);
+    expect(finalValue(aql.paths, "claimRate")).toBeLessThan(
+      finalValue(aql.doNothing, "claimRate"),
+    );
+    expect(finalValue(aql.paths, "secondsPieces")).toBeGreaterThan(
+      finalValue(aql.doNothing, "secondsPieces"),
+    );
+    expect(finalValue(aql.paths, "netContribution")).toBeLessThan(
+      finalValue(aql.doNothing, "netContribution"),
+    );
+  });
+
+  it("takes the defect rate from 11.4% to about 4.5% when both levers hit the source", () => {
+    const best = runOutcome(scenario, scenario.bestAllocation);
+    expect(finalValue(best.paths, "defectRate")).toBeLessThan(0.05);
+    expect(finalValue(best.paths, "netContribution")).toBeGreaterThan(
+      finalValue(best.doNothing, "netContribution") + 5 * CRORE,
+    );
+  });
+
+  it("defines all four cost-of-quality boxes before asking anyone to trade them", () => {
+    const terms = scenario.teaching!.primer.terms.map((t) => t.term);
+    for (const expected of [
+      "Defect rate",
+      "Cost of poor quality",
+      "Prevention",
+      "Appraisal",
+      "Internal failure",
+      "External failure",
+      "The 1-10-100 rule",
+      "AQL",
+      "Rework",
+      "Escape rate",
+    ]) {
+      expect(terms).toContain(expected);
+    }
+  });
+});
+
+describe("bullwhip-demand-signal: the amplification the primer promises", () => {
+  const scenario = getScenario("bullwhip-demand-signal");
+  if (!scenario) throw new Error("scenario missing");
+  const v = resolveDrivers(scenario.drivers);
+  const CRORE = 10_000_000;
+
+  /** The headline, and the only number the scenario really has to get right. */
+  it("amplifies a 6% consumer wobble into a 38% factory swing", () => {
+    expect(v.retailSwing).toBeCloseTo(0.06, 4);
+    expect(v.plantSwing).toBeCloseTo(0.38, 4);
+    expect(v.amplificationRatio).toBeCloseTo(6.33, 2);
+  });
+
+  it("charges ₹7.98 crore a year for the swing alone", () => {
+    expect(v.overtimeIdleCost / CRORE).toBeCloseTo(6.08, 2);
+    expect(v.expediteFreightCost / CRORE).toBeCloseTo(1.9, 2);
+    expect((v.overtimeIdleCost + v.expediteFreightCost) / CRORE).toBeCloseTo(7.98, 2);
+    // Against a net contribution the same size, which is the whole argument.
+    expect(v.netContribution / CRORE).toBeCloseTo(9.4, 1);
+  });
+
+  it("holds 47 days of stock and still misses 8.4% of demand", () => {
+    expect(v.inventoryDays).toBe(47);
+    expect(v.workingCapitalCost / CRORE).toBeCloseTo(5.17, 2);
+    expect(v.stockoutRate).toBeCloseTo(0.084, 4);
+    expect(v.lostCases).toBeCloseTo(826_560, 0);
+    expect(v.obsolescenceCost / CRORE).toBeCloseTo(2.34, 2);
+  });
+
+  /**
+   * Consumer variability is the one quantity nobody in the room can move, which
+   * is why it is a `constant` — `validateScenario` refuses an intervention
+   * aimed at one, so "reduce seasonality by 15%" cannot be authored by accident.
+   */
+  it("makes consumer variability unbuyable", () => {
+    const retail = scenario.drivers.find((d) => d.id === "retailSwing");
+    expect(retail?.kind).toBe("constant");
+    for (const iv of scenario.interventions) {
+      for (const effect of [...iv.effects.whenRootCause, ...iv.effects.otherwise]) {
+        expect(effect.driver).not.toBe("retailSwing");
+      }
+    }
+  });
+
+  /**
+   * The honest trap: buffering an amplified signal roughly pays for itself, and
+   * leaves the amplification exactly where it was. It must stay close to
+   * neutral — a decoy that plainly loses teaches nothing, and one that wins
+   * teaches "hold more stock".
+   */
+  it("makes more safety stock close to a wash, and leaves the swing untouched", () => {
+    const buffer = runOutcome(scenario, [
+      { interventionId: "iv-safety-stock", sprints: 1, rupees: 1.6 * CRORE },
+    ]);
+    expect(finalValue(buffer.paths, "stockoutRate")).toBeLessThan(
+      finalValue(buffer.doNothing, "stockoutRate"),
+    );
+    expect(finalValue(buffer.paths, "inventoryDays")).toBeGreaterThan(
+      finalValue(buffer.doNothing, "inventoryDays"),
+    );
+    expect(finalValue(buffer.paths, "plantSwing")).toBeCloseTo(
+      finalValue(buffer.doNothing, "plantSwing"),
+      6,
+    );
+    const gain =
+      finalValue(buffer.paths, "netContribution") -
+      finalValue(buffer.doNothing, "netContribution");
+    expect(Math.abs(gain)).toBeLessThan(0.5 * CRORE);
+  });
+
+  it("makes depots a permanent cost bought for a peak the company creates", () => {
+    const depots = runOutcome(scenario, [
+      { interventionId: "iv-more-depots", sprints: 2, rupees: 2.6 * CRORE },
+    ]);
+    expect(finalValue(depots.paths, "fixedCost")).toBeGreaterThan(
+      finalValue(depots.doNothing, "fixedCost"),
+    );
+    expect(finalValue(depots.paths, "netContribution")).toBeLessThan(
+      finalValue(depots.doNothing, "netContribution"),
+    );
+  });
+
+  it("halves the amplification when both levers hit the signal", () => {
+    const best = runOutcome(scenario, scenario.bestAllocation);
+    expect(finalValue(best.paths, "amplificationRatio")).toBeLessThan(
+      finalValue(best.doNothing, "amplificationRatio") / 2,
+    );
+    // And the stock, the waste and the stockouts all fall with it, because all
+    // three were consequences of the swing rather than causes of anything.
+    for (const id of ["inventoryDays", "stockoutRate", "obsolescenceCost"]) {
+      expect(finalValue(best.paths, id)).toBeLessThan(finalValue(best.doNothing, id));
+    }
+  });
+
+  it("defines the distribution vocabulary before using it", () => {
+    const terms = scenario.teaching!.primer.terms.map((t) => t.term);
+    for (const expected of [
+      "The bullwhip effect",
+      "Primary sales",
+      "Secondary sales",
+      "Order batching",
+      "Forward buying",
+      "Days of inventory",
+      "Obsolescence",
+      "Stockout",
+      "Level scheduling",
+    ]) {
+      expect(terms).toContain(expected);
+    }
+  });
+});
+
 describe("product-cost-absorption: the numbers the primer promises", () => {
   const scenario = getScenario("product-cost-absorption");
   if (!scenario) throw new Error("scenario missing");

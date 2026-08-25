@@ -30,6 +30,11 @@ export const categories = [
   // candidate preparing for an operations interview should be able to find them
   // as a set rather than pick them out of a shelf of industries.
   { slug: "operations", name: "Operations", icon: "Gauge", order: 17 },
+  // The supply-chain track, split from Operations rather than folded into it:
+  // one is about what happens inside the four walls and the other about what
+  // happens between them, and a candidate preparing for a distribution or
+  // planning interview is preparing for a different conversation.
+  { slug: "supply-chain", name: "Supply Chain", icon: "Truck", order: 18 },
 ];
 
 export interface SeedQuestion {
@@ -1598,6 +1603,38 @@ export const questions: SeedQuestion[] = [
     sampleSolution:
       "Heat treatment is the only constrained step — a load factor of 1.24 against 0.84 or less everywhere else. The furnace has 5,760 hours and treats for 3,917: 1,010 hours of changeover across 168 batches, 448 idle for want of staged material, 385 of maintenance. Because every cell is measured on its own utilisation, they keep releasing work into a queue 19.4 days deep, which fixes the lead time at 34 days and takes OTIF to 74%. Quick changeover buys back about 770 furnace hours already paid for, and releasing material at the furnace's pace collapses the queue — together worth about ₹5.2 crore of net contribution. The second hobber adds parts to the queue and ₹56 lakh of fixed cost; the third shift genuinely adds constraint hours but manning caps it at 10% for ₹1.43 crore a year, and expediting only reorders the queue: expedited lines gained 9 days last year while everything behind them lost 6.",
     tags: "operations,manufacturing,theory of constraints,bottleneck,throughput,little's law,wip,otif,changeover,auto components,simulation",
+  },
+  {
+    externalId: "cost-of-poor-quality",
+    title: "Sunidhi Knits: the inspection team doubled and so did the rejects",
+    prompt:
+      "A Tirupur knitwear exporter doubled its final-inspection team to catch more of the 11.4% it rejects. Rejects found went up, air freight went up 31%, and claims barely moved. The quality department costs ₹2.9 crore a year. You have 6 analyst-days to find out where the defects are actually made, then 4 people-weeks and ₹4 crore.",
+    category: "operations",
+    sector: "manufacturing",
+    difficulty: "Medium",
+    interviewLevel: "GeneralMBA",
+    type: "simulation",
+    betterApproach:
+      "Separate where a defect is found from where it is made, because only the second is a place you can act on. Then price the four boxes of the cost of quality — prevention, appraisal, internal failure, external failure — and notice that three of them are booked outside the quality department, so nobody has ever seen the total. Inspection moves a defect between boxes; only prevention removes it from all four.",
+    sampleSolution:
+      "Traced to origin, 78% of rejects are made at two unwatched stations: six knitting machines on needle beds past 4,000 hours (44%) and sleeve attach on line 4 (34%). Nothing checks either, so every defect is found after ₹296 of value is in the piece — against about ₹7 to catch it at the machine. That timing is the whole cost structure: ₹4.02 crore of pieces downgraded from ₹430 to ₹172, ₹1.22 crore of rework, ₹1.66 crore of air freight because rework takes eleven days against a four-day window, and ₹3.11 crore of customer claims — ₹12.91 crore in total against ₹17.33 crore of net contribution. Doubling the audit team was appraisal: it found 12% more defects, cut escapes a third, and raised rework 19% and air freight 31%. Source checks plus rebuilding the six machines takes the defect rate from 11.4% to about 4.5%, worth ₹5.8 crore. Tightening the AQL is the trap that improves every quality metric by giving away ₹258 a piece.",
+    tags: "operations,quality,cost of poor quality,prevention,inspection,rework,first pass yield,garment export,simulation",
+  },
+  {
+    externalId: "bullwhip-demand-signal",
+    title: "Zaika Beverages: shoppers bought the same juice all year and the plant did not",
+    prompt:
+      "Consumer offtake moves 6% a month; the factory schedule moves 38%. That swing cost ₹6.08 crore of overtime and idle time, ₹1.90 crore of expedited freight and ₹2.34 crore of near-expiry returns, and 8.4% of demand still went unserved on 47 days of stock. Sales says demand is volatile, the director wants three depots, commercial wants more safety stock. You have 6 analyst-days, then 4 people-weeks and ₹4.5 crore.",
+    category: "supply-chain",
+    sector: "food-beverage",
+    difficulty: "Medium",
+    interviewLevel: "McKinsey",
+    type: "simulation",
+    betterApproach:
+      "Measure the same demand at every point in the chain before accepting that it is volatile. Offtake, distributor orders and the plant's schedule on one chart, each indexed to its own average, tells you how much of the variability is the market's and how much the company manufactured. Then look for the three usual makers of it — how the sales force is measured, what the trade schemes do to order timing, and which series the plan is fitted to — because all three are policies rather than facts.",
+    sampleSolution:
+      "Offtake moves ±6%, distributor orders ±22%, the plant's schedule ±38%: 6.3× amplification across three steps, every one of them internal. 61% of primary sales land in the last six days of the month because 84% of the sales incentive pays at a monthly target; a quarterly loading scheme runs a week at 3.11× and leaves the next six 42% down while offtake does not move, and 68% of near-expiry returns come from that stock; and the plan is fitted to primary sales, so the company forecasts its own scramble — the same crude method on secondary sales scores 9% error against 31%. Each point of swing costs about ₹21 lakh, so the swing is ₹7.98 crore against ₹9.41 crore of net contribution. Planning and replenishing from secondary sales and flattening the trade calendar is worth about ₹11 crore. Three more depots buy space that is empty eleven months a year, and raising safety stock is almost exactly a wash — it buffers an amplification the company could simply stop creating.",
+    tags: "supply chain,bullwhip effect,demand amplification,forecasting,trade promotion,inventory,distribution,fmcg,beverages,simulation",
   },
   {
     externalId: "b2b-deal-tco",
