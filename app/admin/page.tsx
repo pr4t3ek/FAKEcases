@@ -33,6 +33,8 @@ import {
 } from "@/components/admin/daily-manager";
 import { DAILY_SLOTS, dayKey, resolveDaily } from "@/lib/daily-unlock";
 import { loadSettings, loadTextSettings } from "@/lib/settings";
+import { LlmKeyManager } from "@/components/admin/llm-key-manager";
+import { canUseStoredKeys, listKeyStatus } from "@/lib/llm/keys";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +46,7 @@ export default async function AdminPage() {
   // way out (`/set-password`) needs no permission at all.
   requirePasswordChange(user);
 
-  const [questions, categories, feedback, openCount, userStats, analytics, simScenarios] =
+  const [questions, categories, feedback, openCount, userStats, analytics, simScenarios, llmKeys] =
     await Promise.all([
       db.question.findMany({ include: { category: true }, orderBy: { createdAt: "desc" } }),
       db.category.findMany({
@@ -60,6 +62,7 @@ export default async function AdminPage() {
       loadUserAdminStats(),
       loadAdminAnalytics(),
       loadAdminScenarios(),
+      listKeyStatus(),
     ]);
 
   // Seven days from today, each resolved the way a student's gate resolves it —
@@ -227,6 +230,7 @@ export default async function AdminPage() {
             />
             <LimitsCard limits={limits} />
             <ContactEmailCard email={text.adminContactEmail} />
+            <LlmKeyManager keys={llmKeys} authSecretReady={canUseStoredKeys()} />
           </TabsContent>
 
           <TabsContent value="categories" className="mt-4">

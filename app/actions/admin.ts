@@ -17,6 +17,9 @@ import {
   type SettingKey,
 } from "@/lib/settings";
 import { PRO_PASS_DAYS, nextProUntil } from "@/lib/billing";
+import { KEYED_PROVIDERS, type KeyedProvider } from "@/lib/config";
+import { decryptSecret, encryptSecret, hasStrongAuthSecret, maskKey } from "@/lib/llm/crypto";
+import { clearKeyCache } from "@/lib/llm/keys";
 import { FEEDBACK_STATUSES, USER_ROLES, isUserRole } from "@/lib/types";
 import { isRealUser } from "@/lib/user-segment";
 import {
@@ -616,5 +619,153 @@ export async function setAllFreeTier(freeTier: boolean): Promise<SaveResult> {
   revalidatePath("/admin");
   revalidatePath("/library");
   revalidatePath("/simulations");
+  return { ok: true };
+}
+
+// ── LLM key rotation ────────────────────────────────────────────────────────
+
+/**
+ * The keys a provider tries, in order, editable without a redeploy.
+ *
+ * The reason these are editable at all is the free tier: Gemini's ceiling is per
+ * key and shared by every user of the deployment, so a cohort exhausts one key
+ * mid-afternoon and everybody after that gets the offline mock. Adding the
+ * second key has to be something a professor can do between lectures, which is
+ * the same argument `updateLimit` makes for the turn budgets.
+ *
+ * Rows here OVERRIDE the numbered environment variables entirely — see the note
+ * in `lib/llm/keys.ts` on why they do not merge.
+ */
+
+/** Refused, rather than stored weakly, when there is nothing safe to encrypt under. */
+const NO_SECRET_ERROR =
+  "Set AUTH_SECRET to a strong value before storing API keys — the shipped default is public, " +
+  "so keys encrypted under it would not really be protected.";
+
+function assertProvider(provider: string): provider is KeyedProvider {
+  return (KEYED_PROVIDERS as readonly string[]).includes(provider);
+}
+
+/**
+ * Add one key to the end of a provider's rotation.
+ *
+ * The plaintext reaches this action, is encrypted, and is never read back: only
+ * `hint` (first and last four characters) is ever returned to a browser.
+ */
+export async function addLlmKey(provider: string, secret: string): Promise<SaveResult> {
+  await assertAdmin();
+
+  if (!assertProvider(provider)) return { ok: false, error: "Unknown provider." };
+  if (!hasStrongAuthSecret()) return { ok: false, error: NO_SECRET_ERROR };
+
+  const trimmed = secret.trim();
+  if (trimmed.length < 16) {
+    return { ok: false, error: "That doesn't look like an API key." };
+  }
+
+  // A key pasted twice is not a second key — it is the same quota, tried twice,
+  // for one extra failed request per turn.
+  //
+  // Compared as PLAINTEXT, which needs a decrypt per row and is still the only
+  // correct way to do it. The ciphertext differs per row (fresh IV), so equal
+  // secrets never compare equal; and the hint is first-and-last-four, which two
+  // genuinely different keys from the same provider can easily share — every
+  // Google key opens `AIza`. Matching on the hint would reject a real second key
+  // as a duplicate, which is exactly the case this feature exists to allow.
+  const existing = await db.llmApiKey.findMany({ where: { provider }, select: { secret: true } });
+  if (existing.some((row) => decryptSecret(row.secret) === trimmed)) {
+    return { ok: false, error: "That key is already in the rotation." };
+  }
+
+  const last = await db.llmApiKey.findFirst({
+    where: { provider },
+    orderBy: { order: "desc" },
+    select: { order: true },
+  });
+
+  await db.llmApiKey.create({
+    data: {
+      provider,
+      hint: maskKey(trimmed),
+      secret: encryptSecret(trimmed),
+      order: (last?.order ?? -1) + 1,
+    },
+  });
+
+  clearKeyCache();
+  revalidatePath("/admin");
+  return { ok: true };
+}
+
+/** Drop a key from the rotation for good. The provider's own console revokes it. */
+export async function removeLlmKey(id: string): Promise<SaveResult> {
+  await assertAdmin();
+
+  const existing = await db.llmApiKey.findUnique({ where: { id } });
+  if (!existing) return { ok: false, error: "That key is already gone." };
+
+  await db.llmApiKey.delete({ where: { id } });
+
+  clearKeyCache();
+  revalidatePath("/admin");
+  return { ok: true };
+}
+
+/**
+ * Move a key up or down the rotation.
+ *
+ * Order is worth controlling because the keys are rarely equivalent: a paid key
+ * behind two free ones should be the one that only gets used once the free
+ * quota is gone, and that is entirely a question of position.
+ */
+export async function reorderLlmKey(id: string, direction: "up" | "down"): Promise<SaveResult> {
+  await assertAdmin();
+
+  const key = await db.llmApiKey.findUnique({ where: { id } });
+  if (!key) return { ok: false, error: "That key is already gone." };
+
+  const neighbour = await db.llmApiKey.findFirst({
+    where: {
+      provider: key.provider,
+      order: direction === "up" ? { lt: key.order } : { gt: key.order },
+    },
+    orderBy: { order: direction === "up" ? "desc" : "asc" },
+  });
+  if (!neighbour) return { ok: true };
+
+  // Swapped in one transaction: a half-applied swap leaves two keys claiming the
+  // same position, which `listKeys` would then order by `createdAt` — a silent
+  // reshuffle of a list the admin was in the middle of arranging.
+  await db.$transaction([
+    db.llmApiKey.update({ where: { id: key.id }, data: { order: neighbour.order } }),
+    db.llmApiKey.update({ where: { id: neighbour.id }, data: { order: key.order } }),
+  ]);
+
+  clearKeyCache();
+  revalidatePath("/admin");
+  return { ok: true };
+}
+
+/**
+ * Put a spent or rejected key back into the rotation.
+ *
+ * For the two cases that resolve outside this app: credits topped up, or a key
+ * rotated in the provider's console under the same name. Clears `lastError`
+ * along with the flags, so a key that fails again reports why it failed THIS
+ * time rather than showing last month's reason.
+ */
+export async function reviveLlmKey(id: string): Promise<SaveResult> {
+  await assertAdmin();
+
+  const existing = await db.llmApiKey.findUnique({ where: { id } });
+  if (!existing) return { ok: false, error: "That key is already gone." };
+
+  await db.llmApiKey.update({
+    where: { id },
+    data: { disabled: false, spentOn: null, lastError: null },
+  });
+
+  clearKeyCache();
+  revalidatePath("/admin");
   return { ok: true };
 }

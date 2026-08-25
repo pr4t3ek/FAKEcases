@@ -1,11 +1,18 @@
-import { env, isMeteredProvider, type LlmProvider } from "@/lib/config";
+import {
+  env,
+  isKeyedProvider,
+  isMeteredProvider,
+  type KeyedProvider,
+  type LlmProvider,
+} from "@/lib/config";
 import { mockAdapter } from "./mock";
-import { geminiAdapter } from "./gemini";
-import { anthropicAdapter } from "./anthropic";
-import { openaiAdapter } from "./openai";
-import { nvidiaAdapter } from "./nvidia";
+import { geminiAdapter, geminiAdapterWithKey } from "./gemini";
+import { anthropicAdapter, anthropicAdapterWithKey } from "./anthropic";
+import { openaiAdapter, openaiAdapterWithKey } from "./openai";
+import { nvidiaAdapter, nvidiaAdapterWithKey } from "./nvidia";
 import { ollamaAdapter } from "./ollama";
 import { asLlmError, type LlmErrorCode } from "./errors";
+import { listKeys, markDisabled, markSpent, type ResolvedKey } from "./keys";
 import { fallbackLabel, type FallbackReason } from "./stream";
 import type { InterviewerContext, LlmAdapter } from "./types";
 
@@ -42,6 +49,25 @@ function adapterFor(provider: LlmProvider): LlmAdapter {
   }
 }
 
+/**
+ * The same adapter, bound to one key from the provider's rotation.
+ *
+ * Separate from `adapterFor` because only keyed providers have one: `mock` needs
+ * no credential and `ollama` deliberately sends none.
+ */
+function adapterWithKey(provider: KeyedProvider, apiKey: string): LlmAdapter {
+  switch (provider) {
+    case "gemini":
+      return geminiAdapterWithKey(apiKey);
+    case "anthropic":
+      return anthropicAdapterWithKey(apiKey);
+    case "openai":
+      return openaiAdapterWithKey(apiKey);
+    case "nvidia":
+      return nvidiaAdapterWithKey(apiKey);
+  }
+}
+
 export function getAdapter(): LlmAdapter {
   return adapterFor(env.llm.provider);
 }
@@ -55,14 +81,34 @@ export function getFallbackAdapter(): LlmAdapter | undefined {
   return provider === undefined ? undefined : adapterFor(provider);
 }
 
+/** One attempt in the chain: an engine, and the key it was bound to if it has one. */
+interface ChainLink {
+  adapter: LlmAdapter;
+  /** Absent for `mock` and `ollama`, and for a keyed provider with an empty rotation. */
+  key?: ResolvedKey;
+}
+
 /**
  * The engines to try for one turn, in order.
+ *
+ * Two dimensions, walked outer-to-inner: every KEY a provider holds before the
+ * next PROVIDER. `LLM_PROVIDER=gemini` with three keys and
+ * `LLM_FALLBACK_PROVIDER=ollama` produces
+ * `[gemini#1, gemini#2, gemini#3, ollama, mock]`.
+ *
+ * That order is the point of the feature. Falling to Ollama while two unspent
+ * Gemini keys are sitting there would answer a student on a weaker model for no
+ * reason — the second key is a strictly better answer than the second provider.
  *
  * Always ends at the mock, and the mock is only ever last: it is offline and
  * deterministic, so it cannot fail, which makes it a floor rather than another
  * link. Anything placed behind it would be unreachable.
+ *
+ * Async only because the rotation may live in the database. The provider NAMES
+ * are still resolved synchronously from the environment, which is what lets
+ * `runTurn` fill in `outcome` before the first `await`.
  */
-function providerChain(options: TurnOptions): LlmAdapter[] {
+async function providerChain(options: TurnOptions): Promise<ChainLink[]> {
   const configured: LlmProvider[] = [env.llm.provider];
   if (env.llm.fallbackProvider) configured.push(env.llm.fallbackProvider);
 
@@ -74,7 +120,33 @@ function providerChain(options: TurnOptions): LlmAdapter[] {
     ? configured.filter((provider) => !isMeteredProvider(provider))
     : configured;
 
-  return [...usable.filter((provider) => provider !== "mock").map(adapterFor), mockAdapter];
+  const links: ChainLink[] = [];
+
+  for (const provider of usable) {
+    if (provider === "mock") continue;
+
+    if (!isKeyedProvider(provider)) {
+      links.push({ adapter: adapterFor(provider) });
+      continue;
+    }
+
+    const keys = await listKeys(provider);
+
+    // An empty rotation still gets ONE link, using the keyless adapter, so the
+    // turn fails with "GEMINI_API_KEY not set" naming the fix rather than
+    // silently skipping a provider the operator believes is configured.
+    if (keys.length === 0) {
+      links.push({ adapter: adapterFor(provider) });
+      continue;
+    }
+
+    for (const key of keys) {
+      links.push({ adapter: adapterWithKey(provider, key.secret), key });
+    }
+  }
+
+  links.push({ adapter: mockAdapter });
+  return links;
 }
 
 /** True when a turn was actually billed against the provider's quota. */
@@ -129,13 +201,15 @@ type Call = (adapter: LlmAdapter) => AsyncIterable<string>;
  *     here and not inside the adapters: only this loop knows whether a token has
  *     already reached the user.
  *
- * The chain is `LLM_PROVIDER` → `LLM_FALLBACK_PROVIDER` (when set) → the mock. Every
- * link past the first is labelled `<name> (fallback)` on the outcome, so a turn served
- * by the stand-in is never recorded as one the configured provider answered.
+ * The chain is every key `LLM_PROVIDER` holds, then every key
+ * `LLM_FALLBACK_PROVIDER` holds (when set), then the mock — see `providerChain`.
+ * Every link that changes PROVIDER is labelled `<name> (fallback)` on the outcome,
+ * so a turn served by a stand-in is never recorded as one the configured provider
+ * answered. Moving between keys of the SAME provider is not labelled, because the
+ * engine that answered really was the configured one.
  */
 function runTurn(call: Call, options: TurnOptions = {}): Turn {
   const configured = getAdapter();
-  const chain = providerChain(options);
   const outcome: TurnOutcome = { provider: configured.name, model: configured.model };
 
   /**
@@ -157,9 +231,20 @@ function runTurn(call: Call, options: TurnOptions = {}): Turn {
     // front; anything else is read off the failure that ends its turn.
     let reason: FallbackReason = options.budgetBlocked ? "budget" : "error";
 
+    // Built here rather than beside `outcome` because the rotation may come from
+    // the database. Nothing has been yielded yet, so the await costs the student
+    // nothing they can see.
+    const chain = await providerChain(options);
+
     for (let i = 0; i < chain.length; i++) {
-      const adapter = chain[i];
-      if (adapter !== configured) noteFallback(adapter, reason);
+      const { adapter, key } = chain[i];
+
+      // Compared by NAME, not by identity, and the difference is the whole
+      // reason key rotation is invisible to the student: `gemini` key 2 is a
+      // different adapter instance but the same engine, and badging its answer
+      // `gemini (fallback)` would claim a stand-in wrote a reply that real
+      // Gemini did. Only an actual change of provider is a fallback.
+      if (adapter.name !== configured.name) noteFallback(adapter, reason);
 
       for (let attempt = 0; attempt <= 1; attempt++) {
         try {
@@ -179,7 +264,10 @@ function runTurn(call: Call, options: TurnOptions = {}): Turn {
           if (adapter === mockAdapter) throw error;
 
           if (emitted) {
-            console.error(`[llm] ${adapter.name} failed mid-stream:`, error);
+            console.error(
+              `[llm] ${adapter.name}${key ? ` (key ${key.hint})` : ""} failed mid-stream:`,
+              error,
+            );
             outcome.interrupted = error.code;
             return;
           }
@@ -190,10 +278,22 @@ function runTurn(call: Call, options: TurnOptions = {}): Turn {
             continue;
           }
 
+          // Record what this key did before moving past it, so tomorrow's turns
+          // do not rediscover it. Both are best-effort and neither blocks the
+          // handoff — a bookkeeping write must not cost the student a turn.
+          if (key) {
+            if (error.code === "quota_exhausted") await markSpent(key);
+            else if (error.code === "key_rejected") await markDisabled(key, error.message);
+          }
+
           reason = error.code === "quota_exhausted" ? "quota" : "error";
           // The mock throws above rather than reaching here, so there is always
           // a next link to name.
-          console.error(`[llm] ${adapter.name} failed, falling back to ${chain[i + 1].name}:`, error);
+          console.error(
+            `[llm] ${adapter.name}${key ? ` (key ${key.hint})` : ""} failed, ` +
+              `falling back to ${chain[i + 1].adapter.name}:`,
+            error,
+          );
           break;
         }
       }

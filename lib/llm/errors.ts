@@ -11,6 +11,15 @@ export type LlmErrorCode =
   | "quota_exhausted"
   /** Transient: per-minute rate limit or provider overload. Worth one retry. */
   | "rate_limited"
+  /**
+   * The provider rejected this credential outright (401/403). Never retryable,
+   * and unlike every other failure it is specific to ONE KEY rather than to the
+   * provider — which is the whole reason it is separate from `provider_error`.
+   * `runTurn` retires the key on it and moves to the next in the rotation, where
+   * a bare `provider_error` would only have moved on and left the dead key in
+   * the list to fail again tomorrow.
+   */
+  | "key_rejected"
   /** Auth, config, bad request, empty response. Not retryable. */
   | "provider_error";
 
@@ -67,6 +76,13 @@ export function classifyGeminiError(err: unknown): LlmError {
 
   if (status !== undefined && status >= 500) {
     return new LlmError("rate_limited", `Gemini unavailable (${status}): ${message}`, { cause: err });
+  }
+
+  // Google reports a revoked or mistyped key as 400 INVALID_ARGUMENT as often as
+  // 401, so the reason string is checked alongside the status. Getting this wrong
+  // costs a key its retirement: it stays in the rotation failing every turn.
+  if (status === 401 || status === 403 || /api[\s_-]?key/i.test(message)) {
+    return new LlmError("key_rejected", `Gemini rejected the key: ${message}`, { cause: err });
   }
 
   return new LlmError("provider_error", `Gemini error: ${message}`, { cause: err });
@@ -162,8 +178,8 @@ export function classifyNvidiaError(
 
   if (status === 401 || status === 403) {
     return new LlmError(
-      "provider_error",
-      `NVIDIA rejected the key (${status}) — check NVIDIA_API_KEY. It should start with 'nvapi-'.`,
+      "key_rejected",
+      `NVIDIA rejected the key (${status}) — it should start with 'nvapi-'.`,
       { cause: err },
     );
   }
@@ -193,4 +209,53 @@ export function classifyNvidiaError(
   }
 
   return new LlmError("provider_error", `NVIDIA error: ${message}`, { cause: err });
+}
+
+/**
+ * Classify an HTTP failure from an adapter with no classifier of its own.
+ *
+ * `openai.ts` and `anthropic.ts` are kept as paid upgrade paths rather than as
+ * the primary provider, so neither grew the bespoke classification Gemini and
+ * NVIDIA needed — they threw a bare `Error` and every failure landed on
+ * `provider_error`. That was survivable while a provider had one key. It is not
+ * now: a rotation cannot retire a rejected key it cannot recognise, and cannot
+ * retry a rate limit it reads as fatal.
+ *
+ * Deliberately status-driven only. Neither API's error prose is stable enough to
+ * match on, and a wrong guess here is a key retired for a transient blip.
+ */
+export function classifyHttpError(label: string, err: unknown): LlmError {
+  if (err instanceof LlmError) return err;
+
+  const message = err instanceof Error ? err.message : String(err);
+  const status = statusOf(err);
+
+  const cause = err instanceof Error && err.cause instanceof Error ? err.cause.message : "";
+  const haystack = `${message} ${cause}`.toLowerCase();
+  if (haystack.includes("fetch failed") || haystack.includes("enotfound")) {
+    return new LlmError("provider_error", `${label} not reachable — check network access. (${message})`, {
+      cause: err,
+    });
+  }
+
+  if (status === 401 || status === 403) {
+    return new LlmError("key_rejected", `${label} rejected the key (${status}): ${message}`, {
+      cause: err,
+    });
+  }
+
+  // 402 is a spent balance on both, which no retry and no other key on the same
+  // account will fix — but a DIFFERENT account's key will, so it stays a
+  // rotation-advancing failure rather than a fatal one.
+  if (status === 402) {
+    return new LlmError("quota_exhausted", `${label} credits exhausted: ${message}`, { cause: err });
+  }
+
+  if (status === 429 || (status !== undefined && status >= 500)) {
+    return new LlmError("rate_limited", `${label} unavailable (${status}): ${message}`, {
+      cause: err,
+    });
+  }
+
+  return new LlmError("provider_error", `${label} error: ${message}`, { cause: err });
 }

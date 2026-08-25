@@ -921,6 +921,54 @@ model AppSetting {
   updatedAt DateTime @updatedAt
 }
 
+/// One API key in a provider's rotation.
+///
+/// The app has always fallen back between PROVIDERS (`LLM_PROVIDER` →
+/// `LLM_FALLBACK_PROVIDER` → mock). This is the same idea one level down: a
+/// provider holds an ordered list of keys, and a turn walks that list before it
+/// gives up on the provider at all.
+///
+/// The case it exists for is the free tier. Gemini's ceiling is per key and
+/// shared by every user of the deployment, so one key is one cohort's afternoon;
+/// three keys is three afternoons, on the same code.
+///
+/// Rows OVERRIDE the numbered env vars (`GEMINI_API_KEY`, `GEMINI_API_KEY_2`, …)
+/// rather than merging with them, the same arrangement `AppSetting` has with
+/// `SETTING_DEFAULTS` and for the same reason: AN EMPTY TABLE IS A WORKING APP,
+/// and a deployment that has never opened the admin panel runs entirely on its
+/// environment.
+model LlmApiKey {
+  id        String   @id @default(cuid())
+  /// An `LlmProvider` that takes a key: "gemini" | "anthropic" | "openai" | "nvidia".
+  /// String rather than an enum because this datasource is SQLite — see the
+  /// header note. Validated in `lib/llm/keys.ts`.
+  provider  String
+  /// AES-256-GCM ciphertext, never plaintext and never rendered. `lib/llm/crypto.ts`
+  /// holds the format; `hint` is the only form that reaches a browser.
+  hint      String
+  secret    String
+  /// Position in the rotation, lowest first. Ties break on `createdAt`.
+  order     Int      @default(0)
+  /// UTC day ("YYYY-MM-DD") this key last reported `quota_exhausted`, so the rest
+  /// of that day skips it instead of spending a failed request per turn
+  /// rediscovering it. Cleared by the admin panel, or by the date changing.
+  ///
+  /// A column rather than a process-local Set because this deploys to Vercel:
+  /// many short-lived instances, each of which would otherwise have to learn the
+  /// same key was dead separately.
+  spentOn   String?
+  /// Set when the provider rejected the key outright (401/403). Unlike `spentOn`
+  /// this never lapses — a revoked key does not come back on its own.
+  disabled  Boolean  @default(false)
+  /// The provider's own words, so the panel can name the fix and not just the
+  /// symptom. Cleared when an admin re-enables the key.
+  lastError String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([provider, order])
+}
+
 // ─── Arena ──────────────────────────────────────────────────────────────────
 //
 // A repeated-move market game, played solo against three AI firms or by up to
