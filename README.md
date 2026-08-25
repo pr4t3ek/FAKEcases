@@ -179,10 +179,19 @@ echo 'LLM_PROVIDER=ollama' >> .env.local
 pnpm dev
 ```
 
+**On a fresh Ubuntu machine, `./scripts/setup-ollama-ubuntu.sh` does all of that for you** —
+installs Ollama, brings it up under systemd, pulls the model, proves the endpoint the adapter
+really calls answers, and appends the two variables to `.env.local`. It is safe to re-run and
+never overwrites a value you set yourself. [docs/OLLAMA_UBUNTU.md](docs/OLLAMA_UBUNTU.md) has the
+manual equivalent, model sizing, GPU drivers, serving another machine on the LAN, and a
+troubleshooting table keyed to the log lines.
+
 On **Windows and macOS the server is already running** — the installer starts it at login and
 it sits in the tray, so `ollama serve` fails with "only one usage of each socket address is
-normally permitted" (or "address already in use"). That error means it's up, not broken. Run
-`ollama serve` yourself only on Linux or a headless box, where nothing started it for you.
+normally permitted" (or "address already in use"). That error means it's up, not broken. The
+same goes for Ubuntu, where the install script registers a systemd unit and starts it — run
+`ollama serve` yourself only where nothing did it for you, like a container or WSL without
+systemd.
 
 `OLLAMA_MODEL` picks the model (kept separate from `LLM_MODEL`, which is shared by every
 provider, so a leftover `gemini-2.5-flash` isn't sent to Ollama). `OLLAMA_BASE_URL` points at
